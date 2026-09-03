@@ -52,6 +52,8 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
     "einheitsnummer",
   ],
   name: ["name", "mieter", "mietername", "beguenstigterzahlungspflichtiger"],
+  vorname: ["vorname"],
+  nachname: ["nachname"],
   beginn: ["mietbeginn", "beginn", "einzugsdatum", "von"],
   ende: ["mietende", "ende", "auszugsdatum", "bis"],
   kaltmiete: ["kaltmiete", "grundmiete", "nettomiete"],
@@ -182,7 +184,15 @@ export function mapVertraegeRows(
   mieter: MieterKandidat[],
 ): ParsedVertragRow[] {
   const whgCol = findColumn(headers, "whgnr");
-  const nameCol = findColumn(headers, "name");
+  // Bei getrennten Vorname-/Nachname-Spalten haben diese Vorrang vor einer generischen
+  // "Name"-Spaltenerkennung — sonst würde z.B. "Nachname" (enthält "name") fälschlich als
+  // vollständiger Name interpretiert und der Vorname ginge verloren.
+  const vornameCol = findColumn(headers, "vorname");
+  const nachnameCol = findColumn(headers, "nachname");
+  const nameCol =
+    vornameCol && nachnameCol
+      ? undefined
+      : findColumn(headers, "name", new Set([vornameCol, nachnameCol].filter((c): c is string => Boolean(c))));
   const beginnCol = findColumn(headers, "beginn");
   const endeCol = findColumn(headers, "ende");
   const kaltmieteCol = findColumn(headers, "kaltmiete");
@@ -190,7 +200,7 @@ export function mapVertraegeRows(
   const warmmieteCol = findColumn(headers, "warmmiete");
 
   const usedCols = new Set(
-    [whgCol, nameCol, beginnCol, endeCol, kaltmieteCol, nebenkostenCol, warmmieteCol].filter(
+    [whgCol, vornameCol, nachnameCol, nameCol, beginnCol, endeCol, kaltmieteCol, nebenkostenCol, warmmieteCol].filter(
       (c): c is string => Boolean(c),
     ),
   );
@@ -226,7 +236,12 @@ export function mapVertraegeRows(
     }
     if (!einheitId) errors.push("Einheit nicht gefunden (Hausnummer/WHG-Nr prüfen)");
 
-    const namenRoh = nameCol ? (row[nameCol] ?? "").trim() : "";
+    const namenRoh =
+      vornameCol && nachnameCol
+        ? `${(row[vornameCol] ?? "").trim()} ${(row[nachnameCol] ?? "").trim()}`.trim()
+        : nameCol
+          ? (row[nameCol] ?? "").trim()
+          : "";
     const personen = parseNamen(namenRoh);
     if (personen.length === 0) errors.push("Mietername fehlt");
 
