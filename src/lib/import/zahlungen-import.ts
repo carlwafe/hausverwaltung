@@ -125,12 +125,20 @@ function findeMietvertrag(
   const scored = kandidaten.map((k) => {
     let score = 0;
     if (betrag !== null && Math.abs(betrag - k.warmmiete) < 0.01) score += 3;
+    let getroffeneNamensteile = 0;
     for (const n of k.namen) {
       const teile = n.split(/\s+/).filter((t) => t.length >= 3);
       for (const teil of teile) {
-        if (textEnthaeltWort(text, teil)) score += teil.length >= 4 ? 3 : 1;
+        if (textEnthaeltWort(text, teil)) {
+          score += teil.length >= 4 ? 3 : 1;
+          getroffeneNamensteile++;
+        }
       }
     }
+    // Ein voller Vor+Nachname-Treffer ist ein deutlich stärkeres, spezifischeres Signal als
+    // ein einzelner (evtl. mehrdeutiger, z.B. gängiger Vorname) Namensteil kombiniert mit einer
+    // zufällig übereinstimmenden Miethöhe, die sich mehrere Mieter teilen können.
+    if (getroffeneNamensteile >= 2) score += 3;
     if (textEnthaeltWort(text, k.einheitBezeichnung.replace(/^HS \d+ WHG \d+ - /, ""))) {
       score += 1;
     }
