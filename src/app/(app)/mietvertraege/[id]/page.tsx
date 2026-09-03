@@ -28,7 +28,8 @@ export default async function MietvertragDetailPage({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          {vertrag.einheit.bezeichnung} — {vertrag.mieter.vorname} {vertrag.mieter.nachname}
+          {vertrag.einheit.bezeichnung} —{" "}
+          {vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}
         </h1>
         <DeleteButton
           action={deleteMietvertrag.bind(null, id)}
@@ -40,7 +41,8 @@ export default async function MietvertragDetailPage({
         mieter={mieter.map((m) => ({ id: m.id, label: `${m.vorname} ${m.nachname}` }))}
         initial={{
           einheitId: vertrag.einheitId,
-          mieterId: vertrag.mieterId,
+          mieterId1: vertrag.mieter[0]?.id ?? "",
+          mieterId2: vertrag.mieter[1]?.id,
           beginn: toDateInputValue(vertrag.beginn),
           ende: toDateInputValue(vertrag.ende),
           kaltmiete: vertrag.kaltmiete.toString(),

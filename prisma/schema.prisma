@@ -136,8 +136,7 @@ model Mietvertrag {
   id                       String            @id @default(cuid())
   einheit                  Einheit           @relation(fields: [einheitId], references: [id], onDelete: Restrict)
   einheitId                String
-  mieter                   Mieter            @relation(fields: [mieterId], references: [id], onDelete: Restrict)
-  mieterId                 String
+  mieter                   Mieter[]
   beginn                   DateTime
   ende                     DateTime?
   kaltmiete                Decimal           @db.Decimal(10, 2)

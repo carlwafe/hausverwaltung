@@ -7,7 +7,8 @@ type Option = { id: string; label: string };
 
 type Initial = {
   einheitId: string;
-  mieterId: string;
+  mieterId1: string;
+  mieterId2?: string;
   beginn: string;
   ende: string;
   kaltmiete: string;
@@ -36,43 +37,62 @@ export function MietvertragForm({
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="einheitId">
+          Einheit
+        </label>
+        <select
+          id="einheitId"
+          name="einheitId"
+          required
+          defaultValue={initial?.einheitId ?? ""}
+          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        >
+          <option value="" disabled>
+            Bitte wählen…
+          </option>
+          {einheiten.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="einheitId">
-            Einheit
+          <label className="mb-1 block text-sm font-medium" htmlFor="mieterId1">
+            Mieter
           </label>
           <select
-            id="einheitId"
-            name="einheitId"
+            id="mieterId1"
+            name="mieterId1"
             required
-            defaultValue={initial?.einheitId ?? ""}
+            defaultValue={initial?.mieterId1 ?? ""}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           >
             <option value="" disabled>
               Bitte wählen…
             </option>
-            {einheiten.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.label}
+            {mieter.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
               </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="mieterId">
-            Mieter
+          <label className="mb-1 block text-sm font-medium" htmlFor="mieterId2">
+            2. Mieter (optional)
           </label>
           <select
-            id="mieterId"
-            name="mieterId"
-            required
-            defaultValue={initial?.mieterId ?? ""}
+            id="mieterId2"
+            name="mieterId2"
+            defaultValue={initial?.mieterId2 ?? ""}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           >
-            <option value="" disabled>
-              Bitte wählen…
-            </option>
+            <option value="">– keiner –</option>
             {mieter.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}

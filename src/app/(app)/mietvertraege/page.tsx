@@ -65,7 +65,7 @@ export default async function MietvertraegePage() {
                   </Link>
                 </td>
                 <td className="px-4 py-2">
-                  {v.mieter.vorname} {v.mieter.nachname}
+                  {v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}
                 </td>
                 <td className="px-4 py-2">{formatDate(v.beginn)}</td>
                 <td className="px-4 py-2">{formatDate(v.ende)}</td>

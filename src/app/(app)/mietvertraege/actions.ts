@@ -16,26 +16,33 @@ const optionalNonNegativeNumber = z
   .optional()
   .transform((v) => (v === "" || v === undefined ? undefined : v));
 
-const mietvertragSchema = z.object({
-  einheitId: z.string().min(1, "Einheit ist erforderlich"),
-  mieterId: z.string().min(1, "Mieter ist erforderlich"),
-  beginn: z.coerce.date({ error: "Mietbeginn ist erforderlich" }),
-  ende: z
-    .union([z.coerce.date(), z.literal("")])
-    .optional()
-    .transform((v) => (v === "" || v === undefined ? undefined : v)),
-  kaltmiete: z.coerce.number().positive("Kaltmiete muss größer als 0 sein"),
-  nebenkostenVorauszahlung: z.coerce.number().min(0),
-  status: z.enum(["AKTIV", "BEENDET", "GEPLANT"]),
-  kautionBetrag: optionalPositiveNumber,
-  kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
-  kautionZinssatz: optionalNonNegativeNumber,
-});
+const mietvertragSchema = z
+  .object({
+    einheitId: z.string().min(1, "Einheit ist erforderlich"),
+    mieterId1: z.string().min(1, "Mieter ist erforderlich"),
+    mieterId2: z.string().optional(),
+    beginn: z.coerce.date({ error: "Mietbeginn ist erforderlich" }),
+    ende: z
+      .union([z.coerce.date(), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    kaltmiete: z.coerce.number().positive("Kaltmiete muss größer als 0 sein"),
+    nebenkostenVorauszahlung: z.coerce.number().min(0),
+    status: z.enum(["AKTIV", "BEENDET", "GEPLANT"]),
+    kautionBetrag: optionalPositiveNumber,
+    kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
+    kautionZinssatz: optionalNonNegativeNumber,
+  })
+  .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
+    message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
+    path: ["mieterId2"],
+  });
 
 function parseForm(formData: FormData) {
   const parsed = mietvertragSchema.safeParse({
     einheitId: formData.get("einheitId"),
-    mieterId: formData.get("mieterId"),
+    mieterId1: formData.get("mieterId1"),
+    mieterId2: formData.get("mieterId2") || undefined,
     beginn: formData.get("beginn"),
     ende: formData.get("ende") || "",
     kaltmiete: formData.get("kaltmiete"),
@@ -52,14 +59,18 @@ function parseForm(formData: FormData) {
   return parsed.data;
 }
 
+function mieterIds(data: { mieterId1: string; mieterId2?: string }) {
+  return data.mieterId2 ? [data.mieterId1, data.mieterId2] : [data.mieterId1];
+}
+
 export async function createMietvertrag(formData: FormData) {
   await requireUser();
   const data = parseForm(formData);
 
   await prisma.mietvertrag.create({
     data: {
-      einheitId: data.einheitId,
-      mieterId: data.mieterId,
+      einheit: { connect: { id: data.einheitId } },
+      mieter: { connect: mieterIds(data).map((id) => ({ id })) },
       beginn: data.beginn,
       ende: data.ende,
       kaltmiete: data.kaltmiete,
@@ -92,8 +103,8 @@ export async function updateMietvertrag(id: string, formData: FormData) {
     await tx.mietvertrag.update({
       where: { id },
       data: {
-        einheitId: data.einheitId,
-        mieterId: data.mieterId,
+        einheit: { connect: { id: data.einheitId } },
+        mieter: { set: mieterIds(data).map((mid) => ({ id: mid })) },
         beginn: data.beginn,
         ende: data.ende,
         kaltmiete: data.kaltmiete,
