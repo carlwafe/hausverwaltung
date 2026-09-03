@@ -125,6 +125,7 @@ export default function ZahlungenImportPage() {
     periodeMonat: r.periodeMonat,
     periodeJahr: r.periodeJahr,
     verwendungszweck: r.verwendungszweck,
+    rohdaten: r.rohdaten,
   }));
 
   return (
@@ -317,6 +318,11 @@ export default function ZahlungenImportPage() {
 
           <form action={commitAction}>
             <input type="hidden" name="rows" value={JSON.stringify(rowsForCommit)} />
+            <input
+              type="hidden"
+              name="importBatchId"
+              value={hasPreview ? preview.importBatchId : ""}
+            />
             <button
               type="submit"
               disabled={commitPending || importierbareRows.length === 0}

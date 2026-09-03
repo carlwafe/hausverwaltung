@@ -12,6 +12,10 @@ const objektSchema = z.object({
   plz: z.string().min(1, "PLZ ist erforderlich"),
   ort: z.string().min(1, "Ort ist erforderlich"),
   beschreibung: z.string().optional(),
+  buchhaltungAb: z
+    .union([z.coerce.date(), z.literal("")])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? null : v)),
 });
 
 export async function updateObjekt(
@@ -27,6 +31,7 @@ export async function updateObjekt(
     plz: formData.get("plz"),
     ort: formData.get("ort"),
     beschreibung: formData.get("beschreibung") || undefined,
+    buchhaltungAb: formData.get("buchhaltungAb") || "",
   });
 
   if (!parsed.success) {
@@ -40,5 +45,6 @@ export async function updateObjekt(
 
   revalidatePath("/objekt");
   revalidatePath("/");
+  revalidatePath("/offene-posten");
   return null;
 }

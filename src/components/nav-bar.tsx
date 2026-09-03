@@ -12,6 +12,7 @@ const links = [
   { href: "/mietvertraege", label: "Mietverträge" },
   { href: "/zahlungen", label: "Zahlungen" },
   { href: "/offene-posten", label: "Offene Posten" },
+  { href: "/kosten", label: "Kosten" },
 ];
 
 export function NavBar({

@@ -12,6 +12,7 @@ const mieterSchema = z.object({
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("").transform(() => undefined)),
   handynummer: z.string().optional(),
   festnetznummer: z.string().optional(),
+  notizen: z.string().optional(),
 });
 
 function parseForm(formData: FormData) {
@@ -21,6 +22,7 @@ function parseForm(formData: FormData) {
     email: formData.get("email") ?? "",
     handynummer: formData.get("handynummer") || undefined,
     festnetznummer: formData.get("festnetznummer") || undefined,
+    notizen: formData.get("notizen") || undefined,
   });
 
   if (!parsed.success) {

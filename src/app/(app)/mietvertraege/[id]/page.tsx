@@ -7,7 +7,7 @@ import { updateMietvertrag, deleteMietvertrag } from "../actions";
 import { deleteZahlung } from "../../zahlungen/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { berechneSoll } from "@/lib/soll-ist";
+import { berechneSoll, berechneIst } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -38,7 +38,7 @@ export default async function MietvertragDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [vertrag, einheitenRaw, mieter] = await Promise.all([
+  const [vertrag, einheitenRaw, mieter, objekt] = await Promise.all([
     prisma.mietvertrag.findUnique({
       where: { id },
       include: {
@@ -50,18 +50,26 @@ export default async function MietvertragDetailPage({
     }),
     prisma.einheit.findMany({ include: { gebaeude: true } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
+    prisma.objekt.findFirst({ select: { buchhaltungAb: true } }),
   ]);
 
   if (!vertrag) notFound();
   const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
 
-  const soll = berechneSoll({
-    beginn: vertrag.beginn,
-    ende: vertrag.ende,
-    kaltmiete: Number(vertrag.kaltmiete),
-    nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
-  });
-  const ist = vertrag.zahlungen.reduce((sum, z) => sum + Number(z.betrag), 0);
+  const soll = berechneSoll(
+    {
+      beginn: vertrag.beginn,
+      ende: vertrag.ende,
+      kaltmiete: Number(vertrag.kaltmiete),
+      nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+    },
+    new Date(),
+    objekt?.buchhaltungAb ?? null,
+  );
+  const ist = berechneIst(
+    vertrag.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+    objekt?.buchhaltungAb ?? null,
+  );
   const saldo = ist - soll;
 
   return (
@@ -107,11 +115,15 @@ export default async function MietvertragDetailPage({
 
       <div className="my-4 grid grid-cols-3 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-400">Soll (seit Mietbeginn)</p>
+          <p className="text-xs text-neutral-400">
+            Soll ({objekt?.buchhaltungAb ? "seit Buchhaltungs-Stichtag" : "seit Mietbeginn"})
+          </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(soll)}</p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-400">Ist (erhaltene Zahlungen)</p>
+          <p className="text-xs text-neutral-400">
+            Ist (erhaltene Zahlungen{objekt?.buchhaltungAb ? " seit Stichtag" : ""})
+          </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(ist)}</p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">

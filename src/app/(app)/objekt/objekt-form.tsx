@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { updateObjekt } from "./actions";
+import { DateInput } from "@/components/date-input";
+import { toDateInputValue } from "@/lib/date-utils";
 
 type Objekt = {
   name: string;
@@ -10,6 +12,7 @@ type Objekt = {
   plz: string;
   ort: string;
   beschreibung: string | null;
+  buchhaltungAb: Date | string | null;
 };
 
 export function ObjektForm({ initial }: { initial: Objekt }) {
@@ -95,6 +98,21 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
           defaultValue={initial.beschreibung ?? ""}
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
+      </div>
+
+      <div className="rounded-md border border-neutral-800 p-4">
+        <DateInput
+          id="buchhaltungAb"
+          name="buchhaltungAb"
+          label="Buchhaltung erfasst ab (optional)"
+          defaultValue={toDateInputValue(initial.buchhaltungAb)}
+        />
+        <p className="mt-2 text-xs text-neutral-400">
+          Soll/Ist-Vergleiche (Offene Posten, Dashboard) rechnen erst ab diesem Datum bzw. ab dem
+          Mietbeginn, falls dieser später liegt — sinnvoll, wenn ältere Kontoauszüge nicht mehr
+          vorliegen und ein jahrzehntealter Mietbeginn sonst einen riesigen, nicht vergleichbaren
+          Sollbetrag ergäbe.
+        </p>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

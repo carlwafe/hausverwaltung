@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { berechneSoll } from "@/lib/soll-ist";
+import { berechneSoll, berechneIst } from "@/lib/soll-ist";
 import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-async function ladeZeilen(): Promise<OffenePostenRow[]> {
+async function ladeZeilen(buchhaltungAb: Date | null): Promise<OffenePostenRow[]> {
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: { in: ["AKTIV", "BEENDET"] } },
     include: {
@@ -28,8 +28,12 @@ async function ladeZeilen(): Promise<OffenePostenRow[]> {
           nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
         },
         heute,
+        buchhaltungAb,
       );
-      const ist = v.zahlungen.reduce((sum, z) => sum + Number(z.betrag), 0);
+      const ist = berechneIst(
+        v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+        buchhaltungAb,
+      );
       const saldo = ist - soll;
 
       return {
@@ -45,8 +49,13 @@ async function ladeZeilen(): Promise<OffenePostenRow[]> {
     .sort((a, b) => a.saldo - b.saldo);
 }
 
+function formatDatum(d: Date) {
+  return new Intl.DateTimeFormat("de-DE").format(d);
+}
+
 export default async function OffenePostenPage() {
-  const zeilen = await ladeZeilen();
+  const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
+  const zeilen = await ladeZeilen(objekt?.buchhaltungAb ?? null);
   const gesamtRueckstand = zeilen.filter((z) => z.saldo < 0).reduce((sum, z) => sum + z.saldo, 0);
 
   return (
@@ -54,8 +63,13 @@ export default async function OffenePostenPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Offene Posten</h1>
         <p className="text-sm text-neutral-400">
-          Soll (Kaltmiete + NK-Vorauszahlung seit Mietbeginn) im Vergleich zu den erfassten
-          Zahlungen. Rot = Rückstand, Grün = Guthaben/Vorauszahlung.
+          Soll (Kaltmiete + NK-Vorauszahlung seit{" "}
+          {objekt?.buchhaltungAb
+            ? `Buchhaltungs-Stichtag ${formatDatum(objekt.buchhaltungAb)} bzw. späterem Mietbeginn`
+            : "Mietbeginn"}
+          ) im Vergleich zu den{" "}
+          {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen. Rot = Rückstand, Grün =
+          Guthaben/Vorauszahlung.
         </p>
       </div>
 

@@ -7,7 +7,7 @@ import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
   const zahlungen = await prisma.zahlung.findMany({
     orderBy: { datum: "desc" },
-    include: { mietvertrag: { include: { einheit: true, mieter: true } } },
+    include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true },
   });
 
   return zahlungen.map((z) => ({
@@ -20,6 +20,9 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     periodeJahr: z.periodeJahr,
     betrag: Number(z.betrag),
     verwendungszweck: z.verwendungszweck,
+    rohdaten: (z.rohdaten as Record<string, string> | null) ?? null,
+    importBatchId: z.importBatchId,
+    importDateiname: z.importBatch?.dateiname ?? null,
   }));
 }
 

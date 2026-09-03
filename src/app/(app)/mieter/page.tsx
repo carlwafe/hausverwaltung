@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { findeDuplikate } from "@/lib/mieter-duplikate";
 import { MieterTable, type MieterRow } from "./mieter-table";
 
 async function ladeMieter(): Promise<MieterRow[]> {
@@ -26,6 +27,7 @@ async function ladeMieter(): Promise<MieterRow[]> {
 
 export default async function MieterPage() {
   const mieter = await ladeMieter();
+  const duplikatIds = [...new Set(findeDuplikate(mieter).flatMap((d) => [d.a.id, d.b.id]))];
 
   return (
     <div>
@@ -42,7 +44,7 @@ export default async function MieterPage() {
         </Link>
       </div>
 
-      <MieterTable rows={mieter} />
+      <MieterTable rows={mieter} duplikatIds={duplikatIds} />
     </div>
   );
 }

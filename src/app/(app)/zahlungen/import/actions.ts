@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
+import { speichereDatei } from "@/lib/storage";
 import {
   mapZahlungenRows,
   type ParsedZahlungRow,
@@ -16,6 +17,7 @@ export type PreviewResult =
       kandidaten: { id: string; label: string }[];
       bestehendeZahlungen: string[];
       fileName: string;
+      importBatchId: string;
     }
   | { error: string };
 
@@ -23,7 +25,7 @@ export async function previewImport(
   _prev: PreviewResult | null,
   formData: FormData,
 ): Promise<PreviewResult> {
-  await requireUser();
+  const user = await requireUser();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -40,6 +42,18 @@ export async function previewImport(
     if (rows.length === 0) {
       return { error: "Keine Datenzeilen in der Datei gefunden." };
     }
+
+    // Originaldatei sichern, damit man bei Unstimmigkeiten später zur Quelle zurück kann.
+    const speicherpfad = await speichereDatei(Buffer.from(await file.arrayBuffer()), file.name);
+    const importBatch = await prisma.importBatch.create({
+      data: {
+        typ: "ZAHLUNGEN",
+        dateiname: file.name,
+        speicherpfad,
+        anzahlZeilen: rows.length,
+        user: { connect: { id: user.id } },
+      },
+    });
 
     const vertraege = await prisma.mietvertrag.findMany({
       where: { status: { in: ["AKTIV", "BEENDET"] } },
@@ -71,6 +85,7 @@ export async function previewImport(
       kandidaten: kandidaten.map((k) => ({ id: k.id, label: k.label })),
       bestehendeZahlungen: [...bestehendeZahlungen],
       fileName: file.name,
+      importBatchId: importBatch.id,
     };
   } catch (err) {
     return {
@@ -89,6 +104,7 @@ type CommitRow = {
   periodeMonat: number;
   periodeJahr: number;
   verwendungszweck: string;
+  rohdaten: Record<string, string>;
 };
 
 export async function commitImport(
@@ -99,6 +115,8 @@ export async function commitImport(
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";
+
+  const importBatchId = formData.get("importBatchId");
 
   let rows: CommitRow[];
   try {
@@ -129,11 +147,18 @@ export async function commitImport(
         mietvertragId: r.mietvertragId,
         datum: new Date(r.datum),
         betrag: r.betrag,
+        rohdaten: r.rohdaten,
+        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
         periodeMonat: r.periodeMonat,
         periodeJahr: r.periodeJahr,
         verwendungszweck: r.verwendungszweck || null,
       })),
     });
+  }
+
+  const ergebnis = `${neu.length} importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`;
+  if (typeof importBatchId === "string") {
+    await prisma.importBatch.update({ where: { id: importBatchId }, data: { ergebnis } });
   }
 
   revalidatePath("/zahlungen");

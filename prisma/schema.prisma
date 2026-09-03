@@ -64,14 +64,18 @@ model User {
 }
 
 model Objekt {
-  id           String   @id @default(cuid())
-  name         String
-  strasse      String
-  hausnummer   String
-  plz          String
-  ort          String   @default("Eutin")
-  beschreibung String?
-  createdAt    DateTime @default(now())
+  id            String    @id @default(cuid())
+  name          String
+  strasse       String
+  hausnummer    String
+  plz           String
+  ort           String    @default("Eutin")
+  beschreibung  String?
+  // Stichtag, ab dem Soll/Ist-Vergleiche gerechnet werden (z.B. weil ältere Kontoauszüge
+  // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
+  // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.
+  buchhaltungAb DateTime?
+  createdAt     DateTime  @default(now())
 
   gebaeude Gebaeude[]
 
@@ -111,7 +115,7 @@ model Einheit {
   notizen        String?
   createdAt      DateTime   @default(now())
 
-  mietvertraege                  Mietvertrag[]
+  mietvertraege                   Mietvertrag[]
   nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
 
   @@unique([gebaeudeId, bezeichnung])
@@ -125,6 +129,7 @@ model Mieter {
   email          String?
   handynummer    String?
   festnetznummer String?
+  notizen        String?
   createdAt      DateTime @default(now())
 
   mietvertraege Mietvertrag[]
@@ -169,15 +174,20 @@ model Kaution {
 }
 
 model Zahlung {
-  id               String      @id @default(cuid())
-  mietvertrag      Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  id               String       @id @default(cuid())
+  mietvertrag      Mietvertrag  @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
   mietvertragId    String
   datum            DateTime
-  betrag           Decimal     @db.Decimal(10, 2)
+  betrag           Decimal      @db.Decimal(10, 2)
   periodeMonat     Int
   periodeJahr      Int
   verwendungszweck String?
-  createdAt        DateTime    @default(now())
+  // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
+  // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
+  rohdaten         Json?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  createdAt        DateTime     @default(now())
 
   @@index([mietvertragId, periodeJahr, periodeMonat])
   @@map("zahlungen")
@@ -234,7 +244,7 @@ model NebenkostenabrechnungPosition {
   einheit             Einheit               @relation(fields: [einheitId], references: [id], onDelete: Restrict)
   einheitId           String
   mietvertrag         Mietvertrag?          @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
-  mietvertragId        String?
+  mietvertragId       String?
   kostenanteilGesamt  Decimal               @db.Decimal(10, 2)
   vorauszahlungGesamt Decimal               @db.Decimal(10, 2)
   saldo               Decimal               @db.Decimal(10, 2)
@@ -264,11 +274,17 @@ model ImportBatch {
   id           String   @id @default(cuid())
   typ          String
   dateiname    String
+  // Pfad der gespeicherten Originaldatei im lokalen Storage (siehe src/lib/storage.ts) — damit
+  // man vom Import zurück zur tatsächlich hochgeladenen Quelldatei kann. Nicht jeder Import-Typ
+  // speichert die Datei (noch), daher optional.
+  speicherpfad String?
   user         User     @relation(fields: [userId], references: [id])
   userId       String
   ergebnis     String?
   anzahlZeilen Int?
   erstelltAm   DateTime @default(now())
+
+  zahlungen Zahlung[]
 
   @@map("import_batches")
 }

@@ -19,6 +19,7 @@ export type ParsedZahlungRow = {
   ignorieren: boolean; // z.B. ausgehende Buchung
   rueckbuchung: boolean; // Rücklastschrift/Lastschriftwiderspruch: negative Korrektur einer zuvor gutgeschriebenen Miete
   eigentuemerBuchung: boolean; // Buchung von/an die Eigentümerin (Julia Katharina Waller) – keine Miete
+  rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
   errors: string[];
 };
 
@@ -232,6 +233,7 @@ export function mapZahlungenRows(
       ignorieren,
       rueckbuchung,
       eigentuemerBuchung,
+      rohdaten: row,
       errors,
     };
   });

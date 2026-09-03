@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { berechneSoll } from "@/lib/soll-ist";
+import { berechneSoll, berechneIst } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
           ende: true,
           kaltmiete: true,
           nebenkostenVorauszahlung: true,
-          zahlungen: { select: { betrag: true } },
+          zahlungen: { select: { datum: true, betrag: true } },
         },
       }),
     ]);
@@ -36,14 +36,22 @@ export default async function DashboardPage() {
     0,
   );
 
+  const buchhaltungAb = objekt?.buchhaltungAb ?? null;
   const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
-    const soll = berechneSoll({
-      beginn: v.beginn,
-      ende: v.ende,
-      kaltmiete: Number(v.kaltmiete),
-      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-    });
-    const ist = v.zahlungen.reduce((s, z) => s + Number(z.betrag), 0);
+    const soll = berechneSoll(
+      {
+        beginn: v.beginn,
+        ende: v.ende,
+        kaltmiete: Number(v.kaltmiete),
+        nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+      },
+      new Date(),
+      buchhaltungAb,
+    );
+    const ist = berechneIst(
+      v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+      buchhaltungAb,
+    );
     const saldo = ist - soll;
     return sum + Math.min(saldo, 0);
   }, 0);

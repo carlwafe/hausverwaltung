@@ -9,6 +9,7 @@ type Mieter = {
   email: string | null;
   handynummer: string | null;
   festnetznummer: string | null;
+  notizen: string | null;
 };
 
 export function MieterForm({
@@ -88,6 +89,19 @@ export function MieterForm({
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="notizen">
+          Notizen
+        </label>
+        <textarea
+          id="notizen"
+          name="notizen"
+          rows={4}
+          defaultValue={initial?.notizen ?? ""}
+          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
