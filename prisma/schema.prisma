@@ -1,0 +1,274 @@
+// Prisma schema — Buchhaltungs-App Mietobjekt Eutin
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  VERWALTER
+}
+
+enum EinheitTyp {
+  WOHNUNG
+  GARAGE
+}
+
+enum MietvertragStatus {
+  AKTIV
+  BEENDET
+  GEPLANT
+}
+
+enum Verteilerschluessel {
+  WOHNFLAECHE
+  MITEIGENTUMSANTEIL
+  PERSONENZAHL
+  EINHEITEN
+  VERBRAUCH_MANUELL
+}
+
+enum KautionAnlageform {
+  SPARBUCH
+  KAUTIONSKONTO
+  BUERGSCHAFT
+  BAR
+}
+
+enum KautionStatus {
+  AKTIV
+  ZURUECKGEZAHLT
+}
+
+enum AbrechnungStatus {
+  ENTWURF
+  FINAL
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  passwordHash  String
+  role          Role          @default(VERWALTER)
+  createdAt     DateTime      @default(now())
+  importBatches ImportBatch[]
+
+  @@map("users")
+}
+
+model Objekt {
+  id           String   @id @default(cuid())
+  name         String
+  strasse      String
+  hausnummer   String
+  plz          String
+  ort          String   @default("Eutin")
+  beschreibung String?
+  createdAt    DateTime @default(now())
+
+  gebaeude Gebaeude[]
+
+  @@map("objekte")
+}
+
+// Eine Hausnummer (eigene Betriebskosten-/Zähler-Einheit für die Nebenkostenabrechnung).
+model Gebaeude {
+  id           String   @id @default(cuid())
+  objekt       Objekt   @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  objektId     String
+  strasse      String
+  hausnummer   String
+  // Physisches Gebäude, falls mehrere Hausnummern zum selben Bauwerk gehören (z.B. "Haus 1").
+  haus         String?
+  beschreibung String?
+  createdAt    DateTime @default(now())
+
+  einheiten               Einheit[]
+  kostenpositionen        Kostenposition[]
+  nebenkostenabrechnungen Nebenkostenabrechnung[]
+
+  @@unique([objektId, strasse, hausnummer])
+  @@map("gebaeude")
+}
+
+model Einheit {
+  id             String     @id @default(cuid())
+  gebaeude       Gebaeude   @relation(fields: [gebaeudeId], references: [id], onDelete: Restrict)
+  gebaeudeId     String
+  bezeichnung    String
+  typ            EinheitTyp @default(WOHNUNG)
+  etage          String?
+  wohnflaecheQm  Decimal    @db.Decimal(8, 2)
+  einbaukueche   Boolean    @default(false)
+  fotosVorhanden Boolean    @default(false)
+  notizen        String?
+  createdAt      DateTime   @default(now())
+
+  mietvertraege                  Mietvertrag[]
+  nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
+
+  @@unique([gebaeudeId, bezeichnung])
+  @@map("einheiten")
+}
+
+model Mieter {
+  id        String   @id @default(cuid())
+  vorname   String
+  nachname  String
+  email     String?
+  telefon   String?
+  createdAt DateTime @default(now())
+
+  mietvertraege Mietvertrag[]
+
+  @@map("mieter")
+}
+
+model Mietvertrag {
+  id                       String            @id @default(cuid())
+  einheit                  Einheit           @relation(fields: [einheitId], references: [id], onDelete: Restrict)
+  einheitId                String
+  mieter                   Mieter            @relation(fields: [mieterId], references: [id], onDelete: Restrict)
+  mieterId                 String
+  beginn                   DateTime
+  ende                     DateTime?
+  kaltmiete                Decimal           @db.Decimal(10, 2)
+  nebenkostenVorauszahlung Decimal           @db.Decimal(10, 2)
+  status                   MietvertragStatus @default(AKTIV)
+  createdAt                DateTime          @default(now())
+
+  kaution               Kaution?
+  zahlungen             Zahlung[]
+  dokumente             Dokument[]
+  abrechnungspositionen NebenkostenabrechnungPosition[]
+
+  @@map("mietvertraege")
+}
+
+model Kaution {
+  id                  String            @id @default(cuid())
+  mietvertrag         Mietvertrag       @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId       String            @unique
+  betrag              Decimal           @db.Decimal(10, 2)
+  anlageform          KautionAnlageform @default(KAUTIONSKONTO)
+  zinssatz            Decimal?          @db.Decimal(5, 2)
+  einzahlungsdatum    DateTime?
+  rueckzahlungsdatum  DateTime?
+  rueckzahlungsbetrag Decimal?          @db.Decimal(10, 2)
+  status              KautionStatus     @default(AKTIV)
+  createdAt           DateTime          @default(now())
+
+  @@map("kautionen")
+}
+
+model Zahlung {
+  id               String      @id @default(cuid())
+  mietvertrag      Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId    String
+  datum            DateTime
+  betrag           Decimal     @db.Decimal(10, 2)
+  periodeMonat     Int
+  periodeJahr      Int
+  verwendungszweck String?
+  createdAt        DateTime    @default(now())
+
+  @@index([mietvertragId, periodeJahr, periodeMonat])
+  @@map("zahlungen")
+}
+
+model Kostenart {
+  id                          String               @id @default(cuid())
+  name                        String               @unique
+  umlagefaehig                Boolean              @default(true)
+  standardVerteilerschluessel Verteilerschluessel?
+  createdAt                   DateTime             @default(now())
+
+  kostenpositionen Kostenposition[]
+
+  @@map("kostenarten")
+}
+
+model Kostenposition {
+  id           String    @id @default(cuid())
+  kostenart    Kostenart @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+  kostenartId  String
+  gebaeude     Gebaeude  @relation(fields: [gebaeudeId], references: [id], onDelete: Cascade)
+  gebaeudeId   String
+  jahr         Int
+  betrag       Decimal   @db.Decimal(10, 2)
+  beschreibung String?
+  empfaenger   String?
+  createdAt    DateTime  @default(now())
+
+  dokumente Dokument[]
+
+  @@index([gebaeudeId, jahr])
+  @@map("kostenpositionen")
+}
+
+model Nebenkostenabrechnung {
+  id         String           @id @default(cuid())
+  gebaeude   Gebaeude         @relation(fields: [gebaeudeId], references: [id], onDelete: Cascade)
+  gebaeudeId String
+  jahr       Int
+  status     AbrechnungStatus @default(ENTWURF)
+  erstelltAm DateTime         @default(now())
+
+  positionen NebenkostenabrechnungPosition[]
+
+  @@unique([gebaeudeId, jahr])
+  @@map("nebenkostenabrechnungen")
+}
+
+model NebenkostenabrechnungPosition {
+  id                  String                @id @default(cuid())
+  abrechnung          Nebenkostenabrechnung @relation(fields: [abrechnungId], references: [id], onDelete: Cascade)
+  abrechnungId        String
+  einheit             Einheit               @relation(fields: [einheitId], references: [id], onDelete: Restrict)
+  einheitId           String
+  mietvertrag         Mietvertrag?          @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  mietvertragId        String?
+  kostenanteilGesamt  Decimal               @db.Decimal(10, 2)
+  vorauszahlungGesamt Decimal               @db.Decimal(10, 2)
+  saldo               Decimal               @db.Decimal(10, 2)
+  details             Json?
+
+  @@unique([abrechnungId, einheitId])
+  @@map("nebenkostenabrechnung_positionen")
+}
+
+model Dokument {
+  id               String          @id @default(cuid())
+  dateiname        String
+  speicherpfad     String
+  mimeType         String?
+  groesseBytes     Int?
+  mietvertrag      Mietvertrag?    @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId    String?
+  kostenposition   Kostenposition? @relation(fields: [kostenpositionId], references: [id], onDelete: Cascade)
+  kostenpositionId String?
+  hochgeladenVon   String?
+  createdAt        DateTime        @default(now())
+
+  @@map("dokumente")
+}
+
+model ImportBatch {
+  id           String   @id @default(cuid())
+  typ          String
+  dateiname    String
+  user         User     @relation(fields: [userId], references: [id])
+  userId       String
+  ergebnis     String?
+  anzahlZeilen Int?
+  erstelltAm   DateTime @default(now())
+
+  @@map("import_batches")
+}
