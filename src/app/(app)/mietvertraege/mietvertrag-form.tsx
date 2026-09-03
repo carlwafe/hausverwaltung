@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { runFormAction } from "@/lib/form-utils";
+import { DateInput } from "@/components/date-input";
 
 type Option = { id: string; label: string };
 
@@ -103,31 +104,8 @@ export function MietvertragForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="beginn">
-            Mietbeginn
-          </label>
-          <input
-            id="beginn"
-            name="beginn"
-            type="date"
-            required
-            defaultValue={initial?.beginn}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="ende">
-            Mietende (optional)
-          </label>
-          <input
-            id="ende"
-            name="ende"
-            type="date"
-            defaultValue={initial?.ende}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
+        <DateInput id="beginn" name="beginn" label="Mietbeginn" defaultValue={initial?.beginn} />
+        <DateInput id="ende" name="ende" label="Mietende (optional)" defaultValue={initial?.ende} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

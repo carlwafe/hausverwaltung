@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { runFormAction } from "@/lib/form-utils";
+import { DateInput } from "@/components/date-input";
 
 type Option = { id: string; label: string };
 
@@ -61,19 +62,12 @@ export function ZahlungForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="datum">
-            Zahlungsdatum
-          </label>
-          <input
-            id="datum"
-            name="datum"
-            type="date"
-            required
-            defaultValue={heute.toISOString().slice(0, 10)}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
+        <DateInput
+          id="datum"
+          name="datum"
+          label="Zahlungsdatum"
+          defaultValue={heute.toISOString().slice(0, 10)}
+        />
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="betrag">
             Betrag (€)
