@@ -4,6 +4,7 @@ import { MietvertragForm } from "../mietvertrag-form";
 import { toDateInputValue } from "@/lib/date-utils";
 import { updateMietvertrag, deleteMietvertrag } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 
 export default async function MietvertragDetailPage({
   params,
@@ -11,16 +12,17 @@ export default async function MietvertragDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [vertrag, einheiten, mieter] = await Promise.all([
+  const [vertrag, einheitenRaw, mieter] = await Promise.all([
     prisma.mietvertrag.findUnique({
       where: { id },
       include: { einheit: true, mieter: true, kaution: true },
     }),
-    prisma.einheit.findMany({ orderBy: { bezeichnung: "asc" } }),
+    prisma.einheit.findMany({ include: { gebaeude: true } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
   ]);
 
   if (!vertrag) notFound();
+  const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
 
   return (
     <div>

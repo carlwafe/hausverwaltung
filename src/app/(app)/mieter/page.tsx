@@ -33,7 +33,8 @@ export default async function MieterPage() {
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">E-Mail</th>
-              <th className="px-4 py-2">Telefon</th>
+              <th className="px-4 py-2">Handy</th>
+              <th className="px-4 py-2">Festnetz</th>
               <th className="px-4 py-2">Einheit(en)</th>
             </tr>
           </thead>
@@ -46,7 +47,8 @@ export default async function MieterPage() {
                   </Link>
                 </td>
                 <td className="px-4 py-2">{m.email ?? "–"}</td>
-                <td className="px-4 py-2">{m.telefon ?? "–"}</td>
+                <td className="px-4 py-2">{m.handynummer ?? "–"}</td>
+                <td className="px-4 py-2">{m.festnetznummer ?? "–"}</td>
                 <td className="px-4 py-2">
                   {m.mietvertraege.length > 0
                     ? m.mietvertraege.map((v) => v.einheit.bezeichnung).join(", ")
@@ -56,7 +58,7 @@ export default async function MieterPage() {
             ))}
             {mieter.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
                   Noch keine Mieter angelegt.
                 </td>
               </tr>

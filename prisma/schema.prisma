@@ -119,12 +119,13 @@ model Einheit {
 }
 
 model Mieter {
-  id        String   @id @default(cuid())
-  vorname   String
-  nachname  String
-  email     String?
-  telefon   String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  vorname        String
+  nachname       String
+  email          String?
+  handynummer    String?
+  festnetznummer String?
+  createdAt      DateTime @default(now())
 
   mietvertraege Mietvertrag[]
 

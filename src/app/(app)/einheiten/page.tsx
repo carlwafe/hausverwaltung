@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 
 const typLabel: Record<string, string> = {
   WOHNUNG: "Wohnung",
@@ -17,13 +18,7 @@ export default async function EinheitenPage() {
     },
   });
 
-  const einheiten = einheitenRaw.sort((a, b) => {
-    const strasseCompare = a.gebaeude.strasse.localeCompare(b.gebaeude.strasse);
-    if (strasseCompare !== 0) return strasseCompare;
-    const hausnummerCompare = Number(a.gebaeude.hausnummer) - Number(b.gebaeude.hausnummer);
-    if (hausnummerCompare !== 0) return hausnummerCompare;
-    return a.bezeichnung.localeCompare(b.bezeichnung);
-  });
+  const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
 
   return (
     <div>

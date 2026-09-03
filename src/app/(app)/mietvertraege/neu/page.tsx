@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { MietvertragForm } from "../mietvertrag-form";
 import { createMietvertrag } from "../actions";
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 
 export default async function NeuerMietvertragPage() {
-  const [einheiten, mieter] = await Promise.all([
-    prisma.einheit.findMany({ orderBy: { bezeichnung: "asc" } }),
+  const [einheitenRaw, mieter] = await Promise.all([
+    prisma.einheit.findMany({ include: { gebaeude: true } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
   ]);
+  const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
 
   return (
     <div>

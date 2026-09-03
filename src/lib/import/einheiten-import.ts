@@ -54,6 +54,19 @@ const GEBAEUDE_SYNONYMS = [
 const STREET_HEADER_SUFFIXES = ["strasse", "str", "weg", "allee", "platz", "ring", "gasse", "damm"];
 
 const ETAGE_PATTERN = /\b(EG|DG|UG|KG|\d{1,2}\s*\.?\s*OG)\b/i;
+const WOHNUNGSNUMMER_PATTERN = /^(\d+)\.\s*(.+)$/;
+
+// Baut aus der rohen Wohnungsbezeichnung (z.B. "1. EG links") und der Hausnummer eine über
+// das ganze Objekt hinweg eindeutige und selbsterklärende Bezeichnung, z.B. "HS 2 WHG 1 - EG links".
+function buildBezeichnung(raw: string, hausnummer: string): string {
+  if (!raw) return raw;
+  const match = raw.match(WOHNUNGSNUMMER_PATTERN);
+  if (match) {
+    const [, whgNr, rest] = match;
+    return `HS ${hausnummer} WHG ${whgNr} - ${rest}`;
+  }
+  return `HS ${hausnummer} - ${raw}`;
+}
 
 function findColumn(
   headers: string[],
@@ -140,19 +153,21 @@ export function mapEinheitenRows(
   return rows.map((row, i) => {
     const errors: string[] = [];
 
-    const bezeichnung = bezCol ? (row[bezCol] ?? "").trim() : "";
-    if (!bezeichnung) errors.push("Bezeichnung fehlt");
+    const bezeichnungRaw = bezCol ? (row[bezCol] ?? "").trim() : "";
+    if (!bezeichnungRaw) errors.push("Bezeichnung fehlt");
 
     const strasse = gebaeudeCol ? gebaeudeCol.trim() : fallback.strasse;
     const hausnummer = gebaeudeCol
       ? (row[gebaeudeCol] ?? "").trim() || fallback.hausnummer
       : fallback.hausnummer;
 
+    const bezeichnung = buildBezeichnung(bezeichnungRaw, hausnummer);
+
     const typ = parseTyp(typCol ? row[typCol] : undefined);
 
     let etage = etageCol ? (row[etageCol] ?? "").trim() : "";
     if (!etage) {
-      const match = bezeichnung.match(ETAGE_PATTERN);
+      const match = bezeichnungRaw.match(ETAGE_PATTERN);
       if (match) etage = match[0].toUpperCase().replace(/\s+/g, "");
     }
 

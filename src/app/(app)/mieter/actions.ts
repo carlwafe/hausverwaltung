@@ -10,24 +10,30 @@ const mieterSchema = z.object({
   vorname: z.string().min(1, "Vorname ist erforderlich"),
   nachname: z.string().min(1, "Nachname ist erforderlich"),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("").transform(() => undefined)),
-  telefon: z.string().optional(),
+  handynummer: z.string().optional(),
+  festnetznummer: z.string().optional(),
 });
 
-export async function createMieter(formData: FormData) {
-  await requireUser();
-
+function parseForm(formData: FormData) {
   const parsed = mieterSchema.safeParse({
     vorname: formData.get("vorname"),
     nachname: formData.get("nachname"),
     email: formData.get("email") ?? "",
-    telefon: formData.get("telefon") || undefined,
+    handynummer: formData.get("handynummer") || undefined,
+    festnetznummer: formData.get("festnetznummer") || undefined,
   });
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
   }
+  return parsed.data;
+}
 
-  await prisma.mieter.create({ data: parsed.data });
+export async function createMieter(formData: FormData) {
+  await requireUser();
+  const data = parseForm(formData);
+
+  await prisma.mieter.create({ data });
 
   revalidatePath("/mieter");
   redirect("/mieter");
@@ -35,19 +41,9 @@ export async function createMieter(formData: FormData) {
 
 export async function updateMieter(id: string, formData: FormData) {
   await requireUser();
+  const data = parseForm(formData);
 
-  const parsed = mieterSchema.safeParse({
-    vorname: formData.get("vorname"),
-    nachname: formData.get("nachname"),
-    email: formData.get("email") ?? "",
-    telefon: formData.get("telefon") || undefined,
-  });
-
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
-  }
-
-  await prisma.mieter.update({ where: { id }, data: parsed.data });
+  await prisma.mieter.update({ where: { id }, data });
 
   revalidatePath("/mieter");
   revalidatePath(`/mieter/${id}`);

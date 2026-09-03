@@ -7,7 +7,8 @@ type Mieter = {
   vorname: string;
   nachname: string;
   email: string | null;
-  telefon: string | null;
+  handynummer: string | null;
+  festnetznummer: string | null;
 };
 
 export function MieterForm({
@@ -64,16 +65,29 @@ export function MieterForm({
         />
       </div>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="telefon">
-          Telefon
-        </label>
-        <input
-          id="telefon"
-          name="telefon"
-          defaultValue={initial?.telefon ?? ""}
-          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="handynummer">
+            Handynummer
+          </label>
+          <input
+            id="handynummer"
+            name="handynummer"
+            defaultValue={initial?.handynummer ?? ""}
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="festnetznummer">
+            Festnetznummer
+          </label>
+          <input
+            id="festnetznummer"
+            name="festnetznummer"
+            defaultValue={initial?.festnetznummer ?? ""}
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
