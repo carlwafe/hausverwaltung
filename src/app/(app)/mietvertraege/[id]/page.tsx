@@ -7,7 +7,7 @@ import { updateMietvertrag, deleteMietvertrag } from "../actions";
 import { deleteZahlung } from "../../zahlungen/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { berechneSoll, berechneIst } from "@/lib/soll-ist";
+import { berechneSoll, berechneIst, sollAufschluesselung } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -71,6 +71,16 @@ export default async function MietvertragDetailPage({
     objekt?.buchhaltungAb ?? null,
   );
   const saldo = ist - soll;
+  const sollZeilen = sollAufschluesselung(
+    {
+      beginn: vertrag.beginn,
+      ende: vertrag.ende,
+      kaltmiete: Number(vertrag.kaltmiete),
+      nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+    },
+    new Date(),
+    objekt?.buchhaltungAb ?? null,
+  ).reverse();
 
   return (
     <div>
@@ -103,16 +113,6 @@ export default async function MietvertragDetailPage({
         action={updateMietvertrag.bind(null, id)}
       />
 
-      <div className="mt-10 flex items-center justify-between">
-        <h2 className="text-lg font-medium text-white">Zahlungen ({vertrag.zahlungen.length})</h2>
-        <Link
-          href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
-          className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-        >
-          + Zahlung erfassen
-        </Link>
-      </div>
-
       <div className="my-4 grid grid-cols-3 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">
@@ -136,44 +136,99 @@ export default async function MietvertragDetailPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Datum</th>
-              <th className="px-4 py-2">Für Periode</th>
-              <th className="px-4 py-2">Betrag</th>
-              <th className="px-4 py-2">Verwendungszweck</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {vertrag.zahlungen.map((z) => (
-              <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">{formatDate(z.datum)}</td>
-                <td className="px-4 py-2 text-white">
-                  {MONATE_KURZ[z.periodeMonat - 1]} {z.periodeJahr}
-                </td>
-                <td className="px-4 py-2 text-white">{formatEuro(Number(z.betrag))}</td>
-                <td className="px-4 py-2 text-white">{z.verwendungszweck || "–"}</td>
-                <td className="px-4 py-2 text-right">
-                  <DeleteButton
-                    action={deleteZahlung.bind(null, z.id)}
-                    confirmText="Zahlung wirklich löschen?"
-                    label="Löschen"
-                  />
-                </td>
-              </tr>
-            ))}
-            {vertrag.zahlungen.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Zahlungen erfasst.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-2 gap-6">
+        <div>
+          <h2 className="mb-4 text-lg font-medium text-white">
+            Soll-Aufschlüsselung ({sollZeilen.length})
+          </h2>
+          <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-800">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+                <tr>
+                  <th className="px-4 py-2">Periode</th>
+                  <th className="px-4 py-2">Fällig am</th>
+                  <th className="px-4 py-2">Betrag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sollZeilen.map((z) => (
+                  <tr key={`${z.jahr}-${z.monat}`} className="border-t border-neutral-800">
+                    <td className="px-4 py-2 text-white">
+                      {MONATE_KURZ[z.monat - 1]} {z.jahr}
+                    </td>
+                    <td className="px-4 py-2 text-white">{formatDate(z.faelligAm)}</td>
+                    <td className="px-4 py-2 text-white">{formatEuro(z.betrag)}</td>
+                  </tr>
+                ))}
+                {sollZeilen.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-neutral-500">
+                      Kein Soll im erfassten Zeitraum.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-medium text-white">
+              Zahlungen ({vertrag.zahlungen.length})
+            </h2>
+            <Link
+              href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
+              className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+            >
+              + Zahlung erfassen
+            </Link>
+          </div>
+          <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-800">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+                <tr>
+                  <th className="px-4 py-2">Datum</th>
+                  <th className="px-4 py-2">Periode</th>
+                  <th className="px-4 py-2">Betrag</th>
+                  <th className="px-4 py-2">Verwendungszweck</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {vertrag.zahlungen.map((z) => (
+                  <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
+                    <td className="px-4 py-2 text-white">{formatDate(z.datum)}</td>
+                    <td className="px-4 py-2 text-white">
+                      {MONATE_KURZ[z.periodeMonat - 1]} {z.periodeJahr}
+                    </td>
+                    <td className="px-4 py-2 text-white">{formatEuro(Number(z.betrag))}</td>
+                    <td
+                      className="max-w-[160px] truncate px-4 py-2 text-white"
+                      title={z.verwendungszweck ?? ""}
+                    >
+                      {z.verwendungszweck || "–"}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <DeleteButton
+                        action={deleteZahlung.bind(null, z.id)}
+                        confirmText="Zahlung wirklich löschen?"
+                        label="Löschen"
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {vertrag.zahlungen.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
+                      Noch keine Zahlungen erfasst.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );
