@@ -48,6 +48,7 @@ export default function ZahlungenImportPage() {
   const [lastPreview, setLastPreview] = useState<PreviewResult | null>(null);
   const [editRows, setEditRows] = useState<EditRow[] | null>(null);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const hasPreview = preview !== null && !("error" in preview);
   const kandidaten = hasPreview ? preview.kandidaten : [];
@@ -104,14 +105,20 @@ export default function ZahlungenImportPage() {
             <label className="mb-1 block text-sm font-medium" htmlFor="file">
               Datei
             </label>
-            <input
-              id="file"
-              name="file"
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              required
-              className="block text-sm"
-            />
+            <div className="relative inline-block">
+              <input
+                id="file"
+                name="file"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                required
+                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+              <div className="pointer-events-none inline-flex items-center gap-2 rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white">
+                {fileName ?? "Datei auswählen…"}
+              </div>
+            </div>
           </div>
           <button
             type="submit"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { previewImport, commitImport } from "./actions";
 
@@ -12,6 +12,7 @@ const typLabel: Record<string, string> = {
 export default function EinheitenImportPage() {
   const [preview, previewAction, previewPending] = useActionState(previewImport, null);
   const [commitMessage, commitAction, commitPending] = useActionState(commitImport, null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const hasPreview = preview !== null && !("error" in preview);
   const validCount = hasPreview ? preview.rows.filter((r) => r.errors.length === 0).length : 0;
@@ -32,14 +33,20 @@ export default function EinheitenImportPage() {
             <label className="mb-1 block text-sm font-medium" htmlFor="file">
               Datei
             </label>
-            <input
-              id="file"
-              name="file"
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              required
-              className="block text-sm"
-            />
+            <div className="relative inline-block">
+              <input
+                id="file"
+                name="file"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                required
+                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+              <div className="pointer-events-none inline-flex items-center gap-2 rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white">
+                {fileName ?? "Datei auswählen…"}
+              </div>
+            </div>
           </div>
           <button
             type="submit"
