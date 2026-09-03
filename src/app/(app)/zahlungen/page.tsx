@@ -1,36 +1,30 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
-import { deleteZahlung, deleteAlleZahlungen } from "./actions";
+import { deleteAlleZahlungen } from "./actions";
+import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
 
-function formatEuro(value: number) {
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
-}
-
-function formatDate(d: Date) {
-  return new Intl.DateTimeFormat("de-DE").format(d);
-}
-
-const MONATE_KURZ = [
-  "Jan",
-  "Feb",
-  "Mär",
-  "Apr",
-  "Mai",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Okt",
-  "Nov",
-  "Dez",
-];
-
-export default async function ZahlungenPage() {
+async function ladeZahlungen(): Promise<ZahlungRow[]> {
   const zahlungen = await prisma.zahlung.findMany({
     orderBy: { datum: "desc" },
     include: { mietvertrag: { include: { einheit: true, mieter: true } } },
   });
+
+  return zahlungen.map((z) => ({
+    id: z.id,
+    mietvertragId: z.mietvertragId,
+    datum: z.datum.toISOString(),
+    einheitBezeichnung: z.mietvertrag.einheit.bezeichnung,
+    mieterNamen: z.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    periodeMonat: z.periodeMonat,
+    periodeJahr: z.periodeJahr,
+    betrag: Number(z.betrag),
+    verwendungszweck: z.verwendungszweck,
+  }));
+}
+
+export default async function ZahlungenPage() {
+  const zahlungen = await ladeZahlungen();
 
   return (
     <div>
@@ -62,58 +56,7 @@ export default async function ZahlungenPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Datum</th>
-              <th className="px-4 py-2">Einheit</th>
-              <th className="px-4 py-2">Mieter</th>
-              <th className="px-4 py-2">Für Periode</th>
-              <th className="px-4 py-2">Betrag</th>
-              <th className="px-4 py-2">Verwendungszweck</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {zahlungen.map((z) => (
-              <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">{formatDate(z.datum)}</td>
-                <td className="px-4 py-2 text-white">
-                  <Link
-                    href={`/mietvertraege/${z.mietvertragId}`}
-                    className="font-medium hover:underline"
-                  >
-                    {z.mietvertrag.einheit.bezeichnung}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-white">
-                  {z.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}
-                </td>
-                <td className="px-4 py-2 text-white">
-                  {MONATE_KURZ[z.periodeMonat - 1]} {z.periodeJahr}
-                </td>
-                <td className="px-4 py-2 text-white">{formatEuro(Number(z.betrag))}</td>
-                <td className="px-4 py-2 text-white">{z.verwendungszweck || "–"}</td>
-                <td className="px-4 py-2 text-right">
-                  <DeleteButton
-                    action={deleteZahlung.bind(null, z.id)}
-                    confirmText="Zahlung wirklich löschen?"
-                    label="Löschen"
-                  />
-                </td>
-              </tr>
-            ))}
-            {zahlungen.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Zahlungen erfasst.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ZahlungenTable rows={zahlungen} />
     </div>
   );
 }

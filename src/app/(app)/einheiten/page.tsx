@@ -1,13 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
+import { EinheitenTable, type EinheitRow } from "./einheiten-table";
 
-const typLabel: Record<string, string> = {
-  WOHNUNG: "Wohnung",
-  GARAGE: "Garage",
-};
-
-export default async function EinheitenPage() {
+async function ladeEinheiten(): Promise<EinheitRow[]> {
   const einheitenRaw = await prisma.einheit.findMany({
     include: {
       gebaeude: true,
@@ -18,7 +14,24 @@ export default async function EinheitenPage() {
     },
   });
 
-  const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
+  return sortEinheitenNachGebaeude(einheitenRaw).map((e) => ({
+    id: e.id,
+    gebaeudeId: e.gebaeude.id,
+    gebaeudeStrasse: e.gebaeude.strasse,
+    gebaeudeHausnummer: e.gebaeude.hausnummer,
+    bezeichnung: e.bezeichnung,
+    typ: e.typ,
+    etage: e.etage ?? "",
+    wohnflaecheQm: Number(e.wohnflaecheQm),
+    mietvertraege: e.mietvertraege.map((v) => ({
+      id: v.id,
+      mieter: v.mieter.map((m) => ({ id: m.id, vorname: m.vorname, nachname: m.nachname })),
+    })),
+  }));
+}
+
+export default async function EinheitenPage() {
+  const einheiten = await ladeEinheiten();
 
   return (
     <div>
@@ -43,65 +56,7 @@ export default async function EinheitenPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Gebäude</th>
-              <th className="px-4 py-2">Bezeichnung</th>
-              <th className="px-4 py-2">Typ</th>
-              <th className="px-4 py-2">Etage</th>
-              <th className="px-4 py-2">Wohnfläche</th>
-              <th className="px-4 py-2">Mieter</th>
-            </tr>
-          </thead>
-          <tbody>
-            {einheiten.map((e) => (
-              <tr key={e.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/gebaeude/${e.gebaeude.id}`} className="hover:underline">
-                    {e.gebaeude.strasse} {e.gebaeude.hausnummer}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/einheiten/${e.id}`} className="font-medium hover:underline">
-                    {e.bezeichnung}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-white">{typLabel[e.typ]}</td>
-                <td className="px-4 py-2 text-white">{e.etage || "–"}</td>
-                <td className="px-4 py-2 text-white">{Number(e.wohnflaecheQm).toFixed(2)} m²</td>
-                <td className="px-4 py-2 text-white">
-                  {e.mietvertraege.length > 0 ? (
-                    e.mietvertraege.map((v, vi) => (
-                      <span key={v.id}>
-                        {vi > 0 && ", "}
-                        {v.mieter.map((m, mi) => (
-                          <span key={m.id}>
-                            {mi > 0 && " & "}
-                            <Link href={`/mieter/${m.id}`} className="hover:underline">
-                              {m.vorname} {m.nachname}
-                            </Link>
-                          </span>
-                        ))}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-neutral-500">leer</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {einheiten.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Einheiten angelegt.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <EinheitenTable rows={einheiten} />
     </div>
   );
 }

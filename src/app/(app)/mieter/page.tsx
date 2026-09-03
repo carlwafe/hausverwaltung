@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { MieterTable, type MieterRow } from "./mieter-table";
 
-export default async function MieterPage() {
+async function ladeMieter(): Promise<MieterRow[]> {
   const mieter = await prisma.mieter.findMany({
     orderBy: { nachname: "asc" },
     include: {
@@ -11,6 +12,20 @@ export default async function MieterPage() {
       },
     },
   });
+
+  return mieter.map((m) => ({
+    id: m.id,
+    vorname: m.vorname,
+    nachname: m.nachname,
+    email: m.email,
+    handynummer: m.handynummer,
+    festnetznummer: m.festnetznummer,
+    einheiten: m.mietvertraege.map((v) => v.einheit.bezeichnung),
+  }));
+}
+
+export default async function MieterPage() {
+  const mieter = await ladeMieter();
 
   return (
     <div>
@@ -27,45 +42,7 @@ export default async function MieterPage() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">E-Mail</th>
-              <th className="px-4 py-2">Handy</th>
-              <th className="px-4 py-2">Festnetz</th>
-              <th className="px-4 py-2">Einheit(en)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mieter.map((m) => (
-              <tr key={m.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2">
-                  <Link href={`/mieter/${m.id}`} className="font-medium hover:underline">
-                    {m.vorname} {m.nachname}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{m.email ?? "–"}</td>
-                <td className="px-4 py-2">{m.handynummer ?? "–"}</td>
-                <td className="px-4 py-2">{m.festnetznummer ?? "–"}</td>
-                <td className="px-4 py-2">
-                  {m.mietvertraege.length > 0
-                    ? m.mietvertraege.map((v) => v.einheit.bezeichnung).join(", ")
-                    : "–"}
-                </td>
-              </tr>
-            ))}
-            {mieter.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Mieter angelegt.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <MieterTable rows={mieter} />
     </div>
   );
 }

@@ -1,18 +1,31 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { GebaeudeTable, type GebaeudeRow } from "./gebaeude-table";
 
-export default async function GebaeudePage() {
+async function ladeGebaeude(): Promise<GebaeudeRow[]> {
   const gebaeudeRaw = await prisma.gebaeude.findMany({
     include: { _count: { select: { einheiten: true } } },
   });
 
-  const gebaeude = [...gebaeudeRaw].sort((a, b) => {
+  const sortiert = [...gebaeudeRaw].sort((a, b) => {
     const strasseCompare = a.strasse.localeCompare(b.strasse);
     if (strasseCompare !== 0) return strasseCompare;
     const hausCompare = (a.haus ?? "").localeCompare(b.haus ?? "");
     if (hausCompare !== 0) return hausCompare;
     return Number(a.hausnummer) - Number(b.hausnummer);
   });
+
+  return sortiert.map((g) => ({
+    id: g.id,
+    strasse: g.strasse,
+    haus: g.haus,
+    hausnummer: g.hausnummer,
+    einheitenCount: g._count.einheiten,
+  }));
+}
+
+export default async function GebaeudePage() {
+  const gebaeude = await ladeGebaeude();
 
   return (
     <div>
@@ -31,39 +44,7 @@ export default async function GebaeudePage() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Straße</th>
-              <th className="px-4 py-2">Haus</th>
-              <th className="px-4 py-2">Hausnummer</th>
-              <th className="px-4 py-2">Einheiten</th>
-            </tr>
-          </thead>
-          <tbody>
-            {gebaeude.map((g) => (
-              <tr key={g.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/gebaeude/${g.id}`} className="font-medium hover:underline">
-                    {g.strasse}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-white">{g.haus || "–"}</td>
-                <td className="px-4 py-2 text-white">{g.hausnummer}</td>
-                <td className="px-4 py-2 text-white">{g._count.einheiten}</td>
-              </tr>
-            ))}
-            {gebaeude.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Gebäude angelegt.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <GebaeudeTable rows={gebaeude} />
     </div>
   );
 }

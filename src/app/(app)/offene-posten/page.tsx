@@ -1,12 +1,12 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { berechneSoll } from "@/lib/soll-ist";
+import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-export default async function OffenePostenPage() {
+async function ladeZeilen(): Promise<OffenePostenRow[]> {
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: { in: ["AKTIV", "BEENDET"] } },
     include: {
@@ -18,7 +18,7 @@ export default async function OffenePostenPage() {
 
   const heute = new Date();
 
-  const zeilen = vertraege
+  return vertraege
     .map((v) => {
       const soll = berechneSoll(
         {
@@ -36,14 +36,17 @@ export default async function OffenePostenPage() {
         id: v.id,
         einheit: v.einheit.bezeichnung,
         mieter: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-        status: v.status,
+        status: v.status as "AKTIV" | "BEENDET",
         soll,
         ist,
         saldo,
       };
     })
     .sort((a, b) => a.saldo - b.saldo);
+}
 
+export default async function OffenePostenPage() {
+  const zeilen = await ladeZeilen();
   const gesamtRueckstand = zeilen.filter((z) => z.saldo < 0).reduce((sum, z) => sum + z.saldo, 0);
 
   return (
@@ -65,49 +68,7 @@ export default async function OffenePostenPage() {
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Einheit</th>
-              <th className="px-4 py-2">Mieter</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Soll</th>
-              <th className="px-4 py-2">Ist</th>
-              <th className="px-4 py-2">Saldo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {zeilen.map((z) => (
-              <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
-                    {z.einheit}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-white">{z.mieter}</td>
-                <td className="px-4 py-2 text-neutral-400">
-                  {z.status === "AKTIV" ? "Aktiv" : "Beendet"}
-                </td>
-                <td className="px-4 py-2 text-white">{formatEuro(z.soll)}</td>
-                <td className="px-4 py-2 text-white">{formatEuro(z.ist)}</td>
-                <td
-                  className={`px-4 py-2 font-medium ${z.saldo < 0 ? "text-red-400" : z.saldo > 0 ? "text-green-400" : "text-white"}`}
-                >
-                  {formatEuro(z.saldo)}
-                </td>
-              </tr>
-            ))}
-            {zeilen.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-neutral-500">
-                  Keine aktiven oder beendeten Mietverträge vorhanden.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <OffenePostenTable rows={zeilen} />
     </div>
   );
 }
