@@ -133,10 +133,16 @@ function parseGermanDate(raw: string | undefined): string | null {
   return null;
 }
 
-/** Extrahiert die WHG-Nummer aus z.B. "1. EG links" -> "1". */
+/** Extrahiert die WHG-Nummer aus z.B. "1. EG links" -> "1", oder die Garagennummer aus "Garage 3" -> "3". */
 function extractWhgNr(raw: string): string {
-  const match = raw.trim().match(/^(\d+)\./);
-  return match ? match[1] : normalize(raw);
+  const trimmed = raw.trim();
+  const whgMatch = trimmed.match(/^(\d+)\./);
+  if (whgMatch) return whgMatch[1];
+  const garageMatch = trimmed.match(/Garage\s+(\d+)/i);
+  if (garageMatch) return garageMatch[1];
+  const nurZahl = trimmed.match(/^(\d+)$/);
+  if (nurZahl) return nurZahl[1];
+  return normalize(raw);
 }
 
 function parseNamen(raw: string): { vorname: string; nachname: string }[] {

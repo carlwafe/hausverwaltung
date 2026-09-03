@@ -11,7 +11,16 @@ import {
   type MieterKandidat,
 } from "@/lib/import/mietvertraege-import";
 
-const BEZEICHNUNG_PATTERN = /^HS\s+(\S+)\s+WHG\s+(\d+)\s+-/i;
+const WHG_NR_PATTERN = /WHG\s+(\d+)/i;
+const GARAGE_NR_PATTERN = /Garage\s+(\d+)/i;
+
+function extractEinheitNr(bezeichnung: string): string {
+  const whgMatch = bezeichnung.match(WHG_NR_PATTERN);
+  if (whgMatch) return whgMatch[1];
+  const garageMatch = bezeichnung.match(GARAGE_NR_PATTERN);
+  if (garageMatch) return garageMatch[1];
+  return bezeichnung.trim().toLowerCase();
+}
 
 export type PreviewResult =
   | {
@@ -49,17 +58,12 @@ export async function previewImport(
       prisma.mietvertrag.findMany({ select: { einheitId: true, beginn: true } }),
     ]);
 
-    const einheitenKandidaten: EinheitKandidat[] = [];
-    for (const e of einheitenRaw) {
-      const match = e.bezeichnung.match(BEZEICHNUNG_PATTERN);
-      if (!match) continue;
-      einheitenKandidaten.push({
-        id: e.id,
-        hausnummer: match[1],
-        whgNr: match[2],
-        label: `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} — ${e.bezeichnung}`,
-      });
-    }
+    const einheitenKandidaten: EinheitKandidat[] = einheitenRaw.map((e) => ({
+      id: e.id,
+      hausnummer: e.gebaeude.hausnummer,
+      whgNr: extractEinheitNr(e.bezeichnung),
+      label: `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} — ${e.bezeichnung}`,
+    }));
 
     const mieterKandidaten: MieterKandidat[] = mieterRaw.map((m) => ({
       id: m.id,
