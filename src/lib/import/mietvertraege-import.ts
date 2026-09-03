@@ -3,7 +3,8 @@ export type MieterKandidat = { id: string; vorname: string; nachname: string };
 export type EinheitKandidat = {
   id: string;
   hausnummer: string;
-  whgNr: string; // aus "HS X WHG Y - ..." extrahiert
+  whgNr: string; // aus "HS X WHG Y - ..." bzw. "Garage Y" extrahiert
+  typ: "WOHNUNG" | "GARAGE";
   label: string;
 };
 
@@ -39,7 +40,17 @@ function normalize(s: string): string {
 }
 
 const COLUMN_SYNONYMS: Record<string, string[]> = {
-  whgnr: ["bezeichnung", "einheit", "wohnung", "whg", "nr", "nummer", "einheitnr", "einheitsnummer"],
+  whgnr: [
+    "bezeichnung",
+    "einheit",
+    "wohnung",
+    "whg",
+    "garage",
+    "nr",
+    "nummer",
+    "einheitnr",
+    "einheitsnummer",
+  ],
   name: ["name", "mieter", "mietername", "beguenstigterzahlungspflichtiger"],
   beginn: ["mietbeginn", "beginn", "einzugsdatum", "von"],
   ende: ["mietende", "ende", "auszugsdatum", "bis"],
@@ -186,8 +197,10 @@ export function mapVertraegeRows(
   const gebaeudeCol = findGebaeudeColumn(headers, usedCols);
 
   const einheitenByKey = new Map<string, string>();
+  const garagenByNr = new Map<string, string>();
   for (const e of einheiten) {
     einheitenByKey.set(`${e.hausnummer}|${e.whgNr}`, e.id);
+    if (e.typ === "GARAGE") garagenByNr.set(e.whgNr, e.id);
   }
 
   const mieterByName = new Map<string, string>();
@@ -205,6 +218,11 @@ export function mapVertraegeRows(
     let einheitId: string | null = null;
     if (hausnummer && whgNr) {
       einheitId = einheitenByKey.get(`${hausnummer}|${whgNr}`) ?? null;
+    }
+    // Garagen-Exporte enthalten oft keine separate Hausnummer-Spalte (z.B. eine einzelne
+    // Spalte "Koenigsberger Strasse G Garage 3") — dann anhand der Garagennummer matchen.
+    if (!einheitId && whgNr && /garage/i.test(whgNrRoh)) {
+      einheitId = garagenByNr.get(whgNr) ?? null;
     }
     if (!einheitId) errors.push("Einheit nicht gefunden (Hausnummer/WHG-Nr prüfen)");
 

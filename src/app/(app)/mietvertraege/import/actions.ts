@@ -62,6 +62,7 @@ export async function previewImport(
       id: e.id,
       hausnummer: e.gebaeude.hausnummer,
       whgNr: extractEinheitNr(e.bezeichnung),
+      typ: e.typ,
       label: `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} — ${e.bezeichnung}`,
     }));
 
