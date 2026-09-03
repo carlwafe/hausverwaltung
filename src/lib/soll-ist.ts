@@ -37,15 +37,17 @@ export function berechneSoll(
 }
 
 /**
- * Ist = Summe der erfassten Zahlungen — ab `buchhaltungAb`, falls gesetzt, damit Ist und Soll
- * denselben Zeitraum abdecken. Ohne diesen Filter würden ältere Zahlungen (die im Soll seit
- * `buchhaltungAb` gar nicht mehr mitgezählt werden) den Saldo künstlich ins Plus ziehen.
+ * Ist = Summe der erfassten Zahlungen im Zeitraum [buchhaltungAb, buchhaltungBis], damit Ist und
+ * Soll immer denselben Zeitraum abdecken. Ohne die Untergrenze würden ältere Zahlungen (die im
+ * Soll seit `buchhaltungAb` gar nicht mehr mitgezählt werden) den Saldo künstlich ins Plus
+ * ziehen; die Obergrenze erlaubt einen Stichtags-Rückblick (z.B. "Stand Ende letzten Monats").
  */
 export function berechneIst(
   zahlungen: { datum: Date; betrag: number }[],
   buchhaltungAb: Date | null = null,
+  buchhaltungBis: Date | null = null,
 ): number {
   return zahlungen
-    .filter((z) => !buchhaltungAb || z.datum >= buchhaltungAb)
+    .filter((z) => (!buchhaltungAb || z.datum >= buchhaltungAb) && (!buchhaltungBis || z.datum <= buchhaltungBis))
     .reduce((sum, z) => sum + z.betrag, 0);
 }
