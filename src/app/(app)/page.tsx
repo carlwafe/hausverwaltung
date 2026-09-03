@@ -1,19 +1,32 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { berechneSoll } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
 export default async function DashboardPage() {
-  const [objekt, gebaeudeCount, einheitenCount, aktiveVertraege] = await Promise.all([
-    prisma.objekt.findFirst(),
-    prisma.gebaeude.count(),
-    prisma.einheit.count(),
-    prisma.mietvertrag.findMany({
-      where: { status: "AKTIV" },
-      select: { einheitId: true, kaltmiete: true, nebenkostenVorauszahlung: true },
-    }),
-  ]);
+  const [objekt, gebaeudeCount, einheitenCount, aktiveVertraege, abrechenbareVertraege] =
+    await Promise.all([
+      prisma.objekt.findFirst(),
+      prisma.gebaeude.count(),
+      prisma.einheit.count(),
+      prisma.mietvertrag.findMany({
+        where: { status: "AKTIV" },
+        select: { einheitId: true, kaltmiete: true, nebenkostenVorauszahlung: true },
+      }),
+      prisma.mietvertrag.findMany({
+        where: { status: { in: ["AKTIV", "BEENDET"] } },
+        select: {
+          beginn: true,
+          ende: true,
+          kaltmiete: true,
+          nebenkostenVorauszahlung: true,
+          zahlungen: { select: { betrag: true } },
+        },
+      }),
+    ]);
 
   const belegteEinheiten = new Set(aktiveVertraege.map((v) => v.einheitId)).size;
   const leerstand = einheitenCount - belegteEinheiten;
@@ -22,6 +35,18 @@ export default async function DashboardPage() {
     (sum, v) => sum + Number(v.nebenkostenVorauszahlung),
     0,
   );
+
+  const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
+    const soll = berechneSoll({
+      beginn: v.beginn,
+      ende: v.ende,
+      kaltmiete: Number(v.kaltmiete),
+      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+    });
+    const ist = v.zahlungen.reduce((s, z) => s + Number(z.betrag), 0);
+    const saldo = ist - soll;
+    return sum + Math.min(saldo, 0);
+  }, 0);
 
   const kacheln = [
     { label: "Gebäude", value: gebaeudeCount.toString() },
@@ -46,6 +71,17 @@ export default async function DashboardPage() {
             <p className="mt-1 text-xl font-semibold text-white">{k.value}</p>
           </div>
         ))}
+        <Link
+          href="/offene-posten"
+          className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900"
+        >
+          <p className="text-xs text-neutral-400">Offene Posten gesamt</p>
+          <p
+            className={`mt-1 text-xl font-semibold ${gesamtRueckstand < 0 ? "text-red-400" : "text-white"}`}
+          >
+            {formatEuro(gesamtRueckstand)}
+          </p>
+        </Link>
       </div>
     </div>
   );

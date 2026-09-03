@@ -10,6 +10,8 @@ const links = [
   { href: "/einheiten", label: "Einheiten" },
   { href: "/mieter", label: "Mieter" },
   { href: "/mietvertraege", label: "Mietverträge" },
+  { href: "/zahlungen", label: "Zahlungen" },
+  { href: "/offene-posten", label: "Offene Posten" },
 ];
 
 export function NavBar({
