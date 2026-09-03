@@ -73,9 +73,19 @@ export default async function EinheitenPage() {
                 <td className="px-4 py-2 text-white">{Number(e.wohnflaecheQm).toFixed(2)} m²</td>
                 <td className="px-4 py-2 text-white">
                   {e.mietvertraege.length > 0 ? (
-                    e.mietvertraege
-                      .map((v) => v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "))
-                      .join(", ")
+                    e.mietvertraege.map((v, vi) => (
+                      <span key={v.id}>
+                        {vi > 0 && ", "}
+                        {v.mieter.map((m, mi) => (
+                          <span key={m.id}>
+                            {mi > 0 && " & "}
+                            <Link href={`/mieter/${m.id}`} className="hover:underline">
+                              {m.vorname} {m.nachname}
+                            </Link>
+                          </span>
+                        ))}
+                      </span>
+                    ))
                   ) : (
                     <span className="text-neutral-500">leer</span>
                   )}
