@@ -146,7 +146,19 @@ function findeMietvertrag(
     .filter((k) => liegtImMietzeitraum(datum, k))
     .map((k) => {
       let score = 0;
-      if (betrag !== null && Math.abs(betrag - k.warmmiete) < 0.01) score += 3;
+      if (betrag !== null) {
+        const differenz = Math.abs(betrag - k.warmmiete);
+        if (differenz < 0.01) {
+          score += 3;
+        } else {
+          // Kein exakter Treffer, aber der Betrag liegt deutlich näher an dieser Einheit als
+          // eine komplett andere Miethöhe wäre — hilft z.B., wenn dieselbe Person Wohnung und
+          // Garage hat und der (evtl. veraltete) Buchungsbetrag zu keiner der beiden exakt
+          // passt: er ist trotzdem eindeutig näher an der günstigeren Garage als an der Wohnung.
+          const relativeDifferenz = differenz / Math.max(k.warmmiete, betrag, 1);
+          if (relativeDifferenz < 0.5) score += 1;
+        }
+      }
       let getroffeneNamensteile = 0;
       for (const n of k.namen) {
         const teile = n.split(/\s+/).filter((t) => t.length >= 3);
