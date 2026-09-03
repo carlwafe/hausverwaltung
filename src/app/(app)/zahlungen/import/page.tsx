@@ -285,8 +285,14 @@ export default function ZahlungenImportPage() {
                         {r.errors.length > 0 && (
                           <span className="text-red-400">{r.errors.join("; ")}</span>
                         )}
-                        {r.errors.length === 0 && r.ignorieren && (
+                        {r.errors.length === 0 && r.eigentuemerBuchung && (
+                          <span className="text-neutral-500">Eigentümer-Buchung</span>
+                        )}
+                        {r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && (
                           <span className="text-neutral-500">ausgehend</span>
+                        )}
+                        {r.errors.length === 0 && r.rueckbuchung && (
+                          <span className="text-red-400">Rücklastschrift</span>
                         )}
                         {r.errors.length === 0 && !r.ignorieren && r.mehrdeutig && (
                           <span className="text-amber-400">mehrdeutig</span>

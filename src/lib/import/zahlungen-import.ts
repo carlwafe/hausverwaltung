@@ -15,6 +15,8 @@ export type ParsedZahlungRow = {
   vorgeschlagenerMietvertragId: string | null;
   mehrdeutig: boolean;
   ignorieren: boolean; // z.B. ausgehende Buchung
+  rueckbuchung: boolean; // Rücklastschrift/Lastschriftwiderspruch: negative Korrektur einer zuvor gutgeschriebenen Miete
+  eigentuemerBuchung: boolean; // Buchung von/an die Eigentümerin (Julia Katharina Waller) – keine Miete
   errors: string[];
 };
 
@@ -96,6 +98,15 @@ function parseGermanDate(raw: string | undefined): string | null {
   return null;
 }
 
+const RUECKBUCHUNG_PATTERN = /RUECKLASTSCHRIFT|LASTSCHRIFTWIDERSPRUCH/i;
+
+// Buchungen von/an die Eigentümerin selbst (z.B. Kontoausgleiche, Mietweiterleitungen,
+// Nebenkostenabrechnungs-Erstattungen) sind niemals Mietzahlungen eines Mieters – unabhängig
+// vom Betrag oder ob sie im Verwendungszweck oder im Namensfeld erscheint.
+function istEigentuemerBuchung(text: string): boolean {
+  return /julia/i.test(text) && /waller/i.test(text);
+}
+
 function textEnthaeltWort(haystack: string, wort: string): boolean {
   if (wort.length < 3) return false;
   const h = normalize(haystack);
@@ -166,7 +177,12 @@ export function mapZahlungenRows(
     const verwendungszweck = zweckCol ? (row[zweckCol] ?? "").trim() : "";
     const name = nameCol ? (row[nameCol] ?? "").trim() : "";
 
-    const ignorieren = betrag !== null && betrag <= 0;
+    // Rücklastschriften/Lastschriftwidersprüche sind zwar ausgehende Buchungen (negativer
+    // Betrag), korrigieren aber eine zuvor gutgeschriebene Miete, die tatsächlich nicht bezahlt
+    // wurde — sie müssen als Korrekturbuchung importiert werden, nicht als "ausgehend" ignoriert.
+    const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
+    const eigentuemerBuchung = istEigentuemerBuchung(`${verwendungszweck} ${name}`);
+    const ignorieren = eigentuemerBuchung || (betrag !== null && betrag <= 0 && !rueckbuchung);
 
     let vorgeschlagenerMietvertragId: string | null = null;
     let mehrdeutig = false;
@@ -185,6 +201,8 @@ export function mapZahlungenRows(
       vorgeschlagenerMietvertragId,
       mehrdeutig,
       ignorieren,
+      rueckbuchung,
+      eigentuemerBuchung,
       errors,
     };
   });

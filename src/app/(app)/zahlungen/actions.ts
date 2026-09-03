@@ -50,3 +50,12 @@ export async function deleteZahlung(id: string) {
   revalidatePath("/offene-posten");
   revalidatePath(`/mietvertraege/${zahlung.mietvertragId}`);
 }
+
+export async function deleteAlleZahlungen() {
+  await requireUser();
+  await prisma.zahlung.deleteMany({});
+  revalidatePath("/zahlungen");
+  revalidatePath("/offene-posten");
+  revalidatePath("/mietvertraege");
+  revalidatePath("/");
+}

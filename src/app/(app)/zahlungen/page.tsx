@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
-import { deleteZahlung } from "./actions";
+import { deleteZahlung, deleteAlleZahlungen } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -52,6 +52,13 @@ export default async function ZahlungenPage() {
           >
             + Neue Zahlung
           </Link>
+          {zahlungen.length > 0 && (
+            <DeleteButton
+              action={deleteAlleZahlungen}
+              confirmText={`Wirklich alle ${zahlungen.length} Zahlungen unwiderruflich löschen?`}
+              label="Alle löschen"
+            />
+          )}
         </div>
       </div>
 

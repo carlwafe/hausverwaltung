@@ -105,7 +105,12 @@ export function MietvertragForm({
 
       <div className="grid grid-cols-2 gap-4">
         <DateInput id="beginn" name="beginn" label="Mietbeginn" defaultValue={initial?.beginn} />
-        <DateInput id="ende" name="ende" label="Mietende (optional)" defaultValue={initial?.ende} />
+        <DateInput
+          id="ende"
+          name="ende"
+          label="Mietende (erforderlich bei Status „Beendet“)"
+          defaultValue={initial?.ende}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

@@ -36,6 +36,10 @@ const mietvertragSchema = z
   .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
     message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
     path: ["mieterId2"],
+  })
+  .refine((d) => d.status !== "BEENDET" || d.ende !== undefined, {
+    message: "Mietende ist erforderlich, wenn der Vertrag als beendet markiert wird",
+    path: ["ende"],
   });
 
 function parseForm(formData: FormData) {
