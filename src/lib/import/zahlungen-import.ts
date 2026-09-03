@@ -1,3 +1,12 @@
+import {
+  findeKontoauszugSpalten,
+  istEigentuemerBuchung,
+  leseBetrag,
+  parseGermanDate,
+  RUECKBUCHUNG_PATTERN,
+  textEnthaeltWort,
+} from "./bank-csv";
+
 export type MietvertragKandidat = {
   id: string;
   label: string;
@@ -22,100 +31,6 @@ export type ParsedZahlungRow = {
   rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
   errors: string[];
 };
-
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]/g, "");
-}
-
-const COLUMN_SYNONYMS: Record<string, string[]> = {
-  datum: ["buchungstag", "valutadatum", "wertstellung", "buchungsdatum", "datum"],
-  betrag: ["betrag", "umsatz", "betrageur", "betrageuro"],
-  haben: ["haben", "einzahlung", "gutschrift"],
-  soll: ["soll", "auszahlung", "belastung"],
-  verwendungszweck: ["verwendungszweck", "buchungstext", "vorgang", "buchungsdetails"],
-  name: [
-    "auftraggeberempfaenger",
-    "beguenstigterzahlungspflichtiger",
-    "name",
-    "zahlungsempfaenger",
-    "zahlungspflichtiger",
-  ],
-};
-
-function findColumn(headers: string[], key: keyof typeof COLUMN_SYNONYMS): string | undefined {
-  const candidates = COLUMN_SYNONYMS[key];
-  const normalizedHeaders = headers.map((h) => ({ original: h, norm: normalize(h) }));
-  for (const c of candidates) {
-    const exact = normalizedHeaders.find((h) => h.norm === c);
-    if (exact) return exact.original;
-  }
-  for (const c of candidates) {
-    const partial = normalizedHeaders.find((h) => h.norm.includes(c));
-    if (partial) return partial.original;
-  }
-  return undefined;
-}
-
-function parseGermanNumber(raw: string | undefined): number | null {
-  if (!raw) return null;
-  const cleaned = raw.replace(/[^\d,.\-]/g, "").trim();
-  if (!cleaned) return null;
-
-  let normalized = cleaned;
-  if (cleaned.includes(",") && cleaned.includes(".")) {
-    normalized = cleaned.replace(/\./g, "").replace(",", ".");
-  } else if (cleaned.includes(",")) {
-    normalized = cleaned.replace(",", ".");
-  }
-
-  const num = parseFloat(normalized);
-  return Number.isFinite(num) ? num : null;
-}
-
-function parseGermanDate(raw: string | undefined): string | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-
-  // dd.mm.yyyy oder dd.mm.yy
-  const dmy = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
-  if (dmy) {
-    const [, d, m, yRaw] = dmy;
-    const y = yRaw.length === 2 ? `20${yRaw}` : yRaw;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-
-  // yyyy-mm-dd (schon ISO)
-  const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (iso) {
-    const [, y, m, d] = iso;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-
-  return null;
-}
-
-const RUECKBUCHUNG_PATTERN = /RUECKLASTSCHRIFT|LASTSCHRIFTWIDERSPRUCH/i;
-
-// Buchungen von/an die Eigentümerin selbst (z.B. Kontoausgleiche, Mietweiterleitungen,
-// Nebenkostenabrechnungs-Erstattungen) sind niemals Mietzahlungen eines Mieters – unabhängig
-// vom Betrag oder ob sie im Verwendungszweck oder im Namensfeld erscheint.
-function istEigentuemerBuchung(text: string): boolean {
-  return /julia/i.test(text) && /waller/i.test(text);
-}
-
-function textEnthaeltWort(haystack: string, wort: string): boolean {
-  if (wort.length < 3) return false;
-  const h = normalize(haystack);
-  const w = normalize(wort);
-  return h.includes(w);
-}
 
 const TAGE_TOLERANZ_VOR_BEGINN = 14;
 const TAGE_TOLERANZ_NACH_ENDE = 60;
@@ -193,12 +108,8 @@ export function mapZahlungenRows(
   rows: Record<string, string>[],
   kandidaten: MietvertragKandidat[],
 ): ParsedZahlungRow[] {
-  const datumCol = findColumn(headers, "datum");
-  const betragCol = findColumn(headers, "betrag");
-  const habenCol = betragCol ? undefined : findColumn(headers, "haben");
-  const sollCol = betragCol ? undefined : findColumn(headers, "soll");
-  const zweckCol = findColumn(headers, "verwendungszweck");
-  const nameCol = findColumn(headers, "name");
+  const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol } =
+    findeKontoauszugSpalten(headers);
 
   return rows.map((row, i) => {
     const errors: string[] = [];
@@ -206,14 +117,7 @@ export function mapZahlungenRows(
     const datum = datumCol ? parseGermanDate(row[datumCol]) : null;
     if (!datum) errors.push("Datum fehlt oder unlesbar");
 
-    let betrag: number | null = null;
-    if (betragCol) {
-      betrag = parseGermanNumber(row[betragCol]);
-    } else if (habenCol || sollCol) {
-      const haben = habenCol ? parseGermanNumber(row[habenCol]) : null;
-      const soll = sollCol ? parseGermanNumber(row[sollCol]) : null;
-      betrag = haben ?? (soll !== null ? -Math.abs(soll) : null);
-    }
+    const betrag = leseBetrag(row, { betragCol, habenCol, sollCol });
     if (betrag === null) errors.push("Betrag fehlt oder unlesbar");
 
     const verwendungszweck = zweckCol ? (row[zweckCol] ?? "").trim() : "";

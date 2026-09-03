@@ -45,6 +45,12 @@ export default async function KostenPage() {
             Kostenarten verwalten
           </Link>
           <Link
+            href="/kosten/import"
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            Aus Kontoauszug importieren
+          </Link>
+          <Link
             href="/kosten/neu"
             className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
           >

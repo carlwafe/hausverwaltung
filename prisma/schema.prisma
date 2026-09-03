@@ -210,16 +210,24 @@ model Kostenart {
 }
 
 model Kostenposition {
-  id           String    @id @default(cuid())
-  kostenart    Kostenart @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
-  kostenartId  String
-  gebaeude     Gebaeude  @relation(fields: [gebaeudeId], references: [id], onDelete: Cascade)
-  gebaeudeId   String
-  jahr         Int
-  betrag       Decimal   @db.Decimal(10, 2)
-  beschreibung String?
-  empfaenger   String?
-  createdAt    DateTime  @default(now())
+  id            String       @id @default(cuid())
+  kostenart     Kostenart    @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+  kostenartId   String
+  gebaeude      Gebaeude     @relation(fields: [gebaeudeId], references: [id], onDelete: Cascade)
+  gebaeudeId    String
+  jahr          Int
+  // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
+  // Kostenpositionen kennen nur das Jahr).
+  datum         DateTime?
+  betrag        Decimal      @db.Decimal(10, 2)
+  beschreibung  String?
+  empfaenger    String?
+  // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
+  // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
+  rohdaten      Json?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId String?
+  createdAt     DateTime     @default(now())
 
   dokumente Dokument[]
 
@@ -288,7 +296,8 @@ model ImportBatch {
   anzahlZeilen Int?
   erstelltAm   DateTime @default(now())
 
-  zahlungen Zahlung[]
+  zahlungen        Zahlung[]
+  kostenpositionen Kostenposition[]
 
   @@map("import_batches")
 }
