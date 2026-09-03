@@ -7,7 +7,7 @@ function formatEuro(value: number) {
 }
 
 export default async function DashboardPage() {
-  const [objekt, gebaeudeCount, einheitenCount, aktiveVertraege, abrechenbareVertraege] =
+  const [objekt, gebaeudeCount, einheitenCount, aktiveVertraege, abrechenbareVertraege, aktiveKautionen] =
     await Promise.all([
       prisma.objekt.findFirst(),
       prisma.gebaeude.count(),
@@ -27,7 +27,10 @@ export default async function DashboardPage() {
           zahlungen: { select: { datum: true, betrag: true } },
         },
       }),
+      prisma.kaution.findMany({ where: { status: "AKTIV" }, select: { betrag: true } }),
     ]);
+
+  const summeKautionen = aktiveKautionen.reduce((sum, k) => sum + Number(k.betrag), 0);
 
   const belegteEinheiten = new Set(aktiveVertraege.map((v) => v.einheitId)).size;
   const leerstand = einheitenCount - belegteEinheiten;
@@ -91,6 +94,13 @@ export default async function DashboardPage() {
           >
             {formatEuro(gesamtRueckstand)}
           </p>
+        </Link>
+        <Link
+          href="/kautionen"
+          className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900"
+        >
+          <p className="text-xs text-neutral-400">Kautionen gesamt (aktiv)</p>
+          <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summeKautionen)}</p>
         </Link>
       </div>
     </div>
