@@ -28,6 +28,7 @@ const mietvertragSchema = z
       .transform((v) => (v === "" || v === undefined ? undefined : v)),
     kaltmiete: z.coerce.number().positive("Kaltmiete muss größer als 0 sein"),
     nebenkostenVorauszahlung: z.coerce.number().min(0),
+    mehrwertsteuer: optionalNonNegativeNumber,
     status: z.enum(["AKTIV", "BEENDET", "GEPLANT"]),
     kautionBetrag: optionalPositiveNumber,
     kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
@@ -42,7 +43,7 @@ const mietvertragSchema = z
     path: ["ende"],
   });
 
-function parseForm(formData: FormData) {
+async function parseForm(formData: FormData) {
   const parsed = mietvertragSchema.safeParse({
     einheitId: formData.get("einheitId"),
     mieterId1: formData.get("mieterId1"),
@@ -51,6 +52,7 @@ function parseForm(formData: FormData) {
     ende: formData.get("ende") || "",
     kaltmiete: formData.get("kaltmiete"),
     nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
+    mehrwertsteuer: formData.get("mehrwertsteuer") || "",
     status: formData.get("status"),
     kautionBetrag: formData.get("kautionBetrag") || "",
     kautionAnlageform: formData.get("kautionAnlageform") || undefined,
@@ -60,6 +62,15 @@ function parseForm(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
   }
+
+  const einheit = await prisma.einheit.findUnique({
+    where: { id: parsed.data.einheitId },
+    select: { typ: true },
+  });
+  if (einheit?.typ === "GARAGE" && parsed.data.mehrwertsteuer === undefined) {
+    throw new Error("Mehrwertsteuer ist bei Garagen/Stellplätzen erforderlich");
+  }
+
   return parsed.data;
 }
 
@@ -69,7 +80,7 @@ function mieterIds(data: { mieterId1: string; mieterId2?: string }) {
 
 export async function createMietvertrag(formData: FormData) {
   await requireUser();
-  const data = parseForm(formData);
+  const data = await parseForm(formData);
 
   await prisma.mietvertrag.create({
     data: {
@@ -79,6 +90,7 @@ export async function createMietvertrag(formData: FormData) {
       ende: data.ende,
       kaltmiete: data.kaltmiete,
       nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
+      mehrwertsteuer: data.mehrwertsteuer,
       status: data.status,
       ...(data.kautionBetrag !== undefined
         ? {
@@ -101,7 +113,7 @@ export async function createMietvertrag(formData: FormData) {
 
 export async function updateMietvertrag(id: string, formData: FormData) {
   await requireUser();
-  const data = parseForm(formData);
+  const data = await parseForm(formData);
 
   await prisma.$transaction(async (tx) => {
     await tx.mietvertrag.update({
@@ -113,6 +125,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
         ende: data.ende,
         kaltmiete: data.kaltmiete,
         nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
+        mehrwertsteuer: data.mehrwertsteuer ?? null,
         status: data.status,
       },
     });

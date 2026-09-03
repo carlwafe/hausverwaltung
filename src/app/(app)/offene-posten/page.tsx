@@ -41,6 +41,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
           ende: v.ende,
           kaltmiete: Number(v.kaltmiete),
           nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+          mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
         },
         bis,
         buchhaltungAb,

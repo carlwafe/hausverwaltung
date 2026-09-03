@@ -146,6 +146,10 @@ model Mietvertrag {
   ende                     DateTime?
   kaltmiete                Decimal           @db.Decimal(10, 2)
   nebenkostenVorauszahlung Decimal           @db.Decimal(10, 2)
+  // Nur bei Garagen/Stellplätzen relevant: diese werden umsatzsteuerpflichtig vermietet
+  // (anders als Wohnraum, der nach §4 Nr. 12 UStG umsatzsteuerfrei ist) und haben daher keine
+  // Nebenkosten, aber eine Mehrwertsteuer-Vorauszahlung.
+  mehrwertsteuer           Decimal?          @db.Decimal(10, 2)
   status                   MietvertragStatus @default(AKTIV)
   createdAt                DateTime          @default(now())
 

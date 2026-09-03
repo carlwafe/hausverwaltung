@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 
 type Option = { id: string; label: string };
+type EinheitOption = Option & { typ: "WOHNUNG" | "GARAGE" };
 
 type Initial = {
   einheitId: string;
@@ -14,6 +15,7 @@ type Initial = {
   ende: string;
   kaltmiete: string;
   nebenkostenVorauszahlung: string;
+  mehrwertsteuer?: string;
   status: string;
   kautionBetrag?: string;
   kautionAnlageform?: string;
@@ -26,7 +28,7 @@ export function MietvertragForm({
   initial,
   action,
 }: {
-  einheiten: Option[];
+  einheiten: EinheitOption[];
   mieter: Option[];
   initial?: Initial;
   action: (formData: FormData) => Promise<void>;
@@ -35,6 +37,8 @@ export function MietvertragForm({
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),
     null,
   );
+  const [einheitId, setEinheitId] = useState(initial?.einheitId ?? "");
+  const istGarage = einheiten.find((e) => e.id === einheitId)?.typ === "GARAGE";
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
@@ -46,7 +50,8 @@ export function MietvertragForm({
           id="einheitId"
           name="einheitId"
           required
-          defaultValue={initial?.einheitId ?? ""}
+          value={einheitId}
+          onChange={(e) => setEinheitId(e.target.value)}
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
           <option value="" disabled>
@@ -104,18 +109,25 @@ export function MietvertragForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <DateInput id="beginn" name="beginn" label="Mietbeginn" defaultValue={initial?.beginn} />
+        <DateInput
+          id="beginn"
+          name="beginn"
+          label="Mietbeginn"
+          defaultValue={initial?.beginn}
+          labelClassName="min-h-10"
+        />
         <DateInput
           id="ende"
           name="ende"
           label="Mietende (erforderlich bei Status „Beendet“)"
           defaultValue={initial?.ende}
+          labelClassName="min-h-10"
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="kaltmiete">
+          <label className="mb-1 flex min-h-10 items-end text-sm font-medium" htmlFor="kaltmiete">
             Kaltmiete (€)
           </label>
           <input
@@ -129,20 +141,40 @@ export function MietvertragForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="nebenkostenVorauszahlung">
-            NK-Vorauszahlung (€)
+          <label
+            className="mb-1 flex min-h-10 items-end text-sm font-medium"
+            htmlFor="nebenkostenVorauszahlung"
+          >
+            NK-Vorauszahlung (€){istGarage && " (optional bei Garagen)"}
           </label>
           <input
             id="nebenkostenVorauszahlung"
             name="nebenkostenVorauszahlung"
             type="number"
             step="0.01"
-            required
+            required={!istGarage}
             defaultValue={initial?.nebenkostenVorauszahlung}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
       </div>
+
+      {istGarage && (
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="mehrwertsteuer">
+            Mehrwertsteuer (€)
+          </label>
+          <input
+            id="mehrwertsteuer"
+            name="mehrwertsteuer"
+            type="number"
+            step="0.01"
+            required
+            defaultValue={initial?.mehrwertsteuer}
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
+      )}
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="status">

@@ -20,11 +20,13 @@ export function DateInput({
   name,
   label,
   defaultValue,
+  labelClassName = "",
 }: {
   id: string;
   name: string;
   label: string;
   defaultValue?: string;
+  labelClassName?: string;
 }) {
   const [initJahr, initMonat, initTag] = (defaultValue ?? "").split("-");
   const [tag, setTag] = useState(initTag ?? "");
@@ -78,7 +80,7 @@ export function DateInput({
 
   return (
     <div className="min-w-0">
-      <label className="mb-1 block text-sm font-medium" htmlFor={id}>
+      <label className={`mb-1 flex items-end text-sm font-medium ${labelClassName}`} htmlFor={id}>
         {label}
       </label>
       <div className="flex min-w-0 items-center gap-1">

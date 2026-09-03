@@ -7,6 +7,7 @@ export type MietvertragFuerSollIst = {
   ende: Date | null;
   kaltmiete: number;
   nebenkostenVorauszahlung: number;
+  mehrwertsteuer?: number;
 };
 
 export type SollZeile = {
@@ -44,7 +45,8 @@ export function sollAufschluesselung(
 ): SollZeile[] {
   const referenz = vertrag.ende && vertrag.ende < heute ? vertrag.ende : heute;
   const start = buchhaltungAb && buchhaltungAb > vertrag.beginn ? buchhaltungAb : vertrag.beginn;
-  const betragProMonat = vertrag.kaltmiete + vertrag.nebenkostenVorauszahlung;
+  const betragProMonat =
+    vertrag.kaltmiete + vertrag.nebenkostenVorauszahlung + (vertrag.mehrwertsteuer ?? 0);
 
   const anzahlMonate = monateInklusive(
     start.getFullYear(),
@@ -76,7 +78,8 @@ export function sollAufschluesselung(
 
 /**
  * Soll = Summe der Monatsraten seit Mietbeginn (bis heute bzw. bis Mietende, falls dieses in der
- * Vergangenheit liegt) × Warmmiete (Kaltmiete + NK-Vorauszahlung).
+ * Vergangenheit liegt) × Warmmiete (Kaltmiete + NK-Vorauszahlung + ggf. Mehrwertsteuer, bei
+ * umsatzsteuerpflichtig vermieteten Garagen/Stellplätzen anstelle von Nebenkosten).
  *
  * Liegt der Mietbeginn vor `buchhaltungAb` (z.B. weil dafür keine Kontoauszüge mehr vorliegen),
  * wird erst ab `buchhaltungAb` gerechnet — sonst würde ein jahrzehntealter Mietbeginn einen

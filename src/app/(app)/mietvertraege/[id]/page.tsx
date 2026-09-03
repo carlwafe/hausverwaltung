@@ -56,28 +56,22 @@ export default async function MietvertragDetailPage({
   if (!vertrag) notFound();
   const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
 
-  const soll = berechneSoll(
-    {
-      beginn: vertrag.beginn,
-      ende: vertrag.ende,
-      kaltmiete: Number(vertrag.kaltmiete),
-      nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
-    },
-    new Date(),
-    objekt?.buchhaltungAb ?? null,
-  );
+  const vertragFuerSollIst = {
+    beginn: vertrag.beginn,
+    ende: vertrag.ende,
+    kaltmiete: Number(vertrag.kaltmiete),
+    nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+    mehrwertsteuer: vertrag.mehrwertsteuer ? Number(vertrag.mehrwertsteuer) : 0,
+  };
+
+  const soll = berechneSoll(vertragFuerSollIst, new Date(), objekt?.buchhaltungAb ?? null);
   const ist = berechneIst(
     vertrag.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
     objekt?.buchhaltungAb ?? null,
   );
   const saldo = ist - soll;
   const sollZeilen = sollAufschluesselung(
-    {
-      beginn: vertrag.beginn,
-      ende: vertrag.ende,
-      kaltmiete: Number(vertrag.kaltmiete),
-      nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
-    },
+    vertragFuerSollIst,
     new Date(),
     objekt?.buchhaltungAb ?? null,
   ).reverse();
@@ -95,7 +89,7 @@ export default async function MietvertragDetailPage({
         />
       </div>
       <MietvertragForm
-        einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung }))}
+        einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung, typ: e.typ }))}
         mieter={mieter.map((m) => ({ id: m.id, label: `${m.vorname} ${m.nachname}` }))}
         initial={{
           einheitId: vertrag.einheitId,
@@ -105,6 +99,7 @@ export default async function MietvertragDetailPage({
           ende: toDateInputValue(vertrag.ende),
           kaltmiete: vertrag.kaltmiete.toString(),
           nebenkostenVorauszahlung: vertrag.nebenkostenVorauszahlung.toString(),
+          mehrwertsteuer: vertrag.mehrwertsteuer?.toString() ?? "",
           status: vertrag.status,
           kautionBetrag: vertrag.kaution?.betrag.toString() ?? "",
           kautionAnlageform: vertrag.kaution?.anlageform ?? "KAUTIONSKONTO",
