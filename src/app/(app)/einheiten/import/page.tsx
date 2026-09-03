@@ -2,21 +2,49 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { previewImport, commitImport } from "./actions";
+import { previewImport, commitImport, type PreviewResult } from "./actions";
+import type { ParsedEinheitRow } from "@/lib/import/einheiten-import";
 
 const typLabel: Record<string, string> = {
   WOHNUNG: "Wohnung",
   GARAGE: "Garage",
 };
 
+type EditRow = ParsedEinheitRow & { ausgewaehlt: boolean };
+
+function toEditRow(r: ParsedEinheitRow): EditRow {
+  return { ...r, ausgewaehlt: r.errors.length === 0 };
+}
+
 export default function EinheitenImportPage() {
   const [preview, previewAction, previewPending] = useActionState(previewImport, null);
   const [commitMessage, commitAction, commitPending] = useActionState(commitImport, null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [lastPreview, setLastPreview] = useState<PreviewResult | null>(null);
+  const [editRows, setEditRows] = useState<EditRow[] | null>(null);
 
   const hasPreview = preview !== null && !("error" in preview);
-  const validCount = hasPreview ? preview.rows.filter((r) => r.errors.length === 0).length : 0;
-  const errorCount = hasPreview ? preview.rows.length - validCount : 0;
+
+  if (preview !== lastPreview) {
+    setLastPreview(preview);
+    setEditRows(hasPreview ? preview.rows.map(toEditRow) : null);
+  }
+
+  function updateRow(index: number, patch: Partial<EditRow>) {
+    setEditRows((rows) => (rows ? rows.map((r, i) => (i === index ? { ...r, ...patch } : r)) : rows));
+  }
+
+  const auswaehlbareRows = editRows?.filter((r) => r.errors.length === 0) ?? [];
+  const alleAusgewaehlt =
+    auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
+  const validCount = editRows?.filter((r) => r.ausgewaehlt).length ?? 0;
+  const errorCount = editRows ? editRows.length - auswaehlbareRows.length : 0;
+
+  function toggleAll(checked: boolean) {
+    setEditRows((rows) =>
+      rows ? rows.map((r) => (r.errors.length === 0 ? { ...r, ausgewaehlt: checked } : r)) : rows,
+    );
+  }
 
   return (
     <div>
@@ -62,17 +90,25 @@ export default function EinheitenImportPage() {
         <p className="mb-4 text-sm text-red-400">{preview.error}</p>
       )}
 
-      {hasPreview && !commitMessage && (
+      {editRows && !commitMessage && (
         <div>
           <p className="mb-4 text-sm text-neutral-300">
-            {preview.rows.length} Zeile(n) gefunden — {validCount} importierbar
-            {errorCount > 0 && `, ${errorCount} mit Fehlern (werden übersprungen)`}.
+            {editRows.length} Zeile(n) gefunden — {validCount} ausgewählt
+            {errorCount > 0 && `, ${errorCount} mit Fehlern (nicht auswählbar)`}.
           </p>
 
           <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
+              <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
                 <tr>
+                  <th className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={alleAusgewaehlt}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                    />
+                  </th>
                   <th className="px-3 py-2">Zeile</th>
                   <th className="px-3 py-2">Gebäude</th>
                   <th className="px-3 py-2">Bezeichnung</th>
@@ -83,11 +119,22 @@ export default function EinheitenImportPage() {
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.map((r) => (
+                {editRows.map((r, i) => (
                   <tr
                     key={r.rowNumber}
-                    className={`border-t border-neutral-800 ${r.errors.length > 0 ? "bg-red-950/40" : ""}`}
+                    className={`border-t border-neutral-800 ${
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                    }`}
                   >
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={r.ausgewaehlt}
+                        disabled={r.errors.length > 0}
+                        onChange={(e) => updateRow(i, { ausgewaehlt: e.target.checked })}
+                        className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
+                      />
+                    </td>
                     <td className="px-3 py-1.5">{r.rowNumber}</td>
                     <td className="px-3 py-1.5">
                       {r.strasse} {r.hausnummer}
@@ -110,8 +157,12 @@ export default function EinheitenImportPage() {
           </div>
 
           <form action={commitAction}>
-            <input type="hidden" name="rows" value={JSON.stringify(preview.rows)} />
-            <input type="hidden" name="fileName" value={preview.fileName} />
+            <input
+              type="hidden"
+              name="rows"
+              value={JSON.stringify(editRows.filter((r) => r.ausgewaehlt))}
+            />
+            <input type="hidden" name="fileName" value={preview && "fileName" in preview ? preview.fileName : ""} />
             <button
               type="submit"
               disabled={commitPending || validCount === 0}

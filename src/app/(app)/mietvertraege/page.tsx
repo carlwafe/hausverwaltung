@@ -35,12 +35,20 @@ export default async function MietvertraegePage() {
           <h1 className="text-2xl font-semibold">Mietverträge</h1>
           <p className="text-sm text-neutral-400">{vertraege.length} Verträge insgesamt</p>
         </div>
-        <Link
-          href="/mietvertraege/neu"
-          className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
-        >
-          + Neuer Mietvertrag
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/mietvertraege/import"
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            Aus Datei importieren
+          </Link>
+          <Link
+            href="/mietvertraege/neu"
+            className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
+          >
+            + Neuer Mietvertrag
+          </Link>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-neutral-800">
