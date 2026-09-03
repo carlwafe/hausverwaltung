@@ -4,6 +4,20 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { previewImport, commitImport, type PreviewResult } from "./actions";
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
+import { RohdatenDialog } from "@/components/rohdaten-dialog";
+
+const HINWEIS_OPTIONEN = [
+  { value: "alle", label: "Alle Hinweise" },
+  { value: "mehrdeutig", label: "Mehrdeutig" },
+  { value: "kein_treffer", label: "Kein Treffer" },
+  { value: "fehler", label: "Fehler" },
+  { value: "rueckbuchung", label: "Rücklastschrift" },
+  { value: "ausgehend", label: "Ausgehend" },
+  { value: "eigentuemer", label: "Eigentümer-Buchung" },
+  { value: "bereits_importiert", label: "Bereits importiert" },
+] as const;
+
+type HinweisFilter = (typeof HINWEIS_OPTIONEN)[number]["value"];
 
 const MONATE = [
   "Jan",
@@ -30,6 +44,33 @@ type EditRow = ParsedZahlungRow & {
   periodeJahr: number;
   ausgewaehlt: boolean;
 };
+
+function matchesHinweisFilter(r: EditRow, bereitsImportiert: boolean, filter: HinweisFilter): boolean {
+  switch (filter) {
+    case "alle":
+      return true;
+    case "fehler":
+      return r.errors.length > 0;
+    case "eigentuemer":
+      return r.errors.length === 0 && r.eigentuemerBuchung;
+    case "ausgehend":
+      return r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren;
+    case "rueckbuchung":
+      return r.errors.length === 0 && r.rueckbuchung;
+    case "mehrdeutig":
+      return r.errors.length === 0 && !r.ignorieren && r.mehrdeutig;
+    case "kein_treffer":
+      return (
+        r.errors.length === 0 &&
+        !r.ignorieren &&
+        !r.vorgeschlagenerMietvertragId &&
+        !r.mehrdeutig &&
+        !bereitsImportiert
+      );
+    case "bereits_importiert":
+      return bereitsImportiert;
+  }
+}
 
 function pruefeDuplikat(
   bestehendeZahlungen: Set<string>,
@@ -69,6 +110,7 @@ export default function ZahlungenImportPage() {
   const [editRows, setEditRows] = useState<EditRow[] | null>(null);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [hinweisFilter, setHinweisFilter] = useState<HinweisFilter>("alle");
 
   const hasPreview = preview !== null && !("error" in preview);
   const kandidaten = hasPreview ? preview.kandidaten : [];
@@ -79,8 +121,10 @@ export default function ZahlungenImportPage() {
     setEditRows(hasPreview ? preview.rows.map((r) => toEditRow(r, bestehendeZahlungen, skipDuplicates)) : null);
   }
 
-  function updateRow(index: number, patch: Partial<EditRow>) {
-    setEditRows((rows) => (rows ? rows.map((r, i) => (i === index ? { ...r, ...patch } : r)) : rows));
+  function updateRow(rowNumber: number, patch: Partial<EditRow>) {
+    setEditRows((rows) =>
+      rows ? rows.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)) : rows,
+    );
   }
 
   function istBereitsImportiert(r: EditRow): boolean {
@@ -100,15 +144,22 @@ export default function ZahlungenImportPage() {
     );
   }
 
-  const auswaehlbareRows =
-    editRows?.filter((r) => r.errors.length === 0 && r.gewaehlterMietvertragId) ?? [];
+  const gefilterteRows =
+    editRows?.filter((r) => matchesHinweisFilter(r, istBereitsImportiert(r), hinweisFilter)) ?? [];
+
+  const auswaehlbareRows = gefilterteRows.filter(
+    (r) => r.errors.length === 0 && r.gewaehlterMietvertragId,
+  );
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
   function toggleAll(checked: boolean) {
+    const sichtbareRowNumbers = new Set(gefilterteRows.map((r) => r.rowNumber));
     setEditRows((rows) =>
       rows
         ? rows.map((r) =>
-            r.errors.length === 0 && r.gewaehlterMietvertragId ? { ...r, ausgewaehlt: checked } : r,
+            sichtbareRowNumbers.has(r.rowNumber) && r.errors.length === 0 && r.gewaehlterMietvertragId
+              ? { ...r, ausgewaehlt: checked }
+              : r,
           )
         : rows,
     );
@@ -179,17 +230,32 @@ export default function ZahlungenImportPage() {
               importiert
               {anzahlBereitsImportiert > 0 &&
                 ` (${anzahlBereitsImportiert} bereits vorhanden${skipDuplicates ? ", übersprungen" : ""})`}
-              .
+              .{" "}
+              {gefilterteRows.length !== editRows.length &&
+                `${gefilterteRows.length} davon nach Filter angezeigt.`}
             </p>
-            <label className="flex items-center gap-2 text-sm text-neutral-300">
-              <input
-                type="checkbox"
-                checked={skipDuplicates}
-                onChange={(e) => handleSkipDuplicatesChange(e.target.checked)}
-                className="h-4 w-4 rounded border-neutral-700 bg-transparent"
-              />
-              Bereits importierte überspringen
-            </label>
+            <div className="flex items-center gap-4">
+              <select
+                value={hinweisFilter}
+                onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
+                className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+              >
+                {HINWEIS_OPTIONEN.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2 text-sm text-neutral-300">
+                <input
+                  type="checkbox"
+                  checked={skipDuplicates}
+                  onChange={(e) => handleSkipDuplicatesChange(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                />
+                Bereits importierte überspringen
+              </label>
+            </div>
           </div>
 
           <div className="mb-4 max-h-[480px] overflow-auto rounded-lg border border-neutral-800">
@@ -210,10 +276,11 @@ export default function ZahlungenImportPage() {
                   <th className="px-3 py-2">Mietvertrag</th>
                   <th className="px-3 py-2">Periode</th>
                   <th className="px-3 py-2">Hinweis</th>
+                  <th className="px-3 py-2">Rohdaten</th>
                 </tr>
               </thead>
               <tbody>
-                {editRows.map((r, i) => {
+                {gefilterteRows.map((r) => {
                   const bereitsImportiert = istBereitsImportiert(r);
                   const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlterMietvertragId);
                   return (
@@ -228,7 +295,7 @@ export default function ZahlungenImportPage() {
                           type="checkbox"
                           checked={r.ausgewaehlt}
                           disabled={!kannAuswaehlen}
-                          onChange={(e) => updateRow(i, { ausgewaehlt: e.target.checked })}
+                          onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
                           className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
                         />
                       </td>
@@ -246,7 +313,7 @@ export default function ZahlungenImportPage() {
                         <select
                           value={r.gewaehlterMietvertragId}
                           onChange={(e) =>
-                            updateRow(i, {
+                            updateRow(r.rowNumber, {
                               gewaehlterMietvertragId: e.target.value,
                               ausgewaehlt: Boolean(e.target.value) && r.errors.length === 0,
                             })
@@ -265,7 +332,9 @@ export default function ZahlungenImportPage() {
                         <div className="flex gap-1">
                           <select
                             value={r.periodeMonat}
-                            onChange={(e) => updateRow(i, { periodeMonat: Number(e.target.value) })}
+                            onChange={(e) =>
+                              updateRow(r.rowNumber, { periodeMonat: Number(e.target.value) })
+                            }
                             className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
                           >
                             {MONATE.map((m, idx) => (
@@ -277,7 +346,9 @@ export default function ZahlungenImportPage() {
                           <input
                             type="number"
                             value={r.periodeJahr}
-                            onChange={(e) => updateRow(i, { periodeJahr: Number(e.target.value) })}
+                            onChange={(e) =>
+                              updateRow(r.rowNumber, { periodeJahr: Number(e.target.value) })
+                            }
                             className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
                           />
                         </div>
@@ -309,9 +380,19 @@ export default function ZahlungenImportPage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-3 py-1.5">
+                        <RohdatenDialog rohdaten={r.rohdaten} />
+                      </td>
                     </tr>
                   );
                 })}
+                {gefilterteRows.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
+                      Keine Buchungen für diesen Filter.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
