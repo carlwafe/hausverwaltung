@@ -52,6 +52,8 @@ export async function previewImport(
       warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
       namen: v.mieter.flatMap((m) => [m.vorname, m.nachname]),
       einheitBezeichnung: v.einheit.bezeichnung,
+      beginn: v.beginn.toISOString().slice(0, 10),
+      ende: v.ende ? v.ende.toISOString().slice(0, 10) : null,
     }));
 
     const mapped = mapZahlungenRows(headers, rows, kandidaten);

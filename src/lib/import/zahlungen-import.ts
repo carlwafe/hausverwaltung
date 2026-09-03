@@ -4,6 +4,8 @@ export type MietvertragKandidat = {
   warmmiete: number;
   namen: string[]; // Vor- und Nachnamen aller Mieter
   einheitBezeichnung: string;
+  beginn: string; // ISO yyyy-mm-dd
+  ende: string | null; // ISO yyyy-mm-dd
 };
 
 export type ParsedZahlungRow = {
@@ -114,36 +116,55 @@ function textEnthaeltWort(haystack: string, wort: string): boolean {
   return h.includes(w);
 }
 
+const TAGE_TOLERANZ_VOR_BEGINN = 14;
+const TAGE_TOLERANZ_NACH_ENDE = 60;
+
+/** Prüft, ob eine Zahlung (mit etwas Toleranz für Kaution/Rücklastschriften) in den Mietzeitraum fällt. */
+function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat): boolean {
+  if (!datum) return true;
+  const zahlungMs = new Date(datum).getTime();
+  const beginnMs = new Date(k.beginn).getTime() - TAGE_TOLERANZ_VOR_BEGINN * 86400000;
+  if (zahlungMs < beginnMs) return false;
+  if (k.ende) {
+    const endeMs = new Date(k.ende).getTime() + TAGE_TOLERANZ_NACH_ENDE * 86400000;
+    if (zahlungMs > endeMs) return false;
+  }
+  return true;
+}
+
 function findeMietvertrag(
   verwendungszweck: string,
   name: string,
   betrag: number | null,
+  datum: string | null,
   kandidaten: MietvertragKandidat[],
 ): { id: string | null; mehrdeutig: boolean } {
   const text = `${verwendungszweck} ${name}`;
 
-  const scored = kandidaten.map((k) => {
-    let score = 0;
-    if (betrag !== null && Math.abs(betrag - k.warmmiete) < 0.01) score += 3;
-    let getroffeneNamensteile = 0;
-    for (const n of k.namen) {
-      const teile = n.split(/\s+/).filter((t) => t.length >= 3);
-      for (const teil of teile) {
-        if (textEnthaeltWort(text, teil)) {
-          score += teil.length >= 4 ? 3 : 1;
-          getroffeneNamensteile++;
+  const scored = kandidaten
+    .filter((k) => liegtImMietzeitraum(datum, k))
+    .map((k) => {
+      let score = 0;
+      if (betrag !== null && Math.abs(betrag - k.warmmiete) < 0.01) score += 3;
+      let getroffeneNamensteile = 0;
+      for (const n of k.namen) {
+        const teile = n.split(/\s+/).filter((t) => t.length >= 3);
+        for (const teil of teile) {
+          if (textEnthaeltWort(text, teil)) {
+            score += teil.length >= 4 ? 3 : 1;
+            getroffeneNamensteile++;
+          }
         }
       }
-    }
-    // Ein voller Vor+Nachname-Treffer ist ein deutlich stärkeres, spezifischeres Signal als
-    // ein einzelner (evtl. mehrdeutiger, z.B. gängiger Vorname) Namensteil kombiniert mit einer
-    // zufällig übereinstimmenden Miethöhe, die sich mehrere Mieter teilen können.
-    if (getroffeneNamensteile >= 2) score += 3;
-    if (textEnthaeltWort(text, k.einheitBezeichnung.replace(/^HS \d+ WHG \d+ - /, ""))) {
-      score += 1;
-    }
-    return { id: k.id, score };
-  });
+      // Ein voller Vor+Nachname-Treffer ist ein deutlich stärkeres, spezifischeres Signal als
+      // ein einzelner (evtl. mehrdeutiger, z.B. gängiger Vorname) Namensteil kombiniert mit einer
+      // zufällig übereinstimmenden Miethöhe, die sich mehrere Mieter teilen können.
+      if (getroffeneNamensteile >= 2) score += 3;
+      if (textEnthaeltWort(text, k.einheitBezeichnung.replace(/^HS \d+ WHG \d+ - /, ""))) {
+        score += 1;
+      }
+      return { id: k.id, score };
+    });
 
   const maxScore = Math.max(0, ...scored.map((s) => s.score));
   if (maxScore < 3) return { id: null, mehrdeutig: false };
@@ -195,7 +216,7 @@ export function mapZahlungenRows(
     let vorgeschlagenerMietvertragId: string | null = null;
     let mehrdeutig = false;
     if (!ignorieren && betrag !== null && errors.length === 0) {
-      const treffer = findeMietvertrag(verwendungszweck, name, betrag, kandidaten);
+      const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten);
       vorgeschlagenerMietvertragId = treffer.id;
       mehrdeutig = treffer.mehrdeutig;
     }
