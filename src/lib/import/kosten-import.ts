@@ -52,13 +52,28 @@ function ermittleKostenartVorschlag(empfaenger: string, historie: EmpfaengerHist
   return [...kostenartIds][0];
 }
 
+// Entfernt "Straße"/"Strasse"/"Str." als eigenständiges Wort, damit z.B. "Breslauer Str." (wie in
+// den Gebäudestammdaten üblich) und "Breslauer Strasse" (wie Banken/Versorger oft ausschreiben)
+// als dieselbe Straße erkannt werden. Nutzt \b statt eines reinen Präfix-Checks, damit z.B.
+// "Strelitzer" nicht fälschlich als "Str." + "elitzer" behandelt wird.
+function stripStrassenwort(s: string): string {
+  return s.replace(/\bstra(?:ss|ß)e\.?\b/gi, " ").replace(/\bstr\.?(?=\s|$)/gi, " ");
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
- * Schlägt ein Gebäude zunächst anhand des Buchungstexts vor (wenn Straße+Hausnummer eines
- * einzelnen Gebäudes wörtlich vorkommen), sonst — als Fallback — anhand der Empfänger-Historie,
- * aber nur wenn dieser Empfänger bisher *immer* demselben Gebäude zugeordnet wurde. Das deckt
- * z.B. eine Objekt-weite Versicherung ab, die konventionell immer unter einem bestimmten Gebäude
- * erfasst wird, obwohl ihr Buchungstext keine Adresse nennt. Lässt sich beides nicht ermitteln
- * (z.B. eine einmalige Handwerkerrechnung ohne Adresshinweis), bleibt bewusst kein Vorschlag.
+ * Schlägt ein Gebäude zunächst anhand des Buchungstexts vor (wenn Straßenname und Hausnummer
+ * eines einzelnen Gebäudes im Text vorkommen — die Hausnummer muss dabei als eigenständige Zahl
+ * auftauchen, nicht nur als Teilstring einer anderen Zahl, sonst würde z.B. Hausnummer 1
+ * fälschlich in "11" oder "18" anschlagen), sonst — als Fallback — anhand der
+ * Empfänger-Historie, aber nur wenn dieser Empfänger bisher *immer* demselben Gebäude zugeordnet
+ * wurde. Das deckt z.B. eine Objekt-weite Versicherung ab, die konventionell immer unter einem
+ * bestimmten Gebäude erfasst wird, obwohl ihr Buchungstext keine Adresse nennt. Lässt sich beides
+ * nicht ermitteln (z.B. eine einmalige Handwerkerrechnung ohne Adresshinweis), bleibt bewusst
+ * kein Vorschlag.
  */
 function ermittleGebaeudeVorschlag(
   text: string,
@@ -66,10 +81,16 @@ function ermittleGebaeudeVorschlag(
   gebaeude: GebaeudeKandidat[],
   historie: EmpfaengerHistorie[],
 ): string | null {
-  const normText = normalizeText(text);
+  const textLeicht = stripStrassenwort(text).toLowerCase();
   const adressTreffer = gebaeude.filter((g) => {
-    const adresse = normalizeText(`${g.strasse}${g.hausnummer}`);
-    return adresse.length > 0 && normText.includes(adresse);
+    const strasseBasis = stripStrassenwort(g.strasse).trim().toLowerCase();
+    const hausnummer = g.hausnummer.trim().toLowerCase();
+    if (!strasseBasis || !hausnummer) return false;
+    const pattern = new RegExp(
+      `\\b${escapeRegExp(strasseBasis)}\\b[^0-9]{0,15}\\b${escapeRegExp(hausnummer)}\\b`,
+      "i",
+    );
+    return pattern.test(textLeicht);
   });
   if (adressTreffer.length === 1) return adressTreffer[0].id;
   if (adressTreffer.length > 1) return null;
