@@ -81,9 +81,17 @@ function ermittleTreffer(
 // Wörter ab 3 Zeichen, ohne reine Zahlen (Kundennummern, Daten, Beträge variieren pro Buchung und
 // wären ein falsches Signal) und ohne generische Füllwörter — für den Verwendungszweck-Abgleich
 // bei mehrdeutigem Empfänger. Die Untergrenze liegt bei 3 statt 4 Zeichen, damit kurze aber
-// bedeutungstragende Wörter wie "Gas" nicht verloren gehen.
+// bedeutungstragende Wörter wie "Gas" nicht verloren gehen. Monatsnamen zählen ebenfalls als
+// Füllwörter: jede wiederkehrende Buchung (z.B. eine monatliche Stadtwerke-Abrechnung) nennt
+// irgendeinen Monat, der aber nichts über die Art der Kosten aussagt — je nachdem, für welche
+// Monate zufällig schon Historie vorliegt, würde er den Wortabgleich sonst willkürlich zugunsten
+// der einen oder anderen Kostenart verschieben und so einen echten Gleichstand verdecken oder
+// einen erzeugen, der eigentlich keiner ist.
 const FUELLWOERTER = new Set([
   "und", "der", "die", "das", "des", "dem", "den", "fur", "mit", "auf", "aus", "bei", "vom", "zum", "zur",
+  "jan", "januar", "feb", "februar", "mrz", "marz", "maerz", "apr", "april", "mai", "jun", "juni",
+  "jul", "juli", "aug", "august", "sep", "sept", "september", "okt", "oktober", "nov", "november",
+  "dez", "dezember",
 ]);
 
 function signifikanteWoerter(text: string): Set<string> {
