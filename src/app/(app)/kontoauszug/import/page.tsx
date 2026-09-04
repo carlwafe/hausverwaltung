@@ -409,7 +409,11 @@ const KOSTEN_HINWEIS_OPTIONEN = [
   { value: "pruefen_bereits_importiert", label: "Bitte prüfen (bereits importiert)" },
   { value: "gutschrift", label: "Gutschrift" },
   { value: "fehler", label: "Fehler" },
-  { value: "eingehend", label: "Ignoriert (Eigentümer/unbekannt eingehend)" },
+  { value: "eingehend", label: "Ignoriert (Eigentümer/unbekannt eingehend), bitte prüfen" },
+  {
+    value: "eingehend_bereits_als_zahlung_importiert",
+    label: "Ignoriert, bereits als Zahlung importiert",
+  },
   { value: "bereits_importiert", label: "Bereits importiert (alle)" },
 ] as const;
 
@@ -442,6 +446,20 @@ function pruefeKostenDuplikat(
   return bestehend.has(`${empfaenger.trim().toLowerCase()}|${datum}|${betrag.toFixed(2)}`);
 }
 
+// Prüft, ob eine eingehende, ignorierte Buchung bereits als Zahlung importiert wurde. Zahlung
+// hat (anders als Kostenposition.empfaenger) keine eigene Empfänger-Spalte, deshalb hier
+// bewusst nur Datum+Betrag als Schlüssel — etwas großzügiger als der empfänger-basierte
+// Schlüssel bei Kosten, reicht aber für einen Hinweis-Badge. Betragshöhe ohne Vorzeichen, siehe
+// Kommentar zu bestehendeZahlungenDatumBetrag in actions.ts.
+function pruefeAlsZahlungImportiert(
+  bestehendeZahlungen: Set<string>,
+  datum: string | null,
+  betrag: number | null,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehendeZahlungen.has(`${datum}|${Math.abs(betrag).toFixed(2)}`);
+}
+
 function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): KostenEditRow {
   const duplikat = pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag);
   return {
@@ -456,6 +474,7 @@ function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): Kos
 function matchesKostenHinweisFilter(
   r: KostenEditRow,
   bereitsImportiert: boolean,
+  bereitsAlsZahlungImportiert: boolean,
   filter: KostenHinweisFilter,
 ): boolean {
   switch (filter) {
@@ -464,7 +483,9 @@ function matchesKostenHinweisFilter(
     case "fehler":
       return r.errors.length > 0;
     case "eingehend":
-      return r.errors.length === 0 && r.ignorieren;
+      return r.errors.length === 0 && r.ignorieren && !bereitsAlsZahlungImportiert;
+    case "eingehend_bereits_als_zahlung_importiert":
+      return r.errors.length === 0 && r.ignorieren && bereitsAlsZahlungImportiert;
     case "bereits_importiert":
       return bereitsImportiert;
     case "gutschrift":
@@ -485,16 +506,19 @@ function KostenSektion({
   kostenarten,
   gebaeude,
   bestehendeKostenListe,
+  bestehendeZahlungenListe,
   importBatchId,
 }: {
   rows: ParsedKostenRow[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean }[];
   gebaeude: { id: string; label: string; strasse: string; hausnummer: string; haus: { id: string } | null }[];
   bestehendeKostenListe: string[];
+  bestehendeZahlungenListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKosten, null);
   const bestehendeKosten = new Set(bestehendeKostenListe);
+  const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const [editRows, setEditRows] = useState<KostenEditRow[]>(() =>
     rows.map((r) => toKostenEditRow(r, bestehendeKosten)),
   );
@@ -511,8 +535,17 @@ function KostenSektion({
     return pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag);
   }
 
+  function istBereitsAlsZahlungImportiert(r: KostenEditRow): boolean {
+    return pruefeAlsZahlungImportiert(bestehendeZahlungen, r.datum, r.betrag);
+  }
+
   const gefilterteRows = editRows.filter((r) =>
-    matchesKostenHinweisFilter(r, istBereitsImportiert(r), hinweisFilter),
+    matchesKostenHinweisFilter(
+      r,
+      istBereitsImportiert(r),
+      istBereitsAlsZahlungImportiert(r),
+      hinweisFilter,
+    ),
   );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehlteKostenartId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
@@ -600,6 +633,7 @@ function KostenSektion({
           <tbody>
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
+              const bereitsAlsZahlungImportiert = istBereitsAlsZahlungImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
               const vollstaendigerVorschlag = hatVollstaendigenVorschlag(r);
               const expanded = expandedRow === r.rowNumber;
@@ -692,8 +726,16 @@ function KostenSektion({
                     <td className="px-3 py-1.5 text-xs">
                       {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
                       {r.errors.length === 0 && r.ignorieren && (
-                        <span className="text-neutral-500">
-                          {r.eigentuemerBuchung ? "Eigentümer-Buchung" : "eingehend"}
+                        <span
+                          className={
+                            !r.eigentuemerBuchung && bereitsAlsZahlungImportiert
+                              ? "text-green-400"
+                              : "text-neutral-500"
+                          }
+                        >
+                          {r.eigentuemerBuchung
+                            ? "Eigentümer-Buchung"
+                            : `eingehend${bereitsAlsZahlungImportiert ? ", bereits als Zahlung importiert" : ""}`}
                         </span>
                       )}
                       {r.errors.length === 0 && !r.ignorieren && r.gutschrift && (
@@ -825,6 +867,7 @@ export default function KontoauszugImportPage() {
             kostenarten={preview.kostenarten}
             gebaeude={preview.gebaeude}
             bestehendeKostenListe={preview.bestehendeKosten}
+            bestehendeZahlungenListe={preview.bestehendeZahlungenDatumBetrag}
             importBatchId={preview.importBatchId}
           />
         </div>

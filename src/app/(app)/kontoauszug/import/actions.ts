@@ -28,6 +28,7 @@ export type PreviewResult =
       kostenarten: KostenartKandidat[];
       gebaeude: GebaeudeKandidat[];
       bestehendeKosten: string[];
+      bestehendeZahlungenDatumBetrag: string[];
       fileName: string;
       importBatchId: string;
     }
@@ -122,6 +123,23 @@ export async function previewImport(
         ),
       ),
     );
+    // Für den "bereits als Zahlung importiert"-Hinweis im Kosten-Import: Zahlung hat (anders als
+    // Kostenposition.empfaenger) keine eigene Empfänger-Spalte, nur Verwendungszweck (Freitext)
+    // und rohdaten (JSON der Original-CSV-Zeile mit uneinheitlichen Spaltennamen je nach Export)
+    // — beide ungeeignet für einen zuverlässigen Namensabgleich. Der Schlüssel besteht deshalb
+    // bewusst nur aus Datum+Betrag, ohne Namen; das ist etwas großzügiger als der
+    // empfänger-basierte Schlüssel bei Kosten, aber hier reicht das als Hinweis-Badge. Betrag
+    // als Betragshöhe ohne Vorzeichen, da Zahlung das Rohvorzeichen behält (positiv = normale
+    // Miete, negativ = Rücklastschrift-Korrektur), Kosten eingehende Buchungen aber umgekehrt
+    // als negativ speichert (siehe kosten-import.ts) — ein direkter Vorzeichenvergleich würde
+    // hier nie matchen.
+    const bestehendeZahlungenDatumBetrag = new Set(
+      vertraege.flatMap((v) =>
+        v.zahlungen.map(
+          (z) => `${z.datum.toISOString().slice(0, 10)}|${Math.abs(Number(z.betrag)).toFixed(2)}`,
+        ),
+      ),
+    );
     const zahlungenRows = mapZahlungenRows(headers, rows, mietvertragKandidaten);
 
     const kostenarten: KostenartKandidat[] = kostenartenRaw.map((k) => ({
@@ -160,6 +178,7 @@ export async function previewImport(
       kostenarten,
       gebaeude,
       bestehendeKosten: [...bestehendeKosten],
+      bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
       fileName: file.name,
       importBatchId: importBatch.id,
     };
