@@ -77,8 +77,9 @@ model Objekt {
   buchhaltungAb DateTime?
   createdAt     DateTime  @default(now())
 
-  gebaeude Gebaeude[]
-  haeuser  Haus[]
+  gebaeude      Gebaeude[]
+  haeuser       Haus[]
+  kostengruppen Kostengruppe[]
 
   @@map("objekte")
 }
@@ -101,18 +102,37 @@ model Haus {
   @@map("haeuser")
 }
 
+// Eine frei benannte Gruppe aus mehreren Gebäuden, unabhängig von der physischen Haus-Zuordnung
+// — z.B. wenn ein Versorger (Techem) mehrere Häuser gemeinsam abrechnet, die keine gemeinsame
+// physische Einheit sind (anders als Haus, das genau ein Bauwerk meint). Ein Gebäude kann in
+// mehreren Kostengruppen gleichzeitig stecken (many-to-many), anders als bei Haus (dort höchstens
+// eine Zuordnung).
+model Kostengruppe {
+  id          String   @id @default(cuid())
+  objekt      Objekt   @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  objektId    String
+  bezeichnung String
+  createdAt   DateTime @default(now())
+
+  gebaeude         Gebaeude[]
+  kostenpositionen Kostenposition[]
+
+  @@map("kostengruppen")
+}
+
 // Eine Hausnummer (eigene Betriebskosten-/Zähler-Einheit für die Nebenkostenabrechnung).
 model Gebaeude {
-  id           String   @id @default(cuid())
-  objekt       Objekt   @relation(fields: [objektId], references: [id], onDelete: Cascade)
-  objektId     String
-  strasse      String
-  hausnummer   String
+  id            String         @id @default(cuid())
+  objekt        Objekt         @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  objektId      String
+  strasse       String
+  hausnummer    String
   // Physisches Gebäude, falls mehrere Hausnummern zum selben Bauwerk gehören.
-  haus         Haus?    @relation(fields: [hausId], references: [id], onDelete: SetNull)
-  hausId       String?
-  beschreibung String?
-  createdAt    DateTime @default(now())
+  haus          Haus?          @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId        String?
+  kostengruppen Kostengruppe[]
+  beschreibung  String?
+  createdAt     DateTime       @default(now())
 
   einheiten        Einheit[]
   kostenpositionen Kostenposition[]
@@ -229,34 +249,39 @@ model Kostenart {
 }
 
 model Kostenposition {
-  id            String       @id @default(cuid())
-  kostenart     Kostenart    @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
-  kostenartId   String
-  // Höchstens eins von gebaeude/haus ist gesetzt: gebaeude für eine einzelne Adresse (z.B. eine
-  // Reparatur), haus für ein ganzes Bauwerk mit mehreren Hausnummern (z.B. Grundsteuer). Sind
-  // beide null, betrifft die Kostenposition das ganze Objekt (z.B. Bankgebühren).
-  gebaeude      Gebaeude?    @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
-  gebaeudeId    String?
-  haus          Haus?        @relation(fields: [hausId], references: [id], onDelete: SetNull)
-  hausId        String?
-  jahr          Int
+  id             String        @id @default(cuid())
+  kostenart      Kostenart     @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+  kostenartId    String
+  // Höchstens eins von gebaeude/haus/kostengruppe ist gesetzt: gebaeude für eine einzelne
+  // Adresse (z.B. eine Reparatur), haus für ein ganzes Bauwerk mit mehreren Hausnummern (z.B.
+  // Grundsteuer), kostengruppe für eine frei zusammengestellte Gruppe über Haus-Grenzen hinweg
+  // (z.B. wenn ein Versorger mehrere Häuser gemeinsam abrechnet). Sind alle drei null, betrifft
+  // die Kostenposition das ganze Objekt (z.B. Bankgebühren).
+  gebaeude       Gebaeude?     @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
+  gebaeudeId     String?
+  haus           Haus?         @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId         String?
+  kostengruppe   Kostengruppe? @relation(fields: [kostengruppeId], references: [id], onDelete: SetNull)
+  kostengruppeId String?
+  jahr           Int
   // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
   // Kostenpositionen kennen nur das Jahr).
-  datum         DateTime?
-  betrag        Decimal      @db.Decimal(10, 2)
-  beschreibung  String?
-  empfaenger    String?
+  datum          DateTime?
+  betrag         Decimal       @db.Decimal(10, 2)
+  beschreibung   String?
+  empfaenger     String?
   // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
   // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
-  rohdaten      Json?
-  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId String?
-  createdAt     DateTime     @default(now())
+  rohdaten       Json?
+  importBatch    ImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId  String?
+  createdAt      DateTime      @default(now())
 
   dokumente Dokument[]
 
   @@index([gebaeudeId, jahr])
   @@index([hausId, jahr])
+  @@index([kostengruppeId, jahr])
   @@map("kostenpositionen")
 }
 

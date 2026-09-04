@@ -14,18 +14,30 @@ export default async function KostenpositionDetailPage({
   const [kostenposition, kostenarten, gebaeude] = await Promise.all([
     prisma.kostenposition.findUnique({
       where: { id },
-      include: { kostenart: true, gebaeude: true, haus: { include: { gebaeude: true } } },
+      include: {
+        kostenart: true,
+        gebaeude: true,
+        haus: { include: { gebaeude: true } },
+        kostengruppe: true,
+      },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
     prisma.gebaeude.findMany({
       orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
-      include: { haus: { select: { id: true } } },
+      include: {
+        haus: { select: { id: true } },
+        kostengruppen: { select: { id: true, bezeichnung: true } },
+      },
     }),
   ]);
   if (!kostenposition) notFound();
 
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude);
-  const gebaeudeLabel = gebaeudeOderHausLabel(kostenposition.gebaeude, kostenposition.haus);
+  const gebaeudeLabel = gebaeudeOderHausLabel(
+    kostenposition.gebaeude,
+    kostenposition.haus,
+    kostenposition.kostengruppe,
+  );
 
   return (
     <div>
@@ -43,7 +55,11 @@ export default async function KostenpositionDetailPage({
         gebaeude={gebaeudeGruppen}
         initial={{
           kostenartId: kostenposition.kostenartId,
-          gebaeudeAuswahl: gebaeudeAuswahlWert(kostenposition.gebaeudeId, kostenposition.hausId),
+          gebaeudeAuswahl: gebaeudeAuswahlWert(
+            kostenposition.gebaeudeId,
+            kostenposition.hausId,
+            kostenposition.kostengruppeId,
+          ),
           jahr: kostenposition.jahr,
           betrag: kostenposition.betrag.toString(),
           beschreibung: kostenposition.beschreibung,

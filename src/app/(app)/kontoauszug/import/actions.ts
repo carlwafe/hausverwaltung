@@ -93,7 +93,10 @@ export async function previewImport(
       prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
       prisma.gebaeude.findMany({
         orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
-        include: { haus: { select: { id: true } } },
+        include: {
+          haus: { select: { id: true } },
+          kostengruppen: { select: { id: true, bezeichnung: true } },
+        },
       }),
       prisma.kostenposition.findMany({
         select: {
@@ -153,6 +156,7 @@ export async function previewImport(
       strasse: g.strasse,
       hausnummer: g.hausnummer,
       haus: g.haus,
+      kostengruppen: g.kostengruppen,
     }));
     // Historie für den Empfänger→Kostenart-Vorschlag. Positionen ohne Empfänger (z.B. von der
     // Sparkasse ohne Namen abgebuchte Kontoführungsgebühren) bleiben drin — für die greift beim
@@ -319,11 +323,12 @@ export async function commitKosten(
   if (neu.length > 0) {
     await prisma.kostenposition.createMany({
       data: neu.map((r) => {
-        const { gebaeudeId, hausId } = parseGebaeudeAuswahlWert(r.gebaeudeAuswahl);
+        const { gebaeudeId, hausId, kostengruppeId } = parseGebaeudeAuswahlWert(r.gebaeudeAuswahl);
         return {
           kostenartId: r.kostenartId,
           gebaeudeId,
           hausId,
+          kostengruppeId,
           jahr: r.jahr,
           datum: new Date(r.datum),
           betrag: r.betrag,

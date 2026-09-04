@@ -8,7 +8,10 @@ export default async function NeueKostenpositionPage() {
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
     prisma.gebaeude.findMany({
       orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
-      include: { haus: { select: { id: true } } },
+      include: {
+        haus: { select: { id: true } },
+        kostengruppen: { select: { id: true, bezeichnung: true } },
+      },
     }),
   ]);
 

@@ -518,7 +518,14 @@ function KostenSektion({
 }: {
   rows: ParsedKostenRow[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean }[];
-  gebaeude: { id: string; label: string; strasse: string; hausnummer: string; haus: { id: string } | null }[];
+  gebaeude: {
+    id: string;
+    label: string;
+    strasse: string;
+    hausnummer: string;
+    haus: { id: string } | null;
+    kostengruppen: { id: string; bezeichnung: string }[];
+  }[];
   bestehendeKostenListe: string[];
   bestehendeZahlungenListe: string[];
   importBatchId: string;

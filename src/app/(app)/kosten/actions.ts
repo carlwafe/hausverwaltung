@@ -33,13 +33,13 @@ function parseForm(formData: FormData) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
   }
   const { gebaeudeAuswahl, ...rest } = parsed.data;
-  const { gebaeudeId, hausId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
-  return { ...rest, gebaeudeId, hausId };
+  const { gebaeudeId, hausId, kostengruppeId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
+  return { ...rest, gebaeudeId, hausId, kostengruppeId };
 }
 
 export async function createKostenposition(formData: FormData) {
   await requireUser();
-  const { kostenartId, gebaeudeId, hausId, ...rest } = parseForm(formData);
+  const { kostenartId, gebaeudeId, hausId, kostengruppeId, ...rest } = parseForm(formData);
 
   await prisma.kostenposition.create({
     data: {
@@ -47,6 +47,7 @@ export async function createKostenposition(formData: FormData) {
       kostenart: { connect: { id: kostenartId } },
       ...(gebaeudeId ? { gebaeude: { connect: { id: gebaeudeId } } } : {}),
       ...(hausId ? { haus: { connect: { id: hausId } } } : {}),
+      ...(kostengruppeId ? { kostengruppe: { connect: { id: kostengruppeId } } } : {}),
     },
   });
 
@@ -56,7 +57,7 @@ export async function createKostenposition(formData: FormData) {
 
 export async function updateKostenposition(id: string, formData: FormData) {
   await requireUser();
-  const { kostenartId, gebaeudeId, hausId, ...rest } = parseForm(formData);
+  const { kostenartId, gebaeudeId, hausId, kostengruppeId, ...rest } = parseForm(formData);
 
   await prisma.kostenposition.update({
     where: { id },
@@ -65,6 +66,7 @@ export async function updateKostenposition(id: string, formData: FormData) {
       kostenart: { connect: { id: kostenartId } },
       gebaeude: gebaeudeId ? { connect: { id: gebaeudeId } } : { disconnect: true },
       haus: hausId ? { connect: { id: hausId } } : { disconnect: true },
+      kostengruppe: kostengruppeId ? { connect: { id: kostengruppeId } } : { disconnect: true },
     },
   });
 

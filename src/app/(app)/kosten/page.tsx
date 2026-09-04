@@ -10,14 +10,19 @@ function formatEuro(value: number) {
 async function ladeKosten(): Promise<KostenpositionRow[]> {
   const positionen = await prisma.kostenposition.findMany({
     orderBy: [{ jahr: "desc" }, { createdAt: "desc" }],
-    include: { kostenart: true, gebaeude: true, haus: { include: { gebaeude: true } } },
+    include: {
+      kostenart: true,
+      gebaeude: true,
+      haus: { include: { gebaeude: true } },
+      kostengruppe: true,
+    },
   });
 
   return positionen.map((k) => ({
     id: k.id,
     jahr: k.jahr,
     datum: k.datum ? k.datum.toISOString() : null,
-    gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus),
+    gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe),
     kostenartName: k.kostenart.name,
     umlagefaehig: k.kostenart.umlagefaehig,
     betrag: Number(k.betrag),

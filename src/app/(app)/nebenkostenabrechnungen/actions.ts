@@ -17,7 +17,7 @@ async function ladeBerechnungsdaten(jahr: number) {
       where: { jahr, kostenart: { umlagefaehig: true } },
       include: { kostenart: true },
     }),
-    prisma.einheit.findMany({ include: { gebaeude: true } }),
+    prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
     prisma.mietvertrag.findMany(),
   ]);
 
@@ -25,6 +25,7 @@ async function ladeBerechnungsdaten(jahr: number) {
     betrag: Number(k.betrag),
     gebaeudeId: k.gebaeudeId,
     hausId: k.hausId,
+    kostengruppeId: k.kostengruppeId,
     verteilerschluessel: k.kostenart.standardVerteilerschluessel,
     kostenartName: k.kostenart.name,
   }));
@@ -34,6 +35,7 @@ async function ladeBerechnungsdaten(jahr: number) {
     typ: e.typ,
     gebaeudeId: e.gebaeudeId,
     hausId: e.gebaeude.hausId,
+    kostengruppenIds: e.gebaeude.kostengruppen.map((kg) => kg.id),
     wohnflaecheQm: Number(e.wohnflaecheQm),
   }));
   const mietvertraege: MietvertragFuerAbrechnung[] = mietvertraegeRaw.map((m) => ({

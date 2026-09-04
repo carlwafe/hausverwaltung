@@ -6,7 +6,7 @@ import {
   parseGermanDate,
   RUECKBUCHUNG_PATTERN,
 } from "./bank-csv";
-import { gebaeudeWert, hausWert } from "../gebaeude-gruppen";
+import { gebaeudeWert, hausWert, kostengruppeWert } from "../gebaeude-gruppen";
 
 export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean };
 export type GebaeudeKandidat = {
@@ -15,6 +15,7 @@ export type GebaeudeKandidat = {
   strasse: string;
   hausnummer: string;
   haus: { id: string } | null;
+  kostengruppen: { id: string; bezeichnung: string }[];
 };
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
@@ -192,7 +193,14 @@ function parseHausnummernToken(token: string): Zahlbereich | null {
  */
 function findeHausnummernSpanne(textLeicht: string, strassen: string[]): Zahlbereich[] | null {
   for (const strasse of strassen) {
-    const pattern = new RegExp(`\\b${escapeRegExp(strasse)}\\b\\s*([0-9][0-9,\\s-]*[0-9])\\b`, "i");
+    // Erlaubt Leerzeichen nur unmittelbar um "-" oder "," herum (z.B. "11 - 15" oder "2-18, 5-15")
+    // — ein bloßes Leerzeichen zwischen zwei vollständigen Zahlen (wie vor einer Jahreszahl, z.B.
+    // "Breslauer Str. 2-12 2025/2026") beendet die Erfassung, statt die Jahreszahl versehentlich
+    // mit in die Spanne zu ziehen.
+    const pattern = new RegExp(
+      `\\b${escapeRegExp(strasse)}\\b\\s*(\\d+(?:\\s*-\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*-\\s*\\d+)?)*)\\b`,
+      "i",
+    );
     const treffer = pattern.exec(textLeicht);
     if (!treffer || !/[-,]/.test(treffer[1])) continue;
     const bereiche = treffer[1]
@@ -205,20 +213,23 @@ function findeHausnummernSpanne(textLeicht: string, strassen: string[]): Zahlber
 }
 
 /**
- * Schlägt ein Gebäude oder Haus zunächst anhand des Buchungstexts vor, sonst — als Fallback —
- * anhand der Empfänger-Historie, aber nur wenn dieser Empfänger bisher *immer* demselben
- * Gebäude zugeordnet wurde. Das deckt z.B. eine Objekt-weite Versicherung ab, die konventionell
- * immer unter einem bestimmten Gebäude erfasst wird, obwohl ihr Buchungstext keine Adresse
- * nennt. Lässt sich beides nicht ermitteln (z.B. eine einmalige Handwerkerrechnung ohne
+ * Schlägt ein Gebäude, Haus oder eine Kostengruppe zunächst anhand des Buchungstexts vor, sonst
+ * — als Fallback — anhand der Empfänger-Historie, aber nur wenn dieser Empfänger bisher *immer*
+ * demselben Gebäude zugeordnet wurde. Das deckt z.B. eine Objekt-weite Versicherung ab, die
+ * konventionell immer unter einem bestimmten Gebäude erfasst wird, obwohl ihr Buchungstext keine
+ * Adresse nennt. Lässt sich beides nicht ermitteln (z.B. eine einmalige Handwerkerrechnung ohne
  * Adresshinweis), bleibt bewusst kein Vorschlag.
  *
  * Adresstext-Erkennung im Detail:
  * - Genau eine Hausnummer im Text (z.B. "Breslauer Str. 14") → dieses eine Gebäude.
- * - Eine einzelne Von-Bis-Spanne, die genau den Mitgliedern eines Hauses entspricht (z.B.
- *   "Breslauer Str. 11 - 15" bei einem Haus mit den Hausnummern 11, 13, 15) → dieses Haus.
- * - Eine Spanne/Liste, die zu keinem Haus passt oder aus mehreren Teilen besteht (z.B.
- *   "Breslauer Str. 2-18,5-15", das faktisch das ganze Objekt meint) → nicht per Adresse
- *   ermittelbar, fällt auf die Empfänger-Historie zurück statt ein einzelnes Gebäude zu raten.
+ * - Eine oder mehrere Von-Bis-Spannen, deren Gesamt-Minimum/-Maximum genau den Mitgliedern
+ *   eines Hauses (z.B. "Breslauer Str. 11 - 15" bei Haus 11/13/15) oder einer Kostengruppe (z.B.
+ *   "Breslauer Str. 2-6,8-12" oder "2-12" bei einer Kostengruppe, die mehrere Häuser
+ *   zusammenfasst, wie Techem-Heizkosten für mehrere Gebäude gemeinsam) entspricht → dieses Haus
+ *   bzw. diese Kostengruppe.
+ * - Eine Spanne/Liste, deren Gesamt-Minimum/-Maximum zu keinem Haus und keiner Kostengruppe
+ *   passt (z.B. "Breslauer Str. 2-18,5-15", das faktisch das ganze Objekt meint) → nicht per
+ *   Adresse ermittelbar, fällt auf die Empfänger-Historie zurück statt zu raten.
  */
 function ermittleGebaeudeVorschlag(
   text: string,
@@ -247,25 +258,39 @@ function ermittleGebaeudeVorschlag(
     if (adressTreffer.length === 1) return gebaeudeWert(adressTreffer[0].id);
     // Mehrdeutig (mehrere Adressen im Text) — nicht ermittelbar, nicht "sicher kein Gebäude".
     if (adressTreffer.length > 1) return undefined;
-  } else if (spanne.length === 1) {
-    // Prüfen, ob die Spanne genau den Mitgliedern eines Hauses entspricht.
-    const hausGruppen = new Map<string, GebaeudeKandidat[]>();
-    for (const g of gebaeude) {
-      if (!g.haus) continue;
-      const liste = hausGruppen.get(g.haus.id) ?? [];
-      liste.push(g);
-      hausGruppen.set(g.haus.id, liste);
-    }
-    for (const [hausId, mitglieder] of hausGruppen) {
+  } else {
+    const gesamtVon = Math.min(...spanne.map((s) => s.von));
+    const gesamtBis = Math.max(...spanne.map((s) => s.bis));
+    const passtZuBereich = (mitglieder: GebaeudeKandidat[]): boolean => {
       const nummern = mitglieder.map((g) => parseInt(g.hausnummer, 10)).filter((n) => !Number.isNaN(n));
-      if (nummern.length === 0) continue;
-      if (Math.min(...nummern) === spanne[0].von && Math.max(...nummern) === spanne[0].bis) {
-        return hausWert(hausId);
+      if (nummern.length === 0) return false;
+      return Math.min(...nummern) === gesamtVon && Math.max(...nummern) === gesamtBis;
+    };
+
+    const hausGruppen = new Map<string, GebaeudeKandidat[]>();
+    const kostengruppenGruppen = new Map<string, GebaeudeKandidat[]>();
+    for (const g of gebaeude) {
+      if (g.haus) {
+        const liste = hausGruppen.get(g.haus.id) ?? [];
+        liste.push(g);
+        hausGruppen.set(g.haus.id, liste);
+      }
+      for (const kg of g.kostengruppen) {
+        const liste = kostengruppenGruppen.get(kg.id) ?? [];
+        liste.push(g);
+        kostengruppenGruppen.set(kg.id, liste);
       }
     }
+    for (const [hausId, mitglieder] of hausGruppen) {
+      if (passtZuBereich(mitglieder)) return hausWert(hausId);
+    }
+    for (const [kostengruppeId, mitglieder] of kostengruppenGruppen) {
+      if (passtZuBereich(mitglieder)) return kostengruppeWert(kostengruppeId);
+    }
   }
-  // Spanne erkannt, aber passt zu keinem einzelnen Haus (z.B. mehrteilige Liste, die faktisch
-  // das ganze Objekt meint) — auf Empfänger-Historie zurückfallen statt zu raten.
+  // Spanne erkannt, aber passt zu keinem einzelnen Haus/keiner Kostengruppe (z.B. mehrteilige
+  // Liste, die faktisch das ganze Objekt meint) — auf Empfänger-Historie zurückfallen statt zu
+  // raten.
 
   const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
   if (treffer.length === 0) return undefined;

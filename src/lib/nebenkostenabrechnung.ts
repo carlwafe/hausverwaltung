@@ -1,6 +1,8 @@
 // Berechnungs-Engine für die Nebenkostenabrechnung. Reine Funktionen auf einfachen Datenstrukturen
 // (kein Prisma-Import hier) — die aufrufende Server Action lädt die Daten und übergibt sie, das
-// macht die Berechnung isoliert testbar (z.B. per tsx-Skript gegen echte Daten).
+// macht die Berechnung isoliert testbar (z.B. per tsx-Skript gegen echte Daten). Kosten können auf
+// vier Ebenen liegen (Objekt gesamt, Haus, Kostengruppe, einzelnes Gebäude) — der Pool der
+// betroffenen Einheiten wird je Kostenposition passend dazu ermittelt.
 
 export type VerteilerschluesselTyp =
   | "WOHNFLAECHE"
@@ -22,6 +24,10 @@ export type KostenpositionFuerAbrechnung = {
   betrag: number;
   gebaeudeId: string | null;
   hausId: string | null;
+  // Frei zusammengestellte Gruppe mehrerer Gebäude über Haus-Grenzen hinweg (z.B. wenn ein
+  // Versorger mehrere Häuser gemeinsam abrechnet) — höchstens eins von gebaeudeId/hausId/
+  // kostengruppeId ist gesetzt.
+  kostengruppeId: string | null;
   verteilerschluessel: VerteilerschluesselTyp | null;
   kostenartName: string;
 };
@@ -32,6 +38,7 @@ export type EinheitFuerAbrechnung = {
   typ: "WOHNUNG" | "GARAGE";
   gebaeudeId: string;
   hausId: string | null;
+  kostengruppenIds: string[];
   wohnflaecheQm: number;
 };
 
@@ -110,11 +117,13 @@ function berechneEinheitAnteile(
       continue;
     }
 
-    const pool = kp.hausId
-      ? wohnungen.filter((e) => e.hausId === kp.hausId)
-      : kp.gebaeudeId
-        ? wohnungen.filter((e) => e.gebaeudeId === kp.gebaeudeId)
-        : wohnungen;
+    const pool = kp.kostengruppeId
+      ? wohnungen.filter((e) => e.kostengruppenIds.includes(kp.kostengruppeId!))
+      : kp.hausId
+        ? wohnungen.filter((e) => e.hausId === kp.hausId)
+        : kp.gebaeudeId
+          ? wohnungen.filter((e) => e.gebaeudeId === kp.gebaeudeId)
+          : wohnungen;
     if (pool.length === 0) continue;
 
     if (kp.verteilerschluessel === "WOHNFLAECHE") {

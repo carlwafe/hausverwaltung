@@ -48,6 +48,7 @@ export default async function NebenkostenabrechnungDetailPage({
       betrag: Number(k.betrag),
       gebaeudeId: k.gebaeudeId,
       hausId: k.hausId,
+      kostengruppeId: k.kostengruppeId,
       verteilerschluessel: k.kostenart.standardVerteilerschluessel,
       kostenartName: k.kostenart.name,
     })),
