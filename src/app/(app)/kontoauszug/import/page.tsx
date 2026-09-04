@@ -462,7 +462,7 @@ function KostenSektion({
   const [hinweisFilter, setHinweisFilter] = useState<KostenHinweisFilter>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
-  const gebaeudeOptionen = gruppiereGebaeude(gebaeude);
+  const gebaeudeGruppen = gruppiereGebaeude(gebaeude);
 
   function updateRow(rowNumber: number, patch: Partial<KostenEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
@@ -630,10 +630,14 @@ function KostenSektion({
                         className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
                       >
                         <option value="">– Objekt gesamt –</option>
-                        {gebaeudeOptionen.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.label}
-                          </option>
+                        {gebaeudeGruppen.map((gruppe) => (
+                          <optgroup key={gruppe.label} label={gruppe.label}>
+                            {gruppe.optionen.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.label}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                     </td>

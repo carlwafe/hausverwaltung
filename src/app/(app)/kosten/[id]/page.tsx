@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { updateKostenposition, deleteKostenposition } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
-import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
+import { gruppiereGebaeude, alleGebaeudeOptionen } from "@/lib/gebaeude-gruppen";
 
 export default async function KostenpositionDetailPage({
   params,
@@ -18,9 +18,9 @@ export default async function KostenpositionDetailPage({
   ]);
   if (!kostenposition) notFound();
 
-  const gebaeudeOptionen = gruppiereGebaeude(gebaeude);
+  const gebaeudeGruppen = gruppiereGebaeude(gebaeude);
   const gebaeudeLabel = kostenposition.gebaeude
-    ? (gebaeudeOptionen.find((o) => o.id === kostenposition.gebaeude!.id)?.label ??
+    ? (alleGebaeudeOptionen(gebaeude).find((o) => o.id === kostenposition.gebaeude!.id)?.label ??
       `${kostenposition.gebaeude.strasse} ${kostenposition.gebaeude.hausnummer}`)
     : "Objekt gesamt";
 
@@ -37,7 +37,7 @@ export default async function KostenpositionDetailPage({
       </div>
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
-        gebaeude={gebaeudeOptionen}
+        gebaeude={gebaeudeGruppen}
         initial={{
           kostenartId: kostenposition.kostenartId,
           gebaeudeId: kostenposition.gebaeudeId,

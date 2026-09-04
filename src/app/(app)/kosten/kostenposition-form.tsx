@@ -20,7 +20,7 @@ export function KostenpositionForm({
   action,
 }: {
   kostenarten: { id: string; label: string }[];
-  gebaeude: { id: string; label: string }[];
+  gebaeude: { label: string; optionen: { id: string; label: string }[] }[];
   initial?: Kostenposition;
   action: (formData: FormData) => Promise<void>;
 }) {
@@ -77,10 +77,14 @@ export function KostenpositionForm({
           className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
           <option value="">– Objekt gesamt (kein einzelnes Gebäude) –</option>
-          {gebaeude.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.label}
-            </option>
+          {gebaeude.map((gruppe) => (
+            <optgroup key={gruppe.label} label={gruppe.label}>
+              {gruppe.optionen.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>

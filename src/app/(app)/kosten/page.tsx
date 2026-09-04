@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { KostenTable, type KostenpositionRow } from "./kosten-table";
-import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
+import { alleGebaeudeOptionen } from "@/lib/gebaeude-gruppen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -19,7 +19,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
   // wie überall sonst als eine Gruppe angezeigt ("Haus 2, 4, 6"), statt nur die eine Hausnummer zu
   // zeigen, der die Kostenposition intern zugeordnet ist — sonst sieht es so aus, als gälte die
   // Kostenposition nur für diese einzelne Adresse.
-  const gebaeudeOptionen = gruppiereGebaeude(alleGebaeude);
+  const gebaeudeOptionen = alleGebaeudeOptionen(alleGebaeude);
 
   return positionen.map((k) => ({
     id: k.id,
