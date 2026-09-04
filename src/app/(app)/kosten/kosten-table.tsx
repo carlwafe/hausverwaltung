@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { deleteKostenpositionen } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -28,21 +30,14 @@ export type KostenpositionRow = {
 
 const columns: Column<KostenpositionRow>[] = [
   {
-    key: "jahr",
-    label: "Jahr",
-    sortValue: (k) => k.jahr,
-    searchValue: (k) => String(k.jahr),
-    render: (k) => (
-      <Link href={`/kosten/${k.id}`} className="font-medium hover:underline">
-        {k.jahr}
-      </Link>
-    ),
-  },
-  {
     key: "datum",
     label: "Datum",
     sortValue: (k) => k.datum ?? "",
-    render: (k) => formatDate(k.datum),
+    render: (k) => (
+      <Link href={`/kosten/${k.id}`} className="font-medium hover:underline">
+        {formatDate(k.datum)}
+      </Link>
+    ),
   },
   {
     key: "gebaeude",
@@ -91,12 +86,47 @@ const columns: Column<KostenpositionRow>[] = [
 ];
 
 export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
+  const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionRow[]>([]);
+  const [pending, startTransition] = useTransition();
+
+  function loeschen() {
+    if (ausgewaehlt.length === 0) return;
+    if (
+      !confirm(
+        `${ausgewaehlt.length} Kostenposition(en) wirklich unwiderruflich löschen?`,
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      await deleteKostenpositionen(ausgewaehlt.map((r) => r.id));
+      setAusgewaehlt([]);
+    });
+  }
+
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      emptyMessage="Noch keine Kostenpositionen erfasst."
-      searchPlaceholder="Kosten durchsuchen…"
-    />
+    <div>
+      {ausgewaehlt.length > 0 && (
+        <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
+          <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>
+          <button
+            type="button"
+            onClick={loeschen}
+            disabled={pending}
+            className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
+          >
+            {pending ? "Lösche…" : "Ausgewählte löschen"}
+          </button>
+        </div>
+      )}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        emptyMessage="Noch keine Kostenpositionen erfasst."
+        searchPlaceholder="Kosten durchsuchen…"
+        selectable
+        onSelectionChange={setAusgewaehlt}
+      />
+    </div>
   );
 }

@@ -79,3 +79,10 @@ export async function deleteKostenposition(id: string) {
   revalidatePath("/kosten");
   redirect("/kosten");
 }
+
+export async function deleteKostenpositionen(ids: string[]) {
+  await requireUser();
+  if (ids.length === 0) return;
+  await prisma.kostenposition.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/kosten");
+}

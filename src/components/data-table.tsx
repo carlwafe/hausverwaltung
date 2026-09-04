@@ -26,15 +26,23 @@ export function DataTable<T extends { id: string }>({
   rows,
   emptyMessage,
   searchPlaceholder = "Suchen…",
+  selectable = false,
+  onSelectionChange,
 }: {
   columns: Column<T>[];
   rows: T[];
   emptyMessage: string;
   searchPlaceholder?: string;
+  /** Zeigt eine Auswahl-Checkbox-Spalte an; "Alle auswählen" bezieht sich auf die aktuell
+   * gefilterte/sortierte Ansicht, nicht auf alle Zeilen insgesamt. */
+  selectable?: boolean;
+  /** Wird bei jeder Änderung der Auswahl mit den aktuell ausgewählten Zeilen aufgerufen. */
+  onSelectionChange?: (selectedRows: T[]) => void;
 }) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const hatSuche = columns.some((c) => c.searchValue);
 
@@ -69,6 +77,31 @@ export function DataTable<T extends { id: string }>({
     }
   }
 
+  function updateSelection(next: Set<string>) {
+    setSelectedIds(next);
+    onSelectionChange?.(rows.filter((r) => next.has(r.id)));
+  }
+
+  function toggleRow(id: string, checked: boolean) {
+    const next = new Set(selectedIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    updateSelection(next);
+  }
+
+  // "Alle auswählen" bezieht sich bewusst nur auf die aktuell sichtbaren (gefilterten/sortierten)
+  // Zeilen, nicht auf alle Zeilen der Tabelle insgesamt.
+  const alleSichtbarAusgewaehlt = sortiert.length > 0 && sortiert.every((r) => selectedIds.has(r.id));
+
+  function toggleAllSichtbar(checked: boolean) {
+    const next = new Set(selectedIds);
+    for (const r of sortiert) {
+      if (checked) next.add(r.id);
+      else next.delete(r.id);
+    }
+    updateSelection(next);
+  }
+
   return (
     <div>
       {hatSuche && (
@@ -87,6 +120,16 @@ export function DataTable<T extends { id: string }>({
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>
+              {selectable && (
+                <th className="px-4 py-2">
+                  <input
+                    type="checkbox"
+                    checked={alleSichtbarAusgewaehlt}
+                    onChange={(e) => toggleAllSichtbar(e.target.checked)}
+                    className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                  />
+                </th>
+              )}
               {columns.map((c) => (
                 <th
                   key={c.key}
@@ -113,6 +156,16 @@ export function DataTable<T extends { id: string }>({
           <tbody>
             {sortiert.map((row) => (
               <tr key={row.id} className="border-t border-neutral-800 hover:bg-neutral-900">
+                {selectable && (
+                  <td className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(row.id)}
+                      onChange={(e) => toggleRow(row.id, e.target.checked)}
+                      className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                    />
+                  </td>
+                )}
                 {columns.map((c) => (
                   <td
                     key={c.key}
@@ -125,7 +178,10 @@ export function DataTable<T extends { id: string }>({
             ))}
             {sortiert.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-neutral-500">
+                <td
+                  colSpan={columns.length + (selectable ? 1 : 0)}
+                  className="px-4 py-8 text-center text-neutral-500"
+                >
                   {rows.length === 0 ? emptyMessage : "Keine Treffer für diese Suche."}
                 </td>
               </tr>
