@@ -20,6 +20,7 @@ const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", 
 const ZAHLUNG_HINWEIS_OPTIONEN = [
   { value: "alle", label: "Alle Hinweise" },
   { value: "vorschlag", label: "Vorschlag übernommen" },
+  { value: "vorschlag_bereits_importiert", label: "Vorschlag übernommen (bereits importiert)" },
   { value: "mehrdeutig", label: "Mehrdeutig" },
   { value: "kein_treffer", label: "Kein Treffer" },
   { value: "fehler", label: "Fehler" },
@@ -97,7 +98,19 @@ function matchesZahlungHinweisFilter(
       return r.errors.length === 0 && r.rueckbuchung;
     case "vorschlag":
       return (
-        r.errors.length === 0 && !r.ignorieren && !r.mehrdeutig && Boolean(r.vorgeschlagenerMietvertragId)
+        r.errors.length === 0 &&
+        !r.ignorieren &&
+        !r.mehrdeutig &&
+        Boolean(r.vorgeschlagenerMietvertragId) &&
+        !bereitsImportiert
+      );
+    case "vorschlag_bereits_importiert":
+      return (
+        r.errors.length === 0 &&
+        !r.ignorieren &&
+        !r.mehrdeutig &&
+        Boolean(r.vorgeschlagenerMietvertragId) &&
+        bereitsImportiert
       );
     case "mehrdeutig":
       return r.errors.length === 0 && !r.ignorieren && r.mehrdeutig;
@@ -407,14 +420,12 @@ const KOSTEN_HINWEIS_OPTIONEN = [
   { value: "vorschlag_bereits_importiert", label: "Vorschlag übernommen (bereits importiert)" },
   { value: "pruefen", label: "Bitte prüfen" },
   { value: "pruefen_bereits_importiert", label: "Bitte prüfen (bereits importiert)" },
-  { value: "gutschrift", label: "Gutschrift" },
   { value: "fehler", label: "Fehler" },
   { value: "eingehend", label: "Ignoriert (Eigentümer/unbekannt eingehend), bitte prüfen" },
   {
     value: "eingehend_bereits_als_zahlung_importiert",
     label: "Ignoriert, bereits als Zahlung importiert",
   },
-  { value: "bereits_importiert", label: "Bereits importiert (alle)" },
 ] as const;
 
 type KostenHinweisFilter = (typeof KOSTEN_HINWEIS_OPTIONEN)[number]["value"];
@@ -486,10 +497,6 @@ function matchesKostenHinweisFilter(
       return r.errors.length === 0 && r.ignorieren && !bereitsAlsZahlungImportiert;
     case "eingehend_bereits_als_zahlung_importiert":
       return r.errors.length === 0 && r.ignorieren && bereitsAlsZahlungImportiert;
-    case "bereits_importiert":
-      return bereitsImportiert;
-    case "gutschrift":
-      return r.errors.length === 0 && !r.ignorieren && r.gutschrift;
     case "vorschlag":
       return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && !bereitsImportiert;
     case "vorschlag_bereits_importiert":
