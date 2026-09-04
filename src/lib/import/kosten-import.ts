@@ -12,8 +12,15 @@ export type GebaeudeKandidat = { id: string; label: string; strasse: string; hau
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
 // gelernt wird. gebaeudeId ist null, wenn die Position dem ganzen Objekt statt einem einzelnen
-// Gebäude zugeordnet war (z.B. Bankgebühren).
-export type EmpfaengerHistorie = { empfaenger: string; kostenartId: string; gebaeudeId: string | null };
+// Gebäude zugeordnet war (z.B. Bankgebühren). verwendungszweck ist die damals gespeicherte
+// Buchungsbeschreibung — wird genutzt, um bei mehrdeutigem Empfänger (z.B. Stadtwerke Eutin für
+// Wasser, Wasser+Gas und Strom+Wasser) anhand gemeinsamer Wörter zu unterscheiden.
+export type EmpfaengerHistorie = {
+  empfaenger: string;
+  kostenartId: string;
+  gebaeudeId: string | null;
+  verwendungszweck: string | null;
+};
 
 export type ParsedKostenRow = {
   rowNumber: number;
@@ -36,26 +43,77 @@ export type ParsedKostenRow = {
   errors: string[];
 };
 
-/**
- * Schlägt eine Kostenart anhand des Empfängers vor, gelernt aus bereits erfassten
- * Kostenpositionen — aber nur, wenn dieser Empfänger bisher *immer* derselben Kostenart
- * zugeordnet wurde. Uneinheitliche Historie (z.B. derselbe Handwerker für unterschiedliche
- * Arbeiten) oder ein bisher unbekannter Empfänger liefern bewusst keinen Vorschlag — gerade
- * einmalige Reparaturrechnungen sollen manuell geprüft werden, u.a. weil davon abhängt, ob sie
- * umlagefähig sind.
- */
+/** Alle Historie-Einträge mit demselben (normalisierten) Empfänger. */
 function ermittleTreffer(empfaenger: string, historie: EmpfaengerHistorie[]): EmpfaengerHistorie[] {
   const norm = normalizeText(empfaenger);
   if (!norm) return [];
   return historie.filter((h) => normalizeText(h.empfaenger) === norm);
 }
 
-function ermittleKostenartVorschlag(empfaenger: string, historie: EmpfaengerHistorie[]): string | null {
+// Wörter ab 3 Zeichen, ohne reine Zahlen (Kundennummern, Daten, Beträge variieren pro Buchung und
+// wären ein falsches Signal) und ohne generische Füllwörter — für den Verwendungszweck-Abgleich
+// bei mehrdeutigem Empfänger. Die Untergrenze liegt bei 3 statt 4 Zeichen, damit kurze aber
+// bedeutungstragende Wörter wie "Gas" nicht verloren gehen.
+const FUELLWOERTER = new Set([
+  "und", "der", "die", "das", "des", "dem", "den", "fur", "mit", "auf", "aus", "bei", "vom", "zum", "zur",
+]);
+
+function signifikanteWoerter(text: string): Set<string> {
+  const woerter = text
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !FUELLWOERTER.has(w));
+  return new Set(woerter);
+}
+
+/**
+ * Schlägt eine Kostenart anhand des Empfängers vor, gelernt aus bereits erfassten
+ * Kostenpositionen — aber nur, wenn dieser Empfänger bisher *immer* derselben Kostenart
+ * zugeordnet wurde. Ein bisher unbekannter Empfänger liefert bewusst keinen Vorschlag — gerade
+ * einmalige Reparaturrechnungen sollen manuell geprüft werden, u.a. weil davon abhängt, ob sie
+ * umlagefähig sind.
+ *
+ * Ist der Empfänger allein mehrdeutig (z.B. "Stadtwerke Eutin GmbH" mal für reines Wasser, mal
+ * für Wasser+Gas, mal für Strom+Wasser), wird zusätzlich anhand gemeinsamer, aussagekräftiger
+ * Wörter im Verwendungszweck eingegrenzt — nur wenn dabei eine Kostenart eindeutig am besten
+ * passt (kein Gleichstand), wird sie vorgeschlagen.
+ */
+function ermittleKostenartVorschlag(
+  empfaenger: string,
+  verwendungszweck: string,
+  historie: EmpfaengerHistorie[],
+): string | null {
   const treffer = ermittleTreffer(empfaenger, historie);
   if (treffer.length === 0) return null;
   const kostenartIds = new Set(treffer.map((t) => t.kostenartId));
-  if (kostenartIds.size !== 1) return null;
-  return [...kostenartIds][0];
+  if (kostenartIds.size === 1) return [...kostenartIds][0];
+
+  const aktuelleWoerter = signifikanteWoerter(verwendungszweck);
+  if (aktuelleWoerter.size === 0) return null;
+
+  // Jaccard-Ähnlichkeit (Schnittmenge / Vereinigungsmenge) statt reiner Schnittmengengröße: eine
+  // reine Schnittmengenzählung würde z.B. "Wasser + Gas" immer mindestens genauso gut wie reines
+  // "Wasser" bewerten (Obermenge enthält alle Wörter von "Wasser" plus "gas"), selbst wenn die
+  // aktuelle Buchung "Gas" gar nicht erwähnt — Jaccard bestraft die zusätzlichen, nicht
+  // übereinstimmenden Wörter auf beiden Seiten und trifft dadurch die genauere Kostenart.
+  const scoreProKostenart = new Map<string, number>();
+  for (const eintrag of treffer) {
+    const woerter = signifikanteWoerter(eintrag.verwendungszweck ?? "");
+    if (woerter.size === 0) continue;
+    const schnittmenge = [...aktuelleWoerter].filter((w) => woerter.has(w)).length;
+    if (schnittmenge === 0) continue;
+    const vereinigung = new Set([...aktuelleWoerter, ...woerter]).size;
+    const jaccard = schnittmenge / vereinigung;
+    scoreProKostenart.set(eintrag.kostenartId, Math.max(scoreProKostenart.get(eintrag.kostenartId) ?? 0, jaccard));
+  }
+  if (scoreProKostenart.size === 0) return null;
+
+  const sortiert = [...scoreProKostenart.entries()].sort((a, b) => b[1] - a[1]);
+  if (sortiert.length > 1 && sortiert[0][1] === sortiert[1][1]) return null;
+  return sortiert[0][0];
 }
 
 // Entfernt "Straße"/"Strasse"/"Str." als eigenständiges Wort, damit z.B. "Breslauer Str." (wie in
@@ -145,7 +203,7 @@ export function mapKostenRows(
     let vorgeschlageneKostenartId: string | null = null;
     let vorgeschlagenesGebaeudeId: string | null = null;
     if (!ignorieren && errors.length === 0) {
-      vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, historie);
+      vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, verwendungszweck, historie);
       vorgeschlagenesGebaeudeId = ermittleGebaeudeVorschlag(
         `${verwendungszweck} ${empfaenger}`,
         empfaenger,

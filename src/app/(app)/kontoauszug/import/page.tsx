@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Fragment, useActionState, useState } from "react";
 import Link from "next/link";
 import { previewImport, commitZahlungen, commitKosten } from "./actions";
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
-import { RohdatenDialog } from "@/components/rohdaten-dialog";
+import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -107,6 +108,7 @@ function ZahlungenSektion({
     rows.map((r) => toZahlungEditRow(r, bestehendeZahlungen, skipDuplicates)),
   );
   const [hinweisFilter, setHinweisFilter] = useState<ZahlungHinweisFilter>("alle");
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   function updateRow(rowNumber: number, patch: Partial<ZahlungEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
@@ -230,99 +232,105 @@ function ZahlungenSektion({
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlterMietvertragId);
+              const expanded = expandedRow === r.rowNumber;
               return (
-                <tr
-                  key={r.rowNumber}
-                  className={`border-t border-neutral-800 ${
-                    r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
-                  }`}
-                >
-                  <td className="px-3 py-1.5">
-                    <input
-                      type="checkbox"
-                      checked={r.ausgewaehlt}
-                      disabled={!kannAuswaehlen}
-                      onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
-                      className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
-                    />
-                  </td>
-                  <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
-                  <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
-                  <td
-                    className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
-                    title={`${r.verwendungszweck} ${r.name}`}
+                <Fragment key={r.rowNumber}>
+                  <tr
+                    className={`border-t border-neutral-800 ${
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                    }`}
                   >
-                    {r.verwendungszweck || r.name || "–"}
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <select
-                      value={r.gewaehlterMietvertragId}
-                      onChange={(e) =>
-                        updateRow(r.rowNumber, {
-                          gewaehlterMietvertragId: e.target.value,
-                          ausgewaehlt: Boolean(e.target.value) && r.errors.length === 0,
-                        })
-                      }
-                      className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={r.ausgewaehlt}
+                        disabled={!kannAuswaehlen}
+                        onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
+                        className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
+                    <td
+                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
+                      title={`${r.verwendungszweck} ${r.name}`}
                     >
-                      <option value="">– ignorieren –</option>
-                      {kandidaten.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <div className="flex gap-1">
+                      {r.verwendungszweck || r.name || "–"}
+                    </td>
+                    <td className="px-3 py-1.5">
                       <select
-                        value={r.periodeMonat}
-                        onChange={(e) => updateRow(r.rowNumber, { periodeMonat: Number(e.target.value) })}
-                        className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                        value={r.gewaehlterMietvertragId}
+                        onChange={(e) =>
+                          updateRow(r.rowNumber, {
+                            gewaehlterMietvertragId: e.target.value,
+                            ausgewaehlt: Boolean(e.target.value) && r.errors.length === 0,
+                          })
+                        }
+                        className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
                       >
-                        {MONATE.map((m, idx) => (
-                          <option key={m} value={idx + 1}>
-                            {m}
+                        <option value="">– ignorieren –</option>
+                        {kandidaten.map((k) => (
+                          <option key={k.id} value={k.id}>
+                            {k.label}
                           </option>
                         ))}
                       </select>
-                      <input
-                        type="number"
-                        value={r.periodeJahr}
-                        onChange={(e) => updateRow(r.rowNumber, { periodeJahr: Number(e.target.value) })}
-                        className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <div className="flex gap-1">
+                        <select
+                          value={r.periodeMonat}
+                          onChange={(e) => updateRow(r.rowNumber, { periodeMonat: Number(e.target.value) })}
+                          className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                        >
+                          {MONATE.map((m, idx) => (
+                            <option key={m} value={idx + 1}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          value={r.periodeJahr}
+                          onChange={(e) => updateRow(r.rowNumber, { periodeJahr: Number(e.target.value) })}
+                          className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
+                      {r.errors.length === 0 && r.eigentuemerBuchung && (
+                        <span className="text-neutral-500">Eigentümer-Buchung</span>
+                      )}
+                      {r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && (
+                        <span className="text-neutral-500">ausgehend</span>
+                      )}
+                      {r.errors.length === 0 && r.rueckbuchung && (
+                        <span className="text-red-400">Rücklastschrift</span>
+                      )}
+                      {r.errors.length === 0 && !r.ignorieren && r.mehrdeutig && (
+                        <span className="text-amber-400">mehrdeutig</span>
+                      )}
+                      {r.errors.length === 0 &&
+                        !r.ignorieren &&
+                        !r.vorgeschlagenerMietvertragId &&
+                        !r.mehrdeutig &&
+                        !bereitsImportiert && <span className="text-neutral-500">kein Treffer</span>}
+                      {bereitsImportiert && (
+                        <span className="ml-1 text-amber-400">
+                          bereits importiert{!r.ausgewaehlt ? " – wird übersprungen" : ""}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <RohdatenToggleButton
+                        expanded={expanded}
+                        onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
                       />
-                    </div>
-                  </td>
-                  <td className="px-3 py-1.5 text-xs">
-                    {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
-                    {r.errors.length === 0 && r.eigentuemerBuchung && (
-                      <span className="text-neutral-500">Eigentümer-Buchung</span>
-                    )}
-                    {r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && (
-                      <span className="text-neutral-500">ausgehend</span>
-                    )}
-                    {r.errors.length === 0 && r.rueckbuchung && (
-                      <span className="text-red-400">Rücklastschrift</span>
-                    )}
-                    {r.errors.length === 0 && !r.ignorieren && r.mehrdeutig && (
-                      <span className="text-amber-400">mehrdeutig</span>
-                    )}
-                    {r.errors.length === 0 &&
-                      !r.ignorieren &&
-                      !r.vorgeschlagenerMietvertragId &&
-                      !r.mehrdeutig &&
-                      !bereitsImportiert && <span className="text-neutral-500">kein Treffer</span>}
-                    {bereitsImportiert && (
-                      <span className="ml-1 text-amber-400">
-                        bereits importiert{!r.ausgewaehlt ? " – wird übersprungen" : ""}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <RohdatenDialog rohdaten={r.rohdaten} />
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={8} />}
+                </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
@@ -442,6 +450,8 @@ function KostenSektion({
     rows.map((r) => toKostenEditRow(r, bestehendeKosten)),
   );
   const [hinweisFilter, setHinweisFilter] = useState<KostenHinweisFilter>("alle");
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
 
   function updateRow(rowNumber: number, patch: Partial<KostenEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
@@ -523,100 +533,119 @@ function KostenSektion({
               const hatVollstaendigenVorschlag = Boolean(
                 r.vorgeschlageneKostenartId && r.vorgeschlagenesGebaeudeId,
               );
+              const expanded = expandedRow === r.rowNumber;
               return (
-                <tr
-                  key={r.rowNumber}
-                  className={`border-t border-neutral-800 ${
-                    r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
-                  }`}
-                >
-                  <td className="px-3 py-1.5">
-                    <input
-                      type="checkbox"
-                      checked={r.ausgewaehlt}
-                      disabled={!kannAuswaehlen}
-                      onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
-                      className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
-                    />
-                  </td>
-                  <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
-                  <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
-                  <td
-                    className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
-                    title={`${r.empfaenger} ${r.verwendungszweck}`}
+                <Fragment key={r.rowNumber}>
+                  <tr
+                    className={`border-t border-neutral-800 ${
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                    }`}
                   >
-                    {r.empfaenger || r.verwendungszweck || "–"}
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <select
-                      value={r.gewaehlteKostenartId}
-                      disabled={r.ignorieren || r.errors.length > 0}
-                      onChange={(e) =>
-                        updateRow(r.rowNumber, {
-                          gewaehlteKostenartId: e.target.value,
-                          ausgewaehlt: Boolean(e.target.value),
-                        })
-                      }
-                      className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={r.ausgewaehlt}
+                        disabled={!kannAuswaehlen}
+                        onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
+                        className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
+                    <td
+                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
+                      title={`${r.empfaenger} ${r.verwendungszweck}`}
                     >
-                      <option value="">– bitte wählen –</option>
-                      {kostenarten.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.name}
-                          {!k.umlagefaehig ? " (nicht umlagefähig)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <select
-                      value={r.gewaehltesGebaeudeId}
-                      disabled={r.ignorieren || r.errors.length > 0}
-                      onChange={(e) => updateRow(r.rowNumber, { gewaehltesGebaeudeId: e.target.value })}
-                      className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
-                    >
-                      <option value="">– Objekt gesamt –</option>
-                      {gebaeude.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <input
-                      type="number"
-                      value={r.jahrEingabe}
-                      disabled={r.ignorieren || r.errors.length > 0}
-                      onChange={(e) => updateRow(r.rowNumber, { jahrEingabe: Number(e.target.value) })}
-                      className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
-                    />
-                  </td>
-                  <td className="px-3 py-1.5 text-xs">
-                    {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
-                    {r.errors.length === 0 && r.ignorieren && (
-                      <span className="text-neutral-500">
-                        {r.eigentuemerBuchung ? "Eigentümer-Buchung" : "eingehend"}
-                      </span>
-                    )}
-                    {r.errors.length === 0 && !r.ignorieren && r.gutschrift && (
-                      <span className="mr-1 text-blue-400">Gutschrift</span>
-                    )}
-                    {r.errors.length === 0 && !r.ignorieren && r.rueckbuchung && (
-                      <span className="mr-1 text-red-400">Rücklastschrift</span>
-                    )}
-                    {r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag && (
-                      <span className="text-green-400">Vorschlag übernommen</span>
-                    )}
-                    {r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag && (
-                      <span className="text-amber-400">bitte prüfen</span>
-                    )}
-                    {bereitsImportiert && <span className="ml-1 text-amber-400">bereits importiert</span>}
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <RohdatenDialog rohdaten={r.rohdaten} />
-                  </td>
-                </tr>
+                      {r.empfaenger || r.verwendungszweck || "–"}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <select
+                        value={r.gewaehlteKostenartId}
+                        disabled={r.ignorieren || r.errors.length > 0}
+                        onChange={(e) =>
+                          updateRow(r.rowNumber, {
+                            gewaehlteKostenartId: e.target.value,
+                            ausgewaehlt: Boolean(e.target.value),
+                          })
+                        }
+                        className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
+                      >
+                        <option value="">– bitte wählen –</option>
+                        {kostenartGruppen.map((gruppe) =>
+                          gruppe.label ? (
+                            <optgroup key={gruppe.label} label={gruppe.label}>
+                              {gruppe.items.map((k) => (
+                                <option key={k.id} value={k.id}>
+                                  {k.name}
+                                  {!k.umlagefaehig ? " (nicht umlagefähig)" : ""}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : (
+                            gruppe.items.map((k) => (
+                              <option key={k.id} value={k.id}>
+                                {k.name}
+                                {!k.umlagefaehig ? " (nicht umlagefähig)" : ""}
+                              </option>
+                            ))
+                          ),
+                        )}
+                      </select>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <select
+                        value={r.gewaehltesGebaeudeId}
+                        disabled={r.ignorieren || r.errors.length > 0}
+                        onChange={(e) => updateRow(r.rowNumber, { gewaehltesGebaeudeId: e.target.value })}
+                        className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
+                      >
+                        <option value="">– Objekt gesamt –</option>
+                        {gebaeude.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="number"
+                        value={r.jahrEingabe}
+                        disabled={r.ignorieren || r.errors.length > 0}
+                        onChange={(e) => updateRow(r.rowNumber, { jahrEingabe: Number(e.target.value) })}
+                        className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
+                      {r.errors.length === 0 && r.ignorieren && (
+                        <span className="text-neutral-500">
+                          {r.eigentuemerBuchung ? "Eigentümer-Buchung" : "eingehend"}
+                        </span>
+                      )}
+                      {r.errors.length === 0 && !r.ignorieren && r.gutschrift && (
+                        <span className="mr-1 text-blue-400">Gutschrift</span>
+                      )}
+                      {r.errors.length === 0 && !r.ignorieren && r.rueckbuchung && (
+                        <span className="mr-1 text-red-400">Rücklastschrift</span>
+                      )}
+                      {r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag && (
+                        <span className="text-green-400">Vorschlag übernommen</span>
+                      )}
+                      {r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag && (
+                        <span className="text-amber-400">bitte prüfen</span>
+                      )}
+                      {bereitsImportiert && <span className="ml-1 text-amber-400">bereits importiert</span>}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <RohdatenToggleButton
+                        expanded={expanded}
+                        onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
+                      />
+                    </td>
+                  </tr>
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={9} />}
+                </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (

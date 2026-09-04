@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { runFormAction } from "@/lib/form-utils";
+import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 
 type Kostenposition = {
   kostenartId: string;
@@ -27,6 +28,7 @@ export function KostenpositionForm({
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),
     null,
   );
+  const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.label);
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
@@ -44,11 +46,23 @@ export function KostenpositionForm({
           <option value="" disabled>
             Bitte wählen…
           </option>
-          {kostenarten.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.label}
-            </option>
-          ))}
+          {kostenartGruppen.map((gruppe) =>
+            gruppe.label ? (
+              <optgroup key={gruppe.label} label={gruppe.label}>
+                {gruppe.items.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              gruppe.items.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))
+            ),
+          )}
         </select>
       </div>
 

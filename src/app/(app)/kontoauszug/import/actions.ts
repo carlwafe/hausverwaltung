@@ -91,7 +91,14 @@ export async function previewImport(
       prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
       prisma.gebaeude.findMany({ orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }] }),
       prisma.kostenposition.findMany({
-        select: { empfaenger: true, kostenartId: true, gebaeudeId: true, datum: true, betrag: true },
+        select: {
+          empfaenger: true,
+          kostenartId: true,
+          gebaeudeId: true,
+          datum: true,
+          betrag: true,
+          beschreibung: true,
+        },
       }),
     ]);
 
@@ -127,7 +134,12 @@ export async function previewImport(
     // Historie für den Empfänger→Kostenart-Vorschlag: nur Positionen mit bekanntem Empfänger.
     const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen
       .filter((k): k is typeof k & { empfaenger: string } => Boolean(k.empfaenger))
-      .map((k) => ({ empfaenger: k.empfaenger, kostenartId: k.kostenartId, gebaeudeId: k.gebaeudeId }));
+      .map((k) => ({
+        empfaenger: k.empfaenger,
+        kostenartId: k.kostenartId,
+        gebaeudeId: k.gebaeudeId,
+        verwendungszweck: k.beschreibung,
+      }));
     const kostenRows = mapKostenRows(headers, rows, historie, gebaeude);
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen
