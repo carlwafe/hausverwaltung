@@ -15,7 +15,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
   return positionen.map((k) => ({
     id: k.id,
     jahr: k.jahr,
-    gebaeudeLabel: `${k.gebaeude.strasse} ${k.gebaeude.hausnummer}`,
+    gebaeudeLabel: k.gebaeude ? `${k.gebaeude.strasse} ${k.gebaeude.hausnummer}` : "Objekt gesamt",
     kostenartName: k.kostenart.name,
     umlagefaehig: k.kostenart.umlagefaehig,
     betrag: Number(k.betrag),

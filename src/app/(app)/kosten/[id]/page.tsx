@@ -21,8 +21,11 @@ export default async function KostenpositionDetailPage({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          {kostenposition.kostenart.name} — {kostenposition.gebaeude.strasse}{" "}
-          {kostenposition.gebaeude.hausnummer} ({kostenposition.jahr})
+          {kostenposition.kostenart.name} —{" "}
+          {kostenposition.gebaeude
+            ? `${kostenposition.gebaeude.strasse} ${kostenposition.gebaeude.hausnummer}`
+            : "Objekt gesamt"}{" "}
+          ({kostenposition.jahr})
         </h1>
         <DeleteButton
           action={deleteKostenposition.bind(null, id)}

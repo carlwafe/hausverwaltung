@@ -8,7 +8,9 @@ import { requireUser } from "@/lib/session";
 
 const kostenpositionSchema = z.object({
   kostenartId: z.string().min(1, "Kostenart ist erforderlich"),
-  gebaeudeId: z.string().min(1, "Gebäude ist erforderlich"),
+  // Optional: manche Kosten (z.B. Bankgebühren, Verwaltungskosten) betreffen das ganze Objekt und
+  // lassen sich keinem einzelnen Gebäude zuordnen.
+  gebaeudeId: z.string().optional(),
   jahr: z.coerce.number().int().min(2000).max(2100),
   betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
   beschreibung: z.string().optional(),
@@ -18,7 +20,7 @@ const kostenpositionSchema = z.object({
 function parseForm(formData: FormData) {
   const parsed = kostenpositionSchema.safeParse({
     kostenartId: formData.get("kostenartId"),
-    gebaeudeId: formData.get("gebaeudeId"),
+    gebaeudeId: formData.get("gebaeudeId") || undefined,
     jahr: formData.get("jahr"),
     betrag: formData.get("betrag"),
     beschreibung: formData.get("beschreibung") || undefined,
@@ -39,7 +41,7 @@ export async function createKostenposition(formData: FormData) {
     data: {
       ...rest,
       kostenart: { connect: { id: kostenartId } },
-      gebaeude: { connect: { id: gebaeudeId } },
+      ...(gebaeudeId ? { gebaeude: { connect: { id: gebaeudeId } } } : {}),
     },
   });
 
@@ -56,7 +58,7 @@ export async function updateKostenposition(id: string, formData: FormData) {
     data: {
       ...rest,
       kostenart: { connect: { id: kostenartId } },
-      gebaeude: { connect: { id: gebaeudeId } },
+      gebaeude: gebaeudeId ? { connect: { id: gebaeudeId } } : { disconnect: true },
     },
   });
 

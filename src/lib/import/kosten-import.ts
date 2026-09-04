@@ -11,8 +11,9 @@ export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolea
 export type GebaeudeKandidat = { id: string; label: string; strasse: string; hausnummer: string };
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
-// gelernt wird.
-export type EmpfaengerHistorie = { empfaenger: string; kostenartId: string; gebaeudeId: string };
+// gelernt wird. gebaeudeId ist null, wenn die Position dem ganzen Objekt statt einem einzelnen
+// Gebäude zugeordnet war (z.B. Bankgebühren).
+export type EmpfaengerHistorie = { empfaenger: string; kostenartId: string; gebaeudeId: string | null };
 
 export type ParsedKostenRow = {
   rowNumber: number;

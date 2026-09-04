@@ -213,8 +213,10 @@ model Kostenposition {
   id            String       @id @default(cuid())
   kostenart     Kostenart    @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
   kostenartId   String
-  gebaeude      Gebaeude     @relation(fields: [gebaeudeId], references: [id], onDelete: Cascade)
-  gebaeudeId    String
+  // Optional: manche Kosten (z.B. Bankgebühren, Verwaltungskosten) betreffen das ganze Objekt und
+  // lassen sich keinem einzelnen Gebäude zuordnen.
+  gebaeude      Gebaeude?    @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
+  gebaeudeId    String?
   jahr          Int
   // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
   // Kostenpositionen kennen nur das Jahr).

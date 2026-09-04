@@ -105,12 +105,11 @@ export default function KostenImportPage() {
   const gefilterteRows =
     editRows?.filter((r) => matchesHinweisFilter(r, istBereitsImportiert(r), hinweisFilter)) ?? [];
 
-  const importierbareRows =
-    editRows?.filter((r) => r.ausgewaehlt && r.gewaehlteKostenartId && r.gewaehltesGebaeudeId) ?? [];
+  const importierbareRows = editRows?.filter((r) => r.ausgewaehlt && r.gewaehlteKostenartId) ?? [];
 
   const rowsForCommit = importierbareRows.map((r) => ({
     kostenartId: r.gewaehlteKostenartId,
-    gebaeudeId: r.gewaehltesGebaeudeId,
+    gebaeudeId: r.gewaehltesGebaeudeId || null,
     jahr: r.jahrEingabe,
     datum: r.datum,
     betrag: r.betrag,
@@ -128,7 +127,8 @@ export default function KostenImportPage() {
         Empfänger (z.B. Versicherung, Hausmeister) werden automatisch mit der zuletzt genutzten
         Kostenart vorbelegt und direkt zum Import ausgewählt. Alles andere, insbesondere
         einmalige Reparaturrechnungen, bleibt unausgewählt und muss manuell geprüft und einer
-        Kostenart sowie einem Gebäude zugeordnet werden.
+        Kostenart zugeordnet werden. Ein Gebäude ist optional — Kosten, die das ganze Objekt
+        betreffen (z.B. Bankgebühren, Verwaltungskosten), lässt man auf &quot;Objekt gesamt&quot;.
       </p>
 
       {!commitMessage && (
@@ -204,8 +204,7 @@ export default function KostenImportPage() {
               <tbody>
                 {gefilterteRows.map((r) => {
                   const bereitsImportiert = istBereitsImportiert(r);
-                  const kannAuswaehlen =
-                    r.errors.length === 0 && Boolean(r.gewaehlteKostenartId && r.gewaehltesGebaeudeId);
+                  const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
                   const hatVollstaendigenVorschlag = Boolean(
                     r.vorgeschlageneKostenartId && r.vorgeschlagenesGebaeudeId,
                   );
@@ -242,7 +241,7 @@ export default function KostenImportPage() {
                           onChange={(e) =>
                             updateRow(r.rowNumber, {
                               gewaehlteKostenartId: e.target.value,
-                              ausgewaehlt: Boolean(e.target.value && r.gewaehltesGebaeudeId),
+                              ausgewaehlt: Boolean(e.target.value),
                             })
                           }
                           className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
@@ -261,14 +260,11 @@ export default function KostenImportPage() {
                           value={r.gewaehltesGebaeudeId}
                           disabled={r.ignorieren || r.errors.length > 0}
                           onChange={(e) =>
-                            updateRow(r.rowNumber, {
-                              gewaehltesGebaeudeId: e.target.value,
-                              ausgewaehlt: Boolean(r.gewaehlteKostenartId && e.target.value),
-                            })
+                            updateRow(r.rowNumber, { gewaehltesGebaeudeId: e.target.value })
                           }
                           className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
                         >
-                          <option value="">– bitte wählen –</option>
+                          <option value="">– Objekt gesamt –</option>
                           {gebaeude.map((g) => (
                             <option key={g.id} value={g.id}>
                               {g.label}

@@ -114,7 +114,7 @@ export async function previewImport(
 
 type CommitRow = {
   kostenartId: string;
-  gebaeudeId: string;
+  gebaeudeId: string | null;
   jahr: number;
   datum: string;
   betrag: number;
@@ -143,9 +143,9 @@ export async function commitImport(
 
   if (rows.length === 0) return "Keine Kostenpositionen zum Importieren ausgewählt.";
 
-  const fehlende = rows.filter((r) => !r.kostenartId || !r.gebaeudeId);
+  const fehlende = rows.filter((r) => !r.kostenartId);
   if (fehlende.length > 0) {
-    return `${fehlende.length} Zeile(n) haben noch keine Kostenart oder kein Gebäude ausgewählt.`;
+    return `${fehlende.length} Zeile(n) haben noch keine Kostenart ausgewählt.`;
   }
 
   const bestehend = await prisma.kostenposition.findMany({

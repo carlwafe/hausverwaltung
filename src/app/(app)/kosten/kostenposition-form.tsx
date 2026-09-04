@@ -5,7 +5,7 @@ import { runFormAction } from "@/lib/form-utils";
 
 type Kostenposition = {
   kostenartId: string;
-  gebaeudeId: string;
+  gebaeudeId: string | null;
   jahr: number;
   betrag: string;
   beschreibung: string | null;
@@ -59,13 +59,10 @@ export function KostenpositionForm({
         <select
           id="gebaeudeId"
           name="gebaeudeId"
-          required
           defaultValue={initial?.gebaeudeId ?? ""}
           className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
-          <option value="" disabled>
-            Bitte wählen…
-          </option>
+          <option value="">– Objekt gesamt (kein einzelnes Gebäude) –</option>
           {gebaeude.map((g) => (
             <option key={g.id} value={g.id}>
               {g.label}
