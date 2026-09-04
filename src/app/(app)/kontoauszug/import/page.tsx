@@ -19,11 +19,13 @@ const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", 
 
 const ZAHLUNG_HINWEIS_OPTIONEN = [
   { value: "alle", label: "Alle Hinweise" },
+  { value: "vorschlag", label: "Vorschlag übernommen" },
   { value: "mehrdeutig", label: "Mehrdeutig" },
   { value: "kein_treffer", label: "Kein Treffer" },
   { value: "fehler", label: "Fehler" },
   { value: "rueckbuchung", label: "Rücklastschrift" },
-  { value: "ausgehend", label: "Ausgehend" },
+  { value: "ausgehend", label: "Ausgehend, bitte prüfen" },
+  { value: "ausgehend_bereits_als_kosten_importiert", label: "Ausgehend, bereits als Kosten importiert" },
   { value: "eigentuemer", label: "Eigentümer-Buchung" },
   { value: "bereits_importiert", label: "Bereits importiert" },
 ] as const;
@@ -47,6 +49,20 @@ function pruefeZahlungDuplikat(
   return bestehendeZahlungen.has(`${mietvertragId}|${datum}|${betrag.toFixed(2)}`);
 }
 
+// Prüft, ob eine ausgehende Buchung (negativer Betrag) bereits als Kostenposition importiert
+// wurde — gleicher Dedup-Schlüssel wie kostenDedupSchluessel in actions.ts (Empfänger|Datum|
+// Betrag), nur mit umgedrehtem Vorzeichen, da Kosten dort als positiver Betrag gespeichert
+// werden, Zahlungen hier aber das Vorzeichen der Rohbuchung (negativ bei ausgehend) behalten.
+function pruefeAlsKostenImportiert(
+  bestehendeKosten: Set<string>,
+  name: string,
+  datum: string | null,
+  betrag: number | null,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehendeKosten.has(`${name.trim().toLowerCase()}|${datum}|${Math.abs(betrag).toFixed(2)}`);
+}
+
 function toZahlungEditRow(
   r: ParsedZahlungRow,
   bestehendeZahlungen: Set<string>,
@@ -63,6 +79,7 @@ function toZahlungEditRow(
 function matchesZahlungHinweisFilter(
   r: ZahlungEditRow,
   bereitsImportiert: boolean,
+  bereitsAlsKostenImportiert: boolean,
   filter: ZahlungHinweisFilter,
 ): boolean {
   switch (filter) {
@@ -73,9 +90,15 @@ function matchesZahlungHinweisFilter(
     case "eigentuemer":
       return r.errors.length === 0 && r.eigentuemerBuchung;
     case "ausgehend":
-      return r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren;
+      return r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && !bereitsAlsKostenImportiert;
+    case "ausgehend_bereits_als_kosten_importiert":
+      return r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && bereitsAlsKostenImportiert;
     case "rueckbuchung":
       return r.errors.length === 0 && r.rueckbuchung;
+    case "vorschlag":
+      return (
+        r.errors.length === 0 && !r.ignorieren && !r.mehrdeutig && Boolean(r.vorgeschlagenerMietvertragId)
+      );
     case "mehrdeutig":
       return r.errors.length === 0 && !r.ignorieren && r.mehrdeutig;
     case "kein_treffer":
@@ -95,15 +118,18 @@ function ZahlungenSektion({
   rows,
   kandidaten,
   bestehendeZahlungenListe,
+  bestehendeKostenListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
   bestehendeZahlungenListe: string[];
+  bestehendeKostenListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitZahlungen, null);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
+  const bestehendeKosten = new Set(bestehendeKostenListe);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [editRows, setEditRows] = useState<ZahlungEditRow[]>(() =>
     rows.map((r) => toZahlungEditRow(r, bestehendeZahlungen, skipDuplicates)),
@@ -119,6 +145,10 @@ function ZahlungenSektion({
     return pruefeZahlungDuplikat(bestehendeZahlungen, r.gewaehlterMietvertragId, r.datum, r.betrag);
   }
 
+  function istBereitsAlsKostenImportiert(r: ZahlungEditRow): boolean {
+    return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag);
+  }
+
   function handleSkipDuplicatesChange(checked: boolean) {
     setSkipDuplicates(checked);
     setEditRows((rs) =>
@@ -131,7 +161,7 @@ function ZahlungenSektion({
   }
 
   const gefilterteRows = editRows.filter((r) =>
-    matchesZahlungHinweisFilter(r, istBereitsImportiert(r), hinweisFilter),
+    matchesZahlungHinweisFilter(r, istBereitsImportiert(r), istBereitsAlsKostenImportiert(r), hinweisFilter),
   );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehlterMietvertragId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
@@ -232,6 +262,7 @@ function ZahlungenSektion({
           <tbody>
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
+              const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlterMietvertragId);
               const expanded = expandedRow === r.rowNumber;
               return (
@@ -304,7 +335,9 @@ function ZahlungenSektion({
                         <span className="text-neutral-500">Eigentümer-Buchung</span>
                       )}
                       {r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && (
-                        <span className="text-neutral-500">ausgehend</span>
+                        <span className={bereitsAlsKostenImportiert ? "text-green-400" : "text-neutral-500"}>
+                          ausgehend{bereitsAlsKostenImportiert ? ", bereits als Kosten importiert" : ""}
+                        </span>
                       )}
                       {r.errors.length === 0 && r.rueckbuchung && (
                         <span className="text-red-400">Rücklastschrift</span>
@@ -312,6 +345,12 @@ function ZahlungenSektion({
                       {r.errors.length === 0 && !r.ignorieren && r.mehrdeutig && (
                         <span className="text-amber-400">mehrdeutig</span>
                       )}
+                      {r.errors.length === 0 &&
+                        !r.ignorieren &&
+                        !r.mehrdeutig &&
+                        r.vorgeschlagenerMietvertragId && (
+                          <span className="text-green-400">Vorschlag übernommen</span>
+                        )}
                       {r.errors.length === 0 &&
                         !r.ignorieren &&
                         !r.vorgeschlagenerMietvertragId &&
@@ -776,6 +815,7 @@ export default function KontoauszugImportPage() {
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
             bestehendeZahlungenListe={preview.bestehendeZahlungen}
+            bestehendeKostenListe={preview.bestehendeKosten}
             importBatchId={preview.importBatchId}
           />
 
