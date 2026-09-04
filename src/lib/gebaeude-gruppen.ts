@@ -26,7 +26,7 @@ export function gruppiereGebaeude(gebaeude: GebaeudeGruppierbar[]): GebaeudeAusw
     const repraesentant = sortiert[0];
     optionen.push({
       id: repraesentant.id,
-      label: `${repraesentant.strasse} ${sortiert.map((g) => g.hausnummer).join(", ")}`,
+      label: `Haus ${sortiert.map((g) => g.hausnummer).join(", ")} (${repraesentant.strasse})`,
     });
   }
   for (const g of einzeln) {

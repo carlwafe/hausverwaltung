@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { updateKostenposition, deleteKostenposition } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
+import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
 
 export default async function KostenpositionDetailPage({
   params,
@@ -17,15 +18,17 @@ export default async function KostenpositionDetailPage({
   ]);
   if (!kostenposition) notFound();
 
+  const gebaeudeOptionen = gruppiereGebaeude(gebaeude);
+  const gebaeudeLabel = kostenposition.gebaeude
+    ? (gebaeudeOptionen.find((o) => o.id === kostenposition.gebaeude!.id)?.label ??
+      `${kostenposition.gebaeude.strasse} ${kostenposition.gebaeude.hausnummer}`)
+    : "Objekt gesamt";
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          {kostenposition.kostenart.name} —{" "}
-          {kostenposition.gebaeude
-            ? `${kostenposition.gebaeude.strasse} ${kostenposition.gebaeude.hausnummer}`
-            : "Objekt gesamt"}{" "}
-          ({kostenposition.jahr})
+          {kostenposition.kostenart.name} — {gebaeudeLabel} ({kostenposition.jahr})
         </h1>
         <DeleteButton
           action={deleteKostenposition.bind(null, id)}
@@ -34,7 +37,7 @@ export default async function KostenpositionDetailPage({
       </div>
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
-        gebaeude={gebaeude.map((g) => ({ id: g.id, label: `${g.strasse} ${g.hausnummer}` }))}
+        gebaeude={gebaeudeOptionen}
         initial={{
           kostenartId: kostenposition.kostenartId,
           gebaeudeId: kostenposition.gebaeudeId,

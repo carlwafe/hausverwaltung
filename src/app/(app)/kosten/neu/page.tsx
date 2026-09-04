@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { createKostenposition } from "../actions";
+import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
 
 export default async function NeueKostenpositionPage() {
   const [kostenarten, gebaeude] = await Promise.all([
@@ -13,7 +14,7 @@ export default async function NeueKostenpositionPage() {
       <h1 className="mb-6 text-2xl font-semibold">Neue Kostenposition</h1>
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
-        gebaeude={gebaeude.map((g) => ({ id: g.id, label: `${g.strasse} ${g.hausnummer}` }))}
+        gebaeude={gruppiereGebaeude(gebaeude)}
         action={createKostenposition}
       />
     </div>
