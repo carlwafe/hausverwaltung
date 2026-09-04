@@ -37,7 +37,9 @@ export async function createKostenart(formData: FormData) {
   await requireUser();
   const data = parseForm(formData);
 
-  await prisma.kostenart.create({ data });
+  await prisma.kostenart.create({
+    data: { ...data, standardVerteilerschluessel: data.standardVerteilerschluessel ?? null },
+  });
 
   revalidatePath("/kostenarten");
   redirect("/kostenarten");
@@ -47,7 +49,13 @@ export async function updateKostenart(id: string, formData: FormData) {
   await requireUser();
   const data = parseForm(formData);
 
-  await prisma.kostenart.update({ where: { id }, data });
+  // Prisma behandelt `undefined` in `data` als "Feld unverändert lassen", nicht als "auf null
+  // setzen" — ohne den expliziten Fallback würde ein deaktiviertes (also nicht mitgesendetes)
+  // Verteilerschlüssel-Feld den alten Wert stillschweigend behalten, statt ihn zu löschen.
+  await prisma.kostenart.update({
+    where: { id },
+    data: { ...data, standardVerteilerschluessel: data.standardVerteilerschluessel ?? null },
+  });
 
   revalidatePath("/kostenarten");
   revalidatePath(`/kostenarten/${id}`);

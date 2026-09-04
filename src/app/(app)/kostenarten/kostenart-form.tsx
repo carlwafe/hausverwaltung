@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
@@ -28,6 +28,7 @@ export function KostenartForm({
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),
     null,
   );
+  const [umlagefaehig, setUmlagefaehig] = useState(initial?.umlagefaehig ?? true);
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
@@ -49,21 +50,27 @@ export function KostenartForm({
         <input
           type="checkbox"
           name="umlagefaehig"
-          defaultChecked={initial?.umlagefaehig ?? true}
+          checked={umlagefaehig}
+          onChange={(e) => setUmlagefaehig(e.target.checked)}
           className="h-4 w-4 rounded border-neutral-700 bg-transparent"
         />
         Umlagefähig auf Mieter (Betriebskosten)
       </label>
 
       <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="standardVerteilerschluessel">
+        <label
+          className={`mb-1 block text-sm font-medium ${!umlagefaehig ? "text-neutral-600" : ""}`}
+          htmlFor="standardVerteilerschluessel"
+        >
           Standard-Verteilerschlüssel (optional)
+          {!umlagefaehig && " – nur bei umlagefähigen Kostenarten relevant"}
         </label>
         <select
           id="standardVerteilerschluessel"
           name="standardVerteilerschluessel"
+          disabled={!umlagefaehig}
           defaultValue={initial?.standardVerteilerschluessel ?? ""}
-          className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900 disabled:text-neutral-600"
         >
           <option value="">– keiner –</option>
           {Object.entries(VERTEILERSCHLUESSEL_LABEL).map(([value, label]) => (

@@ -4,6 +4,11 @@
 export function normalizeText(s: string): string {
   return s
     .toLowerCase()
+    // Deutsches Eszett ist kein diakritisches Zeichen, das sich per NFD zerlegen liesse — ohne
+    // diesen Schritt wuerde es beim Entfernen der Nicht-Buchstaben unten einfach geloescht statt
+    // zu "ss" angeglichen (z.B. "Strasse" mit Eszett -> "strae" statt "strasse"), sodass die
+    // beiden Schreibweisen nie als gleich erkannt wuerden.
+    .replace(/\u00df/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
