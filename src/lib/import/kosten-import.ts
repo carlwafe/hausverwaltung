@@ -124,7 +124,7 @@ export function mapKostenRows(
     const empfaenger = nameCol ? (row[nameCol] ?? "").trim() : "";
 
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
-    const eigentuemerBuchung = istEigentuemerBuchung(`${verwendungszweck} ${empfaenger}`);
+    const eigentuemerBuchung = istEigentuemerBuchung(empfaenger);
     // Kosten sind nur ausgehende (negative) Buchungen — eingehende sind Mieteinnahmen und gehören
     // in den Zahlungen-Import.
     const istAusgehend = rohBetrag !== null && rohBetrag < 0;

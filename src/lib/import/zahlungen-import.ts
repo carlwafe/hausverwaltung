@@ -127,7 +127,7 @@ export function mapZahlungenRows(
     // Betrag), korrigieren aber eine zuvor gutgeschriebene Miete, die tatsächlich nicht bezahlt
     // wurde — sie müssen als Korrekturbuchung importiert werden, nicht als "ausgehend" ignoriert.
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
-    const eigentuemerBuchung = istEigentuemerBuchung(`${verwendungszweck} ${name}`);
+    const eigentuemerBuchung = istEigentuemerBuchung(name);
     const ignorieren = eigentuemerBuchung || (betrag !== null && betrag <= 0 && !rueckbuchung);
 
     let vorgeschlagenerMietvertragId: string | null = null;

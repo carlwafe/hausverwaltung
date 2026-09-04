@@ -68,10 +68,14 @@ export function parseGermanDate(raw: string | undefined): string | null {
 export const RUECKBUCHUNG_PATTERN = /RUECKLASTSCHRIFT|LASTSCHRIFTWIDERSPRUCH/i;
 
 // Buchungen von/an die Eigentümerin selbst (z.B. Kontoausgleiche, Mietweiterleitungen,
-// Nebenkostenabrechnungs-Erstattungen) sind niemals Mieteinnahmen oder Kosten – unabhängig vom
-// Betrag oder ob sie im Verwendungszweck oder im Namensfeld erscheint.
-export function istEigentuemerBuchung(text: string): boolean {
-  return /julia/i.test(text) && /waller/i.test(text);
+// Nebenkostenabrechnungs-Erstattungen) sind niemals Mieteinnahmen oder Kosten. Prüft bewusst nur
+// das Namens-/Empfängerfeld (die tatsächliche Gegenpartei der Buchung), nicht den
+// Verwendungszweck: Banken zitieren dort oft den Namen des Kontoinhabers als Referenz (z.B.
+// Sparkassens "/FOR/Julia Katharina Waller ..."), auch wenn die eigentliche Gegenpartei — hier
+// z.B. Techem — jemand ganz anderes ist. Ein Treffer im freien Verwendungszweck-Text ist daher
+// kein verlässliches Signal für eine echte Eigentümer-Buchung.
+export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
+  return /julia/i.test(empfaengerOderName) && /waller/i.test(empfaengerOderName);
 }
 
 export function textEnthaeltWort(haystack: string, wort: string): boolean {
