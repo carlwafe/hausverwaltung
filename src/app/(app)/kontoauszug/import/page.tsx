@@ -364,11 +364,13 @@ function ZahlungenSektion({
 const KOSTEN_HINWEIS_OPTIONEN = [
   { value: "alle", label: "Alle Hinweise" },
   { value: "vorschlag", label: "Vorschlag übernommen" },
+  { value: "vorschlag_bereits_importiert", label: "Vorschlag übernommen (bereits importiert)" },
   { value: "pruefen", label: "Bitte prüfen" },
+  { value: "pruefen_bereits_importiert", label: "Bitte prüfen (bereits importiert)" },
   { value: "gutschrift", label: "Gutschrift" },
   { value: "fehler", label: "Fehler" },
   { value: "eingehend", label: "Ignoriert (Eigentümer/unbekannt eingehend)" },
-  { value: "bereits_importiert", label: "Bereits importiert" },
+  { value: "bereits_importiert", label: "Bereits importiert (alle)" },
 ] as const;
 
 type KostenHinweisFilter = (typeof KOSTEN_HINWEIS_OPTIONEN)[number]["value"];
@@ -428,9 +430,13 @@ function matchesKostenHinweisFilter(
     case "gutschrift":
       return r.errors.length === 0 && !r.ignorieren && r.gutschrift;
     case "vorschlag":
-      return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r);
+      return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && !bereitsImportiert;
+    case "vorschlag_bereits_importiert":
+      return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && bereitsImportiert;
     case "pruefen":
-      return r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag(r);
+      return r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag(r) && !bereitsImportiert;
+    case "pruefen_bereits_importiert":
+      return r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag(r) && bereitsImportiert;
   }
 }
 
