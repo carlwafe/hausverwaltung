@@ -16,6 +16,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
   return positionen.map((k) => ({
     id: k.id,
     jahr: k.jahr,
+    datum: k.datum ? k.datum.toISOString() : null,
     gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus),
     kostenartName: k.kostenart.name,
     umlagefaehig: k.kostenart.umlagefaehig,

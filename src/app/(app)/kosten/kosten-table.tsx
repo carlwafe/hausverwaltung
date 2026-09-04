@@ -7,9 +7,17 @@ function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
+function formatDate(iso: string | null) {
+  if (!iso) return "–";
+  return new Intl.DateTimeFormat("de-DE").format(new Date(iso));
+}
+
 export type KostenpositionRow = {
   id: string;
   jahr: number;
+  // Nur bei aus einem Kontoauszug importierten Positionen bekannt (manuell erfasste kennen nur
+  // das Jahr).
+  datum: string | null;
   gebaeudeLabel: string;
   kostenartName: string;
   umlagefaehig: boolean;
@@ -29,6 +37,12 @@ const columns: Column<KostenpositionRow>[] = [
         {k.jahr}
       </Link>
     ),
+  },
+  {
+    key: "datum",
+    label: "Datum",
+    sortValue: (k) => k.datum ?? "",
+    render: (k) => formatDate(k.datum),
   },
   {
     key: "gebaeude",
