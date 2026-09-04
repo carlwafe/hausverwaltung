@@ -130,6 +130,7 @@ export async function previewImport(
       label: `${g.strasse} ${g.hausnummer}`,
       strasse: g.strasse,
       hausnummer: g.hausnummer,
+      haus: g.haus,
     }));
     // Historie für den Empfänger→Kostenart-Vorschlag. Positionen ohne Empfänger (z.B. von der
     // Sparkasse ohne Namen abgebuchte Kontoführungsgebühren) bleiben drin — für die greift beim

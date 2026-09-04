@@ -8,7 +8,13 @@ import {
 } from "./bank-csv";
 
 export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean };
-export type GebaeudeKandidat = { id: string; label: string; strasse: string; hausnummer: string };
+export type GebaeudeKandidat = {
+  id: string;
+  label: string;
+  strasse: string;
+  hausnummer: string;
+  haus: string | null;
+};
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
 // gelernt wird. gebaeudeId ist null, wenn die Position dem ganzen Objekt statt einem einzelnen

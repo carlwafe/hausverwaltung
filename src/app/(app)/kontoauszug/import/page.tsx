@@ -7,6 +7,7 @@ import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
+import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -449,7 +450,7 @@ function KostenSektion({
 }: {
   rows: ParsedKostenRow[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean }[];
-  gebaeude: { id: string; label: string }[];
+  gebaeude: { id: string; label: string; strasse: string; hausnummer: string; haus: string | null }[];
   bestehendeKostenListe: string[];
   importBatchId: string;
 }) {
@@ -461,6 +462,7 @@ function KostenSektion({
   const [hinweisFilter, setHinweisFilter] = useState<KostenHinweisFilter>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
+  const gebaeudeOptionen = gruppiereGebaeude(gebaeude);
 
   function updateRow(rowNumber: number, patch: Partial<KostenEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
@@ -628,7 +630,7 @@ function KostenSektion({
                         className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
                       >
                         <option value="">– Objekt gesamt –</option>
-                        {gebaeude.map((g) => (
+                        {gebaeudeOptionen.map((g) => (
                           <option key={g.id} value={g.id}>
                             {g.label}
                           </option>
