@@ -38,7 +38,7 @@ export default async function ZahlungenPage() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/zahlungen/import"
+            href="/kontoauszug/import"
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
           >
             Aus Kontoauszug importieren

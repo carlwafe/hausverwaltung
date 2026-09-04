@@ -19,14 +19,19 @@ export type ParsedKostenRow = {
   rowNumber: number;
   datum: string | null; // ISO yyyy-mm-dd
   jahr: number | null;
-  betrag: number | null; // immer positiv (Kostenbetrag, unabhängig vom Buchungsvorzeichen)
+  // Positiv für eine normale (ausgehende) Kostenbuchung, negativ für eine Gutschrift/Erstattung
+  // eines bekannten Kosten-Empfängers (z.B. eine Techem-Rückerstattung) — mindert die Kostenart.
+  betrag: number | null;
   verwendungszweck: string;
   empfaenger: string;
   vorgeschlageneKostenartId: string | null;
   vorgeschlagenesGebaeudeId: string | null;
   eigentuemerBuchung: boolean;
   rueckbuchung: boolean;
-  ignorieren: boolean; // eingehende Buchung, Eigentümer-Buchung oder Rücklastschrift
+  // Eingehende Buchung von einem bereits als Kosten-Empfänger bekannten Absender — vermutlich eine
+  // Rückerstattung/Gutschrift, keine Mieteinnahme.
+  gutschrift: boolean;
+  ignorieren: boolean; // Eigentümer-Buchung, oder eingehende Buchung von unbekanntem Absender (vermutlich Miete)
   rohdaten: Record<string, string>;
   errors: string[];
 };
@@ -125,12 +130,16 @@ export function mapKostenRows(
 
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const eigentuemerBuchung = istEigentuemerBuchung(empfaenger);
-    // Kosten sind nur ausgehende (negative) Buchungen — eingehende sind Mieteinnahmen und gehören
-    // in den Zahlungen-Import.
-    const istAusgehend = rohBetrag !== null && rohBetrag < 0;
-    const ignorieren = eigentuemerBuchung || rueckbuchung || !istAusgehend;
+    // Eine eingehende Buchung ist meistens eine Mieteinnahme (gehört in den Zahlungen-Import) —
+    // außer der Absender ist bereits als Kosten-Empfänger bekannt (hat Historie), dann handelt es
+    // sich vermutlich um eine Rückerstattung/Gutschrift (z.B. Techem erstattet eine Überzahlung)
+    // und mindert die betroffene Kostenart, statt komplett zu verschwinden.
+    const istEingehend = rohBetrag !== null && rohBetrag > 0;
+    const bekannterKostenEmpfaenger = ermittleTreffer(empfaenger, historie).length > 0;
+    const gutschrift = istEingehend && bekannterKostenEmpfaenger;
+    const ignorieren = eigentuemerBuchung || (istEingehend && !bekannterKostenEmpfaenger);
 
-    const betrag = rohBetrag !== null ? Math.abs(rohBetrag) : null;
+    const betrag = rohBetrag !== null ? -rohBetrag : null;
     const jahr = datum ? Number(datum.slice(0, 4)) : null;
 
     let vorgeschlageneKostenartId: string | null = null;
@@ -156,6 +165,7 @@ export function mapKostenRows(
       vorgeschlagenesGebaeudeId,
       eigentuemerBuchung,
       rueckbuchung,
+      gutschrift,
       ignorieren,
       rohdaten: row,
       errors,
