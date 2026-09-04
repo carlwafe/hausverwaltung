@@ -464,6 +464,20 @@ function KostenSektion({
   const gefilterteRows = editRows.filter((r) =>
     matchesKostenHinweisFilter(r, istBereitsImportiert(r), hinweisFilter),
   );
+  const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehlteKostenartId);
+  const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
+
+  function toggleAll(checked: boolean) {
+    const sichtbareRowNumbers = new Set(gefilterteRows.map((r) => r.rowNumber));
+    setEditRows((rs) =>
+      rs.map((r) =>
+        sichtbareRowNumbers.has(r.rowNumber) && r.errors.length === 0 && r.gewaehlteKostenartId
+          ? { ...r, ausgewaehlt: checked }
+          : r,
+      ),
+    );
+  }
+
   const importierbareRows = editRows.filter((r) => r.ausgewaehlt && r.gewaehlteKostenartId);
   const rowsForCommit = importierbareRows.map((r) => ({
     kostenartId: r.gewaehlteKostenartId,
@@ -515,7 +529,14 @@ function KostenSektion({
         <table className="w-full text-sm">
           <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
-              <th className="px-3 py-2" />
+              <th className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={alleAusgewaehlt}
+                  onChange={(e) => toggleAll(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                />
+              </th>
               <th className="px-3 py-2">Datum</th>
               <th className="px-3 py-2">Betrag</th>
               <th className="px-3 py-2">Empfänger / Verwendungszweck</th>
