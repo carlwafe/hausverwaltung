@@ -380,6 +380,16 @@ type KostenEditRow = ParsedKostenRow & {
   ausgewaehlt: boolean;
 };
 
+// Ein Vorschlag gilt als vollständig, sobald eine Kostenart feststeht und die Gebäude-Frage
+// sicher beantwortet ist — auch wenn die Antwort "kein Gebäude" lautet (z.B. objektweite
+// Bankgebühren oder Hausmeisterkosten). Nur eine nicht ermittelbare Gebäudezuordnung
+// (vorgeschlagenesGebaeudeId === undefined) macht den Vorschlag unvollständig.
+function hatVollstaendigenVorschlag(
+  r: Pick<ParsedKostenRow, "vorgeschlageneKostenartId" | "vorgeschlagenesGebaeudeId">,
+): boolean {
+  return Boolean(r.vorgeschlageneKostenartId) && r.vorgeschlagenesGebaeudeId !== undefined;
+}
+
 function pruefeKostenDuplikat(
   bestehend: Set<string>,
   empfaenger: string,
@@ -391,14 +401,13 @@ function pruefeKostenDuplikat(
 }
 
 function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): KostenEditRow {
-  const hatVollstaendigenVorschlag = Boolean(r.vorgeschlageneKostenartId && r.vorgeschlagenesGebaeudeId);
   const duplikat = pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag);
   return {
     ...r,
     gewaehlteKostenartId: r.vorgeschlageneKostenartId ?? "",
     gewaehltesGebaeudeId: r.vorgeschlagenesGebaeudeId ?? "",
     jahrEingabe: r.jahr ?? new Date().getFullYear(),
-    ausgewaehlt: r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag && !duplikat,
+    ausgewaehlt: r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && !duplikat,
   };
 }
 
@@ -419,15 +428,9 @@ function matchesKostenHinweisFilter(
     case "gutschrift":
       return r.errors.length === 0 && !r.ignorieren && r.gutschrift;
     case "vorschlag":
-      return (
-        r.errors.length === 0 &&
-        !r.ignorieren &&
-        Boolean(r.vorgeschlageneKostenartId && r.vorgeschlagenesGebaeudeId)
-      );
+      return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r);
     case "pruefen":
-      return (
-        r.errors.length === 0 && !r.ignorieren && !(r.vorgeschlageneKostenartId && r.vorgeschlagenesGebaeudeId)
-      );
+      return r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag(r);
   }
 }
 
@@ -551,9 +554,7 @@ function KostenSektion({
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
-              const hatVollstaendigenVorschlag = Boolean(
-                r.vorgeschlageneKostenartId && r.vorgeschlagenesGebaeudeId,
-              );
+              const vollstaendigerVorschlag = hatVollstaendigenVorschlag(r);
               const expanded = expandedRow === r.rowNumber;
               return (
                 <Fragment key={r.rowNumber}>
@@ -650,10 +651,10 @@ function KostenSektion({
                       {r.errors.length === 0 && !r.ignorieren && r.rueckbuchung && (
                         <span className="mr-1 text-red-400">Rücklastschrift</span>
                       )}
-                      {r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag && (
+                      {r.errors.length === 0 && !r.ignorieren && vollstaendigerVorschlag && (
                         <span className="text-green-400">Vorschlag übernommen</span>
                       )}
-                      {r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag && (
+                      {r.errors.length === 0 && !r.ignorieren && !vollstaendigerVorschlag && (
                         <span className="text-amber-400">bitte prüfen</span>
                       )}
                       {bereitsImportiert && <span className="ml-1 text-amber-400">bereits importiert</span>}

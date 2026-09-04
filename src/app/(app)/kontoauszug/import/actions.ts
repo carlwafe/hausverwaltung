@@ -131,15 +131,15 @@ export async function previewImport(
       strasse: g.strasse,
       hausnummer: g.hausnummer,
     }));
-    // Historie für den Empfänger→Kostenart-Vorschlag: nur Positionen mit bekanntem Empfänger.
-    const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen
-      .filter((k): k is typeof k & { empfaenger: string } => Boolean(k.empfaenger))
-      .map((k) => ({
-        empfaenger: k.empfaenger,
-        kostenartId: k.kostenartId,
-        gebaeudeId: k.gebaeudeId,
-        verwendungszweck: k.beschreibung,
-      }));
+    // Historie für den Empfänger→Kostenart-Vorschlag. Positionen ohne Empfänger (z.B. von der
+    // Sparkasse ohne Namen abgebuchte Kontoführungsgebühren) bleiben drin — für die greift beim
+    // Abgleich ein Verwendungszweck-Fallback statt des Empfänger-Namens.
+    const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen.map((k) => ({
+      empfaenger: k.empfaenger ?? "",
+      kostenartId: k.kostenartId,
+      gebaeudeId: k.gebaeudeId,
+      verwendungszweck: k.beschreibung,
+    }));
     const kostenRows = mapKostenRows(headers, rows, historie, gebaeude);
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen

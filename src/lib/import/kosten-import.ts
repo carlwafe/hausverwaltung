@@ -32,7 +32,10 @@ export type ParsedKostenRow = {
   verwendungszweck: string;
   empfaenger: string;
   vorgeschlageneKostenartId: string | null;
-  vorgeschlagenesGebaeudeId: string | null;
+  // null bedeutet "sicher kein Gebäude" (z.B. Bankgebühren, immer objektweit gebucht),
+  // undefined bedeutet "nicht ermittelbar" (unbekannter Empfänger oder mehrdeutige Historie) —
+  // die Unterscheidung entscheidet, ob eine Buchung als vollständiger Vorschlag gilt.
+  vorgeschlagenesGebaeudeId: string | null | undefined;
   eigentuemerBuchung: boolean;
   rueckbuchung: boolean;
   // Eingehende Buchung von einem bereits als Kosten-Empfänger bekannten Absender — vermutlich eine
@@ -43,11 +46,27 @@ export type ParsedKostenRow = {
   errors: string[];
 };
 
-/** Alle Historie-Einträge mit demselben (normalisierten) Empfänger. */
-function ermittleTreffer(empfaenger: string, historie: EmpfaengerHistorie[]): EmpfaengerHistorie[] {
-  const norm = normalizeText(empfaenger);
-  if (!norm) return [];
-  return historie.filter((h) => normalizeText(h.empfaenger) === norm);
+/**
+ * Alle Historie-Einträge, die zu dieser Buchung gehören: normalerweise per (normalisiertem)
+ * Empfängernamen abgeglichen. Hat die Buchung keinen Empfänger — z.B. Bankgebühren, die die
+ * Sparkasse ohne Namen selbst abbucht ("ZV-Entgelte", "Portokosten") — greift stattdessen ein
+ * exakter Verwendungszweck-Abgleich, da solche Buchungen bei jeder Wiederholung wortwörtlich
+ * gleich lauten.
+ */
+function ermittleTreffer(
+  empfaenger: string,
+  verwendungszweck: string,
+  historie: EmpfaengerHistorie[],
+): EmpfaengerHistorie[] {
+  const normEmpfaenger = normalizeText(empfaenger);
+  if (normEmpfaenger) {
+    return historie.filter((h) => normalizeText(h.empfaenger) === normEmpfaenger);
+  }
+  const normZweck = normalizeText(verwendungszweck);
+  if (!normZweck) return [];
+  return historie.filter(
+    (h) => !normalizeText(h.empfaenger) && normalizeText(h.verwendungszweck ?? "") === normZweck,
+  );
 }
 
 // Wörter ab 3 Zeichen, ohne reine Zahlen (Kundennummern, Daten, Beträge variieren pro Buchung und
@@ -86,7 +105,7 @@ function ermittleKostenartVorschlag(
   verwendungszweck: string,
   historie: EmpfaengerHistorie[],
 ): string | null {
-  const treffer = ermittleTreffer(empfaenger, historie);
+  const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
   if (treffer.length === 0) return null;
   const kostenartIds = new Set(treffer.map((t) => t.kostenartId));
   if (kostenartIds.size === 1) return [...kostenartIds][0];
@@ -142,9 +161,10 @@ function escapeRegExp(s: string): string {
 function ermittleGebaeudeVorschlag(
   text: string,
   empfaenger: string,
+  verwendungszweck: string,
   gebaeude: GebaeudeKandidat[],
   historie: EmpfaengerHistorie[],
-): string | null {
+): string | null | undefined {
   const textLeicht = stripStrassenwort(text).toLowerCase();
   const adressTreffer = gebaeude.filter((g) => {
     const strasseBasis = stripStrassenwort(g.strasse).trim().toLowerCase();
@@ -157,12 +177,16 @@ function ermittleGebaeudeVorschlag(
     return pattern.test(textLeicht);
   });
   if (adressTreffer.length === 1) return adressTreffer[0].id;
-  if (adressTreffer.length > 1) return null;
+  // Mehrdeutig (mehrere Adressen im Text) — nicht ermittelbar, nicht "sicher kein Gebäude".
+  if (adressTreffer.length > 1) return undefined;
 
-  const treffer = ermittleTreffer(empfaenger, historie);
-  if (treffer.length === 0) return null;
+  const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
+  if (treffer.length === 0) return undefined;
   const gebaeudeIds = new Set(treffer.map((t) => t.gebaeudeId));
-  if (gebaeudeIds.size !== 1) return null;
+  // Uneinheitliche Historie (mal dieses, mal jenes Gebäude, oder mal gar keins) — nicht
+  // ermittelbar. Ist die Historie dagegen konsistent (auch konsistent "kein Gebäude" = null),
+  // gilt das als sicher bestimmt.
+  if (gebaeudeIds.size !== 1) return undefined;
   return [...gebaeudeIds][0];
 }
 
@@ -193,7 +217,7 @@ export function mapKostenRows(
     // sich vermutlich um eine Rückerstattung/Gutschrift (z.B. Techem erstattet eine Überzahlung)
     // und mindert die betroffene Kostenart, statt komplett zu verschwinden.
     const istEingehend = rohBetrag !== null && rohBetrag > 0;
-    const bekannterKostenEmpfaenger = ermittleTreffer(empfaenger, historie).length > 0;
+    const bekannterKostenEmpfaenger = ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
     const gutschrift = istEingehend && bekannterKostenEmpfaenger;
     const ignorieren = eigentuemerBuchung || (istEingehend && !bekannterKostenEmpfaenger);
 
@@ -201,12 +225,13 @@ export function mapKostenRows(
     const jahr = datum ? Number(datum.slice(0, 4)) : null;
 
     let vorgeschlageneKostenartId: string | null = null;
-    let vorgeschlagenesGebaeudeId: string | null = null;
+    let vorgeschlagenesGebaeudeId: string | null | undefined;
     if (!ignorieren && errors.length === 0) {
       vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, verwendungszweck, historie);
       vorgeschlagenesGebaeudeId = ermittleGebaeudeVorschlag(
         `${verwendungszweck} ${empfaenger}`,
         empfaenger,
+        verwendungszweck,
         gebaeudeKandidaten,
         historie,
       );
