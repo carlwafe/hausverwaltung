@@ -2,7 +2,15 @@
 // zusammengehörige Kostenarten nicht durch die alphabetische Sortierung im Dropdown auseinander-
 // gerissen werden (z.B. "Niederschlagswasser" und "Allgemeinstrom + Wasser kombiniert" landen
 // alphabetisch weit weg von "Wasser/Abwasser", obwohl sie inhaltlich zusammengehören).
-const GRUPPEN: { label: string; keyword: string }[] = [{ label: "Wasser", keyword: "wasser" }];
+// Reihenfolge ist relevant: eine Kostenart landet in der ersten Gruppe, auf die sie passt (z.B.
+// "Allgemeinstrom + Wasser kombiniert" enthält sowohl "wasser" als auch "strom" — landet also bei
+// Wasser, nicht bei Strom, weil diese Gruppe zuerst geprüft wird).
+const GRUPPEN: { label: string; keyword: string }[] = [
+  { label: "Wasser", keyword: "wasser" },
+  { label: "Strom", keyword: "strom" },
+  { label: "Versicherung", keyword: "versicherung" },
+  { label: "Garagen", keyword: "garagen" },
+];
 
 export type KostenartGruppe<T> = { label: string; items: T[] };
 
