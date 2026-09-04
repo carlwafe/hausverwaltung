@@ -207,7 +207,7 @@ function ZahlungenSektion({
         {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
       </p>
 
-      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-16">
+      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-32">
         <table className="w-full text-sm">
           <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
@@ -525,7 +525,7 @@ function KostenSektion({
         {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
       </p>
 
-      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-16">
+      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-32">
         <table className="w-full text-sm">
           <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
@@ -704,7 +704,7 @@ export default function KontoauszugImportPage() {
   const hasPreview = preview !== null && !("error" in preview);
 
   return (
-    <div className="pb-48">
+    <div>
       <h1 className="mb-2 text-2xl font-semibold text-white">Kontoauszug importieren</h1>
       <p className="mb-6 max-w-2xl text-sm text-neutral-400">
         CSV- oder Excel-Export deines Kontos einmal hochladen — eingehende Buchungen werden unten
