@@ -9,6 +9,12 @@ export function normalizeText(s: string): string {
     // zu "ss" angeglichen (z.B. "Strasse" mit Eszett -> "strae" statt "strasse"), sodass die
     // beiden Schreibweisen nie als gleich erkannt wuerden.
     .replace(/\u00df/g, "ss")
+    // Umlaute auf die deutsche ASCII-Transliteration (ae/oe/ue) statt nur die Punkte per NFD zu
+    // entfernen \u2014 sonst wuerde z.B. "Empf\u00e4nger" zu "empfanger" statt "empfaenger" und wuerde nie
+    // gegen Kandidaten wie "auftraggeberempfaenger" matchen, die von dieser Schreibweise ausgehen.
+    .replace(/\u00e4/g, "ae")
+    .replace(/\u00f6/g, "oe")
+    .replace(/\u00fc/g, "ue")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
