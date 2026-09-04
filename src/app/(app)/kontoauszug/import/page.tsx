@@ -550,7 +550,7 @@ function KostenSektion({
               <th className="px-3 py-2">Betrag</th>
               <th className="px-3 py-2">Empfänger / Verwendungszweck</th>
               <th className="px-3 py-2">Kostenart</th>
-              <th className="px-3 py-2">Gebäude</th>
+              <th className="min-w-[140px] px-3 py-2">Gebäude</th>
               <th className="px-3 py-2">Jahr</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
@@ -620,7 +620,7 @@ function KostenSektion({
                         )}
                       </select>
                     </td>
-                    <td className="px-3 py-1.5">
+                    <td className="min-w-[140px] px-3 py-1.5">
                       <select
                         value={r.gewaehltesGebaeudeId}
                         disabled={r.ignorieren || r.errors.length > 0}
