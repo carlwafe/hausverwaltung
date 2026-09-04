@@ -6,6 +6,7 @@ import {
   parseGermanDate,
   RUECKBUCHUNG_PATTERN,
 } from "./bank-csv";
+import { gebaeudeWert, hausWert } from "../gebaeude-gruppen";
 
 export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean };
 export type GebaeudeKandidat = {
@@ -13,7 +14,7 @@ export type GebaeudeKandidat = {
   label: string;
   strasse: string;
   hausnummer: string;
-  haus: string | null;
+  haus: { id: string } | null;
 };
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
@@ -38,10 +39,12 @@ export type ParsedKostenRow = {
   verwendungszweck: string;
   empfaenger: string;
   vorgeschlageneKostenartId: string | null;
-  // null bedeutet "sicher kein Gebäude" (z.B. Bankgebühren, immer objektweit gebucht),
-  // undefined bedeutet "nicht ermittelbar" (unbekannter Empfänger oder mehrdeutige Historie) —
-  // die Unterscheidung entscheidet, ob eine Buchung als vollständiger Vorschlag gilt.
-  vorgeschlagenesGebaeudeId: string | null | undefined;
+  // Ein Auswahlwert im selben "gebaeude:<id>"/"haus:<id>"-Format wie das Auswahl-<select>
+  // (siehe gebaeudeWert/hausWert in gebaeude-gruppen.ts). null bedeutet "sicher kein
+  // Gebäude/Haus" (z.B. Bankgebühren, immer objektweit gebucht), undefined bedeutet "nicht
+  // ermittelbar" (unbekannter Empfänger oder mehrdeutige Historie) — die Unterscheidung
+  // entscheidet, ob eine Buchung als vollständiger Vorschlag gilt.
+  vorgeschlageneGebaeudeAuswahl: string | null | undefined;
   eigentuemerBuchung: boolean;
   rueckbuchung: boolean;
   // Eingehende Buchung von einem bereits als Kosten-Empfänger bekannten Absender — vermutlich eine
@@ -153,16 +156,61 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+type Zahlbereich = { von: number; bis: number };
+
+function parseHausnummernToken(token: string): Zahlbereich | null {
+  const bereich = token.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  if (bereich) {
+    const von = parseInt(bereich[1], 10);
+    const bis = parseInt(bereich[2], 10);
+    return { von: Math.min(von, bis), bis: Math.max(von, bis) };
+  }
+  const einzel = token.trim().match(/^(\d+)$/);
+  if (einzel) {
+    const n = parseInt(einzel[1], 10);
+    return { von: n, bis: n };
+  }
+  return null;
+}
+
 /**
- * Schlägt ein Gebäude zunächst anhand des Buchungstexts vor (wenn Straßenname und Hausnummer
- * eines einzelnen Gebäudes im Text vorkommen — die Hausnummer muss dabei als eigenständige Zahl
- * auftauchen, nicht nur als Teilstring einer anderen Zahl, sonst würde z.B. Hausnummer 1
- * fälschlich in "11" oder "18" anschlagen), sonst — als Fallback — anhand der
- * Empfänger-Historie, aber nur wenn dieser Empfänger bisher *immer* demselben Gebäude zugeordnet
- * wurde. Das deckt z.B. eine Objekt-weite Versicherung ab, die konventionell immer unter einem
- * bestimmten Gebäude erfasst wird, obwohl ihr Buchungstext keine Adresse nennt. Lässt sich beides
- * nicht ermitteln (z.B. eine einmalige Handwerkerrechnung ohne Adresshinweis), bleibt bewusst
- * kein Vorschlag.
+ * Findet eine Hausnummer-Liste/-Spanne direkt nach einem Straßennamen im Text (z.B. "Breslauer
+ * Str. 11 - 15" oder "Breslauer Str. 2-18,5-15") und zerlegt sie in einzelne Von-Bis-Bereiche.
+ * Ein naiver Einzelzahl-Abgleich (wie unten für den Normalfall) würde bei so einer Liste immer
+ * nur die allererste Zahl treffen — alle folgenden Zahlen sind durch die vorherige Zahl vom
+ * Straßennamen getrennt und daher für die anschließende [^0-9]-Lücke unerreichbar — und so
+ * fälschlich genau ein Gebäude vorschlagen, obwohl der Text eigentlich mehrere/alle Adressen
+ * meint (z.B. eine objektweite Hausmeister-Rechnung).
+ */
+function findeHausnummernSpanne(textLeicht: string, strassen: string[]): Zahlbereich[] | null {
+  for (const strasse of strassen) {
+    const pattern = new RegExp(`\\b${escapeRegExp(strasse)}\\b\\s*([0-9][0-9,\\s-]*[0-9])\\b`, "i");
+    const treffer = pattern.exec(textLeicht);
+    if (!treffer || !/[-,]/.test(treffer[1])) continue;
+    const bereiche = treffer[1]
+      .split(",")
+      .map((t) => parseHausnummernToken(t))
+      .filter((b): b is Zahlbereich => b !== null);
+    if (bereiche.length > 0) return bereiche;
+  }
+  return null;
+}
+
+/**
+ * Schlägt ein Gebäude oder Haus zunächst anhand des Buchungstexts vor, sonst — als Fallback —
+ * anhand der Empfänger-Historie, aber nur wenn dieser Empfänger bisher *immer* demselben
+ * Gebäude zugeordnet wurde. Das deckt z.B. eine Objekt-weite Versicherung ab, die konventionell
+ * immer unter einem bestimmten Gebäude erfasst wird, obwohl ihr Buchungstext keine Adresse
+ * nennt. Lässt sich beides nicht ermitteln (z.B. eine einmalige Handwerkerrechnung ohne
+ * Adresshinweis), bleibt bewusst kein Vorschlag.
+ *
+ * Adresstext-Erkennung im Detail:
+ * - Genau eine Hausnummer im Text (z.B. "Breslauer Str. 14") → dieses eine Gebäude.
+ * - Eine einzelne Von-Bis-Spanne, die genau den Mitgliedern eines Hauses entspricht (z.B.
+ *   "Breslauer Str. 11 - 15" bei einem Haus mit den Hausnummern 11, 13, 15) → dieses Haus.
+ * - Eine Spanne/Liste, die zu keinem Haus passt oder aus mehreren Teilen besteht (z.B.
+ *   "Breslauer Str. 2-18,5-15", das faktisch das ganze Objekt meint) → nicht per Adresse
+ *   ermittelbar, fällt auf die Empfänger-Historie zurück statt ein einzelnes Gebäude zu raten.
  */
 function ermittleGebaeudeVorschlag(
   text: string,
@@ -172,19 +220,44 @@ function ermittleGebaeudeVorschlag(
   historie: EmpfaengerHistorie[],
 ): string | null | undefined {
   const textLeicht = stripStrassenwort(text).toLowerCase();
-  const adressTreffer = gebaeude.filter((g) => {
-    const strasseBasis = stripStrassenwort(g.strasse).trim().toLowerCase();
-    const hausnummer = g.hausnummer.trim().toLowerCase();
-    if (!strasseBasis || !hausnummer) return false;
-    const pattern = new RegExp(
-      `\\b${escapeRegExp(strasseBasis)}\\b[^0-9]{0,15}\\b${escapeRegExp(hausnummer)}\\b`,
-      "i",
-    );
-    return pattern.test(textLeicht);
-  });
-  if (adressTreffer.length === 1) return adressTreffer[0].id;
-  // Mehrdeutig (mehrere Adressen im Text) — nicht ermittelbar, nicht "sicher kein Gebäude".
-  if (adressTreffer.length > 1) return undefined;
+  const strassen = [
+    ...new Set(gebaeude.map((g) => stripStrassenwort(g.strasse).trim().toLowerCase()).filter(Boolean)),
+  ];
+  const spanne = findeHausnummernSpanne(textLeicht, strassen);
+
+  if (!spanne) {
+    const adressTreffer = gebaeude.filter((g) => {
+      const strasseBasis = stripStrassenwort(g.strasse).trim().toLowerCase();
+      const hausnummer = g.hausnummer.trim().toLowerCase();
+      if (!strasseBasis || !hausnummer) return false;
+      const pattern = new RegExp(
+        `\\b${escapeRegExp(strasseBasis)}\\b[^0-9]{0,15}\\b${escapeRegExp(hausnummer)}\\b`,
+        "i",
+      );
+      return pattern.test(textLeicht);
+    });
+    if (adressTreffer.length === 1) return gebaeudeWert(adressTreffer[0].id);
+    // Mehrdeutig (mehrere Adressen im Text) — nicht ermittelbar, nicht "sicher kein Gebäude".
+    if (adressTreffer.length > 1) return undefined;
+  } else if (spanne.length === 1) {
+    // Prüfen, ob die Spanne genau den Mitgliedern eines Hauses entspricht.
+    const hausGruppen = new Map<string, GebaeudeKandidat[]>();
+    for (const g of gebaeude) {
+      if (!g.haus) continue;
+      const liste = hausGruppen.get(g.haus.id) ?? [];
+      liste.push(g);
+      hausGruppen.set(g.haus.id, liste);
+    }
+    for (const [hausId, mitglieder] of hausGruppen) {
+      const nummern = mitglieder.map((g) => parseInt(g.hausnummer, 10)).filter((n) => !Number.isNaN(n));
+      if (nummern.length === 0) continue;
+      if (Math.min(...nummern) === spanne[0].von && Math.max(...nummern) === spanne[0].bis) {
+        return hausWert(hausId);
+      }
+    }
+  }
+  // Spanne erkannt, aber passt zu keinem einzelnen Haus (z.B. mehrteilige Liste, die faktisch
+  // das ganze Objekt meint) — auf Empfänger-Historie zurückfallen statt zu raten.
 
   const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
   if (treffer.length === 0) return undefined;
@@ -193,7 +266,8 @@ function ermittleGebaeudeVorschlag(
   // ermittelbar. Ist die Historie dagegen konsistent (auch konsistent "kein Gebäude" = null),
   // gilt das als sicher bestimmt.
   if (gebaeudeIds.size !== 1) return undefined;
-  return [...gebaeudeIds][0];
+  const [einzigeGebaeudeId] = gebaeudeIds;
+  return einzigeGebaeudeId ? gebaeudeWert(einzigeGebaeudeId) : null;
 }
 
 export function mapKostenRows(
@@ -231,10 +305,10 @@ export function mapKostenRows(
     const jahr = datum ? Number(datum.slice(0, 4)) : null;
 
     let vorgeschlageneKostenartId: string | null = null;
-    let vorgeschlagenesGebaeudeId: string | null | undefined;
+    let vorgeschlageneGebaeudeAuswahl: string | null | undefined;
     if (!ignorieren && errors.length === 0) {
       vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, verwendungszweck, historie);
-      vorgeschlagenesGebaeudeId = ermittleGebaeudeVorschlag(
+      vorgeschlageneGebaeudeAuswahl = ermittleGebaeudeVorschlag(
         `${verwendungszweck} ${empfaenger}`,
         empfaenger,
         verwendungszweck,
@@ -251,7 +325,7 @@ export function mapKostenRows(
       verwendungszweck,
       empfaenger,
       vorgeschlageneKostenartId,
-      vorgeschlagenesGebaeudeId,
+      vorgeschlageneGebaeudeAuswahl,
       eigentuemerBuchung,
       rueckbuchung,
       gutschrift,

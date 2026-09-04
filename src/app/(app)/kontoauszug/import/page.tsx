@@ -386,11 +386,11 @@ type KostenEditRow = ParsedKostenRow & {
 // Ein Vorschlag gilt als vollständig, sobald eine Kostenart feststeht und die Gebäude-Frage
 // sicher beantwortet ist — auch wenn die Antwort "kein Gebäude" lautet (z.B. objektweite
 // Bankgebühren oder Hausmeisterkosten). Nur eine nicht ermittelbare Gebäudezuordnung
-// (vorgeschlagenesGebaeudeId === undefined) macht den Vorschlag unvollständig.
+// (vorgeschlageneGebaeudeAuswahl === undefined) macht den Vorschlag unvollständig.
 function hatVollstaendigenVorschlag(
-  r: Pick<ParsedKostenRow, "vorgeschlageneKostenartId" | "vorgeschlagenesGebaeudeId">,
+  r: Pick<ParsedKostenRow, "vorgeschlageneKostenartId" | "vorgeschlageneGebaeudeAuswahl">,
 ): boolean {
-  return Boolean(r.vorgeschlageneKostenartId) && r.vorgeschlagenesGebaeudeId !== undefined;
+  return Boolean(r.vorgeschlageneKostenartId) && r.vorgeschlageneGebaeudeAuswahl !== undefined;
 }
 
 function pruefeKostenDuplikat(
@@ -408,7 +408,7 @@ function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): Kos
   return {
     ...r,
     gewaehlteKostenartId: r.vorgeschlageneKostenartId ?? "",
-    gewaehltesGebaeudeId: r.vorgeschlagenesGebaeudeId ?? "",
+    gewaehltesGebaeudeId: r.vorgeschlageneGebaeudeAuswahl ?? "",
     jahrEingabe: r.jahr ?? new Date().getFullYear(),
     ausgewaehlt: r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && !duplikat,
   };
@@ -450,7 +450,7 @@ function KostenSektion({
 }: {
   rows: ParsedKostenRow[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean }[];
-  gebaeude: { id: string; label: string; strasse: string; hausnummer: string; haus: string | null }[];
+  gebaeude: { id: string; label: string; strasse: string; hausnummer: string; haus: { id: string } | null }[];
   bestehendeKostenListe: string[];
   importBatchId: string;
 }) {
@@ -492,7 +492,7 @@ function KostenSektion({
   const importierbareRows = editRows.filter((r) => r.ausgewaehlt && r.gewaehlteKostenartId);
   const rowsForCommit = importierbareRows.map((r) => ({
     kostenartId: r.gewaehlteKostenartId,
-    gebaeudeId: r.gewaehltesGebaeudeId || null,
+    gebaeudeAuswahl: r.gewaehltesGebaeudeId,
     jahr: r.jahrEingabe,
     datum: r.datum,
     betrag: r.betrag,
@@ -633,7 +633,7 @@ function KostenSektion({
                         {gebaeudeGruppen.map((gruppe) => (
                           <optgroup key={gruppe.label} label={gruppe.label}>
                             {gruppe.optionen.map((g) => (
-                              <option key={g.id} value={g.id}>
+                              <option key={g.value} value={g.value}>
                                 {g.label}
                               </option>
                             ))}

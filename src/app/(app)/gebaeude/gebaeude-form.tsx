@@ -6,14 +6,16 @@ import { runFormAction } from "@/lib/form-utils";
 type Gebaeude = {
   strasse: string;
   hausnummer: string;
-  haus: string | null;
+  hausId: string | null;
   beschreibung: string | null;
 };
 
 export function GebaeudeForm({
+  haeuser,
   initial,
   action,
 }: {
+  haeuser: { id: string; label: string }[];
   initial?: Gebaeude;
   action: (formData: FormData) => Promise<void>;
 }) {
@@ -53,16 +55,23 @@ export function GebaeudeForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="haus">
+        <label className="mb-1 block text-sm font-medium" htmlFor="hausId">
           Haus (optional)
         </label>
-        <input
-          id="haus"
-          name="haus"
-          defaultValue={initial?.haus ?? ""}
-          placeholder="z.B. Haus 1 – fasst mehrere Hausnummern zum selben Gebäude zusammen"
-          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-        />
+        <select
+          id="hausId"
+          name="hausId"
+          defaultValue={initial?.hausId ?? ""}
+          className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        >
+          <option value="">– Kein Haus (eigenständig) –</option>
+          {haeuser.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.label}
+            </option>
+          ))}
+          <option value="__neu__">+ Neues Haus anlegen (fasst mehrere Hausnummern zusammen)</option>
+        </select>
       </div>
 
       <div>

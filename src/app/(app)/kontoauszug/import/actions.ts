@@ -17,6 +17,7 @@ import {
   type KostenartKandidat,
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
+import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 
 export type PreviewResult =
   | {
@@ -89,7 +90,10 @@ export async function previewImport(
         include: { einheit: true, mieter: true, zahlungen: true },
       }),
       prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
-      prisma.gebaeude.findMany({ orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }] }),
+      prisma.gebaeude.findMany({
+        orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
+        include: { haus: { select: { id: true } } },
+      }),
       prisma.kostenposition.findMany({
         select: {
           empfaenger: true,
@@ -246,7 +250,7 @@ export async function commitZahlungen(
 
 type KostenCommitRow = {
   kostenartId: string;
-  gebaeudeId: string | null;
+  gebaeudeAuswahl: string;
   jahr: number;
   datum: string;
   betrag: number;
@@ -295,17 +299,21 @@ export async function commitKosten(
 
   if (neu.length > 0) {
     await prisma.kostenposition.createMany({
-      data: neu.map((r) => ({
-        kostenartId: r.kostenartId,
-        gebaeudeId: r.gebaeudeId,
-        jahr: r.jahr,
-        datum: new Date(r.datum),
-        betrag: r.betrag,
-        empfaenger: r.empfaenger || null,
-        beschreibung: r.verwendungszweck || null,
-        rohdaten: r.rohdaten,
-        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
-      })),
+      data: neu.map((r) => {
+        const { gebaeudeId, hausId } = parseGebaeudeAuswahlWert(r.gebaeudeAuswahl);
+        return {
+          kostenartId: r.kostenartId,
+          gebaeudeId,
+          hausId,
+          jahr: r.jahr,
+          datum: new Date(r.datum),
+          betrag: r.betrag,
+          empfaenger: r.empfaenger || null,
+          beschreibung: r.verwendungszweck || null,
+          rohdaten: r.rohdaten,
+          importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
+        };
+      }),
     });
   }
 

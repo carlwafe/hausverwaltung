@@ -4,21 +4,24 @@ import { GebaeudeTable, type GebaeudeRow } from "./gebaeude-table";
 
 async function ladeGebaeude(): Promise<GebaeudeRow[]> {
   const gebaeudeRaw = await prisma.gebaeude.findMany({
-    include: { _count: { select: { einheiten: true } } },
+    include: { _count: { select: { einheiten: true } }, haus: { include: { gebaeude: true } } },
   });
 
   const sortiert = [...gebaeudeRaw].sort((a, b) => {
     const strasseCompare = a.strasse.localeCompare(b.strasse);
     if (strasseCompare !== 0) return strasseCompare;
-    const hausCompare = (a.haus ?? "").localeCompare(b.haus ?? "");
-    if (hausCompare !== 0) return hausCompare;
     return Number(a.hausnummer) - Number(b.hausnummer);
   });
 
   return sortiert.map((g) => ({
     id: g.id,
     strasse: g.strasse,
-    haus: g.haus,
+    haus: g.haus
+      ? g.haus.gebaeude
+          .map((m) => m.hausnummer)
+          .sort((a, b) => Number(a) - Number(b))
+          .join(", ")
+      : null,
     hausnummer: g.hausnummer,
     einheitenCount: g._count.einheiten,
   }));

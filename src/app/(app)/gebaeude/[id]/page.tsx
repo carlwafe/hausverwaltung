@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { GebaeudeForm } from "../gebaeude-form";
 import { updateGebaeude, deleteGebaeude } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
+import { hausLabel } from "@/lib/gebaeude-gruppen";
 
 export default async function GebaeudeDetailPage({
   params,
@@ -11,11 +12,15 @@ export default async function GebaeudeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const gebaeude = await prisma.gebaeude.findUnique({
-    where: { id },
-    include: { einheiten: { orderBy: { bezeichnung: "asc" } } },
-  });
+  const [gebaeude, haeuserRaw] = await Promise.all([
+    prisma.gebaeude.findUnique({
+      where: { id },
+      include: { einheiten: { orderBy: { bezeichnung: "asc" } } },
+    }),
+    prisma.haus.findMany({ include: { gebaeude: true } }),
+  ]);
   if (!gebaeude) notFound();
+  const haeuser = haeuserRaw.map((h) => ({ id: h.id, label: hausLabel(h.gebaeude) }));
 
   return (
     <div>
@@ -29,10 +34,11 @@ export default async function GebaeudeDetailPage({
         />
       </div>
       <GebaeudeForm
+        haeuser={haeuser}
         initial={{
           strasse: gebaeude.strasse,
           hausnummer: gebaeude.hausnummer,
-          haus: gebaeude.haus,
+          hausId: gebaeude.hausId,
           beschreibung: gebaeude.beschreibung,
         }}
         action={updateGebaeude.bind(null, id)}

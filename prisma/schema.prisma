@@ -78,8 +78,27 @@ model Objekt {
   createdAt     DateTime  @default(now())
 
   gebaeude Gebaeude[]
+  haeuser  Haus[]
 
   @@map("objekte")
+}
+
+// Ein physisches Bauwerk, falls mehrere Hausnummern zum selben Gebäude gehören (z.B. Breslauer
+// Str. 2, 4 und 6 sind ein Bauwerk mit drei Hausnummern). Eigene Identität getrennt von Gebaeude,
+// damit eine Kostenposition eindeutig entweder einer einzelnen Adresse (z.B. eine Reparatur) oder
+// dem ganzen Haus (z.B. Grundsteuer, die pro Bauwerk statt pro Adresse abgerechnet wird) zugeordnet
+// werden kann — mit nur einer wiederverwendeten Gebäude-ID für beides wäre das nicht
+// unterscheidbar.
+model Haus {
+  id        String   @id @default(cuid())
+  objekt    Objekt   @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  objektId  String
+  createdAt DateTime @default(now())
+
+  gebaeude         Gebaeude[]
+  kostenpositionen Kostenposition[]
+
+  @@map("haeuser")
 }
 
 // Eine Hausnummer (eigene Betriebskosten-/Zähler-Einheit für die Nebenkostenabrechnung).
@@ -89,8 +108,9 @@ model Gebaeude {
   objektId     String
   strasse      String
   hausnummer   String
-  // Physisches Gebäude, falls mehrere Hausnummern zum selben Bauwerk gehören (z.B. "Haus 1").
-  haus         String?
+  // Physisches Gebäude, falls mehrere Hausnummern zum selben Bauwerk gehören.
+  haus         Haus?    @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId       String?
   beschreibung String?
   createdAt    DateTime @default(now())
 
@@ -213,10 +233,13 @@ model Kostenposition {
   id            String       @id @default(cuid())
   kostenart     Kostenart    @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
   kostenartId   String
-  // Optional: manche Kosten (z.B. Bankgebühren, Verwaltungskosten) betreffen das ganze Objekt und
-  // lassen sich keinem einzelnen Gebäude zuordnen.
+  // Höchstens eins von gebaeude/haus ist gesetzt: gebaeude für eine einzelne Adresse (z.B. eine
+  // Reparatur), haus für ein ganzes Bauwerk mit mehreren Hausnummern (z.B. Grundsteuer). Sind
+  // beide null, betrifft die Kostenposition das ganze Objekt (z.B. Bankgebühren).
   gebaeude      Gebaeude?    @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
   gebaeudeId    String?
+  haus          Haus?        @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId        String?
   jahr          Int
   // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
   // Kostenpositionen kennen nur das Jahr).
@@ -234,6 +257,7 @@ model Kostenposition {
   dokumente Dokument[]
 
   @@index([gebaeudeId, jahr])
+  @@index([hausId, jahr])
   @@map("kostenpositionen")
 }
 

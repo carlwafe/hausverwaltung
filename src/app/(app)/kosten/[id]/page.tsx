@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { updateKostenposition, deleteKostenposition } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
-import { gruppiereGebaeude, alleGebaeudeOptionen } from "@/lib/gebaeude-gruppen";
+import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 
 export default async function KostenpositionDetailPage({
   params,
@@ -12,17 +12,20 @@ export default async function KostenpositionDetailPage({
 }) {
   const { id } = await params;
   const [kostenposition, kostenarten, gebaeude] = await Promise.all([
-    prisma.kostenposition.findUnique({ where: { id }, include: { kostenart: true, gebaeude: true } }),
+    prisma.kostenposition.findUnique({
+      where: { id },
+      include: { kostenart: true, gebaeude: true, haus: { include: { gebaeude: true } } },
+    }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
-    prisma.gebaeude.findMany({ orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }] }),
+    prisma.gebaeude.findMany({
+      orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
+      include: { haus: { select: { id: true } } },
+    }),
   ]);
   if (!kostenposition) notFound();
 
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude);
-  const gebaeudeLabel = kostenposition.gebaeude
-    ? (alleGebaeudeOptionen(gebaeude).find((o) => o.id === kostenposition.gebaeude!.id)?.label ??
-      `${kostenposition.gebaeude.strasse} ${kostenposition.gebaeude.hausnummer}`)
-    : "Objekt gesamt";
+  const gebaeudeLabel = gebaeudeOderHausLabel(kostenposition.gebaeude, kostenposition.haus);
 
   return (
     <div>
@@ -40,7 +43,7 @@ export default async function KostenpositionDetailPage({
         gebaeude={gebaeudeGruppen}
         initial={{
           kostenartId: kostenposition.kostenartId,
-          gebaeudeId: kostenposition.gebaeudeId,
+          gebaeudeAuswahl: gebaeudeAuswahlWert(kostenposition.gebaeudeId, kostenposition.hausId),
           jahr: kostenposition.jahr,
           betrag: kostenposition.betrag.toString(),
           beschreibung: kostenposition.beschreibung,

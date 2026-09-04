@@ -6,7 +6,10 @@ import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
 export default async function NeueKostenpositionPage() {
   const [kostenarten, gebaeude] = await Promise.all([
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
-    prisma.gebaeude.findMany({ orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }] }),
+    prisma.gebaeude.findMany({
+      orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
+      include: { haus: { select: { id: true } } },
+    }),
   ]);
 
   return (

@@ -6,7 +6,8 @@ import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 
 type Kostenposition = {
   kostenartId: string;
-  gebaeudeId: string | null;
+  // Vorbelegter Wert für das Gebäude/Haus-<select>, siehe gebaeudeAuswahlWert.
+  gebaeudeAuswahl: string;
   jahr: number;
   betrag: string;
   beschreibung: string | null;
@@ -20,7 +21,7 @@ export function KostenpositionForm({
   action,
 }: {
   kostenarten: { id: string; label: string }[];
-  gebaeude: { label: string; optionen: { id: string; label: string }[] }[];
+  gebaeude: { label: string; optionen: { value: string; label: string }[] }[];
   initial?: Kostenposition;
   action: (formData: FormData) => Promise<void>;
 }) {
@@ -73,14 +74,14 @@ export function KostenpositionForm({
         <select
           id="gebaeudeId"
           name="gebaeudeId"
-          defaultValue={initial?.gebaeudeId ?? ""}
+          defaultValue={initial?.gebaeudeAuswahl ?? ""}
           className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
           <option value="">– Objekt gesamt (kein einzelnes Gebäude) –</option>
           {gebaeude.map((gruppe) => (
             <optgroup key={gruppe.label} label={gruppe.label}>
               {gruppe.optionen.map((g) => (
-                <option key={g.id} value={g.id}>
+                <option key={g.value} value={g.value}>
                   {g.label}
                 </option>
               ))}

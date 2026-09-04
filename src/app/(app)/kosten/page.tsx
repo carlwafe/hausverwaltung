@@ -1,33 +1,22 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { KostenTable, type KostenpositionRow } from "./kosten-table";
-import { alleGebaeudeOptionen } from "@/lib/gebaeude-gruppen";
+import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
 async function ladeKosten(): Promise<KostenpositionRow[]> {
-  const [positionen, alleGebaeude] = await Promise.all([
-    prisma.kostenposition.findMany({
-      orderBy: [{ jahr: "desc" }, { createdAt: "desc" }],
-      include: { kostenart: true, gebaeude: true },
-    }),
-    prisma.gebaeude.findMany(),
-  ]);
-  // Gebäude, die zum selben physischen Bauwerk gehören (z.B. Breslauer Str. 2, 4, 6), werden hier
-  // wie überall sonst als eine Gruppe angezeigt ("Haus 2, 4, 6"), statt nur die eine Hausnummer zu
-  // zeigen, der die Kostenposition intern zugeordnet ist — sonst sieht es so aus, als gälte die
-  // Kostenposition nur für diese einzelne Adresse.
-  const gebaeudeOptionen = alleGebaeudeOptionen(alleGebaeude);
+  const positionen = await prisma.kostenposition.findMany({
+    orderBy: [{ jahr: "desc" }, { createdAt: "desc" }],
+    include: { kostenart: true, gebaeude: true, haus: { include: { gebaeude: true } } },
+  });
 
   return positionen.map((k) => ({
     id: k.id,
     jahr: k.jahr,
-    gebaeudeLabel: k.gebaeude
-      ? (gebaeudeOptionen.find((o) => o.id === k.gebaeude!.id)?.label ??
-        `${k.gebaeude.strasse} ${k.gebaeude.hausnummer}`)
-      : "Objekt gesamt",
+    gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus),
     kostenartName: k.kostenart.name,
     umlagefaehig: k.kostenart.umlagefaehig,
     betrag: Number(k.betrag),
