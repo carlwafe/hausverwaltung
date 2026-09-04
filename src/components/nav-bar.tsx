@@ -14,6 +14,7 @@ const links = [
   { href: "/offene-posten", label: "Offene Posten" },
   { href: "/kautionen", label: "Kautionen" },
   { href: "/kosten", label: "Kosten" },
+  { href: "/nebenkostenabrechnungen", label: "Nebenkostenabrechnung" },
 ];
 
 export function NavBar({
