@@ -8,13 +8,15 @@ const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   MITEIGENTUMSANTEIL: "Miteigentumsanteil",
   PERSONENZAHL: "Personenzahl",
   EINHEITEN: "Anzahl Einheiten",
-  VERBRAUCH_MANUELL: "Verbrauch (manuell)",
+  VERBRAUCH_MANUELL: "Verbrauch (manuell erfasst)",
+  VORVERTEILT: "Extern vorverteilt (z.B. Techem)",
 };
 
 type Kostenart = {
   name: string;
   umlagefaehig: boolean;
   standardVerteilerschluessel: string | null;
+  masseinheit: string | null;
 };
 
 export function KostenartForm({
@@ -29,6 +31,7 @@ export function KostenartForm({
     null,
   );
   const [umlagefaehig, setUmlagefaehig] = useState(initial?.umlagefaehig ?? true);
+  const [verteilerschluessel, setVerteilerschluessel] = useState(initial?.standardVerteilerschluessel ?? "");
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
@@ -69,7 +72,8 @@ export function KostenartForm({
           id="standardVerteilerschluessel"
           name="standardVerteilerschluessel"
           disabled={!umlagefaehig}
-          defaultValue={initial?.standardVerteilerschluessel ?? ""}
+          value={verteilerschluessel}
+          onChange={(e) => setVerteilerschluessel(e.target.value)}
           className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900 disabled:text-neutral-600"
         >
           <option value="">– keiner –</option>
@@ -80,6 +84,21 @@ export function KostenartForm({
           ))}
         </select>
       </div>
+
+      {verteilerschluessel === "VERBRAUCH_MANUELL" && (
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="masseinheit">
+            Maßeinheit
+          </label>
+          <input
+            id="masseinheit"
+            name="masseinheit"
+            defaultValue={initial?.masseinheit ?? ""}
+            placeholder="z.B. kWh, m³"
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 

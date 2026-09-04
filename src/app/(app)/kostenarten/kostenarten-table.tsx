@@ -9,6 +9,7 @@ const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   PERSONENZAHL: "Personenzahl",
   EINHEITEN: "Anzahl Einheiten",
   VERBRAUCH_MANUELL: "Verbrauch (manuell)",
+  VORVERTEILT: "Extern vorverteilt",
 };
 
 export type KostenartRow = {

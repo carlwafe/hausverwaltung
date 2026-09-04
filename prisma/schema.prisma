@@ -32,6 +32,10 @@ enum Verteilerschluessel {
   PERSONENZAHL
   EINHEITEN
   VERBRAUCH_MANUELL
+  // Extern vorverteilt (z.B. Heizkosten, für die Techem bereits eine fertige Aufschlüsselung
+  // pro Wohnung liefert) — wird von der Nebenkostenabrechnung-Engine bewusst nie selbst
+  // berechnet, die tatsächliche Pro-Mieter-Aufteilung kommt aus einer separaten Quelle.
+  VORVERTEILT
 }
 
 enum KautionAnlageform {
@@ -156,6 +160,7 @@ model Einheit {
 
   mietvertraege                   Mietvertrag[]
   nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
+  verbrauchswerte                 Verbrauchswert[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
@@ -241,11 +246,36 @@ model Kostenart {
   name                        String               @unique
   umlagefaehig                Boolean              @default(true)
   standardVerteilerschluessel Verteilerschluessel?
+  // Nur relevant bei Verteilerschlüssel VERBRAUCH_MANUELL, z.B. "kWh" oder "m³" — Beschriftung
+  // für die Verbrauchswert-Erfassung und die Abrechnungsanzeige.
+  masseinheit                 String?
   createdAt                   DateTime             @default(now())
 
   kostenpositionen Kostenposition[]
+  verbrauchswerte  Verbrauchswert[]
 
   @@map("kostenarten")
+}
+
+// Ein Ablesewert (z.B. Zählerstand-Differenz) pro Einheit, Kostenart und Jahr — Grundlage für die
+// Verteilung von Kostenarten mit Verteilerschlüssel VERBRAUCH_MANUELL in der
+// Nebenkostenabrechnung. Fehlt für eine Einheit im betroffenen Kostenpool der Wert für ein Jahr,
+// wird die ganze Kostenart für dieses Jahr bewusst nicht berechnet (siehe
+// src/lib/nebenkostenabrechnung.ts) statt die fehlende Einheit stillschweigend zu übergehen.
+model Verbrauchswert {
+  id             String    @id @default(cuid())
+  einheit        Einheit   @relation(fields: [einheitId], references: [id], onDelete: Cascade)
+  einheitId      String
+  kostenart      Kostenart @relation(fields: [kostenartId], references: [id], onDelete: Cascade)
+  kostenartId    String
+  jahr           Int
+  wert           Decimal   @db.Decimal(12, 3)
+  notizen        String?
+  createdAt      DateTime  @default(now())
+  aktualisiertAm DateTime  @updatedAt
+
+  @@unique([einheitId, kostenartId, jahr])
+  @@map("verbrauchswerte")
 }
 
 model Kostenposition {

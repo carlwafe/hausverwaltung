@@ -9,16 +9,18 @@ import {
   type EinheitFuerAbrechnung,
   type KostenpositionFuerAbrechnung,
   type MietvertragFuerAbrechnung,
+  type VerbrauchswertFuerAbrechnung,
 } from "@/lib/nebenkostenabrechnung";
 
 async function ladeBerechnungsdaten(jahr: number) {
-  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw] = await Promise.all([
+  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw] = await Promise.all([
     prisma.kostenposition.findMany({
       where: { jahr, kostenart: { umlagefaehig: true } },
       include: { kostenart: true },
     }),
     prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
     prisma.mietvertrag.findMany(),
+    prisma.verbrauchswert.findMany({ where: { jahr } }),
   ]);
 
   const kostenpositionen: KostenpositionFuerAbrechnung[] = kostenpositionenRaw.map((k) => ({
@@ -26,6 +28,7 @@ async function ladeBerechnungsdaten(jahr: number) {
     gebaeudeId: k.gebaeudeId,
     hausId: k.hausId,
     kostengruppeId: k.kostengruppeId,
+    kostenartId: k.kostenartId,
     verteilerschluessel: k.kostenart.standardVerteilerschluessel,
     kostenartName: k.kostenart.name,
   }));
@@ -45,8 +48,14 @@ async function ladeBerechnungsdaten(jahr: number) {
     ende: m.ende,
     nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
   }));
+  const verbrauchswerte: VerbrauchswertFuerAbrechnung[] = verbrauchswerteRaw.map((v) => ({
+    einheitId: v.einheitId,
+    kostenartId: v.kostenartId,
+    jahr: v.jahr,
+    wert: Number(v.wert),
+  }));
 
-  return { kostenpositionen, einheiten, mietvertraege };
+  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte };
 }
 
 export async function createAbrechnung(formData: FormData) {
@@ -61,8 +70,8 @@ export async function createAbrechnung(formData: FormData) {
     throw new Error(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
-  const { kostenpositionen, einheiten, mietvertraege } = await ladeBerechnungsdaten(jahr);
-  const ergebnis = berechneNebenkostenabrechnung(jahr, kostenpositionen, einheiten, mietvertraege);
+  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte } = await ladeBerechnungsdaten(jahr);
+  const ergebnis = berechneNebenkostenabrechnung(jahr, kostenpositionen, einheiten, mietvertraege, verbrauchswerte);
 
   const abrechnung = await prisma.nebenkostenabrechnung.create({
     data: {
@@ -91,8 +100,14 @@ export async function createAbrechnung(formData: FormData) {
 export async function neuBerechnen(id: string) {
   await requireUser();
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
-  const { kostenpositionen, einheiten, mietvertraege } = await ladeBerechnungsdaten(abrechnung.jahr);
-  const ergebnis = berechneNebenkostenabrechnung(abrechnung.jahr, kostenpositionen, einheiten, mietvertraege);
+  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte } = await ladeBerechnungsdaten(abrechnung.jahr);
+  const ergebnis = berechneNebenkostenabrechnung(
+    abrechnung.jahr,
+    kostenpositionen,
+    einheiten,
+    mietvertraege,
+    verbrauchswerte,
+  );
 
   await prisma.$transaction([
     prisma.nebenkostenabrechnungPosition.deleteMany({ where: { abrechnungId: id } }),

@@ -15,6 +15,7 @@ const links = [
   { href: "/kautionen", label: "Kautionen" },
   { href: "/kosten", label: "Kosten" },
   { href: "/nebenkostenabrechnungen", label: "Nebenkostenabrechnung" },
+  { href: "/verbrauchswerte", label: "Verbrauchswerte" },
 ];
 
 export function NavBar({

@@ -12,12 +12,14 @@ const VERTEILERSCHLUESSEL = [
   "PERSONENZAHL",
   "EINHEITEN",
   "VERBRAUCH_MANUELL",
+  "VORVERTEILT",
 ] as const;
 
 const kostenartSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich"),
   umlagefaehig: z.coerce.boolean(),
   standardVerteilerschluessel: z.enum(VERTEILERSCHLUESSEL).optional(),
+  masseinheit: z.string().optional(),
 });
 
 function parseForm(formData: FormData) {
@@ -25,6 +27,7 @@ function parseForm(formData: FormData) {
     name: formData.get("name"),
     umlagefaehig: formData.get("umlagefaehig") === "on",
     standardVerteilerschluessel: formData.get("standardVerteilerschluessel") || undefined,
+    masseinheit: formData.get("masseinheit") || undefined,
   });
 
   if (!parsed.success) {
@@ -38,7 +41,11 @@ export async function createKostenart(formData: FormData) {
   const data = parseForm(formData);
 
   await prisma.kostenart.create({
-    data: { ...data, standardVerteilerschluessel: data.standardVerteilerschluessel ?? null },
+    data: {
+      ...data,
+      standardVerteilerschluessel: data.standardVerteilerschluessel ?? null,
+      masseinheit: data.masseinheit ?? null,
+    },
   });
 
   revalidatePath("/kostenarten");
@@ -54,7 +61,11 @@ export async function updateKostenart(id: string, formData: FormData) {
   // Verteilerschlüssel-Feld den alten Wert stillschweigend behalten, statt ihn zu löschen.
   await prisma.kostenart.update({
     where: { id },
-    data: { ...data, standardVerteilerschluessel: data.standardVerteilerschluessel ?? null },
+    data: {
+      ...data,
+      standardVerteilerschluessel: data.standardVerteilerschluessel ?? null,
+      masseinheit: data.masseinheit ?? null,
+    },
   });
 
   revalidatePath("/kostenarten");

@@ -9,16 +9,8 @@ export type VerteilerschluesselTyp =
   | "MITEIGENTUMSANTEIL"
   | "PERSONENZAHL"
   | "EINHEITEN"
-  | "VERBRAUCH_MANUELL";
-
-// Nur diese beiden sind aktuell tatsächlich berechenbar: Wohnfläche ist an jeder Einheit erfasst,
-// Verbrauch/Personenzahl/Miteigentumsanteil dagegen nirgends in der App erfasst. Kostenarten mit
-// einem anderen (oder keinem) Verteilerschlüssel werden bewusst ausgeschlossen und dem Nutzer
-// gemeldet, statt mit falschen Annahmen zu rechnen oder die ganze Abrechnung zu blockieren.
-const UNTERSTUETZTE_VERTEILERSCHLUESSEL: ReadonlySet<VerteilerschluesselTyp> = new Set([
-  "WOHNFLAECHE",
-  "EINHEITEN",
-]);
+  | "VERBRAUCH_MANUELL"
+  | "VORVERTEILT";
 
 export type KostenpositionFuerAbrechnung = {
   betrag: number;
@@ -28,6 +20,7 @@ export type KostenpositionFuerAbrechnung = {
   // Versorger mehrere Häuser gemeinsam abrechnet) — höchstens eins von gebaeudeId/hausId/
   // kostengruppeId ist gesetzt.
   kostengruppeId: string | null;
+  kostenartId: string;
   verteilerschluessel: VerteilerschluesselTyp | null;
   kostenartName: string;
 };
@@ -50,6 +43,15 @@ export type MietvertragFuerAbrechnung = {
   nebenkostenVorauszahlung: number;
 };
 
+// Ein erfasster Ablesewert (z.B. Zählerstand-Differenz) für eine Einheit, Kostenart und Jahr —
+// Grundlage der Verteilung bei Verteilerschlüssel VERBRAUCH_MANUELL.
+export type VerbrauchswertFuerAbrechnung = {
+  einheitId: string;
+  kostenartId: string;
+  jahr: number;
+  wert: number;
+};
+
 export type AbrechnungPositionErgebnis = {
   einheitId: string;
   mietvertragId: string;
@@ -60,9 +62,12 @@ export type AbrechnungPositionErgebnis = {
   saldo: number;
 };
 
+export type AusschlussGrund = "kein_verteilerschluessel" | "unvollstaendige_verbrauchswerte" | "vorverteilt";
+
 export type NichtBeruecksichtigteKostenart = {
   kostenartName: string;
   verteilerschluessel: VerteilerschluesselTyp | null;
+  grund: AusschlussGrund;
   summe: number;
 };
 
@@ -82,48 +87,78 @@ function tageImJahr(jahr: number): number {
   return (new Date(Date.UTC(jahr, 11, 31)).getTime() - new Date(Date.UTC(jahr, 0, 1)).getTime()) / MS_PRO_TAG + 1;
 }
 
+function ermittlePool(
+  kp: Pick<KostenpositionFuerAbrechnung, "gebaeudeId" | "hausId" | "kostengruppeId">,
+  wohnungen: EinheitFuerAbrechnung[],
+): EinheitFuerAbrechnung[] {
+  if (kp.kostengruppeId) return wohnungen.filter((e) => e.kostengruppenIds.includes(kp.kostengruppeId!));
+  if (kp.hausId) return wohnungen.filter((e) => e.hausId === kp.hausId);
+  if (kp.gebaeudeId) return wohnungen.filter((e) => e.gebaeudeId === kp.gebaeudeId);
+  return wohnungen;
+}
+
+function vermerkeAusschluss(
+  nichtBeruecksichtigt: Map<string, NichtBeruecksichtigteKostenart>,
+  kp: KostenpositionFuerAbrechnung,
+  grund: AusschlussGrund,
+) {
+  const bisherig = nichtBeruecksichtigt.get(kp.kostenartName);
+  nichtBeruecksichtigt.set(kp.kostenartName, {
+    kostenartName: kp.kostenartName,
+    verteilerschluessel: kp.verteilerschluessel,
+    grund: bisherig?.grund ?? grund,
+    summe: (bisherig?.summe ?? 0) + kp.betrag,
+  });
+}
+
 /**
- * Kostenpositionen, die wegen eines noch nicht unterstützten (oder fehlenden)
- * Verteilerschlüssels nicht in die Berechnung einfließen, gruppiert nach Kostenart. Auch separat
- * exportiert, damit die Detailseite einer bestehenden Abrechnung diesen Hinweis jederzeit aktuell
- * anzeigen kann, ohne die ganze Abrechnung neu zu berechnen.
+ * Ermittelt, welche Kostenpositionen nicht in die Berechnung einfließen, mit Grund:
+ * - "vorverteilt": Verteilerschlüssel VORVERTEILT — wird bewusst nie selbst berechnet (z.B.
+ *   Techem-Heizkosten, deren Pro-Mieter-Aufteilung separat importiert wird).
+ * - "unvollstaendige_verbrauchswerte": VERBRAUCH_MANUELL, aber für mindestens eine Einheit im
+ *   betroffenen Kostenpool fehlt ein erfasster Wert für dieses Jahr — die ganze Kostenart wird
+ *   dann komplett ausgeschlossen statt die fehlende Einheit stillschweigend zu übergehen (das
+ *   würde sonst die erfassten Einheiten unbemerkt benachteiligen).
+ * - "kein_verteilerschluessel": kein oder ein (noch) nicht unterstützter Verteilerschlüssel
+ *   (MITEIGENTUMSANTEIL/PERSONENZAHL — dafür gibt es aktuell keine erfassten Vergleichsdaten).
+ *
+ * Auch separat exportiert, damit die Detailseite einer bestehenden Abrechnung diesen Hinweis
+ * jederzeit aktuell anzeigen kann, ohne die ganze Abrechnung neu zu berechnen.
  */
 export function ermittleNichtBeruecksichtigteKostenarten(
+  jahr: number,
   kostenpositionen: KostenpositionFuerAbrechnung[],
+  einheiten: EinheitFuerAbrechnung[],
+  verbrauchswerte: VerbrauchswertFuerAbrechnung[],
 ): NichtBeruecksichtigteKostenart[] {
-  const nichtBeruecksichtigtProKostenart = new Map<string, NichtBeruecksichtigteKostenart>();
-  for (const kp of kostenpositionen) {
-    if (kp.verteilerschluessel && UNTERSTUETZTE_VERTEILERSCHLUESSEL.has(kp.verteilerschluessel)) continue;
-    const bisherig = nichtBeruecksichtigtProKostenart.get(kp.kostenartName);
-    nichtBeruecksichtigtProKostenart.set(kp.kostenartName, {
-      kostenartName: kp.kostenartName,
-      verteilerschluessel: kp.verteilerschluessel,
-      summe: (bisherig?.summe ?? 0) + kp.betrag,
-    });
-  }
-  return [...nichtBeruecksichtigtProKostenart.values()];
+  return berechneEinheitAnteile(jahr, kostenpositionen, einheiten, verbrauchswerte).nichtBeruecksichtigt;
 }
 
 function berechneEinheitAnteile(
+  jahr: number,
   kostenpositionen: KostenpositionFuerAbrechnung[],
   einheiten: EinheitFuerAbrechnung[],
+  verbrauchswerte: VerbrauchswertFuerAbrechnung[],
 ): { anteilProEinheit: Map<string, number>; nichtBeruecksichtigt: NichtBeruecksichtigteKostenart[] } {
   const wohnungen = einheiten.filter((e) => e.typ === "WOHNUNG");
   const anteilProEinheit = new Map<string, number>(wohnungen.map((e) => [e.id, 0]));
-  const nichtBeruecksichtigt = ermittleNichtBeruecksichtigteKostenarten(kostenpositionen);
+  const nichtBeruecksichtigt = new Map<string, NichtBeruecksichtigteKostenart>();
 
   for (const kp of kostenpositionen) {
-    if (!kp.verteilerschluessel || !UNTERSTUETZTE_VERTEILERSCHLUESSEL.has(kp.verteilerschluessel)) {
+    if (kp.verteilerschluessel === "VORVERTEILT") {
+      vermerkeAusschluss(nichtBeruecksichtigt, kp, "vorverteilt");
+      continue;
+    }
+    if (
+      kp.verteilerschluessel !== "WOHNFLAECHE" &&
+      kp.verteilerschluessel !== "EINHEITEN" &&
+      kp.verteilerschluessel !== "VERBRAUCH_MANUELL"
+    ) {
+      vermerkeAusschluss(nichtBeruecksichtigt, kp, "kein_verteilerschluessel");
       continue;
     }
 
-    const pool = kp.kostengruppeId
-      ? wohnungen.filter((e) => e.kostengruppenIds.includes(kp.kostengruppeId!))
-      : kp.hausId
-        ? wohnungen.filter((e) => e.hausId === kp.hausId)
-        : kp.gebaeudeId
-          ? wohnungen.filter((e) => e.gebaeudeId === kp.gebaeudeId)
-          : wohnungen;
+    const pool = ermittlePool(kp, wohnungen);
     if (pool.length === 0) continue;
 
     if (kp.verteilerschluessel === "WOHNFLAECHE") {
@@ -132,16 +167,41 @@ function berechneEinheitAnteile(
       for (const e of pool) {
         anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + kp.betrag * (e.wohnflaecheQm / gesamtflaeche));
       }
-    } else {
-      // EINHEITEN
+    } else if (kp.verteilerschluessel === "EINHEITEN") {
       const anteilProKopf = kp.betrag / pool.length;
       for (const e of pool) {
         anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteilProKopf);
       }
+    } else {
+      // VERBRAUCH_MANUELL: Werte pro Einheit für diese Kostenart+Jahr nachschlagen. Fehlt auch
+      // nur einer im Pool, wird die ganze Kostenart ausgeschlossen (siehe Doku oben) statt
+      // teilweise berechnet.
+      const werteProEinheit = new Map<string, number>();
+      let vollstaendig = true;
+      for (const e of pool) {
+        const eintrag = verbrauchswerte.find(
+          (v) => v.einheitId === e.id && v.kostenartId === kp.kostenartId && v.jahr === jahr,
+        );
+        if (!eintrag) {
+          vollstaendig = false;
+          break;
+        }
+        werteProEinheit.set(e.id, eintrag.wert);
+      }
+      if (!vollstaendig) {
+        vermerkeAusschluss(nichtBeruecksichtigt, kp, "unvollstaendige_verbrauchswerte");
+        continue;
+      }
+      const gesamtwert = [...werteProEinheit.values()].reduce((s, w) => s + w, 0);
+      if (gesamtwert <= 0) continue;
+      for (const e of pool) {
+        const wert = werteProEinheit.get(e.id) ?? 0;
+        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + kp.betrag * (wert / gesamtwert));
+      }
     }
   }
 
-  return { anteilProEinheit, nichtBeruecksichtigt };
+  return { anteilProEinheit, nichtBeruecksichtigt: [...nichtBeruecksichtigt.values()] };
 }
 
 /**
@@ -151,16 +211,22 @@ function berechneEinheitAnteile(
  * Einheit tatsächlich innehatte. Zeiten ohne aktiven Mietvertrag (Leerstand) erzeugen bewusst
  * keine Position — der Kostenanteil für diesen Zeitraum bleibt unberechnet (trägt der
  * Eigentümer), verzerrt aber nicht den Anteil der anderen Einheiten, da die Verteilerschlüssel-
- * Berechnung unabhängig vom Vermietungsstatus auf der vollen Wohnfläche/Einheitenzahl basiert.
- * Garagen werden komplett ausgelassen (keine Nebenkosten laut Mietvertragsstruktur).
+ * Berechnung unabhängig vom Vermietungsstatus auf der vollen Wohnfläche/Einheitenzahl/Verbrauch
+ * basiert. Garagen werden komplett ausgelassen (keine Nebenkosten laut Mietvertragsstruktur).
  */
 export function berechneNebenkostenabrechnung(
   jahr: number,
   kostenpositionen: KostenpositionFuerAbrechnung[],
   einheiten: EinheitFuerAbrechnung[],
   mietvertraege: MietvertragFuerAbrechnung[],
+  verbrauchswerte: VerbrauchswertFuerAbrechnung[] = [],
 ): AbrechnungErgebnis {
-  const { anteilProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(kostenpositionen, einheiten);
+  const { anteilProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(
+    jahr,
+    kostenpositionen,
+    einheiten,
+    verbrauchswerte,
+  );
 
   const jahresanfang = new Date(Date.UTC(jahr, 0, 1));
   const jahresende = new Date(Date.UTC(jahr, 11, 31));

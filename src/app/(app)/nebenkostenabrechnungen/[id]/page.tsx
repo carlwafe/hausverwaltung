@@ -39,18 +39,39 @@ export default async function NebenkostenabrechnungDetailPage({
   });
   if (!abrechnung) notFound();
 
-  const kostenpositionenRoh = await prisma.kostenposition.findMany({
-    where: { jahr: abrechnung.jahr, kostenart: { umlagefaehig: true } },
-    include: { kostenart: true },
-  });
+  const [kostenpositionenRoh, einheitenRoh, verbrauchswerteRoh] = await Promise.all([
+    prisma.kostenposition.findMany({
+      where: { jahr: abrechnung.jahr, kostenart: { umlagefaehig: true } },
+      include: { kostenart: true },
+    }),
+    prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
+    prisma.verbrauchswert.findMany({ where: { jahr: abrechnung.jahr } }),
+  ]);
   const nichtBeruecksichtigt = ermittleNichtBeruecksichtigteKostenarten(
+    abrechnung.jahr,
     kostenpositionenRoh.map((k) => ({
       betrag: Number(k.betrag),
       gebaeudeId: k.gebaeudeId,
       hausId: k.hausId,
       kostengruppeId: k.kostengruppeId,
+      kostenartId: k.kostenartId,
       verteilerschluessel: k.kostenart.standardVerteilerschluessel,
       kostenartName: k.kostenart.name,
+    })),
+    einheitenRoh.map((e) => ({
+      id: e.id,
+      bezeichnung: e.bezeichnung,
+      typ: e.typ,
+      gebaeudeId: e.gebaeudeId,
+      hausId: e.gebaeude.hausId,
+      kostengruppenIds: e.gebaeude.kostengruppen.map((kg) => kg.id),
+      wohnflaecheQm: Number(e.wohnflaecheQm),
+    })),
+    verbrauchswerteRoh.map((v) => ({
+      einheitId: v.einheitId,
+      kostenartId: v.kostenartId,
+      jahr: v.jahr,
+      wert: Number(v.wert),
     })),
   );
 
@@ -98,22 +119,69 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       </div>
 
-      {nichtBeruecksichtigt.length > 0 && (
+      {nichtBeruecksichtigt.some((n) => n.grund === "kein_verteilerschluessel") && (
         <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">
           <p className="mb-2 text-sm font-medium text-amber-400">
             Nicht berücksichtigte Kostenarten — kein unterstützter Verteilerschlüssel
           </p>
           <ul className="space-y-1 text-sm text-neutral-300">
-            {nichtBeruecksichtigt.map((n) => (
-              <li key={n.kostenartName}>
-                {n.kostenartName} ({n.verteilerschluessel ?? "kein Verteilerschlüssel"}):{" "}
-                {formatEuro(n.summe)}
-              </li>
-            ))}
+            {nichtBeruecksichtigt
+              .filter((n) => n.grund === "kein_verteilerschluessel")
+              .map((n) => (
+                <li key={n.kostenartName}>
+                  {n.kostenartName} ({n.verteilerschluessel ?? "kein Verteilerschlüssel"}):{" "}
+                  {formatEuro(n.summe)}
+                </li>
+              ))}
           </ul>
           <p className="mt-2 text-xs text-neutral-500">
             Verteilerschlüssel Wohnfläche oder Anzahl Einheiten setzen und &quot;Neu
             berechnen&quot;, damit diese Kosten mit einfließen.
+          </p>
+        </div>
+      )}
+
+      {nichtBeruecksichtigt.some((n) => n.grund === "unvollstaendige_verbrauchswerte") && (
+        <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">
+          <p className="mb-2 text-sm font-medium text-amber-400">
+            Nicht berücksichtigte Kostenarten — Verbrauchswerte unvollständig
+          </p>
+          <ul className="space-y-1 text-sm text-neutral-300">
+            {nichtBeruecksichtigt
+              .filter((n) => n.grund === "unvollstaendige_verbrauchswerte")
+              .map((n) => (
+                <li key={n.kostenartName}>
+                  {n.kostenartName}: {formatEuro(n.summe)}
+                </li>
+              ))}
+          </ul>
+          <p className="mt-2 text-xs text-neutral-500">
+            Für mindestens eine betroffene Einheit fehlt ein Ablesewert für {abrechnung.jahr}.{" "}
+            <Link href="/verbrauchswerte" className="underline">
+              Verbrauchswerte erfassen
+            </Link>{" "}
+            und &quot;Neu berechnen&quot;.
+          </p>
+        </div>
+      )}
+
+      {nichtBeruecksichtigt.some((n) => n.grund === "vorverteilt") && (
+        <div className="mb-6 rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
+          <p className="mb-2 text-sm font-medium text-neutral-300">
+            Extern vorverteilte Kostenarten — hier bewusst nicht berechnet
+          </p>
+          <ul className="space-y-1 text-sm text-neutral-300">
+            {nichtBeruecksichtigt
+              .filter((n) => n.grund === "vorverteilt")
+              .map((n) => (
+                <li key={n.kostenartName}>
+                  {n.kostenartName}: {formatEuro(n.summe)}
+                </li>
+              ))}
+          </ul>
+          <p className="mt-2 text-xs text-neutral-500">
+            Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Aufschlüsselung) und wird
+            separat importiert, nicht hier berechnet.
           </p>
         </div>
       )}
