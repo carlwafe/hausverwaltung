@@ -51,7 +51,7 @@ function NavDropdown({ label, links, pathname }: { label: string; links: NavLink
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1 text-sm ${
+        className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm ${
           active ? "font-medium text-white" : "text-neutral-400 hover:text-white"
         }`}
       >
@@ -90,13 +90,15 @@ export function NavBar({
 
   return (
     <header className="border-b border-neutral-800">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-6">
-          <span className="text-sm font-semibold text-white">Mietverwaltung Eutin</span>
-          <nav className="flex items-center gap-5">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-8">
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-white">
+            Mietverwaltung Eutin
+          </span>
+          <nav className="flex items-center gap-6">
             <Link
               href="/"
-              className={`text-sm ${
+              className={`shrink-0 whitespace-nowrap text-sm ${
                 pathname === "/" ? "font-medium text-white" : "text-neutral-400 hover:text-white"
               }`}
             >
@@ -110,10 +112,10 @@ export function NavBar({
             )}
           </nav>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-4">
           <Link
             href="/konto"
-            className={`text-sm ${
+            className={`whitespace-nowrap text-sm ${
               pathname === "/konto" ? "font-medium text-white" : "text-neutral-400 hover:text-white"
             }`}
           >
@@ -121,7 +123,7 @@ export function NavBar({
           </Link>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-sm text-neutral-400 hover:text-white"
+            className="whitespace-nowrap text-sm text-neutral-400 hover:text-white"
           >
             Abmelden
           </button>
