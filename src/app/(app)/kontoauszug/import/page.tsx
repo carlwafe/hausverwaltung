@@ -17,82 +17,73 @@ const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", 
 
 // ---------- Zahlungen ----------
 
-// Genau eine Hinweis-Kategorie pro Zeile, nach Priorität. Filter-Dropdown und Tabellen-Badge
-// nutzen beide ausschließlich ermittleZahlungHinweis() unten — dadurch können sich die
-// Kategorien nie überlappen (anders als vorher, wo z.B. "Rücklastschrift" und "Vorschlag
-// übernommen" unabhängig voneinander geprüft wurden und auf dieselbe Zeile gleichzeitig
-// zutreffen konnten).
-type ZahlungHinweisKategorie =
-  | "fehler"
-  | "eigentuemer"
-  | "bereits_als_kosten_importiert"
-  | "pruefen"
-  | "rueckbuchung"
-  | "bereits_importiert"
-  | "vorschlag";
+// Jede Zeile bekommt genau eine primäre Hinweis-Kategorie (die Art der Buchung — Fehler,
+// Eigentümer, Rücklastschrift, …) nach Priorität, plus unabhängig davon null oder mehrere
+// Zusatz-Tags (Dedup-Warnungen), die zusätzlich zur Kategorie angezeigt werden. Eine
+// Rücklastschrift, die schon als Zahlung existiert, zeigt so z.B. "Rücklastschrift" +
+// "Bereits importiert (als Zahlung)" gleichzeitig, statt dass der Dedup-Hinweis von der
+// Kategorie verdeckt wird.
+type ZahlungHinweisKategorie = "fehler" | "eigentuemer" | "pruefen" | "mehrdeutig" | "rueckbuchung" | "vorschlag";
 
-type ZahlungHinweisFilter = "alle" | ZahlungHinweisKategorie;
+type ZahlungHinweisTag = "bereits_importiert" | "bereits_als_kosten_importiert";
+
+type ZahlungHinweisFilter = "alle" | ZahlungHinweisKategorie | ZahlungHinweisTag;
 
 function ermittleZahlungHinweis(
   r: Pick<
     ParsedZahlungRow,
     "errors" | "eigentuemerBuchung" | "ignorieren" | "rueckbuchung" | "mehrdeutig" | "vorgeschlagenerMietvertragId"
   >,
-  bereitsImportiert: boolean,
-  bereitsAlsKostenImportiert: boolean,
 ): ZahlungHinweisKategorie {
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
-  // Gilt unabhängig vom Vorzeichen: sowohl für normale ausgehende Buchungen, die schon als
-  // Kostenposition erfasst sind, als auch für eingehende Gutschriften/Rücküberweisungen von
-  // Handwerkern & Co., die auf der Kosten-Seite bereits als Minderung der Kostenart importiert
-  // wurden — sonst tauchen Gutschriften (positiver Betrag, also nicht "ignorieren") hier nie
-  // unter diesem Hinweis auf und würden fälschlich als "kein Treffer" o.ä. gemeldet.
-  if (bereitsAlsKostenImportiert) return "bereits_als_kosten_importiert";
-  // "pruefen" fasst mehrere Fälle zusammen, die alle manuelles Nachsehen brauchen: ignorierte
-  // ausgehende Buchungen, mehrdeutige und nicht gefundene Mietvertrags-Treffer — analog zum
-  // "Bitte prüfen"-Hinweis auf der Kosten-Seite, keine feinere Unterscheidung nötig.
   if (r.ignorieren) return "pruefen";
-  // Rücklastschriften sind selten und werden ohnehin immer manuell geprüft — anders als bei
-  // regulären Zahlungen lohnt sich hier keine feinere Aufschlüsselung nach
-  // mehrdeutig/Vorschlag/bereits importiert, eine Sammelkategorie reicht.
   if (r.rueckbuchung) return "rueckbuchung";
-  // Ebenso: eine bereits als Zahlung vorhandene Buchung wird ohnehin übersprungen bzw. sollte
-  // es werden — ob der Algorithmus dafür einen Vorschlag hatte, mehrdeutig war oder gar keinen
-  // Treffer fand, ist dann nicht mehr relevant, eine Sammelkategorie reicht.
-  if (bereitsImportiert) return "bereits_importiert";
-
-  // Mehrdeutige Treffer sind selten und werden ohnehin manuell aufgelöst — brauchen keine
-  // eigene Kategorie getrennt von "kein Treffer", beides heißt "bitte prüfen".
-  if (r.mehrdeutig) return "pruefen";
+  if (r.mehrdeutig) return "mehrdeutig";
   if (r.vorgeschlagenerMietvertragId) return "vorschlag";
   return "pruefen";
 }
 
-const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie, string> = {
+function ermittleZahlungTags(
+  bereitsImportiert: boolean,
+  bereitsAlsKostenImportiert: boolean,
+): ZahlungHinweisTag[] {
+  const tags: ZahlungHinweisTag[] = [];
+  // Gilt unabhängig von der Kategorie: sowohl eine normale ausgehende Buchung, die schon als
+  // Kostenposition erfasst ist, als auch z.B. eine Rücklastschrift oder Gutschrift, die
+  // ebenfalls schon dort steht.
+  if (bereitsAlsKostenImportiert) tags.push("bereits_als_kosten_importiert");
+  if (bereitsImportiert) tags.push("bereits_importiert");
+  return tags;
+}
+
+const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag, string> = {
   fehler: "Fehler",
   eigentuemer: "Eigentümer-Buchung",
-  bereits_als_kosten_importiert: "Bereits als Kosten importiert",
   pruefen: "Bitte prüfen",
+  mehrdeutig: "Mehrdeutig, bitte prüfen",
   rueckbuchung: "Rücklastschrift",
-  bereits_importiert: "Bereits importiert (als Zahlung)",
   vorschlag: "Vorschlag übernommen",
+  bereits_importiert: "Bereits importiert (als Zahlung)",
+  bereits_als_kosten_importiert: "Bereits als Kosten importiert",
 };
 
-const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie, string> = {
+const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag, string> = {
   fehler: "text-red-400",
   eigentuemer: "text-neutral-500",
-  bereits_als_kosten_importiert: "text-green-400",
   pruefen: "text-neutral-500",
+  mehrdeutig: "text-amber-400",
   rueckbuchung: "text-red-400",
-  bereits_importiert: "text-amber-400",
   vorschlag: "text-green-400",
+  bereits_importiert: "text-amber-400",
+  bereits_als_kosten_importiert: "text-green-400",
 };
 
 const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
   { value: "vorschlag", label: ZAHLUNG_HINWEIS_LABELS.vorschlag },
   { value: "pruefen", label: ZAHLUNG_HINWEIS_LABELS.pruefen },
+  { value: "mehrdeutig", label: ZAHLUNG_HINWEIS_LABELS.mehrdeutig },
   { value: "rueckbuchung", label: ZAHLUNG_HINWEIS_LABELS.rueckbuchung },
   { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "bereits_importiert", label: ZAHLUNG_HINWEIS_LABELS.bereits_importiert },
@@ -154,7 +145,11 @@ function matchesZahlungHinweisFilter(
   filter: ZahlungHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
-  return ermittleZahlungHinweis(r, bereitsImportiert, bereitsAlsKostenImportiert) === filter;
+  const treffer: (ZahlungHinweisKategorie | ZahlungHinweisTag)[] = [
+    ermittleZahlungHinweis(r),
+    ...ermittleZahlungTags(bereitsImportiert, bereitsAlsKostenImportiert),
+  ];
+  return treffer.includes(filter);
 }
 
 function ZahlungenSektion({
@@ -374,16 +369,24 @@ function ZahlungenSektion({
                     </td>
                     <td className="px-3 py-1.5 text-xs">
                       {(() => {
-                        const kategorie = ermittleZahlungHinweis(r, bereitsImportiert, bereitsAlsKostenImportiert);
+                        const kategorie = ermittleZahlungHinweis(r);
                         if (kategorie === "fehler") {
                           return <span className="text-red-400">{r.errors.join("; ")}</span>;
                         }
+                        const tags = ermittleZahlungTags(bereitsImportiert, bereitsAlsKostenImportiert);
                         const wirdUebersprungen = bereitsImportiert && !r.ausgewaehlt;
                         return (
-                          <span className={ZAHLUNG_HINWEIS_FARBEN[kategorie]}>
-                            {ZAHLUNG_HINWEIS_LABELS[kategorie]}
-                            {wirdUebersprungen ? " – wird übersprungen" : ""}
-                          </span>
+                          <>
+                            <span className={ZAHLUNG_HINWEIS_FARBEN[kategorie]}>
+                              {ZAHLUNG_HINWEIS_LABELS[kategorie]}
+                            </span>
+                            {tags.map((tag) => (
+                              <span key={tag} className={`ml-1 ${ZAHLUNG_HINWEIS_FARBEN[tag]}`}>
+                                {ZAHLUNG_HINWEIS_LABELS[tag]}
+                                {tag === "bereits_importiert" && wirdUebersprungen ? " – wird übersprungen" : ""}
+                              </span>
+                            ))}
+                          </>
                         );
                       })()}
                     </td>
@@ -426,23 +429,15 @@ function ZahlungenSektion({
 
 // ---------- Kosten ----------
 
-// Genau eine Hinweis-Kategorie pro Zeile, nach Priorität — gleiches Prinzip wie bei den
-// Zahlungen (ermittleZahlungHinweis oben): Filter-Dropdown und Tabellen-Badge nutzen beide
-// ausschließlich ermittleKostenHinweis() unten, damit sich Kategorien nie überlappen (anders
-// als vorher, wo z.B. "Gutschrift" und "Vorschlag übernommen" unabhängig voneinander geprüft
-// wurden und auf dieselbe Zeile gleichzeitig zutreffen konnten).
-type KostenHinweisKategorie =
-  | "fehler"
-  | "eigentuemer"
-  | "eingehend"
-  | "eingehend_bereits_als_zahlung_importiert"
-  | "gutschrift"
-  | "rueckbuchung"
-  | "bereits_importiert"
-  | "vorschlag"
-  | "pruefen";
+// Gleiches Prinzip wie bei den Zahlungen (ermittleZahlungHinweis oben): jede Zeile bekommt
+// genau eine primäre Kategorie nach Priorität, plus unabhängig davon null oder mehrere
+// Zusatz-Tags (Dedup-Warnungen) — z.B. zeigt eine Gutschrift, die schon als Kostenposition
+// existiert, "Gutschrift" + "Bereits importiert (als Kosten)" gleichzeitig.
+type KostenHinweisKategorie = "fehler" | "eigentuemer" | "eingehend" | "gutschrift" | "rueckbuchung" | "vorschlag" | "pruefen";
 
-type KostenHinweisFilter = "alle" | KostenHinweisKategorie;
+type KostenHinweisTag = "bereits_importiert" | "bereits_als_zahlung_importiert";
+
+type KostenHinweisFilter = "alle" | KostenHinweisKategorie | KostenHinweisTag;
 
 function ermittleKostenHinweis(
   r: Pick<
@@ -455,48 +450,47 @@ function ermittleKostenHinweis(
     | "vorgeschlageneKostenartId"
     | "vorgeschlageneGebaeudeAuswahl"
   >,
-  bereitsImportiert: boolean,
-  bereitsAlsZahlungImportiert: boolean,
 ): KostenHinweisKategorie {
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
-  if (r.ignorieren) {
-    return bereitsAlsZahlungImportiert ? "eingehend_bereits_als_zahlung_importiert" : "eingehend";
-  }
-  // Gutschriften und Rücklastschriften sind seltene Sonderfälle, die ohnehin immer manuell
-  // geprüft werden — wie bei den Zahlungen reicht hier je eine Sammelkategorie statt einer
-  // Kreuzung mit Vorschlag/Bitte-prüfen/bereits-importiert.
+  if (r.ignorieren) return "eingehend";
   if (r.gutschrift) return "gutschrift";
   if (r.rueckbuchung) return "rueckbuchung";
-  // Ebenso: eine bereits als Kostenposition vorhandene Buchung wird ohnehin übersprungen — ob
-  // der Algorithmus dafür einen vollständigen Vorschlag hatte oder nicht, ist dann nicht mehr
-  // relevant, eine Sammelkategorie reicht.
-  if (bereitsImportiert) return "bereits_importiert";
   return hatVollstaendigenVorschlag(r) ? "vorschlag" : "pruefen";
 }
 
-const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie, string> = {
+function ermittleKostenTags(bereitsImportiert: boolean, bereitsAlsZahlungImportiert: boolean): KostenHinweisTag[] {
+  const tags: KostenHinweisTag[] = [];
+  // Gilt unabhängig von der Kategorie: sowohl eine ignorierte eingehende Buchung (vermutlich
+  // Miete) als auch z.B. eine Rücklastschrift oder Gutschrift, die ebenfalls schon als Zahlung
+  // importiert wurde.
+  if (bereitsAlsZahlungImportiert) tags.push("bereits_als_zahlung_importiert");
+  if (bereitsImportiert) tags.push("bereits_importiert");
+  return tags;
+}
+
+const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie | KostenHinweisTag, string> = {
   fehler: "Fehler",
   eigentuemer: "Eigentümer-Buchung",
   eingehend: "Eingehend, bitte prüfen",
-  eingehend_bereits_als_zahlung_importiert: "Eingehend, bereits als Zahlung importiert",
   gutschrift: "Gutschrift",
   rueckbuchung: "Rücklastschrift",
-  bereits_importiert: "Bereits importiert (als Kosten)",
   vorschlag: "Vorschlag übernommen",
   pruefen: "Bitte prüfen",
+  bereits_importiert: "Bereits importiert (als Kosten)",
+  bereits_als_zahlung_importiert: "Bereits als Zahlung importiert",
 };
 
-const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie, string> = {
+const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie | KostenHinweisTag, string> = {
   fehler: "text-red-400",
   eigentuemer: "text-neutral-500",
   eingehend: "text-neutral-500",
-  eingehend_bereits_als_zahlung_importiert: "text-green-400",
   gutschrift: "text-blue-400",
   rueckbuchung: "text-red-400",
-  bereits_importiert: "text-amber-400",
   vorschlag: "text-green-400",
   pruefen: "text-amber-400",
+  bereits_importiert: "text-amber-400",
+  bereits_als_zahlung_importiert: "text-green-400",
 };
 
 const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] = [
@@ -508,10 +502,7 @@ const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] =
   { value: "rueckbuchung", label: KOSTEN_HINWEIS_LABELS.rueckbuchung },
   { value: "eigentuemer", label: KOSTEN_HINWEIS_LABELS.eigentuemer },
   { value: "eingehend", label: KOSTEN_HINWEIS_LABELS.eingehend },
-  {
-    value: "eingehend_bereits_als_zahlung_importiert",
-    label: KOSTEN_HINWEIS_LABELS.eingehend_bereits_als_zahlung_importiert,
-  },
+  { value: "bereits_als_zahlung_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_als_zahlung_importiert },
   { value: "bereits_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_importiert },
 ];
 
@@ -574,7 +565,11 @@ function matchesKostenHinweisFilter(
   filter: KostenHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
-  return ermittleKostenHinweis(r, bereitsImportiert, bereitsAlsZahlungImportiert) === filter;
+  const treffer: (KostenHinweisKategorie | KostenHinweisTag)[] = [
+    ermittleKostenHinweis(r),
+    ...ermittleKostenTags(bereitsImportiert, bereitsAlsZahlungImportiert),
+  ];
+  return treffer.includes(filter);
 }
 
 function KostenSektion({
@@ -807,14 +802,22 @@ function KostenSektion({
                     </td>
                     <td className="px-3 py-1.5 text-xs">
                       {(() => {
-                        const kategorie = ermittleKostenHinweis(r, bereitsImportiert, bereitsAlsZahlungImportiert);
+                        const kategorie = ermittleKostenHinweis(r);
                         if (kategorie === "fehler") {
                           return <span className="text-red-400">{r.errors.join("; ")}</span>;
                         }
+                        const tags = ermittleKostenTags(bereitsImportiert, bereitsAlsZahlungImportiert);
                         return (
-                          <span className={KOSTEN_HINWEIS_FARBEN[kategorie]}>
-                            {KOSTEN_HINWEIS_LABELS[kategorie]}
-                          </span>
+                          <>
+                            <span className={KOSTEN_HINWEIS_FARBEN[kategorie]}>
+                              {KOSTEN_HINWEIS_LABELS[kategorie]}
+                            </span>
+                            {tags.map((tag) => (
+                              <span key={tag} className={`ml-1 ${KOSTEN_HINWEIS_FARBEN[tag]}`}>
+                                {KOSTEN_HINWEIS_LABELS[tag]}
+                              </span>
+                            ))}
+                          </>
                         );
                       })()}
                     </td>
