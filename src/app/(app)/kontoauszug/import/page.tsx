@@ -85,12 +85,12 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
   { value: "pruefen", label: ZAHLUNG_HINWEIS_LABELS.pruefen },
   { value: "mehrdeutig", label: ZAHLUNG_HINWEIS_LABELS.mehrdeutig },
   { value: "rueckbuchung", label: ZAHLUNG_HINWEIS_LABELS.rueckbuchung },
-  { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "bereits_importiert", label: ZAHLUNG_HINWEIS_LABELS.bereits_importiert },
   {
     value: "bereits_als_kosten_importiert",
     label: ZAHLUNG_HINWEIS_LABELS.bereits_als_kosten_importiert,
   },
+  { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
 ];
 
@@ -502,13 +502,13 @@ const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] =
   { value: "alle", label: "Alle Hinweise" },
   { value: "vorschlag", label: KOSTEN_HINWEIS_LABELS.vorschlag },
   { value: "pruefen", label: KOSTEN_HINWEIS_LABELS.pruefen },
-  { value: "fehler", label: KOSTEN_HINWEIS_LABELS.fehler },
   { value: "gutschrift", label: KOSTEN_HINWEIS_LABELS.gutschrift },
   { value: "rueckbuchung", label: KOSTEN_HINWEIS_LABELS.rueckbuchung },
-  { value: "eigentuemer", label: KOSTEN_HINWEIS_LABELS.eigentuemer },
   { value: "eingehend", label: KOSTEN_HINWEIS_LABELS.eingehend },
   { value: "bereits_als_zahlung_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_als_zahlung_importiert },
   { value: "bereits_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_importiert },
+  { value: "eigentuemer", label: KOSTEN_HINWEIS_LABELS.eigentuemer },
+  { value: "fehler", label: KOSTEN_HINWEIS_LABELS.fehler },
 ];
 
 type KostenEditRow = ParsedKostenRow & {
