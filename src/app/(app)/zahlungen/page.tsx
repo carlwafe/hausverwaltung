@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { DeleteButton } from "@/components/delete-button";
-import { deleteAlleZahlungen } from "./actions";
 import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
@@ -49,13 +47,6 @@ export default async function ZahlungenPage() {
           >
             + Neue Zahlung
           </Link>
-          {zahlungen.length > 0 && (
-            <DeleteButton
-              action={deleteAlleZahlungen}
-              confirmText={`Wirklich alle ${zahlungen.length} Zahlungen unwiderruflich löschen?`}
-              label="Alle löschen"
-            />
-          )}
         </div>
       </div>
 

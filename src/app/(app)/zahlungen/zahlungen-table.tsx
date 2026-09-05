@@ -1,10 +1,10 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
-import { DeleteButton } from "@/components/delete-button";
 import { RohdatenDialog } from "@/components/rohdaten-dialog";
-import { deleteZahlung } from "./actions";
+import { deleteZahlungen } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -110,27 +110,44 @@ const columns: Column<ZahlungRow>[] = [
     label: "Quelle",
     render: (z) => <RohdatenZelle z={z} />,
   },
-  {
-    key: "aktionen",
-    label: "",
-    align: "right",
-    render: (z) => (
-      <DeleteButton
-        action={deleteZahlung.bind(null, z.id)}
-        confirmText="Zahlung wirklich löschen?"
-        label="Löschen"
-      />
-    ),
-  },
 ];
 
 export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
+  const [ausgewaehlt, setAusgewaehlt] = useState<ZahlungRow[]>([]);
+  const [pending, startTransition] = useTransition();
+
+  function loeschen() {
+    if (ausgewaehlt.length === 0) return;
+    if (!confirm(`${ausgewaehlt.length} Zahlung(en) wirklich unwiderruflich löschen?`)) return;
+    startTransition(async () => {
+      await deleteZahlungen(ausgewaehlt.map((r) => r.id));
+      setAusgewaehlt([]);
+    });
+  }
+
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      emptyMessage="Noch keine Zahlungen erfasst."
-      searchPlaceholder="Zahlungen durchsuchen…"
-    />
+    <div>
+      {ausgewaehlt.length > 0 && (
+        <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
+          <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>
+          <button
+            type="button"
+            onClick={loeschen}
+            disabled={pending}
+            className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
+          >
+            {pending ? "Lösche…" : "Ausgewählte löschen"}
+          </button>
+        </div>
+      )}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        emptyMessage="Noch keine Zahlungen erfasst."
+        searchPlaceholder="Zahlungen durchsuchen…"
+        selectable
+        onSelectionChange={setAusgewaehlt}
+      />
+    </div>
   );
 }

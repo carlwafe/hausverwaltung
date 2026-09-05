@@ -85,9 +85,10 @@ export async function deleteZahlung(id: string) {
   revalidatePath(`/mietvertraege/${zahlung.mietvertragId}`);
 }
 
-export async function deleteAlleZahlungen() {
+export async function deleteZahlungen(ids: string[]) {
   await requireUser();
-  await prisma.zahlung.deleteMany({});
+  if (ids.length === 0) return;
+  await prisma.zahlung.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
   revalidatePath("/mietvertraege");
