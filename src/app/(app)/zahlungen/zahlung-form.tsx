@@ -21,13 +21,24 @@ const MONATE = [
   "Dezember",
 ];
 
+type Zahlung = {
+  mietvertragId: string;
+  datum: string;
+  betrag: string;
+  periodeMonat: number;
+  periodeJahr: number;
+  verwendungszweck: string | null;
+};
+
 export function ZahlungForm({
   mietvertraege,
   defaultMietvertragId,
+  initial,
   action,
 }: {
   mietvertraege: Option[];
   defaultMietvertragId?: string;
+  initial?: Zahlung;
   action: (formData: FormData) => Promise<void>;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -47,7 +58,7 @@ export function ZahlungForm({
           id="mietvertragId"
           name="mietvertragId"
           required
-          defaultValue={defaultMietvertragId ?? ""}
+          defaultValue={initial?.mietvertragId ?? defaultMietvertragId ?? ""}
           className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
           <option value="" disabled>
@@ -66,7 +77,7 @@ export function ZahlungForm({
           id="datum"
           name="datum"
           label="Zahlungsdatum"
-          defaultValue={heute.toISOString().slice(0, 10)}
+          defaultValue={initial?.datum ?? heute.toISOString().slice(0, 10)}
         />
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="betrag">
@@ -78,6 +89,7 @@ export function ZahlungForm({
             type="number"
             step="0.01"
             required
+            defaultValue={initial?.betrag}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
@@ -91,7 +103,7 @@ export function ZahlungForm({
           <select
             id="periodeMonat"
             name="periodeMonat"
-            defaultValue={heute.getMonth() + 1}
+            defaultValue={initial?.periodeMonat ?? heute.getMonth() + 1}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           >
             {MONATE.map((name, i) => (
@@ -110,7 +122,7 @@ export function ZahlungForm({
             name="periodeJahr"
             type="number"
             required
-            defaultValue={heute.getFullYear()}
+            defaultValue={initial?.periodeJahr ?? heute.getFullYear()}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
@@ -123,6 +135,7 @@ export function ZahlungForm({
         <input
           id="verwendungszweck"
           name="verwendungszweck"
+          defaultValue={initial?.verwendungszweck ?? ""}
           placeholder="z.B. Miete März 2026"
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
@@ -135,7 +148,7 @@ export function ZahlungForm({
         disabled={pending}
         className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
       >
-        {pending ? "Speichern…" : "Zahlung erfassen"}
+        {pending ? "Speichern…" : initial ? "Speichern" : "Zahlung erfassen"}
       </button>
     </form>
   );

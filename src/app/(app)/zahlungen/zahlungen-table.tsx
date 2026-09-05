@@ -62,7 +62,11 @@ const columns: Column<ZahlungRow>[] = [
     key: "datum",
     label: "Datum",
     sortValue: (z) => z.datum,
-    render: (z) => formatDate(z.datum),
+    render: (z) => (
+      <Link href={`/zahlungen/${z.id}`} className="font-medium hover:underline">
+        {formatDate(z.datum)}
+      </Link>
+    ),
   },
   {
     key: "einheit",
