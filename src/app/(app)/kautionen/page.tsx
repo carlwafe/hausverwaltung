@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { KautionenTable, type KautionRow } from "./kautionen-table";
+import { KautionsbuchungenTable, type KautionsbuchungRow } from "./kautionsbuchungen-table";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -33,8 +34,32 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   }));
 }
 
+async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
+  const buchungen = await prisma.kautionBuchung.findMany({
+    orderBy: { datum: "desc" },
+    include: {
+      mietvertrag: { include: { einheit: true, mieter: true } },
+      importBatch: true,
+    },
+  });
+
+  return buchungen.map((k) => ({
+    id: k.id,
+    mietvertragId: k.mietvertragId,
+    einheitBezeichnung: k.mietvertrag?.einheit.bezeichnung ?? null,
+    mieterNamen: k.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? null,
+    datum: k.datum.toISOString(),
+    betrag: Number(k.betrag),
+    empfaenger: k.empfaenger,
+    verwendungszweck: k.verwendungszweck,
+    rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
+    importBatchId: k.importBatchId,
+    importDateiname: k.importBatch?.dateiname ?? null,
+  }));
+}
+
 export default async function KautionenPage() {
-  const kautionen = await ladeKautionen();
+  const [kautionen, kautionsbuchungen] = await Promise.all([ladeKautionen(), ladeKautionsbuchungen()]);
   const aktive = kautionen.filter((k) => k.status === "AKTIV");
   const summeAktiv = aktive.reduce((s, k) => s + k.betrag, 0);
 
@@ -69,6 +94,13 @@ export default async function KautionenPage() {
       </div>
 
       <KautionenTable rows={kautionen} />
+
+      <div className="mt-10">
+        <h2 className="mb-4 text-lg font-medium text-white">
+          Kautionsbuchungen ({kautionsbuchungen.length})
+        </h2>
+        <KautionsbuchungenTable rows={kautionsbuchungen} />
+      </div>
     </div>
   );
 }

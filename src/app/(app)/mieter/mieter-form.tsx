@@ -9,6 +9,7 @@ type Mieter = {
   email: string | null;
   handynummer: string | null;
   festnetznummer: string | null;
+  buergergeldEmpfaenger: boolean;
   notizen: string | null;
 };
 
@@ -90,6 +91,17 @@ export function MieterForm({
           />
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          id="buergergeldEmpfaenger"
+          name="buergergeldEmpfaenger"
+          type="checkbox"
+          defaultChecked={initial?.buergergeldEmpfaenger ?? false}
+          className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+        />
+        Bürgergeld-Empfänger
+      </label>
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="notizen">

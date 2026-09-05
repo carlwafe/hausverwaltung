@@ -30,6 +30,7 @@ export type PreviewResult =
       bestehendeKosten: string[];
       bestehendeZahlungenDatumBetrag: string[];
       bestehendeMietweiterleitungen: string[];
+      bestehendeKautionsbuchungen: string[];
       fileName: string;
       importBatchId: string;
     }
@@ -39,9 +40,11 @@ function kostenDedupSchluessel(empfaenger: string | null, datum: Date | null, be
   return `${(empfaenger ?? "").trim().toLowerCase()}|${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}`;
 }
 
-// Kein Empfänger im Schlüssel (anders als bei Kosten) — die Gegenpartei ist bei jeder Zeile
-// dieselbe Eigentümerin, Datum+Betrag+Verwendungszweck reichen zur Unterscheidung.
-function mietweiterleitungDedupSchluessel(datum: Date | null, betrag: number, verwendungszweck: string | null) {
+// Für Mietweiterleitungen und Kautionsbuchungen: kein Empfänger im Schlüssel — bei
+// Mietweiterleitungen ist die Gegenpartei immer dieselbe Eigentümerin, bei Kautionsbuchungen ist
+// der Verwendungszweck (der i.d.R. den Mieternamen enthält) zusammen mit Datum+Betrag präziser
+// als der oft nur "Eigentümerin/Kautionskonto"-lautende Empfänger.
+function datumBetragZweckSchluessel(datum: Date | null, betrag: number, verwendungszweck: string | null) {
   return `${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}|${(verwendungszweck ?? "").trim().toLowerCase()}`;
 }
 
@@ -92,8 +95,14 @@ export async function previewImport(
       },
     });
 
-    const [vertraege, kostenartenRaw, gebaeudeRaw, bestehendeKostenpositionen, bestehendeMietweiterleitungenRaw] =
-      await Promise.all([
+    const [
+      vertraege,
+      kostenartenRaw,
+      gebaeudeRaw,
+      bestehendeKostenpositionen,
+      bestehendeMietweiterleitungenRaw,
+      bestehendeKautionsbuchungenRaw,
+    ] = await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
         include: { einheit: true, mieter: true, zahlungen: true },
@@ -117,6 +126,7 @@ export async function previewImport(
         },
       }),
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
+      prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
     ]);
 
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
@@ -184,7 +194,12 @@ export async function previewImport(
     );
     const bestehendeMietweiterleitungen = new Set(
       bestehendeMietweiterleitungenRaw.map((m) =>
-        mietweiterleitungDedupSchluessel(m.datum, Number(m.betrag), m.verwendungszweck),
+        datumBetragZweckSchluessel(m.datum, Number(m.betrag), m.verwendungszweck),
+      ),
+    );
+    const bestehendeKautionsbuchungen = new Set(
+      bestehendeKautionsbuchungenRaw.map((k) =>
+        datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck),
       ),
     );
 
@@ -198,6 +213,7 @@ export async function previewImport(
       bestehendeKosten: [...bestehendeKosten],
       bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
       bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
+      bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
       fileName: file.name,
       importBatchId: importBatch.id,
     };
@@ -402,11 +418,11 @@ export async function commitMietweiterleitungen(
     select: { datum: true, betrag: true, verwendungszweck: true },
   });
   const bestehendSet = new Set(
-    bestehend.map((m) => mietweiterleitungDedupSchluessel(m.datum, Number(m.betrag), m.verwendungszweck)),
+    bestehend.map((m) => datumBetragZweckSchluessel(m.datum, Number(m.betrag), m.verwendungszweck)),
   );
 
   const neu = rows.filter(
-    (r) => !bestehendSet.has(mietweiterleitungDedupSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
+    (r) => !bestehendSet.has(datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
   );
   const uebersprungen = rows.length - neu.length;
 
@@ -433,6 +449,75 @@ export async function commitMietweiterleitungen(
   revalidatePath("/mietweiterleitungen");
 
   return `${neu.length} Mietweiterleitung(en) importiert.${
+    uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
+  }`;
+}
+
+type KautionsbuchungCommitRow = {
+  mietvertragId: string;
+  datum: string;
+  betrag: number;
+  empfaenger: string;
+  verwendungszweck: string;
+  rohdaten: Record<string, string>;
+};
+
+export async function commitKautionsbuchungen(
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireUser();
+
+  const raw = formData.get("rows");
+  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
+
+  const importBatchId = formData.get("importBatchId");
+
+  let rows: KautionsbuchungCommitRow[];
+  try {
+    rows = JSON.parse(raw);
+  } catch {
+    return "Daten konnten nicht gelesen werden.";
+  }
+
+  if (rows.length === 0) return "Keine Kautionsbuchungen zum Importieren ausgewählt.";
+
+  const bestehend = await prisma.kautionBuchung.findMany({
+    select: { datum: true, betrag: true, verwendungszweck: true },
+  });
+  const bestehendSet = new Set(
+    bestehend.map((k) => datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck)),
+  );
+
+  const neu = rows.filter(
+    (r) => !bestehendSet.has(datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
+  );
+  const uebersprungen = rows.length - neu.length;
+
+  if (neu.length > 0) {
+    await prisma.kautionBuchung.createMany({
+      data: neu.map((r) => ({
+        mietvertragId: r.mietvertragId || undefined,
+        datum: new Date(r.datum),
+        betrag: r.betrag,
+        empfaenger: r.empfaenger || null,
+        verwendungszweck: r.verwendungszweck || null,
+        rohdaten: r.rohdaten,
+        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
+      })),
+    });
+  }
+
+  if (typeof importBatchId === "string") {
+    await ergaenzeImportBatchErgebnis(
+      importBatchId,
+      `${neu.length} Kautionsbuchung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+    );
+  }
+
+  revalidatePath("/kautionen");
+
+  return `${neu.length} Kautionsbuchung(en) importiert.${
     uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
   }`;
 }

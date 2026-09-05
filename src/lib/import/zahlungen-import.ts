@@ -1,6 +1,7 @@
 import {
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
+  KAUTION_PATTERN,
   leseBetrag,
   parseGermanDate,
   RUECKBUCHUNG_PATTERN,
@@ -28,6 +29,7 @@ export type ParsedZahlungRow = {
   ignorieren: boolean; // z.B. ausgehende Buchung
   rueckbuchung: boolean; // Rücklastschrift/Lastschriftwiderspruch: negative Korrektur einer zuvor gutgeschriebenen Miete
   eigentuemerBuchung: boolean; // Buchung von/an die Eigentümerin (Julia Katharina Waller) – keine Miete
+  kaution: boolean; // Kautionszahlung/-rückzahlung – keine Miete, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
   rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
   errors: string[];
 };
@@ -127,12 +129,19 @@ export function mapZahlungenRows(
     // Betrag), korrigieren aber eine zuvor gutgeschriebene Miete, die tatsächlich nicht bezahlt
     // wurde — sie müssen als Korrekturbuchung importiert werden, nicht als "ausgehend" ignoriert.
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
-    const eigentuemerBuchung = istEigentuemerBuchung(name);
-    const ignorieren = eigentuemerBuchung || (betrag !== null && betrag <= 0 && !rueckbuchung);
+    const kaution = KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(name);
+    // Ein Kaution-Treffer im Verwendungszweck hat Vorrang vor der Eigentümer-Erkennung: eine
+    // Kaution landet oft auf einem Konto, das rechtlich auf die Eigentümerin läuft
+    // (Kautionskonto), ist aber keine Mietweiterleitung/Einlage an sie persönlich.
+    const eigentuemerBuchung = !kaution && istEigentuemerBuchung(name);
+    const ignorieren = eigentuemerBuchung || kaution || (betrag !== null && betrag <= 0 && !rueckbuchung);
 
     let vorgeschlagenerMietvertragId: string | null = null;
     let mehrdeutig = false;
-    if (!ignorieren && betrag !== null && errors.length === 0) {
+    // Auch für (eigentlich "ignorierte") Kaution-Zeilen wird ein Vorschlag berechnet — die
+    // Kaution-Sektion im Import braucht ihn, um vorzuschlagen, welchem Mietvertrag die
+    // Einzahlung gehört.
+    if (!eigentuemerBuchung && betrag !== null && errors.length === 0 && (!ignorieren || kaution)) {
       const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten);
       vorgeschlagenerMietvertragId = treffer.id;
       mehrdeutig = treffer.mehrdeutig;
@@ -149,6 +158,7 @@ export function mapZahlungenRows(
       ignorieren,
       rueckbuchung,
       eigentuemerBuchung,
+      kaution,
       rohdaten: row,
       errors,
     };

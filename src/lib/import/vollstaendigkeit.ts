@@ -18,6 +18,7 @@ export type VollstaendigkeitsErgebnis = {
   alsZahlungGefunden: number;
   alsKostenGefunden: number;
   alsMietweiterleitungGefunden: number;
+  alsKautionsbuchungGefunden: number;
   fehlerzeilen: number;
   ungeklaert: UngeklaerteZeile[];
 };
@@ -50,7 +51,12 @@ export function zeilenSchluesselAusRohdaten(rohdaten: unknown): string | null {
 export async function pruefeVollstaendigkeit(
   dateiInhalt: Buffer,
   dateiname: string,
-  bekannteSchluessel: { zahlung: Set<string>; kosten: Set<string>; mietweiterleitung: Set<string> },
+  bekannteSchluessel: {
+    zahlung: Set<string>;
+    kosten: Set<string>;
+    mietweiterleitung: Set<string>;
+    kautionsbuchung: Set<string>;
+  },
 ): Promise<VollstaendigkeitsErgebnis> {
   const file = new File([new Uint8Array(dateiInhalt)], dateiname);
   const { headers, rows } = await parseSpreadsheetFile(file);
@@ -59,6 +65,7 @@ export async function pruefeVollstaendigkeit(
   let alsZahlungGefunden = 0;
   let alsKostenGefunden = 0;
   let alsMietweiterleitungGefunden = 0;
+  let alsKautionsbuchungGefunden = 0;
   let fehlerzeilen = 0;
   const ungeklaert: UngeklaerteZeile[] = [];
 
@@ -80,6 +87,10 @@ export async function pruefeVollstaendigkeit(
       alsMietweiterleitungGefunden++;
       return;
     }
+    if (bekannteSchluessel.kautionsbuchung.has(schluessel)) {
+      alsKautionsbuchungGefunden++;
+      return;
+    }
     ungeklaert.push({
       rowNumber: i + 2,
       datum: spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null,
@@ -94,6 +105,7 @@ export async function pruefeVollstaendigkeit(
     alsZahlungGefunden,
     alsKostenGefunden,
     alsMietweiterleitungGefunden,
+    alsKautionsbuchungGefunden,
     fehlerzeilen,
     ungeklaert,
   };

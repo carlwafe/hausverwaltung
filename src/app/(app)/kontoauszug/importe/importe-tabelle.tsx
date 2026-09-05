@@ -20,6 +20,7 @@ export type GruppierterImportRow = {
   anzahlZahlungen: number;
   anzahlKosten: number;
   anzahlMietweiterleitungen: number;
+  anzahlKautionsbuchungen: number;
   /** Wie oft dieselbe Datei hochgeladen und dabei etwas übernommen wurde. */
   anzahlImporte: number;
   /** Batch, dessen gespeicherte Datei für den Vollständigkeits-Check gelesen wird (der neueste). */
@@ -101,6 +102,7 @@ export function ImporteTabelle({
               <th className="px-4 py-2">Zahlungen</th>
               <th className="px-4 py-2">Kosten</th>
               <th className="px-4 py-2">Mietweiterleitungen</th>
+              <th className="px-4 py-2">Kaution</th>
               <th className="px-4 py-2">Vollständigkeit</th>
             </tr>
           </thead>
@@ -119,6 +121,7 @@ export function ImporteTabelle({
                   <td className="px-4 py-2 text-neutral-300">{r.anzahlZahlungen}</td>
                   <td className="px-4 py-2 text-neutral-300">{r.anzahlKosten}</td>
                   <td className="px-4 py-2 text-neutral-300">{r.anzahlMietweiterleitungen}</td>
+                  <td className="px-4 py-2 text-neutral-300">{r.anzahlKautionsbuchungen}</td>
                   <td className="px-4 py-2">
                     <VollstaendigkeitsZelle batchId={r.pruefBatchId} />
                   </td>
@@ -127,7 +130,7 @@ export function ImporteTabelle({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
                   Noch keine Kontoauszug-Importe mit übernommenen Buchungen.
                 </td>
               </tr>

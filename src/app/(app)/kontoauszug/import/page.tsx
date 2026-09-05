@@ -2,7 +2,13 @@
 
 import { Fragment, useActionState, useState } from "react";
 import Link from "next/link";
-import { previewImport, commitZahlungen, commitKosten, commitMietweiterleitungen } from "./actions";
+import {
+  previewImport,
+  commitZahlungen,
+  commitKosten,
+  commitMietweiterleitungen,
+  commitKautionsbuchungen,
+} from "./actions";
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
@@ -23,7 +29,14 @@ const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", 
 // Rücklastschrift, die schon als Zahlung existiert, zeigt so z.B. "Rücklastschrift" +
 // "Bereits importiert (als Zahlung)" gleichzeitig, statt dass der Dedup-Hinweis von der
 // Kategorie verdeckt wird.
-type ZahlungHinweisKategorie = "fehler" | "eigentuemer" | "pruefen" | "mehrdeutig" | "rueckbuchung" | "vorschlag";
+type ZahlungHinweisKategorie =
+  | "fehler"
+  | "eigentuemer"
+  | "kaution"
+  | "pruefen"
+  | "mehrdeutig"
+  | "rueckbuchung"
+  | "vorschlag";
 
 type ZahlungHinweisTag = "bereits_importiert" | "bereits_als_kosten_importiert";
 
@@ -32,11 +45,18 @@ type ZahlungHinweisFilter = "alle" | ZahlungHinweisKategorie | ZahlungHinweisTag
 function ermittleZahlungHinweis(
   r: Pick<
     ParsedZahlungRow,
-    "errors" | "eigentuemerBuchung" | "ignorieren" | "rueckbuchung" | "mehrdeutig" | "vorgeschlagenerMietvertragId"
+    | "errors"
+    | "eigentuemerBuchung"
+    | "kaution"
+    | "ignorieren"
+    | "rueckbuchung"
+    | "mehrdeutig"
+    | "vorgeschlagenerMietvertragId"
   >,
 ): ZahlungHinweisKategorie {
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
+  if (r.kaution) return "kaution";
   if (r.ignorieren) return "pruefen";
   if (r.rueckbuchung) return "rueckbuchung";
   if (r.mehrdeutig) return "mehrdeutig";
@@ -60,6 +80,7 @@ function ermittleZahlungTags(
 const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag, string> = {
   fehler: "Fehler",
   eigentuemer: "Eigentümer-Buchung",
+  kaution: "Kaution",
   pruefen: "Bitte prüfen",
   mehrdeutig: "Mehrdeutig, bitte prüfen",
   rueckbuchung: "Rücklastschrift",
@@ -71,6 +92,7 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
 const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag, string> = {
   fehler: "text-red-400",
   eigentuemer: "text-neutral-500",
+  kaution: "text-blue-400",
   pruefen: "text-neutral-500",
   mehrdeutig: "text-amber-400",
   rueckbuchung: "text-red-400",
@@ -85,6 +107,7 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
   { value: "pruefen", label: ZAHLUNG_HINWEIS_LABELS.pruefen },
   { value: "mehrdeutig", label: ZAHLUNG_HINWEIS_LABELS.mehrdeutig },
   { value: "rueckbuchung", label: ZAHLUNG_HINWEIS_LABELS.rueckbuchung },
+  { value: "kaution", label: ZAHLUNG_HINWEIS_LABELS.kaution },
   { value: "bereits_importiert", label: ZAHLUNG_HINWEIS_LABELS.bereits_importiert },
   {
     value: "bereits_als_kosten_importiert",
@@ -137,7 +160,10 @@ function toZahlungEditRow(
   const gewaehlterMietvertragId = r.vorgeschlagenerMietvertragId ?? "";
   const duplikat = pruefeZahlungDuplikat(bestehendeZahlungen, gewaehlterMietvertragId, r.datum, r.betrag);
   const ausgewaehlt =
-    r.errors.length === 0 && Boolean(gewaehlterMietvertragId) && !(skipDuplicates && duplikat);
+    r.errors.length === 0 &&
+    !r.kaution &&
+    Boolean(gewaehlterMietvertragId) &&
+    !(skipDuplicates && duplikat);
   return { ...r, gewaehlterMietvertragId, periodeMonat: monat, periodeJahr: jahr, ausgewaehlt };
 }
 
@@ -309,7 +335,7 @@ function ZahlungenSektion({
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
-              const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlterMietvertragId);
+              const kannAuswaehlen = r.errors.length === 0 && !r.kaution && Boolean(r.gewaehlterMietvertragId);
               const expanded = expandedRow === r.rowNumber;
               return (
                 <Fragment key={r.rowNumber}>
@@ -341,7 +367,7 @@ function ZahlungenSektion({
                         onChange={(e) =>
                           updateRow(r.rowNumber, {
                             gewaehlterMietvertragId: e.target.value,
-                            ausgewaehlt: Boolean(e.target.value) && r.errors.length === 0,
+                            ausgewaehlt: Boolean(e.target.value) && r.errors.length === 0 && !r.kaution,
                           })
                         }
                         className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
@@ -1038,6 +1064,203 @@ function MietweiterleitungenSektion({
   );
 }
 
+// ---------- Kaution ----------
+
+type KautionEditRow = ParsedZahlungRow & { gewaehlterMietvertragId: string; ausgewaehlt: boolean };
+
+// Gleicher Schlüssel wie datumBetragZweckSchluessel in actions.ts — kein Empfänger, da der
+// Verwendungszweck (der i.d.R. den Mieternamen enthält) präziser ist als der oft nur
+// "Eigentümerin/Kautionskonto"-lautende Empfänger.
+function pruefeKautionsbuchungDuplikat(
+  bestehend: Set<string>,
+  datum: string | null,
+  betrag: number | null,
+  verwendungszweck: string,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehend.has(`${datum}|${betrag.toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
+}
+
+function toKautionEditRow(r: ParsedZahlungRow, bestehend: Set<string>): KautionEditRow {
+  const duplikat = pruefeKautionsbuchungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  return {
+    ...r,
+    gewaehlterMietvertragId: r.vorgeschlagenerMietvertragId ?? "",
+    ausgewaehlt: r.errors.length === 0 && !duplikat,
+  };
+}
+
+function KautionSektion({
+  rows,
+  kandidaten,
+  bestehendeListe,
+  importBatchId,
+}: {
+  rows: ParsedZahlungRow[];
+  kandidaten: { id: string; label: string }[];
+  bestehendeListe: string[];
+  importBatchId: string;
+}) {
+  const [commitMessage, commitAction, commitPending] = useActionState(commitKautionsbuchungen, null);
+  const bestehend = new Set(bestehendeListe);
+  const [editRows, setEditRows] = useState<KautionEditRow[]>(() =>
+    rows.map((r) => toKautionEditRow(r, bestehend)),
+  );
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  function updateRow(rowNumber: number, patch: Partial<KautionEditRow>) {
+    setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
+  }
+
+  function istBereitsImportiert(r: KautionEditRow): boolean {
+    return pruefeKautionsbuchungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  }
+
+  const auswaehlbareRows = editRows.filter((r) => r.errors.length === 0);
+  const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
+
+  function toggleAll(checked: boolean) {
+    setEditRows((rs) => rs.map((r) => (r.errors.length === 0 ? { ...r, ausgewaehlt: checked } : r)));
+  }
+
+  const importierbareRows = editRows.filter((r) => r.ausgewaehlt);
+  const rowsForCommit = importierbareRows.map((r) => ({
+    mietvertragId: r.gewaehlterMietvertragId,
+    datum: r.datum,
+    betrag: r.betrag,
+    empfaenger: r.name,
+    verwendungszweck: r.verwendungszweck,
+    rohdaten: r.rohdaten,
+  }));
+
+  if (commitMessage) {
+    return (
+      <div>
+        <h2 className="mb-2 text-lg font-medium text-white">Kaution</h2>
+        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
+        <Link href="/kautionen" className="text-sm underline">
+          Zu den Kautionen
+        </Link>
+      </div>
+    );
+  }
+
+  if (editRows.length === 0) return null;
+
+  return (
+    <div>
+      <h2 className="mb-3 text-lg font-medium text-white">
+        Kaution ({editRows.length} Buchung{editRows.length === 1 ? "" : "en"})
+      </h2>
+      <p className="mb-3 text-sm text-neutral-300">
+        Kautionszahlungen/-rückzahlungen — keine Miete, keine Mietweiterleitung.{" "}
+        {importierbareRows.length} werden importiert.
+      </p>
+
+      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-32">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+            <tr>
+              <th className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={alleAusgewaehlt}
+                  onChange={(e) => toggleAll(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                />
+              </th>
+              <th className="px-3 py-2">Datum</th>
+              <th className="px-3 py-2">Betrag</th>
+              <th className="px-3 py-2">Verwendungszweck</th>
+              <th className="px-3 py-2">Mietvertrag</th>
+              <th className="px-3 py-2">Hinweis</th>
+              <th className="px-3 py-2">Rohdaten</th>
+            </tr>
+          </thead>
+          <tbody>
+            {editRows.map((r) => {
+              const bereitsImportiert = istBereitsImportiert(r);
+              const expanded = expandedRow === r.rowNumber;
+              return (
+                <Fragment key={r.rowNumber}>
+                  <tr
+                    className={`border-t border-neutral-800 ${
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={r.ausgewaehlt}
+                        disabled={r.errors.length > 0}
+                        onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
+                        className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
+                    <td
+                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
+                      title={`${r.verwendungszweck} ${r.name}`}
+                    >
+                      {r.verwendungszweck || r.name || "–"}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <select
+                        value={r.gewaehlterMietvertragId}
+                        onChange={(e) => updateRow(r.rowNumber, { gewaehlterMietvertragId: e.target.value })}
+                        className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+                      >
+                        <option value="">– keinem Mietvertrag zuordnen –</option>
+                        {kandidaten.map((k) => (
+                          <option key={k.id} value={k.id}>
+                            {k.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
+                      {r.errors.length === 0 && r.mehrdeutig && (
+                        <span className="text-amber-400">mehrdeutig, bitte prüfen</span>
+                      )}
+                      {r.errors.length === 0 && !r.mehrdeutig && !r.gewaehlterMietvertragId && (
+                        <span className="text-neutral-500">kein Treffer</span>
+                      )}
+                      {r.errors.length === 0 && bereitsImportiert && (
+                        <span className="ml-1 text-amber-400">bereits importiert</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <RohdatenToggleButton
+                        expanded={expanded}
+                        onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
+                      />
+                    </td>
+                  </tr>
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <form action={commitAction}>
+        <input type="hidden" name="rows" value={JSON.stringify(rowsForCommit)} />
+        <input type="hidden" name="importBatchId" value={importBatchId} />
+        <button
+          type="submit"
+          disabled={commitPending || importierbareRows.length === 0}
+          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+        >
+          {commitPending ? "Importiere…" : `${importierbareRows.length} Kautionsbuchungen importieren`}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ---------- Seite ----------
 
 export default function KontoauszugImportPage() {
@@ -1129,6 +1352,14 @@ export default function KontoauszugImportPage() {
             key={`mietweiterleitungen-${preview.importBatchId}`}
             rows={preview.zahlungenRows.filter((r) => r.eigentuemerBuchung)}
             bestehendeListe={preview.bestehendeMietweiterleitungen}
+            importBatchId={preview.importBatchId}
+          />
+
+          <KautionSektion
+            key={`kaution-${preview.importBatchId}`}
+            rows={preview.zahlungenRows.filter((r) => r.kaution)}
+            kandidaten={preview.mietvertragKandidaten}
+            bestehendeListe={preview.bestehendeKautionsbuchungen}
             importBatchId={preview.importBatchId}
           />
         </div>

@@ -17,8 +17,15 @@ export type EinheitRow = {
   typ: "WOHNUNG" | "GARAGE";
   etage: string;
   wohnflaecheQm: number;
-  mietvertraege: { id: string; mieter: { id: string; vorname: string; nachname: string }[] }[];
+  mietvertraege: {
+    id: string;
+    mieter: { id: string; vorname: string; nachname: string; buergergeldEmpfaenger: boolean }[];
+  }[];
 };
+
+function hatBuergergeldEmpfaenger(e: EinheitRow): boolean {
+  return e.mietvertraege.some((v) => v.mieter.some((m) => m.buergergeldEmpfaenger));
+}
 
 function mieterText(e: EinheitRow): string {
   return e.mietvertraege
@@ -102,6 +109,7 @@ export function EinheitenTable({ rows }: { rows: EinheitRow[] }) {
       rows={rows}
       emptyMessage="Noch keine Einheiten angelegt."
       searchPlaceholder="Einheiten durchsuchen…"
+      rowClassName={(e) => (hatBuergergeldEmpfaenger(e) ? "bg-blue-500/10" : "")}
     />
   );
 }

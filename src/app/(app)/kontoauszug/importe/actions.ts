@@ -26,10 +26,11 @@ export async function pruefeImportVollstaendigkeit(
   // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
   // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
   // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.
-  const [alleZahlungen, alleKosten, alleMietweiterleitungen] = await Promise.all([
+  const [alleZahlungen, alleKosten, alleMietweiterleitungen, alleKautionsbuchungen] = await Promise.all([
     prisma.zahlung.findMany({ select: { rohdaten: true } }),
     prisma.kostenposition.findMany({ select: { rohdaten: true } }),
     prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
+    prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
   ]);
   const zahlung = new Set(
     alleZahlungen
@@ -46,8 +47,13 @@ export async function pruefeImportVollstaendigkeit(
       .map((m) => zeilenSchluesselAusRohdaten(m.rohdaten))
       .filter((s): s is string => s !== null),
   );
+  const kautionsbuchung = new Set(
+    alleKautionsbuchungen
+      .map((k) => zeilenSchluesselAusRohdaten(k.rohdaten))
+      .filter((s): s is string => s !== null),
+  );
 
-  return pruefeVollstaendigkeit(inhalt, batch.dateiname, { zahlung, kosten, mietweiterleitung });
+  return pruefeVollstaendigkeit(inhalt, batch.dateiname, { zahlung, kosten, mietweiterleitung, kautionsbuchung });
 }
 
 export async function raeumeVerwaisteImporteAuf(): Promise<void> {
@@ -59,6 +65,7 @@ export async function raeumeVerwaisteImporteAuf(): Promise<void> {
       zahlungen: { none: {} },
       kostenpositionen: { none: {} },
       eigentuemerbuchungen: { none: {} },
+      kautionsbuchungen: { none: {} },
     },
     select: { id: true, speicherpfad: true },
   });

@@ -28,6 +28,7 @@ export function DataTable<T extends { id: string }>({
   searchPlaceholder = "Suchen…",
   selectable = false,
   onSelectionChange,
+  rowClassName,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -38,6 +39,8 @@ export function DataTable<T extends { id: string }>({
   selectable?: boolean;
   /** Wird bei jeder Änderung der Auswahl mit den aktuell ausgewählten Zeilen aufgerufen. */
   onSelectionChange?: (selectedRows: T[]) => void;
+  /** Optionale zusätzliche Klassen (z.B. eine dezente Hintergrundfarbe) für eine ganze Zeile. */
+  rowClassName?: (row: T) => string;
 }) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -155,7 +158,10 @@ export function DataTable<T extends { id: string }>({
           </thead>
           <tbody>
             {sortiert.map((row) => (
-              <tr key={row.id} className="border-t border-neutral-800 hover:bg-neutral-900">
+              <tr
+                key={row.id}
+                className={`border-t border-neutral-800 hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
+              >
                 {selectable && (
                   <td className="px-4 py-2">
                     <input

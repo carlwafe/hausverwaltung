@@ -11,6 +11,7 @@ export type MieterRow = {
   email: string | null;
   handynummer: string | null;
   festnetznummer: string | null;
+  buergergeldEmpfaenger: boolean;
   einheiten: string[];
 };
 
@@ -91,6 +92,7 @@ export function MieterTable({
         rows={angezeigteRows}
         emptyMessage="Noch keine Mieter angelegt."
         searchPlaceholder="Mieter durchsuchen…"
+        rowClassName={(m) => (m.buergergeldEmpfaenger ? "bg-blue-500/10" : "")}
       />
     </div>
   );

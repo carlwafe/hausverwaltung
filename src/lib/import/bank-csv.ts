@@ -84,6 +84,12 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
   return /julia/i.test(empfaengerOderName) && /waller/i.test(empfaengerOderName);
 }
 
+// Anders als bei istEigentuemerBuchung ist hier ein Treffer im Verwendungszweck bewusst
+// ausreichend und nötig: eine Kaution wird oft auf ein Konto eingezahlt, das rechtlich auf den
+// Namen der Eigentümerin läuft (Kautionskonto) — der Empfänger-Name allein würde die Zeile also
+// fälschlich als Eigentümer-Buchung statt als Kaution erkennen.
+export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
+
 export function textEnthaeltWort(haystack: string, wort: string): boolean {
   if (wort.length < 3) return false;
   const h = normalizeText(haystack);

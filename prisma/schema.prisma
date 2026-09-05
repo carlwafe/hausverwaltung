@@ -167,14 +167,17 @@ model Einheit {
 }
 
 model Mieter {
-  id             String   @id @default(cuid())
-  vorname        String
-  nachname       String
-  email          String?
-  handynummer    String?
-  festnetznummer String?
-  notizen        String?
-  createdAt      DateTime @default(now())
+  id                    String   @id @default(cuid())
+  vorname               String
+  nachname              String
+  email                 String?
+  handynummer           String?
+  festnetznummer        String?
+  // Rein informativ, um nachzuvollziehen, dass die Miete (teilweise) direkt vom Jobcenter
+  // gezahlt wird, statt fälschlich als Zahlungsverzug zu erscheinen — keine Wertung.
+  buergergeldEmpfaenger Boolean  @default(false)
+  notizen               String?
+  createdAt             DateTime @default(now())
 
   mietvertraege Mietvertrag[]
 
@@ -198,6 +201,7 @@ model Mietvertrag {
   createdAt                DateTime          @default(now())
 
   kaution               Kaution?
+  kautionsbuchungen     KautionBuchung[]
   zahlungen             Zahlung[]
   dokumente             Dokument[]
   abrechnungspositionen NebenkostenabrechnungPosition[]
@@ -386,6 +390,7 @@ model ImportBatch {
   zahlungen            Zahlung[]
   kostenpositionen     Kostenposition[]
   eigentuemerbuchungen EigentuemerBuchung[]
+  kautionsbuchungen    KautionBuchung[]
 
   @@map("import_batches")
 }
@@ -406,4 +411,25 @@ model EigentuemerBuchung {
   createdAt        DateTime     @default(now())
 
   @@map("eigentuemerbuchungen")
+}
+
+// Kontobuchung einer Kautionszahlung/-rückzahlung. Bewusst getrennt vom `Kaution`-Modell, das
+// der manuell gepflegte "aktueller Stand"-Datensatz pro Mietvertrag bleibt (1:1, Sollbetrag/
+// Anlageform/Status) — hier geht es nur um die reine Buchungshistorie aus dem
+// Kontoauszug-Import. Kein automatischer Abgleich zwischen beiden.
+model KautionBuchung {
+  id               String       @id @default(cuid())
+  mietvertrag      Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  mietvertragId    String?
+  datum            DateTime
+  betrag           Decimal      @db.Decimal(10, 2)
+  empfaenger       String?
+  verwendungszweck String?
+  rohdaten         Json?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  createdAt        DateTime     @default(now())
+
+  @@index([mietvertragId])
+  @@map("kautionsbuchungen")
 }

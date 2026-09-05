@@ -21,6 +21,7 @@ async function ladeMieter(): Promise<MieterRow[]> {
     email: m.email,
     handynummer: m.handynummer,
     festnetznummer: m.festnetznummer,
+    buergergeldEmpfaenger: m.buergergeldEmpfaenger,
     einheiten: m.mietvertraege.map((v) => v.einheit.bezeichnung),
   }));
 }
