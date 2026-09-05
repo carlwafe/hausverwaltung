@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { DataTable, type Column } from "@/components/data-table";
-import { DeleteButton } from "@/components/delete-button";
-import { deleteMieter } from "./actions";
 
 export type MieterRow = {
   id: string;
@@ -55,22 +53,6 @@ const columns: Column<MieterRow>[] = [
     sortValue: (m) => m.einheiten.join(", "),
     searchValue: (m) => m.einheiten.join(", "),
     render: (m) => m.einheiten.join(", ") || "–",
-  },
-  {
-    key: "aktionen",
-    label: "",
-    align: "right",
-    render: (m) => (
-      <DeleteButton
-        action={deleteMieter.bind(null, m.id)}
-        confirmText={
-          m.einheiten.length > 0
-            ? `${m.vorname} ${m.nachname} wirklich löschen? Die Verknüpfung zu ${m.einheiten.join(", ")} geht dabei verloren (Zahlungen bleiben erhalten).`
-            : `${m.vorname} ${m.nachname} wirklich löschen?`
-        }
-        label="Löschen"
-      />
-    ),
   },
 ];
 
