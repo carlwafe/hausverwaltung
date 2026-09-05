@@ -428,21 +428,94 @@ function ZahlungenSektion({
 
 // ---------- Kosten ----------
 
-const KOSTEN_HINWEIS_OPTIONEN = [
+// Genau eine Hinweis-Kategorie pro Zeile, nach Priorität — gleiches Prinzip wie bei den
+// Zahlungen (ermittleZahlungHinweis oben): Filter-Dropdown und Tabellen-Badge nutzen beide
+// ausschließlich ermittleKostenHinweis() unten, damit sich Kategorien nie überlappen (anders
+// als vorher, wo z.B. "Gutschrift" und "Vorschlag übernommen" unabhängig voneinander geprüft
+// wurden und auf dieselbe Zeile gleichzeitig zutreffen konnten).
+type KostenHinweisKategorie =
+  | "fehler"
+  | "eigentuemer"
+  | "eingehend"
+  | "eingehend_bereits_als_zahlung_importiert"
+  | "gutschrift"
+  | "rueckbuchung"
+  | "bereits_importiert"
+  | "vorschlag"
+  | "pruefen";
+
+type KostenHinweisFilter = "alle" | KostenHinweisKategorie;
+
+function ermittleKostenHinweis(
+  r: Pick<
+    ParsedKostenRow,
+    | "errors"
+    | "eigentuemerBuchung"
+    | "ignorieren"
+    | "gutschrift"
+    | "rueckbuchung"
+    | "vorgeschlageneKostenartId"
+    | "vorgeschlageneGebaeudeAuswahl"
+  >,
+  bereitsImportiert: boolean,
+  bereitsAlsZahlungImportiert: boolean,
+): KostenHinweisKategorie {
+  if (r.errors.length > 0) return "fehler";
+  if (r.eigentuemerBuchung) return "eigentuemer";
+  if (r.ignorieren) {
+    return bereitsAlsZahlungImportiert ? "eingehend_bereits_als_zahlung_importiert" : "eingehend";
+  }
+  // Gutschriften und Rücklastschriften sind seltene Sonderfälle, die ohnehin immer manuell
+  // geprüft werden — wie bei den Zahlungen reicht hier je eine Sammelkategorie statt einer
+  // Kreuzung mit Vorschlag/Bitte-prüfen/bereits-importiert.
+  if (r.gutschrift) return "gutschrift";
+  if (r.rueckbuchung) return "rueckbuchung";
+  // Ebenso: eine bereits als Kostenposition vorhandene Buchung wird ohnehin übersprungen — ob
+  // der Algorithmus dafür einen vollständigen Vorschlag hatte oder nicht, ist dann nicht mehr
+  // relevant, eine Sammelkategorie reicht.
+  if (bereitsImportiert) return "bereits_importiert";
+  return hatVollstaendigenVorschlag(r) ? "vorschlag" : "pruefen";
+}
+
+const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie, string> = {
+  fehler: "Fehler",
+  eigentuemer: "Eigentümer-Buchung",
+  eingehend: "Eingehend, bitte prüfen",
+  eingehend_bereits_als_zahlung_importiert: "Eingehend, bereits als Zahlung importiert",
+  gutschrift: "Gutschrift",
+  rueckbuchung: "Rücklastschrift",
+  bereits_importiert: "Bereits importiert (als Kosten)",
+  vorschlag: "Vorschlag übernommen",
+  pruefen: "Bitte prüfen",
+};
+
+const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie, string> = {
+  fehler: "text-red-400",
+  eigentuemer: "text-neutral-500",
+  eingehend: "text-neutral-500",
+  eingehend_bereits_als_zahlung_importiert: "text-green-400",
+  gutschrift: "text-blue-400",
+  rueckbuchung: "text-red-400",
+  bereits_importiert: "text-amber-400",
+  vorschlag: "text-green-400",
+  pruefen: "text-amber-400",
+};
+
+const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
-  { value: "vorschlag", label: "Vorschlag übernommen" },
-  { value: "vorschlag_bereits_importiert", label: "Vorschlag übernommen (bereits importiert)" },
-  { value: "pruefen", label: "Bitte prüfen" },
-  { value: "pruefen_bereits_importiert", label: "Bitte prüfen (bereits importiert)" },
-  { value: "fehler", label: "Fehler" },
-  { value: "eingehend", label: "Ignoriert (Eigentümer/unbekannt eingehend), bitte prüfen" },
+  { value: "vorschlag", label: KOSTEN_HINWEIS_LABELS.vorschlag },
+  { value: "pruefen", label: KOSTEN_HINWEIS_LABELS.pruefen },
+  { value: "fehler", label: KOSTEN_HINWEIS_LABELS.fehler },
+  { value: "gutschrift", label: KOSTEN_HINWEIS_LABELS.gutschrift },
+  { value: "rueckbuchung", label: KOSTEN_HINWEIS_LABELS.rueckbuchung },
+  { value: "eigentuemer", label: KOSTEN_HINWEIS_LABELS.eigentuemer },
+  { value: "eingehend", label: KOSTEN_HINWEIS_LABELS.eingehend },
   {
     value: "eingehend_bereits_als_zahlung_importiert",
-    label: "Ignoriert, bereits als Zahlung importiert",
+    label: KOSTEN_HINWEIS_LABELS.eingehend_bereits_als_zahlung_importiert,
   },
-] as const;
-
-type KostenHinweisFilter = (typeof KOSTEN_HINWEIS_OPTIONEN)[number]["value"];
+  { value: "bereits_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_importiert },
+];
 
 type KostenEditRow = ParsedKostenRow & {
   gewaehlteKostenartId: string;
@@ -502,24 +575,8 @@ function matchesKostenHinweisFilter(
   bereitsAlsZahlungImportiert: boolean,
   filter: KostenHinweisFilter,
 ): boolean {
-  switch (filter) {
-    case "alle":
-      return true;
-    case "fehler":
-      return r.errors.length > 0;
-    case "eingehend":
-      return r.errors.length === 0 && r.ignorieren && !bereitsAlsZahlungImportiert;
-    case "eingehend_bereits_als_zahlung_importiert":
-      return r.errors.length === 0 && r.ignorieren && bereitsAlsZahlungImportiert;
-    case "vorschlag":
-      return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && !bereitsImportiert;
-    case "vorschlag_bereits_importiert":
-      return r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && bereitsImportiert;
-    case "pruefen":
-      return r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag(r) && !bereitsImportiert;
-    case "pruefen_bereits_importiert":
-      return r.errors.length === 0 && !r.ignorieren && !hatVollstaendigenVorschlag(r) && bereitsImportiert;
-  }
+  if (filter === "alle") return true;
+  return ermittleKostenHinweis(r, bereitsImportiert, bereitsAlsZahlungImportiert) === filter;
 }
 
 function KostenSektion({
@@ -663,7 +720,6 @@ function KostenSektion({
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsZahlungImportiert = istBereitsAlsZahlungImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
-              const vollstaendigerVorschlag = hatVollstaendigenVorschlag(r);
               const expanded = expandedRow === r.rowNumber;
               return (
                 <Fragment key={r.rowNumber}>
@@ -752,33 +808,17 @@ function KostenSektion({
                       />
                     </td>
                     <td className="px-3 py-1.5 text-xs">
-                      {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
-                      {r.errors.length === 0 && r.ignorieren && (
-                        <span
-                          className={
-                            !r.eigentuemerBuchung && bereitsAlsZahlungImportiert
-                              ? "text-green-400"
-                              : "text-neutral-500"
-                          }
-                        >
-                          {r.eigentuemerBuchung
-                            ? "Eigentümer-Buchung"
-                            : `eingehend${bereitsAlsZahlungImportiert ? ", bereits als Zahlung importiert" : ""}`}
-                        </span>
-                      )}
-                      {r.errors.length === 0 && !r.ignorieren && r.gutschrift && (
-                        <span className="mr-1 text-blue-400">Gutschrift</span>
-                      )}
-                      {r.errors.length === 0 && !r.ignorieren && r.rueckbuchung && (
-                        <span className="mr-1 text-red-400">Rücklastschrift</span>
-                      )}
-                      {r.errors.length === 0 && !r.ignorieren && vollstaendigerVorschlag && (
-                        <span className="text-green-400">Vorschlag übernommen</span>
-                      )}
-                      {r.errors.length === 0 && !r.ignorieren && !vollstaendigerVorschlag && (
-                        <span className="text-amber-400">bitte prüfen</span>
-                      )}
-                      {bereitsImportiert && <span className="ml-1 text-amber-400">bereits importiert</span>}
+                      {(() => {
+                        const kategorie = ermittleKostenHinweis(r, bereitsImportiert, bereitsAlsZahlungImportiert);
+                        if (kategorie === "fehler") {
+                          return <span className="text-red-400">{r.errors.join("; ")}</span>;
+                        }
+                        return (
+                          <span className={KOSTEN_HINWEIS_FARBEN[kategorie]}>
+                            {KOSTEN_HINWEIS_LABELS[kategorie]}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-1.5">
                       <RohdatenToggleButton
