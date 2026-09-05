@@ -145,11 +145,16 @@ function matchesZahlungHinweisFilter(
   filter: ZahlungHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
-  const treffer: (ZahlungHinweisKategorie | ZahlungHinweisTag)[] = [
-    ermittleZahlungHinweis(r),
-    ...ermittleZahlungTags(bereitsImportiert, bereitsAlsKostenImportiert),
-  ];
-  return treffer.includes(filter);
+  const tags: (ZahlungHinweisKategorie | ZahlungHinweisTag)[] = ermittleZahlungTags(
+    bereitsImportiert,
+    bereitsAlsKostenImportiert,
+  );
+  // Ein Tag-Filter (z.B. "bereits importiert") zeigt jede Zeile mit diesem Tag, egal welche
+  // Kategorie sie sonst hat. Ein Kategorie-Filter (z.B. "Bitte prüfen") zeigt dagegen nur
+  // "unbelastete" Zeilen ohne Tag — eine Zeile mit Tag ist bereits erledigt/dupliziert und
+  // gehört ausschließlich in die Tag-gefilterte Ansicht, nicht zusätzlich in die Kategorie.
+  if (tags.includes(filter)) return true;
+  return ermittleZahlungHinweis(r) === filter && tags.length === 0;
 }
 
 function ZahlungenSektion({
@@ -565,11 +570,14 @@ function matchesKostenHinweisFilter(
   filter: KostenHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
-  const treffer: (KostenHinweisKategorie | KostenHinweisTag)[] = [
-    ermittleKostenHinweis(r),
-    ...ermittleKostenTags(bereitsImportiert, bereitsAlsZahlungImportiert),
-  ];
-  return treffer.includes(filter);
+  const tags: (KostenHinweisKategorie | KostenHinweisTag)[] = ermittleKostenTags(
+    bereitsImportiert,
+    bereitsAlsZahlungImportiert,
+  );
+  // Gleiches Prinzip wie bei den Zahlungen: ein Tag-Filter zeigt jede Zeile mit diesem Tag,
+  // ein Kategorie-Filter dagegen nur "unbelastete" Zeilen ohne Tag.
+  if (tags.includes(filter)) return true;
+  return ermittleKostenHinweis(r) === filter && tags.length === 0;
 }
 
 function KostenSektion({
