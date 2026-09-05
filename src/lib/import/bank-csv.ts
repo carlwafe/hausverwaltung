@@ -90,6 +90,16 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 // fälschlich als Eigentümer-Buchung statt als Kaution erkennen.
 export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 
+// Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
+// Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
+// Adresstext (das oft mitgelieferte "Ext.Ref."-Feld ist häufig leer oder nicht brauchbar). Die
+// Mandatsreferenz selbst ist dagegen ein stabiler, wiederkehrender Schlüssel.
+const MANDATSREF_PATTERN = /Mandatsref\.?\s*bei uns:?\s*(\d+)/i;
+
+export function ermittleMandatsref(verwendungszweck: string): string | null {
+  return MANDATSREF_PATTERN.exec(verwendungszweck)?.[1] ?? null;
+}
+
 export function textEnthaeltWort(haystack: string, wort: string): boolean {
   if (wort.length < 3) return false;
   const h = normalizeText(haystack);

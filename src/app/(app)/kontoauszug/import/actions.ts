@@ -17,7 +17,7 @@ import {
   type KostenartKandidat,
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
-import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
+import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 
 export type PreviewResult =
   | {
@@ -120,6 +120,8 @@ export async function previewImport(
           empfaenger: true,
           kostenartId: true,
           gebaeudeId: true,
+          hausId: true,
+          kostengruppeId: true,
           datum: true,
           betrag: true,
           beschreibung: true,
@@ -183,7 +185,7 @@ export async function previewImport(
     const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen.map((k) => ({
       empfaenger: k.empfaenger ?? "",
       kostenartId: k.kostenartId,
-      gebaeudeId: k.gebaeudeId,
+      gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId) || null,
       verwendungszweck: k.beschreibung,
     }));
     const kostenRows = mapKostenRows(headers, rows, historie, gebaeude);

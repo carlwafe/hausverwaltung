@@ -1,4 +1,5 @@
 import {
+  ermittleMandatsref,
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
   leseBetrag,
@@ -19,14 +20,19 @@ export type GebaeudeKandidat = {
 };
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
-// gelernt wird. gebaeudeId ist null, wenn die Position dem ganzen Objekt statt einem einzelnen
-// Gebäude zugeordnet war (z.B. Bankgebühren). verwendungszweck ist die damals gespeicherte
+// gelernt wird. gebaeudeAuswahl ist derselbe "gebaeude:<id>"/"haus:<id>"/"kostengruppe:<id>"-Wert
+// wie im Auswahl-<select> (siehe gebaeudeAuswahlWert in gebaeude-gruppen.ts), null wenn die
+// Position dem ganzen Objekt statt einem einzelnen Gebäude/Haus/einer Kostengruppe zugeordnet war
+// (z.B. Bankgebühren) — nicht nur die rohe Gebäude-ID, sonst wären Haus-/Kostengruppen-Zuordnungen
+// (z.B. Techem-Sammellastschriften über mehrere Häuser) aus der Historie nicht mehr
+// unterscheidbar von "kein Gebäude". verwendungszweck ist die damals gespeicherte
 // Buchungsbeschreibung — wird genutzt, um bei mehrdeutigem Empfänger (z.B. Stadtwerke Eutin für
-// Wasser, Wasser+Gas und Strom+Wasser) anhand gemeinsamer Wörter zu unterscheiden.
+// Wasser, Wasser+Gas und Strom+Wasser) anhand gemeinsamer Wörter zu unterscheiden, und um eine
+// SEPA-Mandatsreferenz wiederzuerkennen.
 export type EmpfaengerHistorie = {
   empfaenger: string;
   kostenartId: string;
-  gebaeudeId: string | null;
+  gebaeudeAuswahl: string | null;
   verwendungszweck: string | null;
 };
 
@@ -117,12 +123,26 @@ function signifikanteWoerter(text: string): Set<string> {
  * für Wasser+Gas, mal für Strom+Wasser), wird zusätzlich anhand gemeinsamer, aussagekräftiger
  * Wörter im Verwendungszweck eingegrenzt — nur wenn dabei eine Kostenart eindeutig am besten
  * passt (kein Gleichstand), wird sie vorgeschlagen.
+ *
+ * Eine SEPA-Mandatsreferenz geht dem voraus: Techem & Co. nutzen für dieselbe
+ * Gebäude-/Kostengruppen-Zuordnung oft sogar eine eigene, gebäudespezifische Kostenart (z.B.
+ * "Heizkosten Haus 2-12" statt nur "Heizkosten") — bei so einem Empfänger wäre die reine
+ * Empfänger-Historie über alle Gebäude hinweg zwangsläufig uneinheitlich.
  */
 function ermittleKostenartVorschlag(
   empfaenger: string,
   verwendungszweck: string,
   historie: EmpfaengerHistorie[],
 ): string | null {
+  const mandatsref = ermittleMandatsref(verwendungszweck);
+  if (mandatsref) {
+    const mandatsrefTreffer = historie.filter((h) => ermittleMandatsref(h.verwendungszweck ?? "") === mandatsref);
+    if (mandatsrefTreffer.length > 0) {
+      const mandatsrefKostenartIds = new Set(mandatsrefTreffer.map((t) => t.kostenartId));
+      if (mandatsrefKostenartIds.size === 1) return [...mandatsrefKostenartIds][0];
+    }
+  }
+
   const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
   if (treffer.length === 0) return null;
   const kostenartIds = new Set(treffer.map((t) => t.kostenartId));
@@ -289,18 +309,31 @@ function ermittleGebaeudeVorschlag(
     }
   }
   // Spanne erkannt, aber passt zu keinem einzelnen Haus/keiner Kostengruppe (z.B. mehrteilige
-  // Liste, die faktisch das ganze Objekt meint) — auf Empfänger-Historie zurückfallen statt zu
-  // raten.
+  // Liste, die faktisch das ganze Objekt meint) — auf Mandatsreferenz/Empfänger-Historie
+  // zurückfallen statt zu raten.
+
+  // Mandatsreferenz vor der reinen Empfänger-Historie geprüft: derselbe Empfänger (z.B. Techem)
+  // bucht oft für mehrere verschiedene Gebäude/Kostengruppen ab, sodass die reine
+  // Empfänger-Historie zwangsläufig uneinheitlich und damit unbrauchbar wäre — die
+  // Mandatsreferenz grenzt dagegen auf genau die Buchungen ein, die zur selben
+  // Gebäude-/Kostengruppen-Zuordnung gehören.
+  const mandatsref = ermittleMandatsref(verwendungszweck);
+  if (mandatsref) {
+    const mandatsrefTreffer = historie.filter((h) => ermittleMandatsref(h.verwendungszweck ?? "") === mandatsref);
+    if (mandatsrefTreffer.length > 0) {
+      const auswahlWerte = new Set(mandatsrefTreffer.map((t) => t.gebaeudeAuswahl));
+      if (auswahlWerte.size === 1) return [...auswahlWerte][0];
+    }
+  }
 
   const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
   if (treffer.length === 0) return undefined;
-  const gebaeudeIds = new Set(treffer.map((t) => t.gebaeudeId));
+  const auswahlWerte = new Set(treffer.map((t) => t.gebaeudeAuswahl));
   // Uneinheitliche Historie (mal dieses, mal jenes Gebäude, oder mal gar keins) — nicht
   // ermittelbar. Ist die Historie dagegen konsistent (auch konsistent "kein Gebäude" = null),
   // gilt das als sicher bestimmt.
-  if (gebaeudeIds.size !== 1) return undefined;
-  const [einzigeGebaeudeId] = gebaeudeIds;
-  return einzigeGebaeudeId ? gebaeudeWert(einzigeGebaeudeId) : null;
+  if (auswahlWerte.size !== 1) return undefined;
+  return [...auswahlWerte][0];
 }
 
 export function mapKostenRows(
