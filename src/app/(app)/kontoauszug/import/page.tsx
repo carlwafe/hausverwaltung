@@ -29,7 +29,6 @@ type ZahlungHinweisKategorie =
   | "pruefen"
   | "rueckbuchung"
   | "bereits_importiert"
-  | "mehrdeutig"
   | "vorschlag";
 
 type ZahlungHinweisFilter = "alle" | ZahlungHinweisKategorie;
@@ -50,8 +49,8 @@ function ermittleZahlungHinweis(
   // wurden — sonst tauchen Gutschriften (positiver Betrag, also nicht "ignorieren") hier nie
   // unter diesem Hinweis auf und würden fälschlich als "kein Treffer" o.ä. gemeldet.
   if (bereitsAlsKostenImportiert) return "bereits_als_kosten_importiert";
-  // "pruefen" fasst zwei Fälle zusammen, die beide manuelles Nachsehen brauchen: ignorierte
-  // ausgehende Buchungen und eingehende Buchungen ohne Mietvertrags-Treffer — analog zum
+  // "pruefen" fasst mehrere Fälle zusammen, die alle manuelles Nachsehen brauchen: ignorierte
+  // ausgehende Buchungen, mehrdeutige und nicht gefundene Mietvertrags-Treffer — analog zum
   // "Bitte prüfen"-Hinweis auf der Kosten-Seite, keine feinere Unterscheidung nötig.
   if (r.ignorieren) return "pruefen";
   // Rücklastschriften sind selten und werden ohnehin immer manuell geprüft — anders als bei
@@ -63,7 +62,9 @@ function ermittleZahlungHinweis(
   // Treffer fand, ist dann nicht mehr relevant, eine Sammelkategorie reicht.
   if (bereitsImportiert) return "bereits_importiert";
 
-  if (r.mehrdeutig) return "mehrdeutig";
+  // Mehrdeutige Treffer sind selten und werden ohnehin manuell aufgelöst — brauchen keine
+  // eigene Kategorie getrennt von "kein Treffer", beides heißt "bitte prüfen".
+  if (r.mehrdeutig) return "pruefen";
   if (r.vorgeschlagenerMietvertragId) return "vorschlag";
   return "pruefen";
 }
@@ -75,7 +76,6 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie, string> = {
   pruefen: "Bitte prüfen",
   rueckbuchung: "Rücklastschrift",
   bereits_importiert: "Bereits importiert (als Zahlung)",
-  mehrdeutig: "Mehrdeutig",
   vorschlag: "Vorschlag übernommen",
 };
 
@@ -86,16 +86,13 @@ const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie, string> = {
   pruefen: "text-neutral-500",
   rueckbuchung: "text-red-400",
   bereits_importiert: "text-amber-400",
-  mehrdeutig: "text-amber-400",
   vorschlag: "text-green-400",
 };
 
 const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
   { value: "vorschlag", label: ZAHLUNG_HINWEIS_LABELS.vorschlag },
-  { value: "mehrdeutig", label: ZAHLUNG_HINWEIS_LABELS.mehrdeutig },
   { value: "pruefen", label: ZAHLUNG_HINWEIS_LABELS.pruefen },
-  { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
   { value: "rueckbuchung", label: ZAHLUNG_HINWEIS_LABELS.rueckbuchung },
   { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "bereits_importiert", label: ZAHLUNG_HINWEIS_LABELS.bereits_importiert },
@@ -103,6 +100,7 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
     value: "bereits_als_kosten_importiert",
     label: ZAHLUNG_HINWEIS_LABELS.bereits_als_kosten_importiert,
   },
+  { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
 ];
 
 type ZahlungEditRow = ParsedZahlungRow & {
