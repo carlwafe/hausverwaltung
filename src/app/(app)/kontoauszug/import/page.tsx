@@ -65,7 +65,7 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   rueckbuchung: "Rücklastschrift",
   vorschlag: "Vorschlag übernommen",
   bereits_importiert: "Bereits importiert (als Zahlung)",
-  bereits_als_kosten_importiert: "Bereits als Kosten importiert",
+  bereits_als_kosten_importiert: "Bereits importiert (als Kosten)",
 };
 
 const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag, string> = {
@@ -483,7 +483,7 @@ const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie | KostenHinweisTag, s
   vorschlag: "Vorschlag übernommen",
   pruefen: "Bitte prüfen",
   bereits_importiert: "Bereits importiert (als Kosten)",
-  bereits_als_zahlung_importiert: "Bereits als Zahlung importiert",
+  bereits_als_zahlung_importiert: "Bereits importiert (als Zahlung)",
 };
 
 const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie | KostenHinweisTag, string> = {
