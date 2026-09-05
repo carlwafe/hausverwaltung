@@ -17,21 +17,93 @@ const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", 
 
 // ---------- Zahlungen ----------
 
-const ZAHLUNG_HINWEIS_OPTIONEN = [
-  { value: "alle", label: "Alle Hinweise" },
-  { value: "vorschlag", label: "Vorschlag übernommen" },
-  { value: "vorschlag_bereits_importiert", label: "Vorschlag übernommen (bereits importiert)" },
-  { value: "mehrdeutig", label: "Mehrdeutig" },
-  { value: "kein_treffer", label: "Kein Treffer" },
-  { value: "fehler", label: "Fehler" },
-  { value: "rueckbuchung", label: "Rücklastschrift" },
-  { value: "ausgehend", label: "Ausgehend, bitte prüfen" },
-  { value: "ausgehend_bereits_als_kosten_importiert", label: "Ausgehend, bereits als Kosten importiert" },
-  { value: "eigentuemer", label: "Eigentümer-Buchung" },
-  { value: "bereits_importiert", label: "Bereits importiert" },
-] as const;
+// Genau eine Hinweis-Kategorie pro Zeile, nach Priorität. Filter-Dropdown und Tabellen-Badge
+// nutzen beide ausschließlich ermittleZahlungHinweis() unten — dadurch können sich die
+// Kategorien nie überlappen (anders als vorher, wo z.B. "Rücklastschrift" und "Vorschlag
+// übernommen" unabhängig voneinander geprüft wurden und auf dieselbe Zeile gleichzeitig
+// zutreffen konnten).
+type ZahlungHinweisKategorie =
+  | "fehler"
+  | "eigentuemer"
+  | "bereits_als_kosten_importiert"
+  | "pruefen"
+  | "rueckbuchung"
+  | "bereits_importiert"
+  | "mehrdeutig"
+  | "vorschlag";
 
-type ZahlungHinweisFilter = (typeof ZAHLUNG_HINWEIS_OPTIONEN)[number]["value"];
+type ZahlungHinweisFilter = "alle" | ZahlungHinweisKategorie;
+
+function ermittleZahlungHinweis(
+  r: Pick<
+    ParsedZahlungRow,
+    "errors" | "eigentuemerBuchung" | "ignorieren" | "rueckbuchung" | "mehrdeutig" | "vorgeschlagenerMietvertragId"
+  >,
+  bereitsImportiert: boolean,
+  bereitsAlsKostenImportiert: boolean,
+): ZahlungHinweisKategorie {
+  if (r.errors.length > 0) return "fehler";
+  if (r.eigentuemerBuchung) return "eigentuemer";
+  // Gilt unabhängig vom Vorzeichen: sowohl für normale ausgehende Buchungen, die schon als
+  // Kostenposition erfasst sind, als auch für eingehende Gutschriften/Rücküberweisungen von
+  // Handwerkern & Co., die auf der Kosten-Seite bereits als Minderung der Kostenart importiert
+  // wurden — sonst tauchen Gutschriften (positiver Betrag, also nicht "ignorieren") hier nie
+  // unter diesem Hinweis auf und würden fälschlich als "kein Treffer" o.ä. gemeldet.
+  if (bereitsAlsKostenImportiert) return "bereits_als_kosten_importiert";
+  // "pruefen" fasst zwei Fälle zusammen, die beide manuelles Nachsehen brauchen: ignorierte
+  // ausgehende Buchungen und eingehende Buchungen ohne Mietvertrags-Treffer — analog zum
+  // "Bitte prüfen"-Hinweis auf der Kosten-Seite, keine feinere Unterscheidung nötig.
+  if (r.ignorieren) return "pruefen";
+  // Rücklastschriften sind selten und werden ohnehin immer manuell geprüft — anders als bei
+  // regulären Zahlungen lohnt sich hier keine feinere Aufschlüsselung nach
+  // mehrdeutig/Vorschlag/bereits importiert, eine Sammelkategorie reicht.
+  if (r.rueckbuchung) return "rueckbuchung";
+  // Ebenso: eine bereits als Zahlung vorhandene Buchung wird ohnehin übersprungen bzw. sollte
+  // es werden — ob der Algorithmus dafür einen Vorschlag hatte, mehrdeutig war oder gar keinen
+  // Treffer fand, ist dann nicht mehr relevant, eine Sammelkategorie reicht.
+  if (bereitsImportiert) return "bereits_importiert";
+
+  if (r.mehrdeutig) return "mehrdeutig";
+  if (r.vorgeschlagenerMietvertragId) return "vorschlag";
+  return "pruefen";
+}
+
+const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie, string> = {
+  fehler: "Fehler",
+  eigentuemer: "Eigentümer-Buchung",
+  bereits_als_kosten_importiert: "Bereits als Kosten importiert",
+  pruefen: "Bitte prüfen",
+  rueckbuchung: "Rücklastschrift",
+  bereits_importiert: "Bereits importiert (als Zahlung)",
+  mehrdeutig: "Mehrdeutig",
+  vorschlag: "Vorschlag übernommen",
+};
+
+const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie, string> = {
+  fehler: "text-red-400",
+  eigentuemer: "text-neutral-500",
+  bereits_als_kosten_importiert: "text-green-400",
+  pruefen: "text-neutral-500",
+  rueckbuchung: "text-red-400",
+  bereits_importiert: "text-amber-400",
+  mehrdeutig: "text-amber-400",
+  vorschlag: "text-green-400",
+};
+
+const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[] = [
+  { value: "alle", label: "Alle Hinweise" },
+  { value: "vorschlag", label: ZAHLUNG_HINWEIS_LABELS.vorschlag },
+  { value: "mehrdeutig", label: ZAHLUNG_HINWEIS_LABELS.mehrdeutig },
+  { value: "pruefen", label: ZAHLUNG_HINWEIS_LABELS.pruefen },
+  { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
+  { value: "rueckbuchung", label: ZAHLUNG_HINWEIS_LABELS.rueckbuchung },
+  { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
+  { value: "bereits_importiert", label: ZAHLUNG_HINWEIS_LABELS.bereits_importiert },
+  {
+    value: "bereits_als_kosten_importiert",
+    label: ZAHLUNG_HINWEIS_LABELS.bereits_als_kosten_importiert,
+  },
+];
 
 type ZahlungEditRow = ParsedZahlungRow & {
   gewaehlterMietvertragId: string;
@@ -83,48 +155,8 @@ function matchesZahlungHinweisFilter(
   bereitsAlsKostenImportiert: boolean,
   filter: ZahlungHinweisFilter,
 ): boolean {
-  switch (filter) {
-    case "alle":
-      return true;
-    case "fehler":
-      return r.errors.length > 0;
-    case "eigentuemer":
-      return r.errors.length === 0 && r.eigentuemerBuchung;
-    case "ausgehend":
-      return r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && !bereitsAlsKostenImportiert;
-    case "ausgehend_bereits_als_kosten_importiert":
-      return r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && bereitsAlsKostenImportiert;
-    case "rueckbuchung":
-      return r.errors.length === 0 && r.rueckbuchung;
-    case "vorschlag":
-      return (
-        r.errors.length === 0 &&
-        !r.ignorieren &&
-        !r.mehrdeutig &&
-        Boolean(r.vorgeschlagenerMietvertragId) &&
-        !bereitsImportiert
-      );
-    case "vorschlag_bereits_importiert":
-      return (
-        r.errors.length === 0 &&
-        !r.ignorieren &&
-        !r.mehrdeutig &&
-        Boolean(r.vorgeschlagenerMietvertragId) &&
-        bereitsImportiert
-      );
-    case "mehrdeutig":
-      return r.errors.length === 0 && !r.ignorieren && r.mehrdeutig;
-    case "kein_treffer":
-      return (
-        r.errors.length === 0 &&
-        !r.ignorieren &&
-        !r.vorgeschlagenerMietvertragId &&
-        !r.mehrdeutig &&
-        !bereitsImportiert
-      );
-    case "bereits_importiert":
-      return bereitsImportiert;
-  }
+  if (filter === "alle") return true;
+  return ermittleZahlungHinweis(r, bereitsImportiert, bereitsAlsKostenImportiert) === filter;
 }
 
 function ZahlungenSektion({
@@ -343,37 +375,19 @@ function ZahlungenSektion({
                       </div>
                     </td>
                     <td className="px-3 py-1.5 text-xs">
-                      {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
-                      {r.errors.length === 0 && r.eigentuemerBuchung && (
-                        <span className="text-neutral-500">Eigentümer-Buchung</span>
-                      )}
-                      {r.errors.length === 0 && !r.eigentuemerBuchung && r.ignorieren && (
-                        <span className={bereitsAlsKostenImportiert ? "text-green-400" : "text-neutral-500"}>
-                          ausgehend{bereitsAlsKostenImportiert ? ", bereits als Kosten importiert" : ""}
-                        </span>
-                      )}
-                      {r.errors.length === 0 && r.rueckbuchung && (
-                        <span className="text-red-400">Rücklastschrift</span>
-                      )}
-                      {r.errors.length === 0 && !r.ignorieren && r.mehrdeutig && (
-                        <span className="text-amber-400">mehrdeutig</span>
-                      )}
-                      {r.errors.length === 0 &&
-                        !r.ignorieren &&
-                        !r.mehrdeutig &&
-                        r.vorgeschlagenerMietvertragId && (
-                          <span className="text-green-400">Vorschlag übernommen</span>
-                        )}
-                      {r.errors.length === 0 &&
-                        !r.ignorieren &&
-                        !r.vorgeschlagenerMietvertragId &&
-                        !r.mehrdeutig &&
-                        !bereitsImportiert && <span className="text-neutral-500">kein Treffer</span>}
-                      {bereitsImportiert && (
-                        <span className="ml-1 text-amber-400">
-                          bereits importiert{!r.ausgewaehlt ? " – wird übersprungen" : ""}
-                        </span>
-                      )}
+                      {(() => {
+                        const kategorie = ermittleZahlungHinweis(r, bereitsImportiert, bereitsAlsKostenImportiert);
+                        if (kategorie === "fehler") {
+                          return <span className="text-red-400">{r.errors.join("; ")}</span>;
+                        }
+                        const wirdUebersprungen = bereitsImportiert && !r.ausgewaehlt;
+                        return (
+                          <span className={ZAHLUNG_HINWEIS_FARBEN[kategorie]}>
+                            {ZAHLUNG_HINWEIS_LABELS[kategorie]}
+                            {wirdUebersprungen ? " – wird übersprungen" : ""}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-1.5">
                       <RohdatenToggleButton
