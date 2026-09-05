@@ -111,10 +111,13 @@ function pruefeZahlungDuplikat(
   return bestehendeZahlungen.has(`${mietvertragId}|${datum}|${betrag.toFixed(2)}`);
 }
 
-// Prüft, ob eine ausgehende Buchung (negativer Betrag) bereits als Kostenposition importiert
-// wurde — gleicher Dedup-Schlüssel wie kostenDedupSchluessel in actions.ts (Empfänger|Datum|
-// Betrag), nur mit umgedrehtem Vorzeichen, da Kosten dort als positiver Betrag gespeichert
-// werden, Zahlungen hier aber das Vorzeichen der Rohbuchung (negativ bei ausgehend) behalten.
+// Prüft, ob eine Buchung bereits als Kostenposition importiert wurde — gleicher Dedup-Schlüssel
+// wie kostenDedupSchluessel in actions.ts (Empfänger|Datum|Betrag), nur mit umgedrehtem
+// Vorzeichen: Kostenposition.betrag ist dort immer der negierte Rohbetrag (positiv bei
+// ausgehenden Kosten, NEGATIV bei einer Gutschrift/Rücküberweisung), während Zahlungen hier das
+// Vorzeichen der Rohbuchung unverändert behalten. Ein einfaches Math.abs() auf beiden Seiten
+// würde für ausgehende Kosten zufällig passen, für Gutschriften aber nie matchen (-11,69 in
+// Kosten vs. abs(11,69) hier) — deshalb bewusst negieren statt abs, das passt für beide Fälle.
 function pruefeAlsKostenImportiert(
   bestehendeKosten: Set<string>,
   name: string,
@@ -122,7 +125,7 @@ function pruefeAlsKostenImportiert(
   betrag: number | null,
 ): boolean {
   if (!datum || betrag === null) return false;
-  return bestehendeKosten.has(`${name.trim().toLowerCase()}|${datum}|${Math.abs(betrag).toFixed(2)}`);
+  return bestehendeKosten.has(`${name.trim().toLowerCase()}|${datum}|${(-betrag).toFixed(2)}`);
 }
 
 function toZahlungEditRow(
