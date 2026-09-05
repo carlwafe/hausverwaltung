@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 
@@ -17,4 +17,13 @@ export async function speichereDatei(inhalt: Buffer, originalDateiname: string):
 
 export async function leseDatei(relativerPfad: string): Promise<Buffer> {
   return readFile(path.join(STORAGE_ROOT, relativerPfad));
+}
+
+/** Löscht eine gespeicherte Datei; keine Fehlermeldung, falls sie bereits fehlt. */
+export async function loescheDatei(relativerPfad: string): Promise<void> {
+  try {
+    await unlink(path.join(STORAGE_ROOT, relativerPfad));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
 }

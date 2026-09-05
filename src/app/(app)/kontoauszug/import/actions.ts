@@ -29,6 +29,7 @@ export type PreviewResult =
       gebaeude: GebaeudeKandidat[];
       bestehendeKosten: string[];
       bestehendeZahlungenDatumBetrag: string[];
+      bestehendeMietweiterleitungen: string[];
       fileName: string;
       importBatchId: string;
     }
@@ -36,6 +37,12 @@ export type PreviewResult =
 
 function kostenDedupSchluessel(empfaenger: string | null, datum: Date | null, betrag: number) {
   return `${(empfaenger ?? "").trim().toLowerCase()}|${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}`;
+}
+
+// Kein Empfänger im Schlüssel (anders als bei Kosten) — die Gegenpartei ist bei jeder Zeile
+// dieselbe Eigentümerin, Datum+Betrag+Verwendungszweck reichen zur Unterscheidung.
+function mietweiterleitungDedupSchluessel(datum: Date | null, betrag: number, verwendungszweck: string | null) {
+  return `${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}|${(verwendungszweck ?? "").trim().toLowerCase()}`;
 }
 
 // Ein ImportBatch kann jetzt Ergebnisse von zwei unabhängigen Importen (Zahlungen und Kosten)
@@ -85,7 +92,8 @@ export async function previewImport(
       },
     });
 
-    const [vertraege, kostenartenRaw, gebaeudeRaw, bestehendeKostenpositionen] = await Promise.all([
+    const [vertraege, kostenartenRaw, gebaeudeRaw, bestehendeKostenpositionen, bestehendeMietweiterleitungenRaw] =
+      await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
         include: { einheit: true, mieter: true, zahlungen: true },
@@ -108,6 +116,7 @@ export async function previewImport(
           beschreibung: true,
         },
       }),
+      prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
     ]);
 
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
@@ -173,6 +182,11 @@ export async function previewImport(
         .filter((k) => k.datum)
         .map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag))),
     );
+    const bestehendeMietweiterleitungen = new Set(
+      bestehendeMietweiterleitungenRaw.map((m) =>
+        mietweiterleitungDedupSchluessel(m.datum, Number(m.betrag), m.verwendungszweck),
+      ),
+    );
 
     return {
       zahlungenRows,
@@ -183,6 +197,7 @@ export async function previewImport(
       gebaeude,
       bestehendeKosten: [...bestehendeKosten],
       bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
+      bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
       fileName: file.name,
       importBatchId: importBatch.id,
     };
@@ -351,6 +366,73 @@ export async function commitKosten(
   revalidatePath("/kosten");
 
   return `${neu.length} Kostenposition(en) importiert.${
+    uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
+  }`;
+}
+
+type MietweiterleitungCommitRow = {
+  datum: string;
+  betrag: number;
+  empfaenger: string;
+  verwendungszweck: string;
+  rohdaten: Record<string, string>;
+};
+
+export async function commitMietweiterleitungen(
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireUser();
+
+  const raw = formData.get("rows");
+  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
+
+  const importBatchId = formData.get("importBatchId");
+
+  let rows: MietweiterleitungCommitRow[];
+  try {
+    rows = JSON.parse(raw);
+  } catch {
+    return "Daten konnten nicht gelesen werden.";
+  }
+
+  if (rows.length === 0) return "Keine Mietweiterleitungen zum Importieren ausgewählt.";
+
+  const bestehend = await prisma.eigentuemerBuchung.findMany({
+    select: { datum: true, betrag: true, verwendungszweck: true },
+  });
+  const bestehendSet = new Set(
+    bestehend.map((m) => mietweiterleitungDedupSchluessel(m.datum, Number(m.betrag), m.verwendungszweck)),
+  );
+
+  const neu = rows.filter(
+    (r) => !bestehendSet.has(mietweiterleitungDedupSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
+  );
+  const uebersprungen = rows.length - neu.length;
+
+  if (neu.length > 0) {
+    await prisma.eigentuemerBuchung.createMany({
+      data: neu.map((r) => ({
+        datum: new Date(r.datum),
+        betrag: r.betrag,
+        empfaenger: r.empfaenger || null,
+        verwendungszweck: r.verwendungszweck || null,
+        rohdaten: r.rohdaten,
+        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
+      })),
+    });
+  }
+
+  if (typeof importBatchId === "string") {
+    await ergaenzeImportBatchErgebnis(
+      importBatchId,
+      `${neu.length} Mietweiterleitung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+    );
+  }
+
+  revalidatePath("/mietweiterleitungen");
+
+  return `${neu.length} Mietweiterleitung(en) importiert.${
     uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
   }`;
 }

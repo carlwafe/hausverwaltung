@@ -14,6 +14,7 @@ const links = [
   { href: "/offene-posten", label: "Offene Posten" },
   { href: "/kautionen", label: "Kautionen" },
   { href: "/kosten", label: "Kosten" },
+  { href: "/mietweiterleitungen", label: "Mietweiterleitungen" },
   { href: "/nebenkostenabrechnungen", label: "Nebenkostenabrechnung" },
   { href: "/verbrauchswerte", label: "Verbrauchswerte" },
 ];

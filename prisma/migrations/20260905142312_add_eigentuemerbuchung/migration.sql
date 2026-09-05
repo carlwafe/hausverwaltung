@@ -1,0 +1,5 @@
+-- No-op: the "eigentuemerbuchungen" table (including its foreign key to import_batches) already
+-- exists in this database from an earlier, since-reverted schema — its migration file was
+-- removed when that revert reset the migration history, but the table itself was never dropped.
+-- Reintroducing the EigentuemerBuchung model here just picks that existing table back up; there
+-- is nothing left to create.

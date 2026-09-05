@@ -383,8 +383,27 @@ model ImportBatch {
   anzahlZeilen Int?
   erstelltAm   DateTime @default(now())
 
-  zahlungen        Zahlung[]
-  kostenpositionen Kostenposition[]
+  zahlungen            Zahlung[]
+  kostenpositionen     Kostenposition[]
+  eigentuemerbuchungen EigentuemerBuchung[]
 
   @@map("import_batches")
+}
+
+// Geldbewegung zwischen dem Objekt-Konto und der Eigentümerin persönlich (Mietweiterleitung =
+// Geld raus zur Eigentümerin, Einlage = Geld von ihr aufs Konto — unterschieden rein über das
+// Vorzeichen von betrag, kein eigenes Feld dafür). Terminal: keine weitere
+// Zuordnung/Kategorie-Auflösung wie bei Zahlung/Kostenposition nötig oder vorgesehen.
+model EigentuemerBuchung {
+  id               String       @id @default(cuid())
+  datum            DateTime
+  betrag           Decimal      @db.Decimal(10, 2)
+  empfaenger       String?
+  verwendungszweck String?
+  rohdaten         Json?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  createdAt        DateTime     @default(now())
+
+  @@map("eigentuemerbuchungen")
 }

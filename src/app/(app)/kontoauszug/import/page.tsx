@@ -2,7 +2,7 @@
 
 import { Fragment, useActionState, useState } from "react";
 import Link from "next/link";
-import { previewImport, commitZahlungen, commitKosten } from "./actions";
+import { previewImport, commitZahlungen, commitKosten, commitMietweiterleitungen } from "./actions";
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
@@ -869,6 +869,175 @@ function KostenSektion({
   );
 }
 
+// ---------- Mietweiterleitungen ----------
+
+type MietweiterleitungEditRow = ParsedZahlungRow & { ausgewaehlt: boolean };
+
+// Kein Empfänger im Schlüssel — die Gegenpartei ist bei jeder Zeile dieselbe Eigentümerin,
+// Datum+Betrag+Verwendungszweck reichen zur Unterscheidung (gleicher Schlüssel wie
+// mietweiterleitungDedupSchluessel in actions.ts).
+function pruefeMietweiterleitungDuplikat(
+  bestehend: Set<string>,
+  datum: string | null,
+  betrag: number | null,
+  verwendungszweck: string,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehend.has(`${datum}|${betrag.toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
+}
+
+function toMietweiterleitungEditRow(r: ParsedZahlungRow, bestehend: Set<string>): MietweiterleitungEditRow {
+  const duplikat = pruefeMietweiterleitungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  return { ...r, ausgewaehlt: r.errors.length === 0 && !duplikat };
+}
+
+function MietweiterleitungenSektion({
+  rows,
+  bestehendeListe,
+  importBatchId,
+}: {
+  rows: ParsedZahlungRow[];
+  bestehendeListe: string[];
+  importBatchId: string;
+}) {
+  const [commitMessage, commitAction, commitPending] = useActionState(commitMietweiterleitungen, null);
+  const bestehend = new Set(bestehendeListe);
+  const [editRows, setEditRows] = useState<MietweiterleitungEditRow[]>(() =>
+    rows.map((r) => toMietweiterleitungEditRow(r, bestehend)),
+  );
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  function updateRow(rowNumber: number, patch: Partial<MietweiterleitungEditRow>) {
+    setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
+  }
+
+  function istBereitsImportiert(r: MietweiterleitungEditRow): boolean {
+    return pruefeMietweiterleitungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  }
+
+  const auswaehlbareRows = editRows.filter((r) => r.errors.length === 0);
+  const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
+
+  function toggleAll(checked: boolean) {
+    setEditRows((rs) => rs.map((r) => (r.errors.length === 0 ? { ...r, ausgewaehlt: checked } : r)));
+  }
+
+  const importierbareRows = editRows.filter((r) => r.ausgewaehlt);
+  const rowsForCommit = importierbareRows.map((r) => ({
+    datum: r.datum,
+    betrag: r.betrag,
+    empfaenger: r.name,
+    verwendungszweck: r.verwendungszweck,
+    rohdaten: r.rohdaten,
+  }));
+
+  if (commitMessage) {
+    return (
+      <div>
+        <h2 className="mb-2 text-lg font-medium text-white">Mietweiterleitungen</h2>
+        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
+        <Link href="/mietweiterleitungen" className="text-sm underline">
+          Zu den Mietweiterleitungen
+        </Link>
+      </div>
+    );
+  }
+
+  if (editRows.length === 0) return null;
+
+  return (
+    <div>
+      <h2 className="mb-3 text-lg font-medium text-white">
+        Mietweiterleitungen ({editRows.length} Buchung{editRows.length === 1 ? "" : "en"})
+      </h2>
+      <p className="mb-3 text-sm text-neutral-300">
+        Geldbewegungen zwischen Konto und Eigentümerin — keine Miete, keine Kosten.{" "}
+        {importierbareRows.length} werden importiert.
+      </p>
+
+      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-32">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+            <tr>
+              <th className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={alleAusgewaehlt}
+                  onChange={(e) => toggleAll(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                />
+              </th>
+              <th className="px-3 py-2">Datum</th>
+              <th className="px-3 py-2">Betrag</th>
+              <th className="px-3 py-2">Verwendungszweck</th>
+              <th className="px-3 py-2">Hinweis</th>
+              <th className="px-3 py-2">Rohdaten</th>
+            </tr>
+          </thead>
+          <tbody>
+            {editRows.map((r) => {
+              const bereitsImportiert = istBereitsImportiert(r);
+              const expanded = expandedRow === r.rowNumber;
+              return (
+                <Fragment key={r.rowNumber}>
+                  <tr
+                    className={`border-t border-neutral-800 ${
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={r.ausgewaehlt}
+                        disabled={r.errors.length > 0}
+                        onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
+                        className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
+                    <td
+                      className="max-w-[280px] truncate px-3 py-1.5 text-neutral-300"
+                      title={`${r.verwendungszweck} ${r.name}`}
+                    >
+                      {r.verwendungszweck || r.name || "–"}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {r.errors.length > 0 && <span className="text-red-400">{r.errors.join("; ")}</span>}
+                      {r.errors.length === 0 && bereitsImportiert && (
+                        <span className="text-amber-400">bereits importiert</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <RohdatenToggleButton
+                        expanded={expanded}
+                        onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
+                      />
+                    </td>
+                  </tr>
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={6} />}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <form action={commitAction}>
+        <input type="hidden" name="rows" value={JSON.stringify(rowsForCommit)} />
+        <input type="hidden" name="importBatchId" value={importBatchId} />
+        <button
+          type="submit"
+          disabled={commitPending || importierbareRows.length === 0}
+          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+        >
+          {commitPending ? "Importiere…" : `${importierbareRows.length} Mietweiterleitungen importieren`}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ---------- Seite ----------
 
 export default function KontoauszugImportPage() {
@@ -879,7 +1048,12 @@ export default function KontoauszugImportPage() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-semibold text-white">Kontoauszug importieren</h1>
+      <div className="mb-2 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-white">Kontoauszug importieren</h1>
+        <Link href="/kontoauszug/importe" className="text-sm text-neutral-400 underline hover:text-white">
+          Bisherige Importe verwalten
+        </Link>
+      </div>
       <p className="mb-6 max-w-2xl text-sm text-neutral-400">
         CSV- oder Excel-Export deines Kontos einmal hochladen — eingehende Buchungen werden unten
         als Zahlungen vorgeschlagen (Zuordnung zu Mietverträgen), ausgehende Buchungen als Kosten
@@ -948,6 +1122,13 @@ export default function KontoauszugImportPage() {
             gebaeude={preview.gebaeude}
             bestehendeKostenListe={preview.bestehendeKosten}
             bestehendeZahlungenListe={preview.bestehendeZahlungenDatumBetrag}
+            importBatchId={preview.importBatchId}
+          />
+
+          <MietweiterleitungenSektion
+            key={`mietweiterleitungen-${preview.importBatchId}`}
+            rows={preview.zahlungenRows.filter((r) => r.eigentuemerBuchung)}
+            bestehendeListe={preview.bestehendeMietweiterleitungen}
             importBatchId={preview.importBatchId}
           />
         </div>
