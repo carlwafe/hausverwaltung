@@ -1489,14 +1489,12 @@ function ermittleNebenkostenausgleichHinweis(
   return r.nebenkostenausgleich ? "erkannt" : "weitere";
 }
 
+// Für "erkannt" ist das Label vom Dedup-Status abhängig (siehe pruefeNebenkostenausgleichDuplikat
+// unten) — hier nur der Basistext für Filter-Dropdown/Fallback, die tatsächlich angezeigte Zeile
+// hängt zusätzlich an "bitte prüfen"/"bereits importiert" (siehe Render unten).
 const NEBENKOSTENAUSGLEICH_HINWEIS_LABELS: Record<NebenkostenausgleichHinweisKategorie, string> = {
-  erkannt: "Als Nebenkostenausgleich erkannt",
+  erkannt: "Als Nebenkostenausgleich erkannt, bitte prüfen",
   weitere: "Weitere Buchung",
-};
-
-const NEBENKOSTENAUSGLEICH_HINWEIS_FARBEN: Record<NebenkostenausgleichHinweisKategorie, string> = {
-  erkannt: "text-green-400",
-  weitere: "text-neutral-500",
 };
 
 const NEBENKOSTENAUSGLEICH_HINWEIS_OPTIONEN: { value: NebenkostenausgleichHinweisFilter; label: string }[] = [
@@ -1513,16 +1511,33 @@ function matchesNebenkostenausgleichHinweisFilter(
   return ermittleNebenkostenausgleichHinweis(r) === filter;
 }
 
-// Auto-Vorauswahl nur, wenn der bereits vorgeschlagene Mietvertrag (aus dem Namensabgleich)
-// genau eine offene Position hat — bei mehreren offenen Jahren/Mehrdeutigkeit lieber manuell
-// wählen lassen statt zu raten. Kein Betrags-Abgleich nötig: anders als bei Kaution/Miete ist
-// hier die Mietvertrags-Zuordnung selbst schon das eigentliche Unsicherheitsmoment, nicht der
-// Betrag (der ohnehin nicht exakt zum saldo passen muss, z.B. bei Rundung).
+// Gleicher Schlüssel wie datumBetragSchluessel in actions.ts (dort auch der Kommentar zur
+// Vorzeichen-/Verwendungszweck-Begründung) — kann nicht von dort importiert werden, da eine
+// "use server"-Datei nur async-Funktionen exportieren darf.
+function pruefeNebenkostenausgleichDuplikat(
+  bestehend: Set<string>,
+  datum: string | null,
+  betrag: number | null,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehend.has(`${datum}|${Math.abs(betrag).toFixed(2)}`);
+}
+
+// Auto-Vorauswahl nur für tatsächlich als Nebenkostenausgleich erkannte Zeilen (sonst würde z.B.
+// eine ganz normale Mietzahlung, deren Mietvertrag zufällig genau eine offene Position hat — bei
+// nur einer Abrechnung im System praktisch IMMER der Fall — automatisch eine Position
+// vorbelegt bekommen und wäre damit über "Alle auswählen" oder einen Filterwechsel versehentlich
+// mit importierbar; das ist real passiert, siehe Commit-Historie), und nur, wenn der bereits
+// vorgeschlagene Mietvertrag (aus dem Namensabgleich) genau eine offene Position hat — bei
+// mehreren offenen Jahren/Mehrdeutigkeit lieber manuell wählen lassen statt zu raten. Kein
+// Betrags-Abgleich nötig: anders als bei Kaution/Miete ist hier die Mietvertrags-Zuordnung selbst
+// schon das eigentliche Unsicherheitsmoment, nicht der Betrag (der ohnehin nicht exakt zum saldo
+// passen muss, z.B. bei Rundung).
 function ermittleVorgeschlagenePosition(
-  r: Pick<ParsedZahlungRow, "vorgeschlagenerMietvertragId">,
+  r: Pick<ParsedZahlungRow, "vorgeschlagenerMietvertragId" | "nebenkostenausgleich">,
   positionen: NebenkostenPositionKandidat[],
 ): string {
-  if (!r.vorgeschlagenerMietvertragId) return "";
+  if (!r.nebenkostenausgleich || !r.vorgeschlagenerMietvertragId) return "";
   const treffer = positionen.filter((p) => p.mietvertragId === r.vorgeschlagenerMietvertragId);
   return treffer.length === 1 ? treffer[0].id : "";
 }
@@ -1530,27 +1545,34 @@ function ermittleVorgeschlagenePosition(
 function toNebenkostenausgleichEditRow(
   r: ParsedZahlungRow,
   positionen: NebenkostenPositionKandidat[],
+  bestehend: Set<string>,
 ): NebenkostenausgleichEditRow {
   const gewaehltePositionId = ermittleVorgeschlagenePosition(r, positionen);
+  const duplikat = pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag);
   return {
     ...r,
     gewaehltePositionId,
-    ausgewaehlt: r.errors.length === 0 && Boolean(gewaehltePositionId),
+    // Ein erkanntes Duplikat wird nicht automatisch angehakt — siehe toKautionEditRow oben für
+    // dieselbe Überlegung.
+    ausgewaehlt: r.errors.length === 0 && Boolean(gewaehltePositionId) && !duplikat,
   };
 }
 
 function NebenkostenausgleichSektion({
   rows,
   positionen,
+  bestehendeListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
   positionen: NebenkostenPositionKandidat[];
+  bestehendeListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitNebenkostenausgleich, null);
+  const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<NebenkostenausgleichEditRow[]>(() =>
-    rows.map((r) => toNebenkostenausgleichEditRow(r, positionen)),
+    rows.map((r) => toNebenkostenausgleichEditRow(r, positionen, bestehend)),
   );
   const [hinweisFilter, setHinweisFilter] = useState<NebenkostenausgleichHinweisFilter>("erkannt");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -1658,6 +1680,7 @@ function NebenkostenausgleichSektion({
             {gefilterteRows.map((r) => {
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleNebenkostenausgleichHinweis(r);
+              const duplikat = pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag);
               return (
                 <Fragment key={r.rowNumber}>
                   <tr
@@ -1698,10 +1721,14 @@ function NebenkostenausgleichSektion({
                     <td className="px-3 py-1.5 text-xs">
                       {r.errors.length > 0 ? (
                         <span className="text-red-400">{r.errors.join("; ")}</span>
-                      ) : (
-                        <span className={NEBENKOSTENAUSGLEICH_HINWEIS_FARBEN[kategorie]}>
-                          {NEBENKOSTENAUSGLEICH_HINWEIS_LABELS[kategorie]}
+                      ) : kategorie === "erkannt" ? (
+                        <span className={duplikat ? "text-green-400" : "text-amber-400"}>
+                          {duplikat
+                            ? "Als Nebenkostenausgleich erkannt, bereits importiert"
+                            : "Als Nebenkostenausgleich erkannt, bitte prüfen"}
                         </span>
+                      ) : (
+                        <span className="text-neutral-500">{NEBENKOSTENAUSGLEICH_HINWEIS_LABELS.weitere}</span>
                       )}
                       {r.errors.length === 0 && r.mehrdeutig && (
                         <span className="ml-1 text-amber-400">mehrdeutig, bitte prüfen</span>
@@ -1855,6 +1882,7 @@ export default function KontoauszugImportPage() {
             key={`nebenkostenausgleich-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
             positionen={preview.offeneNebenkostenPositionen}
+            bestehendeListe={preview.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
           />
         </div>

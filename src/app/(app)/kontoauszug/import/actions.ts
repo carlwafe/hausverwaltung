@@ -34,6 +34,7 @@ export type PreviewResult =
       bestehendeMietweiterleitungen: string[];
       bestehendeKautionsbuchungen: string[];
       offeneNebenkostenPositionen: { id: string; label: string; mietvertragId: string | null }[];
+      bestehendeNebenkostenausgleich: string[];
       fileName: string;
       importBatchId: string;
     }
@@ -60,6 +61,16 @@ function kostenDedupSchluessel(
 // als der oft nur "Eigentümerin/Kautionskonto"-lautende Empfänger.
 function datumBetragZweckSchluessel(datum: Date | null, betrag: number, verwendungszweck: string | null) {
   return `${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}|${(verwendungszweck ?? "").trim().toLowerCase()}`;
+}
+
+// Für den "bereits importiert"-Hinweis beim Nebenkostenausgleich: eine beglichene
+// NebenkostenabrechnungPosition kennt (anders als SonstigeBuchung) keinen Verwendungszweck, nur
+// beglichenAm/beglichenBetrag — der Schlüssel bleibt deshalb bewusst auf Datum+Betragshöhe
+// beschränkt, damit beide Quellen in denselben Satz passen. Betrag als Betragshöhe ohne
+// Vorzeichen, da beglichenBetrag das gedrehte Vorzeichen des Rohbetrags trägt (siehe
+// commitNebenkostenausgleich).
+function datumBetragSchluessel(datum: Date | null, betrag: number) {
+  return `${datum ? datum.toISOString().slice(0, 10) : ""}|${Math.abs(betrag).toFixed(2)}`;
 }
 
 // Ein ImportBatch kann jetzt Ergebnisse von zwei unabhängigen Importen (Zahlungen und Kosten)
@@ -117,6 +128,8 @@ export async function previewImport(
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
       offeneNebenkostenPositionenRaw,
+      beglicheneNebenkostenPositionenRaw,
+      bestehendeSonstigenBuchungenRaw,
     ] = await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
@@ -149,6 +162,11 @@ export async function previewImport(
         where: { beglichenAm: null },
         include: { abrechnung: true, einheit: true, mietvertrag: { include: { mieter: true } } },
       }),
+      prisma.nebenkostenabrechnungPosition.findMany({
+        where: { beglichenAm: { not: null } },
+        select: { beglichenAm: true, beglichenBetrag: true },
+      }),
+      prisma.sonstigeBuchung.findMany({ select: { datum: true, betrag: true } }),
     ]);
 
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
@@ -256,6 +274,12 @@ export async function previewImport(
         mietvertragId: p.mietvertragId,
       };
     });
+    const bestehendeNebenkostenausgleich = new Set([
+      ...beglicheneNebenkostenPositionenRaw
+        .filter((p) => p.beglichenAm !== null)
+        .map((p) => datumBetragSchluessel(p.beglichenAm, Number(p.beglichenBetrag))),
+      ...bestehendeSonstigenBuchungenRaw.map((s) => datumBetragSchluessel(s.datum, Number(s.betrag))),
+    ]);
 
     return {
       zahlungenRows,
@@ -269,6 +293,7 @@ export async function previewImport(
       bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
       bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
       offeneNebenkostenPositionen,
+      bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
       fileName: file.name,
       importBatchId: importBatch.id,
     };
