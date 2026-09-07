@@ -101,15 +101,35 @@ const FUELLWOERTER = new Set([
   "dez", "dezember",
 ]);
 
-function signifikanteWoerter(text: string): Set<string> {
+function signifikanteWoerter(text: string, zusaetzlicheFuellwoerter: ReadonlySet<string> = new Set()): Set<string> {
   const woerter = text
     .toLowerCase()
     .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !FUELLWOERTER.has(w));
+    .filter(
+      (w) => w.length >= 3 && !/^\d+$/.test(w) && !FUELLWOERTER.has(w) && !zusaetzlicheFuellwoerter.has(w),
+    );
   return new Set(woerter);
+}
+
+// Objekt- und Straßennamen (z.B. "Eutin", "Breslauer") kommen in praktisch jeder Buchung eines
+// ortsgebundenen Absenders wie Stadtwerke oder Sparkasse vor und tragen deshalb kein Signal
+// darüber, um welche Art von Kosten es sich handelt — ohne diesen Ausschluss würde allein die
+// gemeinsam genannte Adresse eine scheinbare Ähnlichkeit zwischen zwei völlig unterschiedlichen
+// Kostenarten erzeugen (z.B. eine fachfremde Verwaltungsbuchung, die nur zufällig "Breslauer
+// Straße" nennt, gegen eine Wasser-Abrechnung derselben Straße).
+const ORTS_FUELLWOERTER = new Set(["eutin", "neudorf", "neundorf", "strasse", "str"]);
+
+function strassenFuellwoerter(gebaeudeKandidaten: GebaeudeKandidat[]): Set<string> {
+  const woerter = new Set(ORTS_FUELLWOERTER);
+  for (const g of gebaeudeKandidaten) {
+    for (const wort of signifikanteWoerter(stripStrassenwort(g.strasse))) {
+      woerter.add(wort);
+    }
+  }
+  return woerter;
 }
 
 /**
@@ -133,6 +153,7 @@ function ermittleKostenartVorschlag(
   empfaenger: string,
   verwendungszweck: string,
   historie: EmpfaengerHistorie[],
+  gebaeudeKandidaten: GebaeudeKandidat[],
 ): string | null {
   const mandatsref = ermittleMandatsref(verwendungszweck);
   if (mandatsref) {
@@ -148,7 +169,11 @@ function ermittleKostenartVorschlag(
   const kostenartIds = new Set(treffer.map((t) => t.kostenartId));
   if (kostenartIds.size === 1) return [...kostenartIds][0];
 
-  const aktuelleWoerter = signifikanteWoerter(verwendungszweck);
+  // Wörter aus dem Empfänger-Namen selbst (z.B. "Stadtwerke", "Eutin", "GmbH") sind ebenfalls
+  // reine Adress-/Absender-Angabe ohne Aussage über die Kostenart — jede Buchung desselben
+  // Absenders würde sie sonst als (falsche) Gemeinsamkeit zählen, egal worum es inhaltlich geht.
+  const ortsFuellwoerter = new Set([...strassenFuellwoerter(gebaeudeKandidaten), ...signifikanteWoerter(empfaenger)]);
+  const aktuelleWoerter = signifikanteWoerter(verwendungszweck, ortsFuellwoerter);
   if (aktuelleWoerter.size === 0) return null;
 
   // Jaccard-Ähnlichkeit (Schnittmenge / Vereinigungsmenge) statt reiner Schnittmengengröße: eine
@@ -158,7 +183,7 @@ function ermittleKostenartVorschlag(
   // übereinstimmenden Wörter auf beiden Seiten und trifft dadurch die genauere Kostenart.
   const scoreProKostenart = new Map<string, number>();
   for (const eintrag of treffer) {
-    const woerter = signifikanteWoerter(eintrag.verwendungszweck ?? "");
+    const woerter = signifikanteWoerter(eintrag.verwendungszweck ?? "", ortsFuellwoerter);
     if (woerter.size === 0) continue;
     const schnittmenge = [...aktuelleWoerter].filter((w) => woerter.has(w)).length;
     if (schnittmenge === 0) continue;
@@ -373,7 +398,7 @@ export function mapKostenRows(
     let vorgeschlageneKostenartId: string | null = null;
     let vorgeschlageneGebaeudeAuswahl: string | null | undefined;
     if (!ignorieren && errors.length === 0) {
-      vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, verwendungszweck, historie);
+      vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, verwendungszweck, historie, gebaeudeKandidaten);
       vorgeschlageneGebaeudeAuswahl = ermittleGebaeudeVorschlag(
         `${verwendungszweck} ${empfaenger}`,
         empfaenger,
