@@ -41,7 +41,10 @@ type ZahlungHinweisKategorie =
   | "rueckbuchung"
   | "vorschlag";
 
-type ZahlungHinweisTag = "bereits_importiert" | "bereits_als_kosten_importiert";
+type ZahlungHinweisTag =
+  | "bereits_importiert"
+  | "bereits_als_kosten_importiert"
+  | "bereits_als_nebenkostenausgleich_importiert";
 
 type ZahlungHinweisFilter = "alle" | ZahlungHinweisKategorie | ZahlungHinweisTag;
 
@@ -70,12 +73,18 @@ function ermittleZahlungHinweis(
 function ermittleZahlungTags(
   bereitsImportiert: boolean,
   bereitsAlsKostenImportiert: boolean,
+  bereitsAlsNebenkostenausgleichImportiert: boolean,
 ): ZahlungHinweisTag[] {
   const tags: ZahlungHinweisTag[] = [];
   // Gilt unabhängig von der Kategorie: sowohl eine normale ausgehende Buchung, die schon als
   // Kostenposition erfasst ist, als auch z.B. eine Rücklastschrift oder Gutschrift, die
   // ebenfalls schon dort steht.
   if (bereitsAlsKostenImportiert) tags.push("bereits_als_kosten_importiert");
+  // Vorrang vor dem allgemeinen "bereits_importiert": eine Nebenkostenausgleich-Buchung landet
+  // nie in Zahlung (siehe ignorieren in zahlungen-import.ts), "bereits_importiert" (als Zahlung)
+  // kann für sie also gar nicht zutreffen — trotzdem beide unabhängig prüfen, falls sich das
+  // einmal ändert.
+  if (bereitsAlsNebenkostenausgleichImportiert) tags.push("bereits_als_nebenkostenausgleich_importiert");
   if (bereitsImportiert) tags.push("bereits_importiert");
   return tags;
 }
@@ -90,6 +99,7 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   vorschlag: "Vorschlag übernommen",
   bereits_importiert: "Bereits importiert (als Zahlung)",
   bereits_als_kosten_importiert: "Bereits importiert (als Kosten)",
+  bereits_als_nebenkostenausgleich_importiert: "Bereits importiert (als Nebenkostenabrechnung)",
 };
 
 const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag, string> = {
@@ -102,6 +112,7 @@ const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   vorschlag: "text-green-400",
   bereits_importiert: "text-amber-400",
   bereits_als_kosten_importiert: "text-green-400",
+  bereits_als_nebenkostenausgleich_importiert: "text-green-400",
 };
 
 const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[] = [
@@ -114,6 +125,10 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
   {
     value: "bereits_als_kosten_importiert",
     label: ZAHLUNG_HINWEIS_LABELS.bereits_als_kosten_importiert,
+  },
+  {
+    value: "bereits_als_nebenkostenausgleich_importiert",
+    label: ZAHLUNG_HINWEIS_LABELS.bereits_als_nebenkostenausgleich_importiert,
   },
   { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "kaution", label: ZAHLUNG_HINWEIS_LABELS.kaution },
@@ -183,12 +198,14 @@ function matchesZahlungHinweisFilter(
   r: ZahlungEditRow,
   bereitsImportiert: boolean,
   bereitsAlsKostenImportiert: boolean,
+  bereitsAlsNebenkostenausgleichImportiert: boolean,
   filter: ZahlungHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
   const tags: (ZahlungHinweisKategorie | ZahlungHinweisTag)[] = ermittleZahlungTags(
     bereitsImportiert,
     bereitsAlsKostenImportiert,
+    bereitsAlsNebenkostenausgleichImportiert,
   );
   // Ein Tag-Filter (z.B. "bereits importiert") zeigt jede Zeile mit diesem Tag, egal welche
   // Kategorie sie sonst hat. Ein Kategorie-Filter (z.B. "Bitte prüfen") zeigt dagegen nur
@@ -204,6 +221,7 @@ function ZahlungenSektion({
   bestehendeZahlungenListe,
   bestehendeZahlungenDatumBetragListe,
   bestehendeKostenListe,
+  bestehendeNebenkostenausgleichListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
@@ -211,12 +229,14 @@ function ZahlungenSektion({
   bestehendeZahlungenListe: string[];
   bestehendeZahlungenDatumBetragListe: string[];
   bestehendeKostenListe: string[];
+  bestehendeNebenkostenausgleichListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitZahlungen, null);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeZahlungenDatumBetrag = new Set(bestehendeZahlungenDatumBetragListe);
   const bestehendeKosten = new Set(bestehendeKostenListe);
+  const bestehendeNebenkostenausgleich = new Set(bestehendeNebenkostenausgleichListe);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [editRows, setEditRows] = useState<ZahlungEditRow[]>(() =>
     rows.map((r) => toZahlungEditRow(r, bestehendeZahlungen, skipDuplicates)),
@@ -245,6 +265,10 @@ function ZahlungenSektion({
     return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag, r.verwendungszweck);
   }
 
+  function istBereitsAlsNebenkostenausgleichImportiert(r: ZahlungEditRow): boolean {
+    return r.nebenkostenausgleich && pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
+  }
+
   function handleSkipDuplicatesChange(checked: boolean) {
     setSkipDuplicates(checked);
     setEditRows((rs) =>
@@ -257,7 +281,13 @@ function ZahlungenSektion({
   }
 
   const gefilterteRows = editRows.filter((r) =>
-    matchesZahlungHinweisFilter(r, istBereitsImportiert(r), istBereitsAlsKostenImportiert(r), hinweisFilter),
+    matchesZahlungHinweisFilter(
+      r,
+      istBereitsImportiert(r),
+      istBereitsAlsKostenImportiert(r),
+      istBereitsAlsNebenkostenausgleichImportiert(r),
+      hinweisFilter,
+    ),
   );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehlterMietvertragId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
@@ -359,6 +389,7 @@ function ZahlungenSektion({
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
+              const bereitsAlsNebenkostenausgleichImportiert = istBereitsAlsNebenkostenausgleichImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && !r.kaution && Boolean(r.gewaehlterMietvertragId);
               const expanded = expandedRow === r.rowNumber;
               return (
@@ -425,7 +456,11 @@ function ZahlungenSektion({
                         if (kategorie === "fehler") {
                           return <span className="text-red-400">{r.errors.join("; ")}</span>;
                         }
-                        const tags = ermittleZahlungTags(bereitsImportiert, bereitsAlsKostenImportiert);
+                        const tags = ermittleZahlungTags(
+                          bereitsImportiert,
+                          bereitsAlsKostenImportiert,
+                          bereitsAlsNebenkostenausgleichImportiert,
+                        );
                         const wirdUebersprungen = bereitsImportiert && !r.ausgewaehlt;
                         return (
                           <>
@@ -495,7 +530,11 @@ type KostenHinweisKategorie =
   | "vorschlag"
   | "pruefen";
 
-type KostenHinweisTag = "bereits_importiert" | "bereits_als_zahlung_importiert" | "bereits_als_kaution_importiert";
+type KostenHinweisTag =
+  | "bereits_importiert"
+  | "bereits_als_zahlung_importiert"
+  | "bereits_als_kaution_importiert"
+  | "bereits_als_nebenkostenausgleich_importiert";
 
 type KostenHinweisFilter = "alle" | KostenHinweisKategorie | KostenHinweisTag;
 
@@ -525,6 +564,7 @@ function ermittleKostenTags(
   bereitsImportiert: boolean,
   bereitsAlsZahlungImportiert: boolean,
   bereitsAlsKautionImportiert: boolean,
+  bereitsAlsNebenkostenausgleichImportiert: boolean,
 ): KostenHinweisTag[] {
   const tags: KostenHinweisTag[] = [];
   // Gilt unabhängig von der Kategorie: sowohl eine ignorierte eingehende Buchung (vermutlich
@@ -532,6 +572,7 @@ function ermittleKostenTags(
   // anderswo importiert wurde.
   if (bereitsAlsZahlungImportiert) tags.push("bereits_als_zahlung_importiert");
   if (bereitsAlsKautionImportiert) tags.push("bereits_als_kaution_importiert");
+  if (bereitsAlsNebenkostenausgleichImportiert) tags.push("bereits_als_nebenkostenausgleich_importiert");
   if (bereitsImportiert) tags.push("bereits_importiert");
   return tags;
 }
@@ -548,6 +589,7 @@ const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie | KostenHinweisTag, s
   bereits_importiert: "Bereits importiert (als Kosten)",
   bereits_als_zahlung_importiert: "Bereits importiert (als Zahlung)",
   bereits_als_kaution_importiert: "Bereits importiert (als Kaution)",
+  bereits_als_nebenkostenausgleich_importiert: "Bereits importiert (als Nebenkostenabrechnung)",
 };
 
 const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie | KostenHinweisTag, string> = {
@@ -562,6 +604,7 @@ const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie | KostenHinweisTag, s
   bereits_importiert: "text-amber-400",
   bereits_als_zahlung_importiert: "text-green-400",
   bereits_als_kaution_importiert: "text-green-400",
+  bereits_als_nebenkostenausgleich_importiert: "text-green-400",
 };
 
 const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] = [
@@ -573,6 +616,10 @@ const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] =
   { value: "eingehend", label: KOSTEN_HINWEIS_LABELS.eingehend },
   { value: "bereits_als_zahlung_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_als_zahlung_importiert },
   { value: "bereits_als_kaution_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_als_kaution_importiert },
+  {
+    value: "bereits_als_nebenkostenausgleich_importiert",
+    label: KOSTEN_HINWEIS_LABELS.bereits_als_nebenkostenausgleich_importiert,
+  },
   { value: "bereits_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_importiert },
   { value: "eigentuemer", label: KOSTEN_HINWEIS_LABELS.eigentuemer },
   { value: "kaution", label: KOSTEN_HINWEIS_LABELS.kaution },
@@ -657,6 +704,7 @@ function matchesKostenHinweisFilter(
   bereitsImportiert: boolean,
   bereitsAlsZahlungImportiert: boolean,
   bereitsAlsKautionImportiert: boolean,
+  bereitsAlsNebenkostenausgleichImportiert: boolean,
   filter: KostenHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
@@ -664,6 +712,7 @@ function matchesKostenHinweisFilter(
     bereitsImportiert,
     bereitsAlsZahlungImportiert,
     bereitsAlsKautionImportiert,
+    bereitsAlsNebenkostenausgleichImportiert,
   );
   // Gleiches Prinzip wie bei den Zahlungen: ein Tag-Filter zeigt jede Zeile mit diesem Tag,
   // ein Kategorie-Filter dagegen nur "unbelastete" Zeilen ohne Tag.
@@ -678,6 +727,7 @@ function KostenSektion({
   bestehendeKostenListe,
   bestehendeZahlungenListe,
   bestehendeKautionListe,
+  bestehendeNebenkostenausgleichListe,
   importBatchId,
 }: {
   rows: ParsedKostenRow[];
@@ -693,12 +743,14 @@ function KostenSektion({
   bestehendeKostenListe: string[];
   bestehendeZahlungenListe: string[];
   bestehendeKautionListe: string[];
+  bestehendeNebenkostenausgleichListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKosten, null);
   const bestehendeKosten = new Set(bestehendeKostenListe);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeKaution = new Set(bestehendeKautionListe);
+  const bestehendeNebenkostenausgleich = new Set(bestehendeNebenkostenausgleichListe);
   const [editRows, setEditRows] = useState<KostenEditRow[]>(() =>
     rows.map((r) => toKostenEditRow(r, bestehendeKosten)),
   );
@@ -723,12 +775,17 @@ function KostenSektion({
     return pruefeAlsKautionImportiert(bestehendeKaution, r.datum, r.betrag, r.verwendungszweck);
   }
 
+  function istBereitsAlsNebenkostenausgleichImportiert(r: KostenEditRow): boolean {
+    return r.nebenkostenausgleich && pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
+  }
+
   const gefilterteRows = editRows.filter((r) =>
     matchesKostenHinweisFilter(
       r,
       istBereitsImportiert(r),
       istBereitsAlsZahlungImportiert(r),
       istBereitsAlsKautionImportiert(r),
+      istBereitsAlsNebenkostenausgleichImportiert(r),
       hinweisFilter,
     ),
   );
@@ -820,6 +877,7 @@ function KostenSektion({
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsZahlungImportiert = istBereitsAlsZahlungImportiert(r);
               const bereitsAlsKautionImportiert = istBereitsAlsKautionImportiert(r);
+              const bereitsAlsNebenkostenausgleichImportiert = istBereitsAlsNebenkostenausgleichImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
               const expanded = expandedRow === r.rowNumber;
               return (
@@ -924,6 +982,7 @@ function KostenSektion({
                           bereitsImportiert,
                           bereitsAlsZahlungImportiert,
                           bereitsAlsKautionImportiert,
+                          bereitsAlsNebenkostenausgleichImportiert,
                         );
                         return (
                           <>
@@ -1860,6 +1919,7 @@ export default function KontoauszugImportPage() {
             bestehendeZahlungenListe={preview.bestehendeZahlungen}
             bestehendeZahlungenDatumBetragListe={preview.bestehendeZahlungenDatumBetrag}
             bestehendeKostenListe={preview.bestehendeKosten}
+            bestehendeNebenkostenausgleichListe={preview.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
           />
 
@@ -1871,6 +1931,7 @@ export default function KontoauszugImportPage() {
             bestehendeKostenListe={preview.bestehendeKosten}
             bestehendeZahlungenListe={preview.bestehendeZahlungenDatumBetrag}
             bestehendeKautionListe={preview.bestehendeKautionsbuchungen}
+            bestehendeNebenkostenausgleichListe={preview.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
           />
 
