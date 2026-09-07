@@ -135,10 +135,10 @@ function pruefeZahlungDuplikat(
 }
 
 // Prüft, ob eine Buchung bereits als Kostenposition importiert wurde — gleicher Dedup-Schlüssel
-// wie kostenDedupSchluessel in actions.ts (Empfänger|Datum|Betrag), nur mit umgedrehtem
-// Vorzeichen: Kostenposition.betrag ist dort immer der negierte Rohbetrag (positiv bei
-// ausgehenden Kosten, NEGATIV bei einer Gutschrift/Rücküberweisung), während Zahlungen hier das
-// Vorzeichen der Rohbuchung unverändert behalten. Ein einfaches Math.abs() auf beiden Seiten
+// wie kostenDedupSchluessel in actions.ts (Empfänger|Datum|Betrag|Verwendungszweck), nur mit
+// umgedrehtem Vorzeichen: Kostenposition.betrag ist dort immer der negierte Rohbetrag (positiv
+// bei ausgehenden Kosten, NEGATIV bei einer Gutschrift/Rücküberweisung), während Zahlungen hier
+// das Vorzeichen der Rohbuchung unverändert behalten. Ein einfaches Math.abs() auf beiden Seiten
 // würde für ausgehende Kosten zufällig passen, für Gutschriften aber nie matchen (-11,69 in
 // Kosten vs. abs(11,69) hier) — deshalb bewusst negieren statt abs, das passt für beide Fälle.
 function pruefeAlsKostenImportiert(
@@ -146,9 +146,12 @@ function pruefeAlsKostenImportiert(
   name: string,
   datum: string | null,
   betrag: number | null,
+  verwendungszweck: string,
 ): boolean {
   if (!datum || betrag === null) return false;
-  return bestehendeKosten.has(`${name.trim().toLowerCase()}|${datum}|${(-betrag).toFixed(2)}`);
+  return bestehendeKosten.has(
+    `${name.trim().toLowerCase()}|${datum}|${(-betrag).toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`,
+  );
 }
 
 function toZahlungEditRow(
@@ -302,7 +305,7 @@ function ZahlungenSektion({
   }
 
   function istBereitsAlsKostenImportiert(r: ZahlungEditRow): boolean {
-    return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag);
+    return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag, r.verwendungszweck);
   }
 
   function handleSkipDuplicatesChange(checked: boolean) {
