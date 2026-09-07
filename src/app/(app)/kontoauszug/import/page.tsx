@@ -907,7 +907,13 @@ function KostenSektion({
                     <td className="px-3 py-1.5">
                       <select
                         value={r.gewaehlteKostenartId}
-                        disabled={r.ignorieren || r.errors.length > 0}
+                        // Eigentümer-Buchungen und Kautionen werden ausschließlich in ihren
+                        // eigenen Sektionen erfasst, deshalb hier gesperrt. Eine unbekannte
+                        // eingehende Buchung ("Eingehend, bitte prüfen") bleibt dagegen bewusst
+                        // wählbar — genau dafür ist diese Kategorie da, z.B. eine
+                        // Doppelüberweisungs-Rückerstattung von einem bisher unbekannten
+                        // Absender, die es sonst nie zu einer Kostenposition schaffen könnte.
+                        disabled={r.eigentuemerBuchung || r.kaution || r.errors.length > 0}
                         onChange={(e) =>
                           updateRow(r.rowNumber, {
                             gewaehlteKostenartId: e.target.value,
@@ -941,7 +947,7 @@ function KostenSektion({
                     <td className="min-w-[140px] px-3 py-1.5">
                       <select
                         value={r.gewaehltesGebaeudeId}
-                        disabled={r.ignorieren || r.errors.length > 0}
+                        disabled={r.eigentuemerBuchung || r.kaution || r.errors.length > 0}
                         onChange={(e) => updateRow(r.rowNumber, { gewaehltesGebaeudeId: e.target.value })}
                         className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
                       >
@@ -961,7 +967,7 @@ function KostenSektion({
                       <input
                         type="number"
                         value={r.jahrEingabe}
-                        disabled={r.ignorieren || r.errors.length > 0}
+                        disabled={r.eigentuemerBuchung || r.kaution || r.errors.length > 0}
                         onChange={(e) => updateRow(r.rowNumber, { jahrEingabe: Number(e.target.value) })}
                         className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-30"
                       />
