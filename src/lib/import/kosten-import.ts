@@ -181,6 +181,17 @@ function ermittleKostenartVorschlag(
   const kostenartIds = new Set(treffer.map((t) => t.kostenartId));
   if (kostenartIds.size === 1) return [...kostenartIds][0];
 
+  // Diese Buchung hat selbst eine Mandatsreferenz (aber ohne Treffer oben — sonst wäre die
+  // Funktion bereits zurückgekehrt), und der Empfänger hat nachweislich schon einmal
+  // Mandatsreferenz-abhängig unterschiedliche Kostenarten gebucht (z.B. Stadtwerke Luebeck
+  // Energie: Strom- und Gas-Zählpunkte). Für so einen Empfänger ist der Buchungstext selbst kein
+  // verlässliches Signal — Strom- und Gas-Abschläge tragen denselben Textbaustein ("Abschlag ...
+  // naechste Abb. ..."), sodass ein Wortabgleich rein zufällig auf die Kostenart trifft, deren
+  // Vorlage in der Historie zufällig am ähnlichsten formuliert ist, ohne echten inhaltlichen
+  // Zusammenhang. Für einen neuen Zählpunkt/Vertrag ohne bekannte Mandatsreferenz lieber gar
+  // nichts vorschlagen (manuelle Prüfung) als auf dieser Grundlage zu raten.
+  if (mandatsref && treffer.some((t) => t.mandatsref)) return null;
+
   // Wörter aus dem Empfänger-Namen selbst (z.B. "Stadtwerke", "Eutin", "GmbH") sind ebenfalls
   // reine Adress-/Absender-Angabe ohne Aussage über die Kostenart — jede Buchung desselben
   // Absenders würde sie sonst als (falsche) Gemeinsamkeit zählen, egal worum es inhaltlich geht.
