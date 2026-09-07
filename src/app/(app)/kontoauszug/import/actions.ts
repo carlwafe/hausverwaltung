@@ -18,7 +18,7 @@ import {
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
 import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
-import { ermittleMandatsrefAusZeile, findColumn } from "@/lib/import/bank-csv";
+import { datumBetragSchluessel, ermittleMandatsrefAusZeile, findColumn } from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 
 export type PreviewResult =
@@ -63,15 +63,6 @@ function datumBetragZweckSchluessel(datum: Date | null, betrag: number, verwendu
   return `${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}|${(verwendungszweck ?? "").trim().toLowerCase()}`;
 }
 
-// Für den "bereits importiert"-Hinweis beim Nebenkostenausgleich: eine beglichene
-// NebenkostenabrechnungPosition kennt (anders als SonstigeBuchung) keinen Verwendungszweck, nur
-// beglichenAm/beglichenBetrag — der Schlüssel bleibt deshalb bewusst auf Datum+Betragshöhe
-// beschränkt, damit beide Quellen in denselben Satz passen. Betrag als Betragshöhe ohne
-// Vorzeichen, da beglichenBetrag das gedrehte Vorzeichen des Rohbetrags trägt (siehe
-// commitNebenkostenausgleich).
-function datumBetragSchluessel(datum: Date | null, betrag: number) {
-  return `${datum ? datum.toISOString().slice(0, 10) : ""}|${Math.abs(betrag).toFixed(2)}`;
-}
 
 // Ein ImportBatch kann jetzt Ergebnisse von zwei unabhängigen Importen (Zahlungen und Kosten)
 // aus derselben Datei sammeln, statt dass der zweite Commit das Ergebnis des ersten überschreibt.

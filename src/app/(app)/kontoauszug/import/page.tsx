@@ -16,6 +16,7 @@ import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inlin
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
+import { datumBetragSchluessel } from "@/lib/import/bank-csv";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -1520,16 +1521,13 @@ function matchesNebenkostenausgleichHinweisFilter(
   return kategorie === "erkannt" && duplikat;
 }
 
-// Gleicher Schlüssel wie datumBetragSchluessel in actions.ts (dort auch der Kommentar zur
-// Vorzeichen-/Verwendungszweck-Begründung) — kann nicht von dort importiert werden, da eine
-// "use server"-Datei nur async-Funktionen exportieren darf.
 function pruefeNebenkostenausgleichDuplikat(
   bestehend: Set<string>,
   datum: string | null,
   betrag: number | null,
 ): boolean {
   if (!datum || betrag === null) return false;
-  return bestehend.has(`${datum}|${Math.abs(betrag).toFixed(2)}`);
+  return bestehend.has(datumBetragSchluessel(new Date(datum), betrag));
 }
 
 // Auto-Vorauswahl nur für tatsächlich als Nebenkostenausgleich erkannte Zeilen (sonst würde z.B.

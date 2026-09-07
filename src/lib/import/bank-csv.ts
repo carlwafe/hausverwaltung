@@ -189,3 +189,12 @@ export function leseBetrag(
   }
   return null;
 }
+
+// Für den Nebenkostenausgleich-Dedup (Import-Vorschau, Vollständigkeitsprüfung): eine beglichene
+// NebenkostenabrechnungPosition kennt (anders als Zahlung/Kostenposition/SonstigeBuchung) keinen
+// Verwendungszweck und keine Rohdaten der Quellzeile, nur beglichenAm/beglichenBetrag — der
+// Schlüssel bleibt deshalb bewusst auf Datum+Betragshöhe beschränkt, ohne Vorzeichen (Position und
+// SonstigeBuchung/Kontoauszugszeile können das Vorzeichen unterschiedlich führen).
+export function datumBetragSchluessel(datum: Date | null, betrag: number): string {
+  return `${datum ? datum.toISOString().slice(0, 10) : ""}|${Math.abs(betrag).toFixed(2)}`;
+}
