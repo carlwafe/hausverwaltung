@@ -1,8 +1,24 @@
 // Gemeinsame Hilfsfunktionen zum Einlesen von Bank-Kontoauszügen (CSV/Excel), verwendet sowohl
 // beim Zahlungen- als auch beim Kosten-Import.
 
+// Manche Bank-CSV-Exporte enthalten schon in der Quelldatei mojibake-verstümmelten Text (z.B.
+// "Schˆning" statt "Schöning", "Straﬂe" statt "Straße") — die Datei selbst ist gültiges UTF-8,
+// enthält aber falsch reinterpretierte Zeichen (die Bytes wurden vermutlich einmal als MacRoman
+// statt als das eigentliche Windows-1252 gelesen und dann so nach UTF-8 gespeichert, bevor die
+// Datei bei uns ankam). Ein Decode-Fallback beim Einlesen (siehe spreadsheet.ts) kann das nicht
+// mehr reparieren, da das Einlesen als UTF-8 hier ja bereits fehlerfrei gelingt — nur die
+// bekannten, eindeutigen Einzelzeichen-Fälle lassen sich direkt zurückmappen.
+const MOJIBAKE_ERSATZ: Record<string, string> = {
+  "ˆ": "ö", // ˆ -> ö
+  "ﬂ": "ß", // ﬂ -> ß
+};
+
+export function repariereMojibake(s: string): string {
+  return s.replace(/[ˆﬂ]/g, (c) => MOJIBAKE_ERSATZ[c] ?? c);
+}
+
 export function normalizeText(s: string): string {
-  return s
+  return repariereMojibake(s)
     .toLowerCase()
     // Deutsches Eszett ist kein diakritisches Zeichen, das sich per NFD zerlegen liesse — ohne
     // diesen Schritt wuerde es beim Entfernen der Nicht-Buchstaben unten einfach geloescht statt

@@ -4,6 +4,7 @@ import {
   KAUTION_PATTERN,
   leseBetrag,
   parseGermanDate,
+  repariereMojibake,
   RUECKBUCHUNG_PATTERN,
   textEnthaeltWort,
 } from "./bank-csv";
@@ -122,8 +123,8 @@ export function mapZahlungenRows(
     const betrag = leseBetrag(row, { betragCol, habenCol, sollCol });
     if (betrag === null) errors.push("Betrag fehlt oder unlesbar");
 
-    const verwendungszweck = zweckCol ? (row[zweckCol] ?? "").trim() : "";
-    const name = nameCol ? (row[nameCol] ?? "").trim() : "";
+    const verwendungszweck = zweckCol ? repariereMojibake((row[zweckCol] ?? "").trim()) : "";
+    const name = nameCol ? repariereMojibake((row[nameCol] ?? "").trim()) : "";
 
     // Rücklastschriften/Lastschriftwidersprüche sind zwar ausgehende Buchungen (negativer
     // Betrag), korrigieren aber eine zuvor gutgeschriebene Miete, die tatsächlich nicht bezahlt

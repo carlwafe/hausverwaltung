@@ -6,6 +6,7 @@ import {
   leseBetrag,
   normalizeText,
   parseGermanDate,
+  repariereMojibake,
   RUECKBUCHUNG_PATTERN,
 } from "./bank-csv";
 import { gebaeudeWert, hausWert, kostengruppeWert } from "../gebaeude-gruppen";
@@ -402,8 +403,8 @@ export function mapKostenRows(
     const rohBetrag = leseBetrag(row, { betragCol, habenCol, sollCol });
     if (rohBetrag === null) errors.push("Betrag fehlt oder unlesbar");
 
-    const verwendungszweck = zweckCol ? (row[zweckCol] ?? "").trim() : "";
-    const empfaenger = nameCol ? (row[nameCol] ?? "").trim() : "";
+    const verwendungszweck = zweckCol ? repariereMojibake((row[zweckCol] ?? "").trim()) : "";
+    const empfaenger = nameCol ? repariereMojibake((row[nameCol] ?? "").trim()) : "";
     const mandatsref = ermittleMandatsrefAusZeile(row, mandatsrefCol, verwendungszweck);
 
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);

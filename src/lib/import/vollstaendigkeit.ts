@@ -3,7 +3,7 @@
 // oder als (im Import sichtbare) Fehlerzeile. Was übrig bleibt, ist eine Zeile, die weder
 // importiert noch anderweitig erklärt ist und manuell nachgesehen werden sollte.
 import { parseSpreadsheetFile } from "./spreadsheet";
-import { findeKontoauszugSpalten, leseBetrag, parseGermanDate } from "./bank-csv";
+import { findeKontoauszugSpalten, leseBetrag, parseGermanDate, repariereMojibake } from "./bank-csv";
 
 export type UngeklaerteZeile = {
   rowNumber: number;
@@ -30,13 +30,19 @@ type Spalten = ReturnType<typeof findeKontoauszugSpalten>;
 // String-Vergleich der wieder eingelesenen Rohdaten gegen die frisch geparste Datei wäre also
 // nicht verlässlich. Datum/Betrag werden dafür geparst (nicht roh verglichen), damit
 // unterschiedliche, aber gleichbedeutende Schreibweisen (z.B. "01.02.25" vs. "1.2.2025") nicht
-// fälschlich als unterschiedlich gelten.
+// fälschlich als unterschiedlich gelten. repariereMojibake auf Verwendungszweck/Name aus
+// demselben Grund: manche Quelldateien enthalten schon selbst mojibake-verstümmelten Text (z.B.
+// "Schˆning" statt "Schöning") — wird eine bereits importierte Zeile mit diesem Fehler
+// nachträglich in der DB korrigiert (Anzeige-Feld und Rohdaten), muss die frisch aus der Datei
+// gelesene (weiterhin fehlerhafte) Zeile beim Abgleich trotzdem denselben Schlüssel ergeben wie
+// die korrigierten Rohdaten — sonst würde eine tatsächlich schon importierte Zeile hier
+// fälschlich als "ungeklärt" gemeldet.
 function zeilenSchluessel(row: Record<string, string>, spalten: Spalten): string | null {
   const datum = spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null;
   const betrag = leseBetrag(row, spalten);
   if (!datum || betrag === null) return null;
-  const zweck = spalten.zweckCol ? (row[spalten.zweckCol] ?? "").trim() : "";
-  const name = spalten.nameCol ? (row[spalten.nameCol] ?? "").trim() : "";
+  const zweck = spalten.zweckCol ? repariereMojibake((row[spalten.zweckCol] ?? "").trim()) : "";
+  const name = spalten.nameCol ? repariereMojibake((row[spalten.nameCol] ?? "").trim()) : "";
   return `${datum}|${betrag.toFixed(2)}|${zweck}|${name}`;
 }
 
