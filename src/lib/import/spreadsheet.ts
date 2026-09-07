@@ -1,6 +1,20 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
 
+// Bank-CSV-Exporte (Sparkasse & Co.) sind oft nicht UTF-8, sondern Windows-1252 kodiert — bei
+// striktem UTF-8-Decoding würden Umlaute dann als Mojibake erscheinen (z.B. "Löffler" ->
+// "Lˆffler"), ohne dass ein Fehler auffällt (UTF-8 ohne "fatal" ersetzt ungültige Bytes
+// stillschweigend statt zu werfen). "fatal: true" lässt das UTF-8-Decoding bei ungültigen
+// Byte-Folgen bewusst fehlschlagen, was bei Windows-1252-Umlautbytes praktisch immer der Fall
+// ist — der Fallback greift dann zuverlässig.
+function decodeCsvBuffer(buffer: ArrayBuffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
+}
+
 export async function parseSpreadsheetFile(
   file: File,
 ): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
@@ -8,7 +22,7 @@ export async function parseSpreadsheetFile(
   const arrayBuffer = await file.arrayBuffer();
 
   if (name.endsWith(".csv")) {
-    const text = Buffer.from(arrayBuffer).toString("utf-8");
+    const text = decodeCsvBuffer(arrayBuffer);
     const result = Papa.parse<Record<string, string>>(text, {
       header: true,
       skipEmptyLines: true,
