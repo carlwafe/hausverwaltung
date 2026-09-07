@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
-import { RohdatenDialog } from "@/components/rohdaten-dialog";
+import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { deleteZahlungen } from "./actions";
 
 function formatEuro(value: number) {
@@ -43,19 +43,6 @@ export type ZahlungRow = {
   importBatchId: string | null;
   importDateiname: string | null;
 };
-
-function RohdatenZelle({ z }: { z: ZahlungRow }) {
-  if (!z.rohdaten) {
-    return <span className="text-xs text-neutral-600">manuell</span>;
-  }
-  return (
-    <RohdatenDialog
-      rohdaten={z.rohdaten}
-      downloadHref={z.importBatchId ? `/api/import-batches/${z.importBatchId}/download` : undefined}
-      downloadLabel={`Originaldatei herunterladen${z.importDateiname ? ` (${z.importDateiname})` : ""}`}
-    />
-  );
-}
 
 const columns: Column<ZahlungRow>[] = [
   {
@@ -108,7 +95,12 @@ const columns: Column<ZahlungRow>[] = [
   {
     key: "quelle",
     label: "Quelle",
-    render: (z) => <RohdatenZelle z={z} />,
+    render: (z, { expanded, toggleExpanded }) =>
+      z.rohdaten ? (
+        <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
+      ) : (
+        <span className="text-xs text-neutral-600">manuell</span>
+      ),
   },
 ];
 
@@ -147,6 +139,16 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         searchPlaceholder="Zahlungen durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        renderExpanded={(z, colSpan) =>
+          z.rohdaten ? (
+            <RohdatenZeile
+              rohdaten={z.rohdaten}
+              colSpan={colSpan}
+              downloadHref={z.importBatchId ? `/api/import-batches/${z.importBatchId}/download` : undefined}
+              downloadLabel={`Originaldatei herunterladen${z.importDateiname ? ` (${z.importDateiname})` : ""}`}
+            />
+          ) : null
+        }
       />
     </div>
   );

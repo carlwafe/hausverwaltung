@@ -15,6 +15,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
       gebaeude: true,
       haus: { include: { gebaeude: true } },
       kostengruppe: true,
+      importBatch: true,
     },
   });
 
@@ -28,6 +29,9 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
     betrag: Number(k.betrag),
     empfaenger: k.empfaenger,
     beschreibung: k.beschreibung,
+    rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
+    importBatchId: k.importBatchId,
+    importDateiname: k.importBatch?.dateiname ?? null,
   }));
 }
 

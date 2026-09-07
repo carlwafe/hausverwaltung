@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { deleteKostenpositionen } from "./actions";
 
 function formatEuro(value: number) {
@@ -26,6 +27,9 @@ export type KostenpositionRow = {
   betrag: number;
   empfaenger: string | null;
   beschreibung: string | null;
+  rohdaten: Record<string, string> | null;
+  importBatchId: string | null;
+  importDateiname: string | null;
 };
 
 const columns: Column<KostenpositionRow>[] = [
@@ -83,6 +87,16 @@ const columns: Column<KostenpositionRow>[] = [
     searchValue: (k) => k.beschreibung ?? "",
     render: (k) => k.beschreibung || "–",
   },
+  {
+    key: "quelle",
+    label: "Quelle",
+    render: (k, { expanded, toggleExpanded }) =>
+      k.rohdaten ? (
+        <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
+      ) : (
+        <span className="text-xs text-neutral-600">manuell</span>
+      ),
+  },
 ];
 
 export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
@@ -126,6 +140,16 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         searchPlaceholder="Kosten durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        renderExpanded={(k, colSpan) =>
+          k.rohdaten ? (
+            <RohdatenZeile
+              rohdaten={k.rohdaten}
+              colSpan={colSpan}
+              downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
+              downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}
+            />
+          ) : null
+        }
       />
     </div>
   );

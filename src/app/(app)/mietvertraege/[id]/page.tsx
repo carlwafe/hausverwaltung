@@ -193,7 +193,11 @@ export default async function MietvertragDetailPage({
               <tbody>
                 {vertrag.zahlungen.map((z) => (
                   <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                    <td className="px-4 py-2 text-white">{formatDate(z.datum)}</td>
+                    <td className="px-4 py-2 text-white">
+                      <Link href={`/zahlungen/${z.id}`} className="hover:underline">
+                        {formatDate(z.datum)}
+                      </Link>
+                    </td>
                     <td className="px-4 py-2 text-white">
                       {MONATE_KURZ[z.periodeMonat - 1]} {z.periodeJahr}
                     </td>

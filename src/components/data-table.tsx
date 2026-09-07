@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+
+/** Wird an render() gereicht, für Spalten, die einen Auf-/Zuklapp-Bereich unter der Zeile steuern
+ * (siehe `renderExpanded` an DataTable) — z.B. ein Rohdaten-Toggle. */
+export type RenderContext = { expanded: boolean; toggleExpanded: () => void };
 
 export type Column<T> = {
   key: string;
   label: string;
-  render: (row: T) => React.ReactNode;
+  render: (row: T, ctx: RenderContext) => React.ReactNode;
   /** Wert für die Sortierung. Wenn nicht gesetzt, ist die Spalte nicht sortierbar. */
   sortValue?: (row: T) => string | number | Date;
   /** Text, der bei der Suche durchsucht wird. Wenn nicht gesetzt, wird die Spalte nicht durchsucht. */
@@ -29,6 +33,7 @@ export function DataTable<T extends { id: string }>({
   selectable = false,
   onSelectionChange,
   rowClassName,
+  renderExpanded,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -41,11 +46,18 @@ export function DataTable<T extends { id: string }>({
   onSelectionChange?: (selectedRows: T[]) => void;
   /** Optionale zusätzliche Klassen (z.B. eine dezente Hintergrundfarbe) für eine ganze Zeile. */
   rowClassName?: (row: T) => string;
+  /** Zusätzliche volle Tabellenzeile direkt unter einer aufgeklappten Zeile (z.B. Rohdaten) —
+   * eine Spalte steuert das Auf-/Zuklappen über den `ctx`-Parameter ihres render(). Immer nur
+   * eine Zeile gleichzeitig aufgeklappt. Element muss selbst ein <tr> sein; colSpan (die
+   * tatsächliche Spaltenzahl inkl. Auswahl-Spalte) wird von DataTable mitgegeben, siehe
+   * RohdatenZeile. */
+  renderExpanded?: (row: T, colSpan: number) => React.ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const hatSuche = columns.some((c) => c.searchValue);
 
@@ -157,31 +169,40 @@ export function DataTable<T extends { id: string }>({
             </tr>
           </thead>
           <tbody>
-            {sortiert.map((row) => (
-              <tr
-                key={row.id}
-                className={`border-t border-neutral-800 hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
-              >
-                {selectable && (
-                  <td className="px-4 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(row.id)}
-                      onChange={(e) => toggleRow(row.id, e.target.checked)}
-                      className="h-4 w-4 rounded border-neutral-700 bg-transparent"
-                    />
-                  </td>
-                )}
-                {columns.map((c) => (
-                  <td
-                    key={c.key}
-                    className={`px-4 py-2 text-white ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}
+            {sortiert.map((row) => {
+              const expanded = expandedId === row.id;
+              const ctx: RenderContext = {
+                expanded,
+                toggleExpanded: () => setExpandedId((id) => (id === row.id ? null : row.id)),
+              };
+              return (
+                <Fragment key={row.id}>
+                  <tr
+                    className={`border-t border-neutral-800 hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
                   >
-                    {c.render(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+                    {selectable && (
+                      <td className="px-4 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(row.id)}
+                          onChange={(e) => toggleRow(row.id, e.target.checked)}
+                          className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                        />
+                      </td>
+                    )}
+                    {columns.map((c) => (
+                      <td
+                        key={c.key}
+                        className={`px-4 py-2 text-white ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}
+                      >
+                        {c.render(row, ctx)}
+                      </td>
+                    ))}
+                  </tr>
+                  {expanded && renderExpanded && renderExpanded(row, columns.length + (selectable ? 1 : 0))}
+                </Fragment>
+              );
+            })}
             {sortiert.length === 0 && (
               <tr>
                 <td
