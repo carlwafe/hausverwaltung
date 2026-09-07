@@ -107,13 +107,13 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
   { value: "pruefen", label: ZAHLUNG_HINWEIS_LABELS.pruefen },
   { value: "mehrdeutig", label: ZAHLUNG_HINWEIS_LABELS.mehrdeutig },
   { value: "rueckbuchung", label: ZAHLUNG_HINWEIS_LABELS.rueckbuchung },
-  { value: "kaution", label: ZAHLUNG_HINWEIS_LABELS.kaution },
   { value: "bereits_importiert", label: ZAHLUNG_HINWEIS_LABELS.bereits_importiert },
   {
     value: "bereits_als_kosten_importiert",
     label: ZAHLUNG_HINWEIS_LABELS.bereits_als_kosten_importiert,
   },
   { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
+  { value: "kaution", label: ZAHLUNG_HINWEIS_LABELS.kaution },
   { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
 ];
 
@@ -467,9 +467,17 @@ function ZahlungenSektion({
 // genau eine primäre Kategorie nach Priorität, plus unabhängig davon null oder mehrere
 // Zusatz-Tags (Dedup-Warnungen) — z.B. zeigt eine Gutschrift, die schon als Kostenposition
 // existiert, "Gutschrift" + "Bereits importiert (als Kosten)" gleichzeitig.
-type KostenHinweisKategorie = "fehler" | "eigentuemer" | "eingehend" | "gutschrift" | "rueckbuchung" | "vorschlag" | "pruefen";
+type KostenHinweisKategorie =
+  | "fehler"
+  | "eigentuemer"
+  | "kaution"
+  | "eingehend"
+  | "gutschrift"
+  | "rueckbuchung"
+  | "vorschlag"
+  | "pruefen";
 
-type KostenHinweisTag = "bereits_importiert" | "bereits_als_zahlung_importiert";
+type KostenHinweisTag = "bereits_importiert" | "bereits_als_zahlung_importiert" | "bereits_als_kaution_importiert";
 
 type KostenHinweisFilter = "alle" | KostenHinweisKategorie | KostenHinweisTag;
 
@@ -478,6 +486,7 @@ function ermittleKostenHinweis(
     ParsedKostenRow,
     | "errors"
     | "eigentuemerBuchung"
+    | "kaution"
     | "ignorieren"
     | "gutschrift"
     | "rueckbuchung"
@@ -487,18 +496,24 @@ function ermittleKostenHinweis(
 ): KostenHinweisKategorie {
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
+  if (r.kaution) return "kaution";
   if (r.ignorieren) return "eingehend";
   if (r.gutschrift) return "gutschrift";
   if (r.rueckbuchung) return "rueckbuchung";
   return hatVollstaendigenVorschlag(r) ? "vorschlag" : "pruefen";
 }
 
-function ermittleKostenTags(bereitsImportiert: boolean, bereitsAlsZahlungImportiert: boolean): KostenHinweisTag[] {
+function ermittleKostenTags(
+  bereitsImportiert: boolean,
+  bereitsAlsZahlungImportiert: boolean,
+  bereitsAlsKautionImportiert: boolean,
+): KostenHinweisTag[] {
   const tags: KostenHinweisTag[] = [];
   // Gilt unabhängig von der Kategorie: sowohl eine ignorierte eingehende Buchung (vermutlich
-  // Miete) als auch z.B. eine Rücklastschrift oder Gutschrift, die ebenfalls schon als Zahlung
-  // importiert wurde.
+  // Miete) als auch z.B. eine Rücklastschrift, Gutschrift oder Kaution, die ebenfalls schon
+  // anderswo importiert wurde.
   if (bereitsAlsZahlungImportiert) tags.push("bereits_als_zahlung_importiert");
+  if (bereitsAlsKautionImportiert) tags.push("bereits_als_kaution_importiert");
   if (bereitsImportiert) tags.push("bereits_importiert");
   return tags;
 }
@@ -506,6 +521,7 @@ function ermittleKostenTags(bereitsImportiert: boolean, bereitsAlsZahlungImporti
 const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie | KostenHinweisTag, string> = {
   fehler: "Fehler",
   eigentuemer: "Eigentümer-Buchung",
+  kaution: "Kaution",
   eingehend: "Eingehend, bitte prüfen",
   gutschrift: "Gutschrift",
   rueckbuchung: "Rücklastschrift",
@@ -513,11 +529,13 @@ const KOSTEN_HINWEIS_LABELS: Record<KostenHinweisKategorie | KostenHinweisTag, s
   pruefen: "Bitte prüfen",
   bereits_importiert: "Bereits importiert (als Kosten)",
   bereits_als_zahlung_importiert: "Bereits importiert (als Zahlung)",
+  bereits_als_kaution_importiert: "Bereits importiert (als Kaution)",
 };
 
 const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie | KostenHinweisTag, string> = {
   fehler: "text-red-400",
   eigentuemer: "text-neutral-500",
+  kaution: "text-blue-400",
   eingehend: "text-neutral-500",
   gutschrift: "text-blue-400",
   rueckbuchung: "text-red-400",
@@ -525,6 +543,7 @@ const KOSTEN_HINWEIS_FARBEN: Record<KostenHinweisKategorie | KostenHinweisTag, s
   pruefen: "text-amber-400",
   bereits_importiert: "text-amber-400",
   bereits_als_zahlung_importiert: "text-green-400",
+  bereits_als_kaution_importiert: "text-green-400",
 };
 
 const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] = [
@@ -535,8 +554,10 @@ const KOSTEN_HINWEIS_OPTIONEN: { value: KostenHinweisFilter; label: string }[] =
   { value: "rueckbuchung", label: KOSTEN_HINWEIS_LABELS.rueckbuchung },
   { value: "eingehend", label: KOSTEN_HINWEIS_LABELS.eingehend },
   { value: "bereits_als_zahlung_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_als_zahlung_importiert },
+  { value: "bereits_als_kaution_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_als_kaution_importiert },
   { value: "bereits_importiert", label: KOSTEN_HINWEIS_LABELS.bereits_importiert },
   { value: "eigentuemer", label: KOSTEN_HINWEIS_LABELS.eigentuemer },
+  { value: "kaution", label: KOSTEN_HINWEIS_LABELS.kaution },
   { value: "fehler", label: KOSTEN_HINWEIS_LABELS.fehler },
 ];
 
@@ -581,6 +602,20 @@ function pruefeAlsZahlungImportiert(
   return bestehendeZahlungen.has(`${datum}|${Math.abs(betrag).toFixed(2)}`);
 }
 
+// Gleicher Schlüssel wie datumBetragZweckSchluessel in actions.ts (Datum|Betrag|Verwendungszweck,
+// ohne Empfänger). Vorzeichen umgedreht statt Betrag genommen — Kostenposition.betrag ist hier
+// der negierte Rohbetrag (siehe pruefeAlsKostenImportiert oben), KautionBuchung.betrag behält
+// dagegen das Rohvorzeichen der Buchung unverändert.
+function pruefeAlsKautionImportiert(
+  bestehendeKautionsbuchungen: Set<string>,
+  datum: string | null,
+  betrag: number | null,
+  verwendungszweck: string,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehendeKautionsbuchungen.has(`${datum}|${(-betrag).toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
+}
+
 function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): KostenEditRow {
   const duplikat = pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag);
   return {
@@ -596,12 +631,14 @@ function matchesKostenHinweisFilter(
   r: KostenEditRow,
   bereitsImportiert: boolean,
   bereitsAlsZahlungImportiert: boolean,
+  bereitsAlsKautionImportiert: boolean,
   filter: KostenHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
   const tags: (KostenHinweisKategorie | KostenHinweisTag)[] = ermittleKostenTags(
     bereitsImportiert,
     bereitsAlsZahlungImportiert,
+    bereitsAlsKautionImportiert,
   );
   // Gleiches Prinzip wie bei den Zahlungen: ein Tag-Filter zeigt jede Zeile mit diesem Tag,
   // ein Kategorie-Filter dagegen nur "unbelastete" Zeilen ohne Tag.
@@ -615,6 +652,7 @@ function KostenSektion({
   gebaeude,
   bestehendeKostenListe,
   bestehendeZahlungenListe,
+  bestehendeKautionListe,
   importBatchId,
 }: {
   rows: ParsedKostenRow[];
@@ -629,11 +667,13 @@ function KostenSektion({
   }[];
   bestehendeKostenListe: string[];
   bestehendeZahlungenListe: string[];
+  bestehendeKautionListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKosten, null);
   const bestehendeKosten = new Set(bestehendeKostenListe);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
+  const bestehendeKaution = new Set(bestehendeKautionListe);
   const [editRows, setEditRows] = useState<KostenEditRow[]>(() =>
     rows.map((r) => toKostenEditRow(r, bestehendeKosten)),
   );
@@ -654,11 +694,16 @@ function KostenSektion({
     return pruefeAlsZahlungImportiert(bestehendeZahlungen, r.datum, r.betrag);
   }
 
+  function istBereitsAlsKautionImportiert(r: KostenEditRow): boolean {
+    return pruefeAlsKautionImportiert(bestehendeKaution, r.datum, r.betrag, r.verwendungszweck);
+  }
+
   const gefilterteRows = editRows.filter((r) =>
     matchesKostenHinweisFilter(
       r,
       istBereitsImportiert(r),
       istBereitsAlsZahlungImportiert(r),
+      istBereitsAlsKautionImportiert(r),
       hinweisFilter,
     ),
   );
@@ -749,6 +794,7 @@ function KostenSektion({
             {gefilterteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsZahlungImportiert = istBereitsAlsZahlungImportiert(r);
+              const bereitsAlsKautionImportiert = istBereitsAlsKautionImportiert(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
               const expanded = expandedRow === r.rowNumber;
               return (
@@ -843,7 +889,11 @@ function KostenSektion({
                         if (kategorie === "fehler") {
                           return <span className="text-red-400">{r.errors.join("; ")}</span>;
                         }
-                        const tags = ermittleKostenTags(bereitsImportiert, bereitsAlsZahlungImportiert);
+                        const tags = ermittleKostenTags(
+                          bereitsImportiert,
+                          bereitsAlsZahlungImportiert,
+                          bereitsAlsKautionImportiert,
+                        );
                         return (
                           <>
                             <span className={KOSTEN_HINWEIS_FARBEN[kategorie]}>
@@ -1345,6 +1395,7 @@ export default function KontoauszugImportPage() {
             gebaeude={preview.gebaeude}
             bestehendeKostenListe={preview.bestehendeKosten}
             bestehendeZahlungenListe={preview.bestehendeZahlungenDatumBetrag}
+            bestehendeKautionListe={preview.bestehendeKautionsbuchungen}
             importBatchId={preview.importBatchId}
           />
 
