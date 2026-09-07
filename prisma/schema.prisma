@@ -205,6 +205,7 @@ model Mietvertrag {
   zahlungen             Zahlung[]
   dokumente             Dokument[]
   abrechnungspositionen NebenkostenabrechnungPosition[]
+  sonstigeBuchungen     SonstigeBuchung[]
 
   @@map("mietvertraege")
 }
@@ -396,6 +397,7 @@ model ImportBatch {
   kostenpositionen     Kostenposition[]
   eigentuemerbuchungen EigentuemerBuchung[]
   kautionsbuchungen    KautionBuchung[]
+  sonstigeBuchungen    SonstigeBuchung[]
 
   @@map("import_batches")
 }
@@ -437,4 +439,28 @@ model KautionBuchung {
 
   @@index([mietvertragId])
   @@map("kautionsbuchungen")
+}
+
+// Bankbuchung, die bewusst keiner der anderen Kategorien zugeordnet wird — z.B. eine
+// Nebenkostenabrechnung-Rückzahlung/-nachzahlung für ein Jahr, das nie in dieser App abgerechnet
+// wurde (weil die Abrechnung schon vorher extern erstellt wurde) und für das deshalb nie eine
+// offene NebenkostenabrechnungPosition existieren wird. Rein archivarisch: fließt in keine
+// Berechnung ein (weder Offene Posten noch Nebenkostenabrechnung) — dient nur dazu, dass die
+// Vollständigkeitsprüfung eines Kontoauszugs die Zeile als geklärt erkennt, statt sie dauerhaft
+// als "ungeklärt" zu melden.
+model SonstigeBuchung {
+  id               String       @id @default(cuid())
+  mietvertrag      Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  mietvertragId    String?
+  datum            DateTime
+  betrag           Decimal      @db.Decimal(10, 2)
+  empfaenger       String?
+  verwendungszweck String?
+  rohdaten         Json?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  createdAt        DateTime     @default(now())
+
+  @@index([mietvertragId])
+  @@map("sonstige_buchungen")
 }

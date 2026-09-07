@@ -1,7 +1,8 @@
 // Prüft für eine gespeicherte Kontoauszug-Datei, ob wirklich jede Zeile irgendwo im System
-// gelandet ist — als Zahlung, als Kostenposition, als Mietweiterleitung (EigentuemerBuchung)
-// oder als (im Import sichtbare) Fehlerzeile. Was übrig bleibt, ist eine Zeile, die weder
-// importiert noch anderweitig erklärt ist und manuell nachgesehen werden sollte.
+// gelandet ist — als Zahlung, als Kostenposition, als Mietweiterleitung (EigentuemerBuchung),
+// als Kautionsbuchung, als sonstige (bewusst nicht weiter verfolgte) Buchung, oder als (im
+// Import sichtbare) Fehlerzeile. Was übrig bleibt, ist eine Zeile, die weder importiert noch
+// anderweitig erklärt ist und manuell nachgesehen werden sollte.
 import { parseSpreadsheetFile } from "./spreadsheet";
 import { findeKontoauszugSpalten, leseBetrag, parseGermanDate, repariereMojibake } from "./bank-csv";
 
@@ -19,6 +20,7 @@ export type VollstaendigkeitsErgebnis = {
   alsKostenGefunden: number;
   alsMietweiterleitungGefunden: number;
   alsKautionsbuchungGefunden: number;
+  alsSonstigesGefunden: number;
   fehlerzeilen: number;
   ungeklaert: UngeklaerteZeile[];
 };
@@ -62,6 +64,7 @@ export async function pruefeVollstaendigkeit(
     kosten: Set<string>;
     mietweiterleitung: Set<string>;
     kautionsbuchung: Set<string>;
+    sonstige: Set<string>;
   },
 ): Promise<VollstaendigkeitsErgebnis> {
   const file = new File([new Uint8Array(dateiInhalt)], dateiname);
@@ -72,6 +75,7 @@ export async function pruefeVollstaendigkeit(
   let alsKostenGefunden = 0;
   let alsMietweiterleitungGefunden = 0;
   let alsKautionsbuchungGefunden = 0;
+  let alsSonstigesGefunden = 0;
   let fehlerzeilen = 0;
   const ungeklaert: UngeklaerteZeile[] = [];
 
@@ -97,6 +101,10 @@ export async function pruefeVollstaendigkeit(
       alsKautionsbuchungGefunden++;
       return;
     }
+    if (bekannteSchluessel.sonstige.has(schluessel)) {
+      alsSonstigesGefunden++;
+      return;
+    }
     ungeklaert.push({
       rowNumber: i + 2,
       datum: spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null,
@@ -112,6 +120,7 @@ export async function pruefeVollstaendigkeit(
     alsKostenGefunden,
     alsMietweiterleitungGefunden,
     alsKautionsbuchungGefunden,
+    alsSonstigesGefunden,
     fehlerzeilen,
     ungeklaert,
   };

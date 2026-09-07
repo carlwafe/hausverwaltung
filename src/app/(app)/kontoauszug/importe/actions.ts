@@ -26,12 +26,14 @@ export async function pruefeImportVollstaendigkeit(
   // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
   // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
   // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.
-  const [alleZahlungen, alleKosten, alleMietweiterleitungen, alleKautionsbuchungen] = await Promise.all([
-    prisma.zahlung.findMany({ select: { rohdaten: true } }),
-    prisma.kostenposition.findMany({ select: { rohdaten: true } }),
-    prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
-    prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
-  ]);
+  const [alleZahlungen, alleKosten, alleMietweiterleitungen, alleKautionsbuchungen, alleSonstigenBuchungen] =
+    await Promise.all([
+      prisma.zahlung.findMany({ select: { rohdaten: true } }),
+      prisma.kostenposition.findMany({ select: { rohdaten: true } }),
+      prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
+      prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
+      prisma.sonstigeBuchung.findMany({ select: { rohdaten: true } }),
+    ]);
   const zahlung = new Set(
     alleZahlungen
       .map((z) => zeilenSchluesselAusRohdaten(z.rohdaten))
@@ -52,8 +54,19 @@ export async function pruefeImportVollstaendigkeit(
       .map((k) => zeilenSchluesselAusRohdaten(k.rohdaten))
       .filter((s): s is string => s !== null),
   );
+  const sonstige = new Set(
+    alleSonstigenBuchungen
+      .map((s) => zeilenSchluesselAusRohdaten(s.rohdaten))
+      .filter((s): s is string => s !== null),
+  );
 
-  return pruefeVollstaendigkeit(inhalt, batch.dateiname, { zahlung, kosten, mietweiterleitung, kautionsbuchung });
+  return pruefeVollstaendigkeit(inhalt, batch.dateiname, {
+    zahlung,
+    kosten,
+    mietweiterleitung,
+    kautionsbuchung,
+    sonstige,
+  });
 }
 
 export async function raeumeVerwaisteImporteAuf(): Promise<void> {
@@ -66,6 +79,7 @@ export async function raeumeVerwaisteImporteAuf(): Promise<void> {
       kostenpositionen: { none: {} },
       eigentuemerbuchungen: { none: {} },
       kautionsbuchungen: { none: {} },
+      sonstigeBuchungen: { none: {} },
     },
     select: { id: true, speicherpfad: true },
   });

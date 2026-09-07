@@ -577,10 +577,24 @@ export async function commitKautionsbuchungen(
   }`;
 }
 
+// Sentinel statt einer echten Position-ID: für eine als Nebenkostenausgleich erkannte Buchung,
+// zu der es keine offene NebenkostenabrechnungPosition gibt und auch nie geben wird (z.B. eine
+// Rückzahlung für ein Jahr, dessen Abrechnung schon vor dieser App extern erstellt wurde) — wird
+// als SonstigeBuchung rein archivarisch abgelegt, damit die Vollständigkeitsprüfung die Zeile
+// als geklärt erkennt, ohne dass irgendeine Berechnung (Offene Posten, Nebenkostenabrechnung)
+// davon berührt wird. Nicht exportiert, da eine "use server"-Datei nur async-Funktionen
+// exportieren darf — derselbe Literal ist in page.tsx als SONSTIGE_SENTINEL dupliziert, beide
+// Stellen sind über diesen Kommentar verknüpft.
+const NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL = "__sonstige__";
+
 type NebenkostenausgleichCommitRow = {
-  positionId: string;
+  positionId: string; // echte Position-ID, oder NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL
+  mietvertragId: string | null;
   datum: string;
   betrag: number; // Rohbetrag von der Bank (Vorzeichen wie im Kontoauszug)
+  empfaenger: string;
+  verwendungszweck: string;
+  rohdaten: Record<string, string>;
 };
 
 export async function commitNebenkostenausgleich(
@@ -608,32 +622,67 @@ export async function commitNebenkostenausgleich(
     return `${fehlende.length} Zeile(n) haben noch keine Position ausgewählt.`;
   }
 
+  const positionRows = rows.filter((r) => r.positionId !== NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL);
+  const sonstigeRows = rows.filter((r) => r.positionId === NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL);
+
   // Vorzeichen gedreht, wie schon bei saldo: eine ausgehende Guthaben-Auszahlung (negativer
   // Rohbetrag) wird zu einem positiven beglichenBetrag, eine eingehende Nachzahlung (positiver
   // Rohbetrag) zu einem negativen — direkt mit saldo vergleichbar. Das where mit beglichenAm:
   // null verhindert, dass eine (z.B. durch doppeltes Absenden) bereits beglichene Position
   // stillschweigend überschrieben wird.
-  const ergebnisse = await prisma.$transaction(
-    rows.map((r) =>
-      prisma.nebenkostenabrechnungPosition.updateMany({
-        where: { id: r.positionId, beglichenAm: null },
-        data: { beglichenAm: new Date(r.datum), beglichenBetrag: -r.betrag },
-      }),
-    ),
-  );
-  const beglichen = ergebnisse.reduce((sum, e) => sum + e.count, 0);
-  const uebersprungen = rows.length - beglichen;
+  const positionErgebnisse =
+    positionRows.length > 0
+      ? await prisma.$transaction(
+          positionRows.map((r) =>
+            prisma.nebenkostenabrechnungPosition.updateMany({
+              where: { id: r.positionId, beglichenAm: null },
+              data: { beglichenAm: new Date(r.datum), beglichenBetrag: -r.betrag },
+            }),
+          ),
+        )
+      : [];
+  const beglichen = positionErgebnisse.reduce((sum, e) => sum + e.count, 0);
+
+  // Dedup wie bei Kaution/Mietweiterleitung: gegen den gesamten Bestand, nicht nur diesen Batch.
+  let sonstigeNeu = 0;
+  if (sonstigeRows.length > 0) {
+    const bestehend = await prisma.sonstigeBuchung.findMany({
+      select: { datum: true, betrag: true, verwendungszweck: true },
+    });
+    const bestehendSet = new Set(
+      bestehend.map((s) => datumBetragZweckSchluessel(s.datum, Number(s.betrag), s.verwendungszweck)),
+    );
+    const neu = sonstigeRows.filter(
+      (r) => !bestehendSet.has(datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
+    );
+    sonstigeNeu = neu.length;
+    if (neu.length > 0) {
+      await prisma.sonstigeBuchung.createMany({
+        data: neu.map((r) => ({
+          mietvertragId: r.mietvertragId || undefined,
+          datum: new Date(r.datum),
+          betrag: r.betrag,
+          empfaenger: r.empfaenger || null,
+          verwendungszweck: r.verwendungszweck || null,
+          rohdaten: r.rohdaten,
+          importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
+        })),
+      });
+    }
+  }
+
+  const uebersprungen = positionRows.length - beglichen + (sonstigeRows.length - sonstigeNeu);
 
   if (typeof importBatchId === "string") {
     await ergaenzeImportBatchErgebnis(
       importBatchId,
-      `${beglichen} Nebenkostenabrechnung(en) als beglichen markiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+      `${beglichen} Nebenkostenabrechnung(en) als beglichen markiert, ${sonstigeNeu} sonstige Buchung(en) archiviert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
     );
   }
 
   revalidatePath("/nebenkostenabrechnungen");
 
-  return `${beglichen} Position(en) als beglichen markiert.${
-    uebersprungen > 0 ? ` ${uebersprungen} bereits beglichen, übersprungen.` : ""
+  return `${beglichen} Position(en) als beglichen markiert, ${sonstigeNeu} sonstige Buchung(en) archiviert.${
+    uebersprungen > 0 ? ` ${uebersprungen} bereits vorhanden, übersprungen.` : ""
   }`;
 }

@@ -1471,6 +1471,10 @@ function KautionSektion({
 
 // ---------- Nebenkostenabrechnung-Ausgleich ----------
 
+// Muss mit NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL in actions.ts übereinstimmen (kann nicht von
+// dort importiert werden, da eine "use server"-Datei nur async-Funktionen exportieren darf).
+const SONSTIGE_SENTINEL = "__sonstige__";
+
 type NebenkostenPositionKandidat = { id: string; label: string; mietvertragId: string | null };
 
 type NebenkostenausgleichEditRow = ParsedZahlungRow & { gewaehltePositionId: string; ausgewaehlt: boolean };
@@ -1550,6 +1554,13 @@ function NebenkostenausgleichSektion({
   );
   const [hinweisFilter, setHinweisFilter] = useState<NebenkostenausgleichHinweisFilter>("erkannt");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  // Zusätzlich zu den echten offenen Positionen immer wählbar: für eine Buchung, zu der es (z.B.
+  // weil das Abrechnungsjahr nie in dieser App abgerechnet wurde) nie eine passende Position
+  // geben wird — landet dann rein archivarisch als SonstigeBuchung, siehe commitNebenkostenausgleich.
+  const kandidatenMitSonstige = [
+    { id: SONSTIGE_SENTINEL, label: "Keine offene Position — als sonstige Buchung archivieren" },
+    ...positionen,
+  ];
 
   function updateRow(rowNumber: number, patch: Partial<NebenkostenausgleichEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
@@ -1573,8 +1584,12 @@ function NebenkostenausgleichSektion({
   const importierbareRows = editRows.filter((r) => r.ausgewaehlt && r.gewaehltePositionId);
   const rowsForCommit = importierbareRows.map((r) => ({
     positionId: r.gewaehltePositionId,
+    mietvertragId: r.vorgeschlagenerMietvertragId || null,
     datum: r.datum,
     betrag: r.betrag,
+    empfaenger: r.name,
+    verwendungszweck: r.verwendungszweck,
+    rohdaten: r.rohdaten,
   }));
 
   if (commitMessage) {
@@ -1611,8 +1626,11 @@ function NebenkostenausgleichSektion({
       </div>
       <p className="mb-3 text-sm text-neutral-300">
         Rückzahlungen/Nachzahlungen aus der Nebenkostenabrechnung — keine Miete, keine Kosten,
-        fließt nicht in die Offene-Posten-Berechnung ein.{" "}
-        {importierbareRows.length} werden als beglichen markiert.{" "}
+        fließt nicht in die Offene-Posten-Berechnung ein. Ohne passende offene Position (z.B. ein
+        Jahr ohne Abrechnung in dieser App) kann eine Buchung stattdessen als „sonstige Buchung“
+        archiviert werden — rein damit der Kontoauszug vollständig erscheint, ohne Auswirkung auf
+        irgendeine Berechnung.{" "}
+        {importierbareRows.length} werden importiert.{" "}
         {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
       </p>
 
@@ -1666,7 +1684,7 @@ function NebenkostenausgleichSektion({
                     </td>
                     <td className="px-3 py-1.5">
                       <MietvertragAuswahl
-                        kandidaten={positionen}
+                        kandidaten={kandidatenMitSonstige}
                         value={r.gewaehltePositionId}
                         leerLabel="– keiner Position zuordnen –"
                         onChange={(id) =>
@@ -1722,7 +1740,7 @@ function NebenkostenausgleichSektion({
           disabled={commitPending || importierbareRows.length === 0}
           className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
         >
-          {commitPending ? "Markiere…" : `${importierbareRows.length} als beglichen markieren`}
+          {commitPending ? "Importiere…" : `${importierbareRows.length} importieren`}
         </button>
       </form>
     </div>

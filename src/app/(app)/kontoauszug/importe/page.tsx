@@ -13,6 +13,7 @@ export default async function KontoauszugImportePage() {
           kostenpositionen: true,
           eigentuemerbuchungen: true,
           kautionsbuchungen: true,
+          sonstigeBuchungen: true,
         },
       },
     },
@@ -27,20 +28,23 @@ export default async function KontoauszugImportePage() {
     anzahlKosten: b._count.kostenpositionen,
     anzahlMietweiterleitungen: b._count.eigentuemerbuchungen,
     anzahlKautionsbuchungen: b._count.kautionsbuchungen,
+    anzahlSonstige: b._count.sonstigeBuchungen,
   }));
   const verwaisteAnzahl = rows.filter(
     (r) =>
       r.anzahlZahlungen === 0 &&
       r.anzahlKosten === 0 &&
       r.anzahlMietweiterleitungen === 0 &&
-      r.anzahlKautionsbuchungen === 0,
+      r.anzahlKautionsbuchungen === 0 &&
+      r.anzahlSonstige === 0,
   ).length;
   const genutzteRows = rows.filter(
     (r) =>
       r.anzahlZahlungen > 0 ||
       r.anzahlKosten > 0 ||
       r.anzahlMietweiterleitungen > 0 ||
-      r.anzahlKautionsbuchungen > 0,
+      r.anzahlKautionsbuchungen > 0 ||
+      r.anzahlSonstige > 0,
   );
 
   // Dieselbe Datei kann mehrfach hochgeladen worden sein (z.B. Zahlungen und Kosten in zwei
@@ -63,6 +67,7 @@ export default async function KontoauszugImportePage() {
         anzahlKosten: liste.reduce((s, r) => s + r.anzahlKosten, 0),
         anzahlMietweiterleitungen: liste.reduce((s, r) => s + r.anzahlMietweiterleitungen, 0),
         anzahlKautionsbuchungen: liste.reduce((s, r) => s + r.anzahlKautionsbuchungen, 0),
+        anzahlSonstige: liste.reduce((s, r) => s + r.anzahlSonstige, 0),
         anzahlImporte: liste.length,
         pruefBatchId: neuesteZuerst[0].id,
       };
