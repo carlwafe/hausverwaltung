@@ -139,10 +139,13 @@ export function mapZahlungenRows(
 
     let vorgeschlagenerMietvertragId: string | null = null;
     let mehrdeutig = false;
-    // Auch für (eigentlich "ignorierte") Kaution-Zeilen wird ein Vorschlag berechnet — die
-    // Kaution-Sektion im Import braucht ihn, um vorzuschlagen, welchem Mietvertrag die
-    // Einzahlung gehört.
-    if (!eigentuemerBuchung && betrag !== null && errors.length === 0 && (!ignorieren || kaution)) {
+    // Ein Vorschlag wird für jede Buchung berechnet, die überhaupt einem Mieter gehören könnte —
+    // nur eine Eigentümer-Buchung (Mietweiterleitung/Einlage) scheidet grundsätzlich aus. Das
+    // deckt neben normalen Mieteingängen auch (eigentlich "ignorierte") Kaution-Zeilen ab (die
+    // Kaution-Sektion braucht den Vorschlag) sowie ausgehende Nebenkostenrückzahlungen an Mieter:
+    // der Betrag bestätigt den Treffer hier zwar nicht (er entspricht keiner Warmmiete), aber der
+    // Name im Verwendungszweck/Begünstigten reicht meist trotzdem für eine eindeutige Zuordnung.
+    if (!eigentuemerBuchung && betrag !== null && errors.length === 0) {
       const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten);
       vorgeschlagenerMietvertragId = treffer.id;
       mehrdeutig = treffer.mehrdeutig;

@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useActionState, useState } from "react";
+import { Fragment, useActionState, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   previewImport,
@@ -165,6 +166,12 @@ function toZahlungEditRow(
   const ausgewaehlt =
     r.errors.length === 0 &&
     !r.kaution &&
+    // Ein Vorschlag für eine "ignorierte" Zeile (z.B. eine Nebenkostenrückzahlung) füllt das
+    // Feld zwar vor, ist aber — anders als bei einem normalen Mieteingang — nicht über den
+    // Betrag bestätigt (siehe findeMietvertrag-Aufruf in zahlungen-import.ts). Deshalb hier
+    // bewusst nicht automatisch anhaken, sondern nur vorschlagen: manuell bestätigen statt
+    // versehentlich in einer Sammel-Auswahl mitzuimportieren.
+    !r.ignorieren &&
     Boolean(gewaehlterMietvertragId) &&
     !(skipDuplicates && duplikat);
   return { ...r, gewaehlterMietvertragId, periodeMonat: monat, periodeJahr: jahr, ausgewaehlt };
@@ -209,12 +216,25 @@ function MietvertragAuswahl({
 }) {
   const [offen, setOffen] = useState(false);
   const [suche, setSuche] = useState("");
+  // Das Dropdown wird per Portal direkt unter <body> gerendert statt im DOM-Baum der Tabellenzeile
+  // zu bleiben: nicht ausgewählte Zeilen sind per CSS "opacity-50" abgeblendet, was sich auf ALLE
+  // Nachfahren auswirkt (auch absolut positionierte, optisch aus der Zeile herausragende) — das
+  // Panel wäre sonst kaum lesbar und würde halbtransparent mit den darunterliegenden Zeilen
+  // überlappen. Position wird beim Öffnen einmalig aus der Bounding-Box des Eingabefelds
+  // berechnet; ein Scroll währenddessen schließt das Panel, statt eine veraltete Position stehen
+  // zu lassen.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const aktuellesLabel = kandidaten.find((k) => k.id === value)?.label ?? "";
   const sucheNorm = suche.trim().toLowerCase();
   const gefiltert = sucheNorm
     ? kandidaten.filter((k) => k.label.toLowerCase().includes(sucheNorm))
-    : kandidaten;
+    : // Ohne Sucheingabe (z.B. direkt nach dem Fokussieren) steht die aktuell gewählte
+      // Buchung ganz oben — sie ist sonst je nach Position in der (unsortierten) Kandidatenliste
+      // nur durch Scrollen auffindbar, obwohl man beim Öffnen meist genau sie sucht.
+      [...kandidaten].sort((a, b) => (a.id === value ? -1 : b.id === value ? 1 : 0));
 
   function auswaehlen(id: string) {
     onChange(id);
@@ -222,16 +242,34 @@ function MietvertragAuswahl({
     setOffen(false);
   }
 
+  function oeffnen() {
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (rect) setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    setOffen(true);
+    setSuche("");
+  }
+
+  useEffect(() => {
+    if (!offen) return;
+    function schliessenBeiScroll(e: Event) {
+      // Scrollen INNERHALB des Panels (die Kandidatenliste selbst ist scrollbar) soll es nicht
+      // schließen — nur ein Scroll anderswo (z.B. der Tabellen-Container), der die berechnete
+      // Position veralten lassen würde.
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      setOffen(false);
+    }
+    // capture:true, damit auch Scrollen innerhalb der Tabelle (nicht nur des Fensters) erfasst wird
+    window.addEventListener("scroll", schliessenBeiScroll, true);
+    return () => window.removeEventListener("scroll", schliessenBeiScroll, true);
+  }, [offen]);
+
   return (
-    <div className="relative w-full">
+    <div ref={wrapperRef} className="relative w-full">
       <input
         type="text"
         value={offen ? suche : aktuellesLabel || leerLabel}
         onChange={(e) => setSuche(e.target.value)}
-        onFocus={() => {
-          setOffen(true);
-          setSuche("");
-        }}
+        onFocus={oeffnen}
         onBlur={() => {
           setOffen(false);
           setSuche("");
@@ -241,34 +279,42 @@ function MietvertragAuswahl({
           value ? "text-white" : "text-neutral-500"
         }`}
       />
-      {offen && (
-        <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg">
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => auswaehlen("")}
-            className="block w-full px-2 py-1 text-left text-xs text-neutral-400 hover:bg-neutral-900 hover:text-white"
+      {offen &&
+        position &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ top: position.top, left: position.left, minWidth: position.width }}
+            className="fixed z-50 max-h-56 w-max max-w-[26rem] overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg"
           >
-            {leerLabel}
-          </button>
-          {gefiltert.map((k) => (
             <button
-              key={k.id}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => auswaehlen(k.id)}
-              className={`block w-full px-2 py-1 text-left text-xs hover:bg-neutral-900 hover:text-white ${
-                k.id === value ? "font-medium text-white" : "text-neutral-300"
-              }`}
+              onClick={() => auswaehlen("")}
+              className="block w-full whitespace-nowrap px-2 py-1 text-left text-xs text-neutral-400 hover:bg-neutral-900 hover:text-white"
             >
-              {k.label}
+              {leerLabel}
             </button>
-          ))}
-          {gefiltert.length === 0 && (
-            <div className="px-2 py-1 text-xs text-neutral-500">Keine Treffer.</div>
-          )}
-        </div>
-      )}
+            {gefiltert.map((k) => (
+              <button
+                key={k.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => auswaehlen(k.id)}
+                className={`block w-full whitespace-nowrap px-2 py-1 text-left text-xs hover:bg-neutral-900 hover:text-white ${
+                  k.id === value ? "font-medium text-white" : "text-neutral-300"
+                }`}
+              >
+                {k.label}
+              </button>
+            ))}
+            {gefiltert.length === 0 && (
+              <div className="px-2 py-1 text-xs text-neutral-500">Keine Treffer.</div>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -37,6 +37,17 @@ export type PreviewResult =
     }
   | { error: string };
 
+// Für die sortierte Anzeige der Mietvertrag-Auswahl (siehe MietvertragAuswahl in page.tsx):
+// Einheit.bezeichnung folgt hier durchgängig dem Muster "HS <Hausnummer> WHG <Wohnungsnummer> -
+// ...", numerisch statt alphabetisch sortiert, damit z.B. "HS 9" vor "HS 15" einsortiert wird
+// (ein reiner Text-Sort würde "HS 15" vor "HS 9" stecken). Einheiten außerhalb dieses Musters
+// (z.B. Garagen/Stellplätze) landen am Ende, alphabetisch untereinander sortiert.
+function einheitSortSchluessel(bezeichnung: string): [number, number] {
+  const treffer = /^HS\s+(\d+)\s+WHG\s+(\d+)/i.exec(bezeichnung);
+  if (!treffer) return [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+  return [Number(treffer[1]), Number(treffer[2])];
+}
+
 // Verwendungszweck gehört mit in den Schlüssel, nicht nur Empfänger+Datum+Betrag: derselbe
 // Absender kann am selben Tag mehrere unterschiedliche Kostenpositionen mit zufällig demselben
 // Betrag buchen (z.B. zwei Niederschlagswasser-Abrechnungen für unterschiedliche
@@ -146,13 +157,22 @@ export async function previewImport(
 
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
       id: v.id,
-      label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+      // Name zuerst statt Einheit zuerst: in der durchsuchbaren Mietvertrag-Auswahl (siehe
+      // MietvertragAuswahl in page.tsx) ist das Eingabefeld schmal, ein bereits ausgewähltes
+      // Label wird also oft am Ende abgeschnitten — mit dem Namen vorn bleibt der wichtigste Teil
+      // sichtbar, auch wenn die Einheit selbst nicht mehr angezeigt wird.
+      label: `${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")} — ${v.einheit.bezeichnung}`,
       warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
       namen: v.mieter.flatMap((m) => [m.vorname, m.nachname]),
       einheitBezeichnung: v.einheit.bezeichnung,
       beginn: v.beginn.toISOString().slice(0, 10),
       ende: v.ende ? v.ende.toISOString().slice(0, 10) : null,
-    }));
+    }))
+    .sort((a, b) => {
+      const [hausA, whgA] = einheitSortSchluessel(a.einheitBezeichnung);
+      const [hausB, whgB] = einheitSortSchluessel(b.einheitBezeichnung);
+      return hausA - hausB || whgA - whgB || a.einheitBezeichnung.localeCompare(b.einheitBezeichnung);
+    });
     const bestehendeZahlungen = new Set(
       vertraege.flatMap((v) =>
         v.zahlungen.map(
