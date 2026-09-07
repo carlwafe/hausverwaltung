@@ -578,14 +578,19 @@ function hatVollstaendigenVorschlag(
   return Boolean(r.vorgeschlageneKostenartId) && r.vorgeschlageneGebaeudeAuswahl !== undefined;
 }
 
+// Verwendungszweck gehört mit in den Schlüssel (gleicher Grund wie kostenDedupSchluessel in
+// actions.ts): derselbe Absender kann am selben Tag mehrere unterschiedliche Kostenpositionen
+// mit zufällig demselben Betrag buchen (z.B. zwei Niederschlagswasser-Abrechnungen für
+// unterschiedliche Gebäude-Kundennummern, die rein zufällig auf denselben Centbetrag kommen).
 function pruefeKostenDuplikat(
   bestehend: Set<string>,
   empfaenger: string,
   datum: string | null,
   betrag: number | null,
+  verwendungszweck: string,
 ) {
   if (!datum || betrag === null) return false;
-  return bestehend.has(`${empfaenger.trim().toLowerCase()}|${datum}|${betrag.toFixed(2)}`);
+  return bestehend.has(`${empfaenger.trim().toLowerCase()}|${datum}|${betrag.toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
 // Prüft, ob eine eingehende, ignorierte Buchung bereits als Zahlung importiert wurde. Zahlung
@@ -617,7 +622,7 @@ function pruefeAlsKautionImportiert(
 }
 
 function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): KostenEditRow {
-  const duplikat = pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag);
+  const duplikat = pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag, r.verwendungszweck);
   return {
     ...r,
     gewaehlteKostenartId: r.vorgeschlageneKostenartId ?? "",
@@ -687,7 +692,7 @@ function KostenSektion({
   }
 
   function istBereitsImportiert(r: KostenEditRow): boolean {
-    return pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag);
+    return pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag, r.verwendungszweck);
   }
 
   function istBereitsAlsZahlungImportiert(r: KostenEditRow): boolean {

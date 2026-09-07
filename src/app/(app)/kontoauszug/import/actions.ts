@@ -37,8 +37,19 @@ export type PreviewResult =
     }
   | { error: string };
 
-function kostenDedupSchluessel(empfaenger: string | null, datum: Date | null, betrag: number) {
-  return `${(empfaenger ?? "").trim().toLowerCase()}|${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}`;
+// Verwendungszweck gehört mit in den Schlüssel, nicht nur Empfänger+Datum+Betrag: derselbe
+// Absender kann am selben Tag mehrere unterschiedliche Kostenpositionen mit zufällig demselben
+// Betrag buchen (z.B. zwei Niederschlagswasser-Abrechnungen für unterschiedliche
+// Gebäude-Kundennummern, die rein zufällig auf denselben Centbetrag kommen) — ohne den
+// Verwendungszweck im Schlüssel würde die zweite, tatsächlich neue Zeile fälschlich als
+// Duplikat der ersten erkannt und beim Import stillschweigend übersprungen.
+function kostenDedupSchluessel(
+  empfaenger: string | null,
+  datum: Date | null,
+  betrag: number,
+  verwendungszweck: string | null,
+) {
+  return `${(empfaenger ?? "").trim().toLowerCase()}|${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}|${(verwendungszweck ?? "").trim().toLowerCase()}`;
 }
 
 // Für Mietweiterleitungen und Kautionsbuchungen: kein Empfänger im Schlüssel — bei
@@ -199,7 +210,7 @@ export async function previewImport(
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen
         .filter((k) => k.datum)
-        .map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag))),
+        .map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag), k.beschreibung)),
     );
     const bestehendeMietweiterleitungen = new Set(
       bestehendeMietweiterleitungenRaw.map((m) =>
@@ -349,14 +360,14 @@ export async function commitKosten(
 
   const bestehend = await prisma.kostenposition.findMany({
     where: { datum: { not: null } },
-    select: { empfaenger: true, datum: true, betrag: true },
+    select: { empfaenger: true, datum: true, betrag: true, beschreibung: true },
   });
   const bestehendSet = new Set(
-    bestehend.map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag))),
+    bestehend.map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag), k.beschreibung)),
   );
 
   const neu = rows.filter(
-    (r) => !bestehendSet.has(kostenDedupSchluessel(r.empfaenger, new Date(r.datum), r.betrag)),
+    (r) => !bestehendSet.has(kostenDedupSchluessel(r.empfaenger, new Date(r.datum), r.betrag, r.verwendungszweck)),
   );
   const uebersprungen = rows.length - neu.length;
 
