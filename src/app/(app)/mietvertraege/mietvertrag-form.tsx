@@ -44,6 +44,21 @@ export function MietvertragForm({
   const [mieterId1, setMieterId1] = useState(initial?.mieterId1 ?? "");
   const [mieterId2, setMieterId2] = useState(initial?.mieterId2 ?? "");
   const [beginnUnbekannt, setBeginnUnbekannt] = useState(initial?.beginnUnbekannt ?? false);
+  // Als React State statt unkontrolliert per defaultValue geführt: React 19 setzt ein <form
+  // action={...}> nach jeder Aktion (auch nach einem fehlgeschlagenen Speichern-Versuch mit
+  // Fehlermeldung) automatisch auf seine Ursprungswerte zurück — bei unkontrollierten Feldern
+  // wären damit nach einem Fehler alle bereits eingetragenen Werte weg. Kontrollierte Felder
+  // "heilen" sich beim nächsten Render (ausgelöst durch die Fehlermeldung) selbst wieder, da ihr
+  // Wert aus dem (unverändert gebliebenen) State neu gesetzt wird.
+  const [kaltmiete, setKaltmiete] = useState(initial?.kaltmiete ?? "");
+  const [nebenkostenVorauszahlung, setNebenkostenVorauszahlung] = useState(
+    initial?.nebenkostenVorauszahlung ?? "",
+  );
+  const [mehrwertsteuer, setMehrwertsteuer] = useState(initial?.mehrwertsteuer ?? "");
+  const [status, setStatus] = useState(initial?.status ?? "AKTIV");
+  const [kautionBetrag, setKautionBetrag] = useState(initial?.kautionBetrag ?? "");
+  const [kautionAnlageform, setKautionAnlageform] = useState(initial?.kautionAnlageform ?? "KAUTIONSKONTO");
+  const [kautionZinssatz, setKautionZinssatz] = useState(initial?.kautionZinssatz ?? "");
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
@@ -143,7 +158,8 @@ export function MietvertragForm({
             type="number"
             step="0.01"
             required
-            defaultValue={initial?.kaltmiete}
+            value={kaltmiete}
+            onChange={(e) => setKaltmiete(e.target.value)}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
@@ -160,7 +176,8 @@ export function MietvertragForm({
             type="number"
             step="0.01"
             required={!istGarage}
-            defaultValue={initial?.nebenkostenVorauszahlung}
+            value={nebenkostenVorauszahlung}
+            onChange={(e) => setNebenkostenVorauszahlung(e.target.value)}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
@@ -177,7 +194,8 @@ export function MietvertragForm({
             type="number"
             step="0.01"
             required
-            defaultValue={initial?.mehrwertsteuer}
+            value={mehrwertsteuer}
+            onChange={(e) => setMehrwertsteuer(e.target.value)}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
@@ -190,7 +208,8 @@ export function MietvertragForm({
         <select
           id="status"
           name="status"
-          defaultValue={initial?.status ?? "AKTIV"}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
           <option value="AKTIV">Aktiv</option>
@@ -211,7 +230,8 @@ export function MietvertragForm({
               name="kautionBetrag"
               type="number"
               step="0.01"
-              defaultValue={initial?.kautionBetrag ?? ""}
+              value={kautionBetrag}
+              onChange={(e) => setKautionBetrag(e.target.value)}
               className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
@@ -222,7 +242,8 @@ export function MietvertragForm({
             <select
               id="kautionAnlageform"
               name="kautionAnlageform"
-              defaultValue={initial?.kautionAnlageform ?? "KAUTIONSKONTO"}
+              value={kautionAnlageform}
+              onChange={(e) => setKautionAnlageform(e.target.value)}
               className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
             >
               <option value="KAUTIONSKONTO">Kautionskonto</option>
@@ -240,7 +261,8 @@ export function MietvertragForm({
               name="kautionZinssatz"
               type="number"
               step="0.01"
-              defaultValue={initial?.kautionZinssatz ?? ""}
+              value={kautionZinssatz}
+              onChange={(e) => setKautionZinssatz(e.target.value)}
               className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
