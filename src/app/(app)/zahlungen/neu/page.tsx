@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ZahlungForm } from "../zahlung-form";
 import { createZahlung } from "../actions";
+import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 
 export default async function NeueZahlungPage({
   searchParams,
@@ -11,9 +12,9 @@ export default async function NeueZahlungPage({
 
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: { in: ["AKTIV", "BEENDET"] } },
-    orderBy: { beginn: "desc" },
     include: { einheit: true, mieter: true },
   });
+  vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
 
   return (
     <div>

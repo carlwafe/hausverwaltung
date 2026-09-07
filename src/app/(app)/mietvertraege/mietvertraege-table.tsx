@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { einheitSortSchluessel } from "@/lib/einheit-sort";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -39,7 +40,12 @@ const columns: Column<VertragRow>[] = [
   {
     key: "einheit",
     label: "Einheit",
-    sortValue: (v) => v.einheitBezeichnung,
+    // Numerisch statt alphabetisch, damit "HS 9" vor "HS 15" einsortiert wird (siehe
+    // einheitSortSchluessel) — ein reiner Text-Sort würde die Reihenfolge sonst verfälschen.
+    sortValue: (v) => {
+      const [haus, whg] = einheitSortSchluessel(v.einheitBezeichnung);
+      return haus * 100000 + whg;
+    },
     searchValue: (v) => v.einheitBezeichnung,
     render: (v) => (
       <Link href={`/mietvertraege/${v.id}`} className="font-medium hover:underline">

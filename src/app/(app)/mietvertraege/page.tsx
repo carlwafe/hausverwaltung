@@ -1,23 +1,25 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { MietvertraegeTable, type VertragRow } from "./mietvertraege-table";
+import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 
 async function ladeVertraege(): Promise<VertragRow[]> {
   const vertraege = await prisma.mietvertrag.findMany({
-    orderBy: [{ status: "asc" }, { beginn: "desc" }],
     include: { einheit: true, mieter: true },
   });
 
-  return vertraege.map((v) => ({
-    id: v.id,
-    einheitBezeichnung: v.einheit.bezeichnung,
-    mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-    beginn: v.beginn.toISOString(),
-    ende: v.ende ? v.ende.toISOString() : null,
-    kaltmiete: Number(v.kaltmiete),
-    nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-    status: v.status,
-  }));
+  return vertraege
+    .map((v) => ({
+      id: v.id,
+      einheitBezeichnung: v.einheit.bezeichnung,
+      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      beginn: v.beginn.toISOString(),
+      ende: v.ende ? v.ende.toISOString() : null,
+      kaltmiete: Number(v.kaltmiete),
+      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+      status: v.status,
+    }))
+    .sort((a, b) => vergleicheEinheitBezeichnung(a.einheitBezeichnung, b.einheitBezeichnung));
 }
 
 export default async function MietvertraegePage() {

@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
+import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 
 type Option = { id: string; label: string };
 
@@ -45,6 +46,7 @@ export function ZahlungForm({
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),
     null,
   );
+  const [mietvertragId, setMietvertragId] = useState(initial?.mietvertragId ?? defaultMietvertragId ?? "");
 
   const heute = new Date();
 
@@ -54,22 +56,14 @@ export function ZahlungForm({
         <label className="mb-1 block text-sm font-medium" htmlFor="mietvertragId">
           Mietvertrag
         </label>
-        <select
-          id="mietvertragId"
-          name="mietvertragId"
-          required
-          defaultValue={initial?.mietvertragId ?? defaultMietvertragId ?? ""}
-          className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
-        >
-          <option value="" disabled>
-            Bitte wählen…
-          </option>
-          {mietvertraege.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+        <input type="hidden" id="mietvertragId" name="mietvertragId" value={mietvertragId} required />
+        <MietvertragAuswahl
+          kandidaten={mietvertraege}
+          value={mietvertragId}
+          onChange={setMietvertragId}
+          leerLabel="Bitte wählen…"
+          size="md"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

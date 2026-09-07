@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ZahlungForm } from "../zahlung-form";
 import { updateZahlung, deleteZahlung } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
+import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 
 export default async function ZahlungDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,11 +14,11 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
     }),
     prisma.mietvertrag.findMany({
       where: { status: { in: ["AKTIV", "BEENDET"] } },
-      orderBy: { beginn: "desc" },
       include: { einheit: true, mieter: true },
     }),
   ]);
   if (!zahlung) notFound();
+  vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
 
   return (
     <div>

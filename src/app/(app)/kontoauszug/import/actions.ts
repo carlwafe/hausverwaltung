@@ -19,6 +19,7 @@ import {
 } from "@/lib/import/kosten-import";
 import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { ermittleMandatsrefAusZeile, findColumn } from "@/lib/import/bank-csv";
+import { einheitSortSchluessel } from "@/lib/einheit-sort";
 
 export type PreviewResult =
   | {
@@ -37,17 +38,6 @@ export type PreviewResult =
       importBatchId: string;
     }
   | { error: string };
-
-// Für die sortierte Anzeige der Mietvertrag-Auswahl (siehe MietvertragAuswahl in page.tsx):
-// Einheit.bezeichnung folgt hier durchgängig dem Muster "HS <Hausnummer> WHG <Wohnungsnummer> -
-// ...", numerisch statt alphabetisch sortiert, damit z.B. "HS 9" vor "HS 15" einsortiert wird
-// (ein reiner Text-Sort würde "HS 15" vor "HS 9" stecken). Einheiten außerhalb dieses Musters
-// (z.B. Garagen/Stellplätze) landen am Ende, alphabetisch untereinander sortiert.
-function einheitSortSchluessel(bezeichnung: string): [number, number] {
-  const treffer = /^HS\s+(\d+)\s+WHG\s+(\d+)/i.exec(bezeichnung);
-  if (!treffer) return [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
-  return [Number(treffer[1]), Number(treffer[2])];
-}
 
 // Verwendungszweck gehört mit in den Schlüssel, nicht nur Empfänger+Datum+Betrag: derselbe
 // Absender kann am selben Tag mehrere unterschiedliche Kostenpositionen mit zufällig demselben
