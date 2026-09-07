@@ -21,7 +21,11 @@ const mietvertragSchema = z
     einheitId: z.string().min(1, "Einheit ist erforderlich"),
     mieterId1: z.string().min(1, "Mieter ist erforderlich"),
     mieterId2: z.string().optional(),
-    beginn: z.coerce.date({ error: "Mietbeginn ist erforderlich" }),
+    beginnUnbekannt: z.coerce.boolean().optional(),
+    beginn: z
+      .union([z.coerce.date(), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? undefined : v)),
     ende: z
       .union([z.coerce.date(), z.literal("")])
       .optional()
@@ -41,6 +45,10 @@ const mietvertragSchema = z
   .refine((d) => d.status !== "BEENDET" || d.ende !== undefined, {
     message: "Mietende ist erforderlich, wenn der Vertrag als beendet markiert wird",
     path: ["ende"],
+  })
+  .refine((d) => d.beginnUnbekannt || d.beginn !== undefined, {
+    message: "Mietbeginn ist erforderlich (oder als unbekannt markieren)",
+    path: ["beginn"],
   });
 
 async function parseForm(formData: FormData) {
@@ -48,7 +56,8 @@ async function parseForm(formData: FormData) {
     einheitId: formData.get("einheitId"),
     mieterId1: formData.get("mieterId1"),
     mieterId2: formData.get("mieterId2") || undefined,
-    beginn: formData.get("beginn"),
+    beginnUnbekannt: formData.get("beginnUnbekannt") === "on",
+    beginn: formData.get("beginn") || "",
     ende: formData.get("ende") || "",
     kaltmiete: formData.get("kaltmiete"),
     nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
@@ -86,7 +95,7 @@ export async function createMietvertrag(formData: FormData) {
     data: {
       einheit: { connect: { id: data.einheitId } },
       mieter: { connect: mieterIds(data).map((id) => ({ id })) },
-      beginn: data.beginn,
+      beginn: data.beginnUnbekannt ? null : data.beginn,
       ende: data.ende,
       kaltmiete: data.kaltmiete,
       nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
@@ -121,7 +130,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
       data: {
         einheit: { connect: { id: data.einheitId } },
         mieter: { set: mieterIds(data).map((mid) => ({ id: mid })) },
-        beginn: data.beginn,
+        beginn: data.beginnUnbekannt ? null : data.beginn,
         ende: data.ende,
         kaltmiete: data.kaltmiete,
         nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,

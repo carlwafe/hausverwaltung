@@ -13,7 +13,7 @@ async function ladeVertraege(): Promise<VertragRow[]> {
       id: v.id,
       einheitBezeichnung: v.einheit.bezeichnung,
       mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-      beginn: v.beginn.toISOString(),
+      beginn: v.beginn ? v.beginn.toISOString() : null,
       ende: v.ende ? v.ende.toISOString() : null,
       kaltmiete: Number(v.kaltmiete),
       nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),

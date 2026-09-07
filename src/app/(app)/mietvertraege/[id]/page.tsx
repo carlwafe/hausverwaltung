@@ -90,12 +90,13 @@ export default async function MietvertragDetailPage({
       </div>
       <MietvertragForm
         einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung, typ: e.typ }))}
-        mieter={mieter.map((m) => ({ id: m.id, label: `${m.vorname} ${m.nachname}` }))}
+        mieter={mieter.map((m) => ({ id: m.id, label: `${m.nachname}, ${m.vorname}` }))}
         initial={{
           einheitId: vertrag.einheitId,
           mieterId1: vertrag.mieter[0]?.id ?? "",
           mieterId2: vertrag.mieter[1]?.id,
           beginn: toDateInputValue(vertrag.beginn),
+          beginnUnbekannt: vertrag.beginn === null,
           ende: toDateInputValue(vertrag.ende),
           kaltmiete: vertrag.kaltmiete.toString(),
           nebenkostenVorauszahlung: vertrag.nebenkostenVorauszahlung.toString(),

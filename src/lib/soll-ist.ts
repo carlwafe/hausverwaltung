@@ -3,7 +3,7 @@ export function monateInklusive(vonJahr: number, vonMonat: number, bisJahr: numb
 }
 
 export type MietvertragFuerSollIst = {
-  beginn: Date;
+  beginn: Date | null; // null = unbekannt, wird wie ein beliebig weit zurückliegendes Datum behandelt
   ende: Date | null;
   kaltmiete: number;
   nebenkostenVorauszahlung: number;
@@ -44,7 +44,17 @@ export function sollAufschluesselung(
   buchhaltungAb: Date | null = null,
 ): SollZeile[] {
   const referenz = vertrag.ende && vertrag.ende < heute ? vertrag.ende : heute;
-  const start = buchhaltungAb && buchhaltungAb > vertrag.beginn ? buchhaltungAb : vertrag.beginn;
+  // Ein unbekannter Mietbeginn zählt wie ein beliebig weit zurückliegendes Datum — es bleibt
+  // also bei buchhaltungAb, falls gesetzt. Ist auch das nicht gesetzt, fehlt jeder Referenzpunkt
+  // und es lässt sich kein Soll berechnen (kommt praktisch nicht vor, da buchhaltungAb global
+  // konfiguriert ist).
+  const start =
+    vertrag.beginn === null
+      ? buchhaltungAb
+      : buchhaltungAb && buchhaltungAb > vertrag.beginn
+        ? buchhaltungAb
+        : vertrag.beginn;
+  if (!start) return [];
   const betragProMonat =
     vertrag.kaltmiete + vertrag.nebenkostenVorauszahlung + (vertrag.mehrwertsteuer ?? 0);
 

@@ -29,7 +29,7 @@ export type VertragRow = {
   id: string;
   einheitBezeichnung: string;
   mieterNamen: string;
-  beginn: string;
+  beginn: string | null;
   ende: string | null;
   kaltmiete: number;
   nebenkostenVorauszahlung: number;
@@ -63,8 +63,8 @@ const columns: Column<VertragRow>[] = [
   {
     key: "beginn",
     label: "Beginn",
-    sortValue: (v) => v.beginn,
-    render: (v) => formatDate(v.beginn),
+    sortValue: (v) => v.beginn ?? "",
+    render: (v) => (v.beginn ? formatDate(v.beginn) : "unbekannt"),
   },
   {
     key: "ende",

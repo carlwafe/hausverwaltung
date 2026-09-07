@@ -24,7 +24,7 @@ export function DateInput({
 }: {
   id: string;
   name: string;
-  label: string;
+  label?: string;
   defaultValue?: string;
   labelClassName?: string;
 }) {
@@ -80,9 +80,11 @@ export function DateInput({
 
   return (
     <div className="min-w-0">
-      <label className={`mb-1 flex items-end text-sm font-medium ${labelClassName}`} htmlFor={id}>
-        {label}
-      </label>
+      {label && (
+        <label className={`mb-1 flex items-end text-sm font-medium ${labelClassName}`} htmlFor={id}>
+          {label}
+        </label>
+      )}
       <div className="flex min-w-0 items-center gap-1">
         <input
           id={id}

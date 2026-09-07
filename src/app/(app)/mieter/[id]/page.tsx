@@ -36,7 +36,7 @@ export default async function MieterDetailPage({
     prisma.mietvertrag.findMany({
       where: { mieter: { some: { id } } },
       include: { einheit: true },
-      orderBy: { beginn: "desc" },
+      orderBy: { beginn: { sort: "desc", nulls: "last" } },
     }),
   ]);
   if (!mieter) notFound();
@@ -75,7 +75,8 @@ export default async function MieterDetailPage({
                     </Link>
                   </td>
                   <td className="px-4 py-2 text-white">
-                    {formatDate(v.beginn)} – {v.ende ? formatDate(v.ende) : "laufend"}
+                    {v.beginn ? formatDate(v.beginn) : "unbekannt"} –{" "}
+                    {v.ende ? formatDate(v.ende) : "laufend"}
                   </td>
                   <td className="px-4 py-2 text-white">
                     {formatEuro(

@@ -75,7 +75,9 @@ export async function previewImport(
     const mapped = mapVertraegeRows(headers, rows, einheitenKandidaten, mieterKandidaten);
 
     const bestehendeSet = new Set(
-      bestehendeVertraege.map((v) => `${v.einheitId}|${v.beginn.toISOString().slice(0, 10)}`),
+      bestehendeVertraege.map(
+        (v) => `${v.einheitId}|${v.beginn ? v.beginn.toISOString().slice(0, 10) : "unbekannt"}`,
+      ),
     );
     for (const r of mapped) {
       if (r.einheitId && r.beginn && bestehendeSet.has(`${r.einheitId}|${r.beginn}`)) {

@@ -161,7 +161,7 @@ export async function previewImport(
       warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
       namen: v.mieter.flatMap((m) => [m.vorname, m.nachname]),
       einheitBezeichnung: v.einheit.bezeichnung,
-      beginn: v.beginn.toISOString().slice(0, 10),
+      beginn: v.beginn ? v.beginn.toISOString().slice(0, 10) : null,
       ende: v.ende ? v.ende.toISOString().slice(0, 10) : null,
     }))
     .sort((a, b) => {

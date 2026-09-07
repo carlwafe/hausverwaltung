@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
+import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 
 type Option = { id: string; label: string };
 type EinheitOption = Option & { typ: "WOHNUNG" | "GARAGE" };
@@ -12,6 +13,7 @@ type Initial = {
   mieterId1: string;
   mieterId2?: string;
   beginn: string;
+  beginnUnbekannt?: boolean;
   ende: string;
   kaltmiete: string;
   nebenkostenVorauszahlung: string;
@@ -39,6 +41,9 @@ export function MietvertragForm({
   );
   const [einheitId, setEinheitId] = useState(initial?.einheitId ?? "");
   const istGarage = einheiten.find((e) => e.id === einheitId)?.typ === "GARAGE";
+  const [mieterId1, setMieterId1] = useState(initial?.mieterId1 ?? "");
+  const [mieterId2, setMieterId2] = useState(initial?.mieterId2 ?? "");
+  const [beginnUnbekannt, setBeginnUnbekannt] = useState(initial?.beginnUnbekannt ?? false);
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
@@ -70,52 +75,54 @@ export function MietvertragForm({
           <label className="mb-1 block text-sm font-medium" htmlFor="mieterId1">
             Mieter
           </label>
-          <select
-            id="mieterId1"
-            name="mieterId1"
-            required
-            defaultValue={initial?.mieterId1 ?? ""}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          >
-            <option value="" disabled>
-              Bitte wählen…
-            </option>
-            {mieter.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          <input type="hidden" id="mieterId1" name="mieterId1" value={mieterId1} required />
+          <MietvertragAuswahl
+            kandidaten={mieter}
+            value={mieterId1}
+            onChange={setMieterId1}
+            leerLabel="Bitte wählen…"
+            size="md"
+          />
         </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="mieterId2">
             2. Mieter (optional)
           </label>
-          <select
-            id="mieterId2"
-            name="mieterId2"
-            defaultValue={initial?.mieterId2 ?? ""}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          >
-            <option value="">– keiner –</option>
-            {mieter.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          <input type="hidden" id="mieterId2" name="mieterId2" value={mieterId2} />
+          <MietvertragAuswahl
+            kandidaten={mieter}
+            value={mieterId2}
+            onChange={setMieterId2}
+            leerLabel="– keiner –"
+            size="md"
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <DateInput
-          id="beginn"
-          name="beginn"
-          label="Mietbeginn"
-          defaultValue={initial?.beginn}
-          labelClassName="min-h-10"
-        />
+        <div>
+          <div className="mb-1 flex min-h-10 items-end justify-between gap-2">
+            <span className="text-sm font-medium">Mietbeginn</span>
+            <label className="flex items-center gap-1 text-xs font-normal text-neutral-400">
+              <input
+                type="checkbox"
+                checked={beginnUnbekannt}
+                onChange={(e) => setBeginnUnbekannt(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-neutral-700 bg-transparent"
+              />
+              unbekannt
+            </label>
+          </div>
+          {beginnUnbekannt ? (
+            <div className="flex h-[38px] items-center rounded-md border border-neutral-800 px-3 text-sm text-neutral-500">
+              unbekannt
+            </div>
+          ) : (
+            <DateInput id="beginn" name="beginn" defaultValue={initial?.beginn} />
+          )}
+          <input type="hidden" name="beginnUnbekannt" value={beginnUnbekannt ? "on" : ""} />
+        </div>
         <DateInput
           id="ende"
           name="ende"

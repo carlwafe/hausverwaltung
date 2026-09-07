@@ -38,7 +38,7 @@ export type EinheitFuerAbrechnung = {
 export type MietvertragFuerAbrechnung = {
   id: string;
   einheitId: string;
-  beginn: Date;
+  beginn: Date | null; // null = unbekannt, wird wie ein beliebig weit zurückliegendes Datum behandelt
   ende: Date | null;
   nebenkostenVorauszahlung: number;
 };
@@ -235,11 +235,14 @@ export function berechneNebenkostenabrechnung(
   const positionen: AbrechnungPositionErgebnis[] = [];
   for (const [einheitId, kostenanteilJahr] of anteilProEinheit) {
     const relevanteVertraege = mietvertraege.filter(
-      (m) => m.einheitId === einheitId && m.beginn <= jahresende && (m.ende === null || m.ende >= jahresanfang),
+      (m) =>
+        m.einheitId === einheitId &&
+        (m.beginn === null || m.beginn <= jahresende) &&
+        (m.ende === null || m.ende >= jahresanfang),
     );
 
     for (const mv of relevanteVertraege) {
-      const von = mv.beginn > jahresanfang ? mv.beginn : jahresanfang;
+      const von = mv.beginn !== null && mv.beginn > jahresanfang ? mv.beginn : jahresanfang;
       const bisKandidat = mv.ende !== null && mv.ende < jahresende ? mv.ende : jahresende;
       const bis = bisKandidat;
       const tage = tageZwischen(von, bis);

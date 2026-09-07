@@ -189,7 +189,13 @@ model Mietvertrag {
   einheit                  Einheit           @relation(fields: [einheitId], references: [id], onDelete: Restrict)
   einheitId                String
   mieter                   Mieter[]
-  beginn                   DateTime
+  // Optional statt Pflichtfeld: bei manchen längst ausgezogenen Mietern (Vertragsende weit in
+  // der Vergangenheit) ist das ursprüngliche Einzugsdatum nicht mehr bekannt und für Soll/Ist
+  // oder eine Nebenkostenabrechnung auch nicht mehr relevant — null bedeutet "unbekannt", nicht
+  // "vor Beginn der Zeit". Soll-Berechnung und Nebenkostenabrechnung behandeln ein unbekanntes
+  // beginn wie einen beliebig weit in der Vergangenheit liegenden Termin (siehe soll-ist.ts,
+  // nebenkostenabrechnung.ts).
+  beginn                   DateTime?
   ende                     DateTime?
   kaltmiete                Decimal           @db.Decimal(10, 2)
   nebenkostenVorauszahlung Decimal           @db.Decimal(10, 2)

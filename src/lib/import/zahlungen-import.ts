@@ -16,7 +16,7 @@ export type MietvertragKandidat = {
   warmmiete: number;
   namen: string[]; // Vor- und Nachnamen aller Mieter
   einheitBezeichnung: string;
-  beginn: string; // ISO yyyy-mm-dd
+  beginn: string | null; // ISO yyyy-mm-dd, null = unbekannt
   ende: string | null; // ISO yyyy-mm-dd
 };
 
@@ -44,8 +44,10 @@ const TAGE_TOLERANZ_NACH_ENDE = 60;
 function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat): boolean {
   if (!datum) return true;
   const zahlungMs = new Date(datum).getTime();
-  const beginnMs = new Date(k.beginn).getTime() - TAGE_TOLERANZ_VOR_BEGINN * 86400000;
-  if (zahlungMs < beginnMs) return false;
+  if (k.beginn) {
+    const beginnMs = new Date(k.beginn).getTime() - TAGE_TOLERANZ_VOR_BEGINN * 86400000;
+    if (zahlungMs < beginnMs) return false;
+  }
   if (k.ende) {
     const endeMs = new Date(k.ende).getTime() + TAGE_TOLERANZ_NACH_ENDE * 86400000;
     if (zahlungMs > endeMs) return false;

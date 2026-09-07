@@ -15,7 +15,7 @@ export default async function NeuerMietvertragPage() {
       <h1 className="mb-6 text-2xl font-semibold">Neuer Mietvertrag</h1>
       <MietvertragForm
         einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung, typ: e.typ }))}
-        mieter={mieter.map((m) => ({ id: m.id, label: `${m.vorname} ${m.nachname}` }))}
+        mieter={mieter.map((m) => ({ id: m.id, label: `${m.nachname}, ${m.vorname}` }))}
         action={createMietvertrag}
       />
     </div>
