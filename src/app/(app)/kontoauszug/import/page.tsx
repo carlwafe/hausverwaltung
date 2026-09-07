@@ -947,6 +947,108 @@ function KostenSektion({
 
 // ---------- Mietweiterleitungen ----------
 
+// Zeigt, innerhalb von Mietweiterleitungen/Kaution, alle Zahlungen-Zeilen an, die NICHT als diese
+// Kategorie erkannt wurden — z.B. eine Kautionsauszahlung ohne das Wort "Kaution" im
+// Verwendungszweck, die stattdessen (weil sie über das auf die Eigentümerin laufende
+// Kautionskonto lief) fälschlich als Mietweiterleitung erkannt wurde. Erlaubt die manuelle
+// Übernahme einzelner Zeilen in die jeweils andere/richtige Sektion, statt dass sie dort für
+// immer unsichtbar bleiben.
+function WeitereBuchungenPanel({
+  kandidaten,
+  aktuelleKategorieLabel,
+  onUebernehmen,
+}: {
+  kandidaten: ParsedZahlungRow[];
+  aktuelleKategorieLabel: string;
+  onUebernehmen: (r: ParsedZahlungRow) => void;
+}) {
+  const [offen, setOffen] = useState(false);
+  const [suche, setSuche] = useState("");
+
+  if (kandidaten.length === 0) return null;
+
+  const sucheNorm = suche.trim().toLowerCase();
+  const gefiltert = sucheNorm
+    ? kandidaten.filter((r) => `${r.verwendungszweck} ${r.name}`.toLowerCase().includes(sucheNorm))
+    : kandidaten;
+
+  return (
+    <div className="mt-4">
+      <button
+        type="button"
+        onClick={() => setOffen((o) => !o)}
+        className="text-sm text-neutral-400 underline hover:text-white"
+      >
+        {offen
+          ? "Weitere Buchungen ausblenden"
+          : `Weitere Buchungen anzeigen (${kandidaten.length}, nicht als ${aktuelleKategorieLabel} erkannt)`}
+      </button>
+      {offen && (
+        <div className="mt-2 rounded-lg border border-neutral-800 p-3">
+          <input
+            type="text"
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            placeholder="Suchen (Verwendungszweck, Name)…"
+            className="mb-2 w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+          />
+          <div className="max-h-[300px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+                <tr>
+                  <th className="px-3 py-2">Datum</th>
+                  <th className="px-3 py-2">Betrag</th>
+                  <th className="px-3 py-2">Verwendungszweck</th>
+                  <th className="px-3 py-2">Aktuell erkannt als</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {gefiltert.map((r) => {
+                  const hinweis = ermittleZahlungHinweis(r);
+                  return (
+                    <tr key={r.rowNumber} className="border-t border-neutral-800">
+                      <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                      <td className="px-3 py-1.5 text-white">
+                        {r.betrag !== null ? formatEuro(r.betrag) : "–"}
+                      </td>
+                      <td
+                        className="max-w-[280px] truncate px-3 py-1.5 text-neutral-300"
+                        title={`${r.verwendungszweck} ${r.name}`}
+                      >
+                        {r.verwendungszweck || r.name || "–"}
+                      </td>
+                      <td className={`px-3 py-1.5 text-xs ${ZAHLUNG_HINWEIS_FARBEN[hinweis]}`}>
+                        {ZAHLUNG_HINWEIS_LABELS[hinweis]}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onUebernehmen(r)}
+                          className="rounded-md border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-400"
+                        >
+                          Übernehmen
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {gefiltert.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-4 text-center text-neutral-500">
+                      Keine Treffer.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type MietweiterleitungEditRow = ParsedZahlungRow & { ausgewaehlt: boolean };
 
 // Kein Empfänger im Schlüssel — die Gegenpartei ist bei jeder Zeile dieselbe Eigentümerin,
@@ -969,10 +1071,12 @@ function toMietweiterleitungEditRow(r: ParsedZahlungRow, bestehend: Set<string>)
 
 function MietweiterleitungenSektion({
   rows,
+  alleRows,
   bestehendeListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
+  alleRows: ParsedZahlungRow[];
   bestehendeListe: string[];
   importBatchId: string;
 }) {
@@ -985,6 +1089,15 @@ function MietweiterleitungenSektion({
 
   function updateRow(rowNumber: number, patch: Partial<MietweiterleitungEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
+  }
+
+  const uebernommeneRowNumbers = new Set(editRows.map((r) => r.rowNumber));
+  const weitereKandidaten = alleRows.filter(
+    (r) => !r.eigentuemerBuchung && r.errors.length === 0 && !uebernommeneRowNumbers.has(r.rowNumber),
+  );
+
+  function uebernehmen(r: ParsedZahlungRow) {
+    setEditRows((rs) => [...rs, toMietweiterleitungEditRow(r, bestehend)]);
   }
 
   function istBereitsImportiert(r: MietweiterleitungEditRow): boolean {
@@ -1019,7 +1132,7 @@ function MietweiterleitungenSektion({
     );
   }
 
-  if (editRows.length === 0) return null;
+  if (editRows.length === 0 && weitereKandidaten.length === 0) return null;
 
   return (
     <div>
@@ -1110,6 +1223,12 @@ function MietweiterleitungenSektion({
           {commitPending ? "Importiere…" : `${importierbareRows.length} Mietweiterleitungen importieren`}
         </button>
       </form>
+
+      <WeitereBuchungenPanel
+        kandidaten={weitereKandidaten}
+        aktuelleKategorieLabel="Mietweiterleitung"
+        onUebernehmen={uebernehmen}
+      />
     </div>
   );
 }
@@ -1142,11 +1261,13 @@ function toKautionEditRow(r: ParsedZahlungRow, bestehend: Set<string>): KautionE
 
 function KautionSektion({
   rows,
+  alleRows,
   kandidaten,
   bestehendeListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
+  alleRows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
   bestehendeListe: string[];
   importBatchId: string;
@@ -1160,6 +1281,15 @@ function KautionSektion({
 
   function updateRow(rowNumber: number, patch: Partial<KautionEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
+  }
+
+  const uebernommeneRowNumbers = new Set(editRows.map((r) => r.rowNumber));
+  const weitereKandidaten = alleRows.filter(
+    (r) => !r.kaution && r.errors.length === 0 && !uebernommeneRowNumbers.has(r.rowNumber),
+  );
+
+  function uebernehmen(r: ParsedZahlungRow) {
+    setEditRows((rs) => [...rs, toKautionEditRow(r, bestehend)]);
   }
 
   function istBereitsImportiert(r: KautionEditRow): boolean {
@@ -1195,7 +1325,7 @@ function KautionSektion({
     );
   }
 
-  if (editRows.length === 0) return null;
+  if (editRows.length === 0 && weitereKandidaten.length === 0) return null;
 
   return (
     <div>
@@ -1307,6 +1437,12 @@ function KautionSektion({
           {commitPending ? "Importiere…" : `${importierbareRows.length} Kautionsbuchungen importieren`}
         </button>
       </form>
+
+      <WeitereBuchungenPanel
+        kandidaten={weitereKandidaten}
+        aktuelleKategorieLabel="Kaution"
+        onUebernehmen={uebernehmen}
+      />
     </div>
   );
 }
@@ -1402,6 +1538,7 @@ export default function KontoauszugImportPage() {
           <MietweiterleitungenSektion
             key={`mietweiterleitungen-${preview.importBatchId}`}
             rows={preview.zahlungenRows.filter((r) => r.eigentuemerBuchung)}
+            alleRows={preview.zahlungenRows}
             bestehendeListe={preview.bestehendeMietweiterleitungen}
             importBatchId={preview.importBatchId}
           />
@@ -1409,6 +1546,7 @@ export default function KontoauszugImportPage() {
           <KautionSektion
             key={`kaution-${preview.importBatchId}`}
             rows={preview.zahlungenRows.filter((r) => r.kaution)}
+            alleRows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
             bestehendeListe={preview.bestehendeKautionsbuchungen}
             importBatchId={preview.importBatchId}
