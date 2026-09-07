@@ -1479,9 +1479,11 @@ type NebenkostenPositionKandidat = { id: string; label: string; mietvertragId: s
 
 type NebenkostenausgleichEditRow = ParsedZahlungRow & { gewaehltePositionId: string; ausgewaehlt: boolean };
 
-// Gleiches Prinzip wie bei Kaution/Mietweiterleitungen oben.
+// Gleiches Prinzip wie bei Kaution/Mietweiterleitungen oben, mit einer Ausnahme: "erkannt" wird
+// für den Filter zusätzlich nach Dedup-Status aufgespalten (siehe pruefeNebenkostenausgleichDuplikat
+// unten) — sonst ließe sich "bitte prüfen" nicht getrennt von bereits erledigten Zeilen filtern.
 type NebenkostenausgleichHinweisKategorie = "erkannt" | "weitere";
-type NebenkostenausgleichHinweisFilter = "alle" | NebenkostenausgleichHinweisKategorie;
+type NebenkostenausgleichHinweisFilter = "alle" | "erkannt_pruefen" | "erkannt_importiert" | "weitere";
 
 function ermittleNebenkostenausgleichHinweis(
   r: Pick<ParsedZahlungRow, "nebenkostenausgleich">,
@@ -1489,26 +1491,27 @@ function ermittleNebenkostenausgleichHinweis(
   return r.nebenkostenausgleich ? "erkannt" : "weitere";
 }
 
-// Für "erkannt" ist das Label vom Dedup-Status abhängig (siehe pruefeNebenkostenausgleichDuplikat
-// unten) — hier nur der Basistext für Filter-Dropdown/Fallback, die tatsächlich angezeigte Zeile
-// hängt zusätzlich an "bitte prüfen"/"bereits importiert" (siehe Render unten).
-const NEBENKOSTENAUSGLEICH_HINWEIS_LABELS: Record<NebenkostenausgleichHinweisKategorie, string> = {
-  erkannt: "Als Nebenkostenausgleich erkannt, bitte prüfen",
-  weitere: "Weitere Buchung",
-};
+const NEBENKOSTENAUSGLEICH_LABEL_PRUEFEN = "Als Nebenkostenausgleich erkannt, bitte prüfen";
+const NEBENKOSTENAUSGLEICH_LABEL_IMPORTIERT = "Als Nebenkostenausgleich erkannt, bereits importiert";
+const NEBENKOSTENAUSGLEICH_LABEL_WEITERE = "Weitere Buchung";
 
 const NEBENKOSTENAUSGLEICH_HINWEIS_OPTIONEN: { value: NebenkostenausgleichHinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
-  { value: "erkannt", label: NEBENKOSTENAUSGLEICH_HINWEIS_LABELS.erkannt },
-  { value: "weitere", label: NEBENKOSTENAUSGLEICH_HINWEIS_LABELS.weitere },
+  { value: "erkannt_pruefen", label: NEBENKOSTENAUSGLEICH_LABEL_PRUEFEN },
+  { value: "erkannt_importiert", label: NEBENKOSTENAUSGLEICH_LABEL_IMPORTIERT },
+  { value: "weitere", label: NEBENKOSTENAUSGLEICH_LABEL_WEITERE },
 ];
 
 function matchesNebenkostenausgleichHinweisFilter(
   r: Pick<ParsedZahlungRow, "nebenkostenausgleich">,
+  duplikat: boolean,
   filter: NebenkostenausgleichHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
-  return ermittleNebenkostenausgleichHinweis(r) === filter;
+  const kategorie = ermittleNebenkostenausgleichHinweis(r);
+  if (filter === "weitere") return kategorie === "weitere";
+  if (filter === "erkannt_pruefen") return kategorie === "erkannt" && !duplikat;
+  return kategorie === "erkannt" && duplikat;
 }
 
 // Gleicher Schlüssel wie datumBetragSchluessel in actions.ts (dort auch der Kommentar zur
@@ -1574,7 +1577,7 @@ function NebenkostenausgleichSektion({
   const [editRows, setEditRows] = useState<NebenkostenausgleichEditRow[]>(() =>
     rows.map((r) => toNebenkostenausgleichEditRow(r, positionen, bestehend)),
   );
-  const [hinweisFilter, setHinweisFilter] = useState<NebenkostenausgleichHinweisFilter>("erkannt");
+  const [hinweisFilter, setHinweisFilter] = useState<NebenkostenausgleichHinweisFilter>("erkannt_pruefen");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   // Zusätzlich zu den echten offenen Positionen immer wählbar: für eine Buchung, zu der es (z.B.
   // weil das Abrechnungsjahr nie in dieser App abgerechnet wurde) nie eine passende Position
@@ -1588,7 +1591,13 @@ function NebenkostenausgleichSektion({
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
   }
 
-  const gefilterteRows = editRows.filter((r) => matchesNebenkostenausgleichHinweisFilter(r, hinweisFilter));
+  const gefilterteRows = editRows.filter((r) =>
+    matchesNebenkostenausgleichHinweisFilter(
+      r,
+      pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag),
+      hinweisFilter,
+    ),
+  );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehltePositionId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -1723,12 +1732,10 @@ function NebenkostenausgleichSektion({
                         <span className="text-red-400">{r.errors.join("; ")}</span>
                       ) : kategorie === "erkannt" ? (
                         <span className={duplikat ? "text-green-400" : "text-amber-400"}>
-                          {duplikat
-                            ? "Als Nebenkostenausgleich erkannt, bereits importiert"
-                            : "Als Nebenkostenausgleich erkannt, bitte prüfen"}
+                          {duplikat ? NEBENKOSTENAUSGLEICH_LABEL_IMPORTIERT : NEBENKOSTENAUSGLEICH_LABEL_PRUEFEN}
                         </span>
                       ) : (
-                        <span className="text-neutral-500">{NEBENKOSTENAUSGLEICH_HINWEIS_LABELS.weitere}</span>
+                        <span className="text-neutral-500">{NEBENKOSTENAUSGLEICH_LABEL_WEITERE}</span>
                       )}
                       {r.errors.length === 0 && r.mehrdeutig && (
                         <span className="ml-1 text-amber-400">mehrdeutig, bitte prüfen</span>
