@@ -82,7 +82,7 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   eigentuemer: "Eigentümer-Buchung",
   kaution: "Kaution",
   pruefen: "Bitte prüfen",
-  mehrdeutig: "Mehrdeutig, bitte prüfen",
+  mehrdeutig: "Mehrdeutig",
   rueckbuchung: "Rücklastschrift",
   vorschlag: "Vorschlag übernommen",
   bereits_importiert: "Bereits importiert (als Zahlung)",
@@ -277,17 +277,20 @@ function ZahlungenSektion({
   rows,
   kandidaten,
   bestehendeZahlungenListe,
+  bestehendeZahlungenDatumBetragListe,
   bestehendeKostenListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
   bestehendeZahlungenListe: string[];
+  bestehendeZahlungenDatumBetragListe: string[];
   bestehendeKostenListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitZahlungen, null);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
+  const bestehendeZahlungenDatumBetrag = new Set(bestehendeZahlungenDatumBetragListe);
   const bestehendeKosten = new Set(bestehendeKostenListe);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [editRows, setEditRows] = useState<ZahlungEditRow[]>(() =>
@@ -301,7 +304,16 @@ function ZahlungenSektion({
   }
 
   function istBereitsImportiert(r: ZahlungEditRow): boolean {
-    return pruefeZahlungDuplikat(bestehendeZahlungen, r.gewaehlterMietvertragId, r.datum, r.betrag);
+    if (r.gewaehlterMietvertragId) {
+      return pruefeZahlungDuplikat(bestehendeZahlungen, r.gewaehlterMietvertragId, r.datum, r.betrag);
+    }
+    // Ohne gewählten Mietvertrag (z.B. eine noch nicht aufgelöste "mehrdeutig"-Zeile) lässt sich
+    // der präzise, mietvertragsgebundene Schlüssel gar nicht erst bilden — als Rückfall dient
+    // derselbe großzügigere Datum+Betragshöhe-Schlüssel wie beim Kosten↔Zahlungen-Hinweis, damit
+    // eine tatsächlich schon importierte, aber noch nicht zugeordnete Buchung nicht unmarkiert
+    // bleibt. Wirkt sich nur auf die Anzeige aus (Hinweis-Badge), nicht auf die
+    // Standard-Auswahl/-Abwahl der Zeile.
+    return pruefeAlsZahlungImportiert(bestehendeZahlungenDatumBetrag, r.datum, r.betrag);
   }
 
   function istBereitsAlsKostenImportiert(r: ZahlungEditRow): boolean {
@@ -674,11 +686,13 @@ function pruefeKostenDuplikat(
   return bestehend.has(`${empfaenger.trim().toLowerCase()}|${datum}|${betrag.toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
-// Prüft, ob eine eingehende, ignorierte Buchung bereits als Zahlung importiert wurde. Zahlung
-// hat (anders als Kostenposition.empfaenger) keine eigene Empfänger-Spalte, deshalb hier
-// bewusst nur Datum+Betrag als Schlüssel — etwas großzügiger als der empfänger-basierte
-// Schlüssel bei Kosten, reicht aber für einen Hinweis-Badge. Betragshöhe ohne Vorzeichen, siehe
-// Kommentar zu bestehendeZahlungenDatumBetrag in actions.ts.
+// Prüft, ob eine Buchung bereits als Zahlung importiert wurde — verwendet an zwei Stellen: bei
+// einer eingehenden, ignorierten Kosten-Zeile (Zahlung hat anders als Kostenposition.empfaenger
+// keine eigene Empfänger-Spalte) und als Rückfall in der Zahlungen-Sektion selbst für Zeilen
+// ohne gewählten Mietvertrag (z.B. "mehrdeutig"), wo der präzise mietvertragsgebundene Schlüssel
+// nicht bildbar ist. Bewusst nur Datum+Betrag als Schlüssel — etwas großzügiger als
+// empfänger-/mietvertragsgebundene Schlüssel, reicht aber für einen Hinweis-Badge.
+// Betragshöhe ohne Vorzeichen, siehe Kommentar zu bestehendeZahlungenDatumBetrag in actions.ts.
 function pruefeAlsZahlungImportiert(
   bestehendeZahlungen: Set<string>,
   datum: string | null,
@@ -1604,6 +1618,7 @@ export default function KontoauszugImportPage() {
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
             bestehendeZahlungenListe={preview.bestehendeZahlungen}
+            bestehendeZahlungenDatumBetragListe={preview.bestehendeZahlungenDatumBetrag}
             bestehendeKostenListe={preview.bestehendeKosten}
             importBatchId={preview.importBatchId}
           />
