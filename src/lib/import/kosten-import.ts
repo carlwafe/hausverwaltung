@@ -1,5 +1,5 @@
 import {
-  ermittleMandatsref,
+  ermittleMandatsrefAusZeile,
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
   KAUTION_PATTERN,
@@ -28,13 +28,18 @@ export type GebaeudeKandidat = {
 // (z.B. Techem-Sammellastschriften über mehrere Häuser) aus der Historie nicht mehr
 // unterscheidbar von "kein Gebäude". verwendungszweck ist die damals gespeicherte
 // Buchungsbeschreibung — wird genutzt, um bei mehrdeutigem Empfänger (z.B. Stadtwerke Eutin für
-// Wasser, Wasser+Gas und Strom+Wasser) anhand gemeinsamer Wörter zu unterscheiden, und um eine
-// SEPA-Mandatsreferenz wiederzuerkennen.
+// Wasser, Wasser+Gas und Strom+Wasser) anhand gemeinsamer Wörter zu unterscheiden. mandatsref ist
+// die damals ermittelte SEPA-Mandatsreferenz (aus einer eigenen CSV-Spalte oder aus dem
+// Verwendungszweck-Text extrahiert, siehe ermittleMandatsrefAusZeile) — bei manchen Absendern
+// (z.B. Stadtwerke Luebeck Energie, die unter demselben Namen sowohl Strom als auch Gas
+// abrechnen) unterscheidet sich der Verwendungszweck-Text zwischen den Kostenarten gar nicht,
+// wohl aber die je Zählpunkt/Vertrag stabile Mandatsreferenz.
 export type EmpfaengerHistorie = {
   empfaenger: string;
   kostenartId: string;
   gebaeudeAuswahl: string | null;
   verwendungszweck: string | null;
+  mandatsref: string | null;
 };
 
 export type ParsedKostenRow = {
@@ -149,17 +154,22 @@ function strassenFuellwoerter(gebaeudeKandidaten: GebaeudeKandidat[]): Set<strin
  * Eine SEPA-Mandatsreferenz geht dem voraus: Techem & Co. nutzen für dieselbe
  * Gebäude-/Kostengruppen-Zuordnung oft sogar eine eigene, gebäudespezifische Kostenart (z.B.
  * "Heizkosten Haus 2-12" statt nur "Heizkosten") — bei so einem Empfänger wäre die reine
- * Empfänger-Historie über alle Gebäude hinweg zwangsläufig uneinheitlich.
+ * Empfänger-Historie über alle Gebäude hinweg zwangsläufig uneinheitlich. Bei manchen Absendern
+ * (z.B. Stadtwerke Luebeck Energie, die unter demselben Namen sowohl Strom als auch Gas
+ * abrechnen) hilft nicht einmal der Wortabgleich weiter, weil sich die Buchungstexte beider
+ * Kostenarten gar nicht unterscheiden — dort ist die Mandatsreferenz (aus einer eigenen
+ * CSV-Spalte statt aus Text, siehe ermittleMandatsrefAusZeile) der einzige verlässliche
+ * Unterscheidungsschlüssel je Zählpunkt/Vertrag.
  */
 function ermittleKostenartVorschlag(
   empfaenger: string,
   verwendungszweck: string,
   historie: EmpfaengerHistorie[],
   gebaeudeKandidaten: GebaeudeKandidat[],
+  mandatsref: string | null,
 ): string | null {
-  const mandatsref = ermittleMandatsref(verwendungszweck);
   if (mandatsref) {
-    const mandatsrefTreffer = historie.filter((h) => ermittleMandatsref(h.verwendungszweck ?? "") === mandatsref);
+    const mandatsrefTreffer = historie.filter((h) => h.mandatsref === mandatsref);
     if (mandatsrefTreffer.length > 0) {
       const mandatsrefKostenartIds = new Set(mandatsrefTreffer.map((t) => t.kostenartId));
       if (mandatsrefKostenartIds.size === 1) return [...mandatsrefKostenartIds][0];
@@ -284,6 +294,7 @@ function ermittleGebaeudeVorschlag(
   verwendungszweck: string,
   gebaeude: GebaeudeKandidat[],
   historie: EmpfaengerHistorie[],
+  mandatsref: string | null,
 ): string | null | undefined {
   const textLeicht = stripStrassenwort(text).toLowerCase();
   const strassen = [
@@ -344,9 +355,8 @@ function ermittleGebaeudeVorschlag(
   // Empfänger-Historie zwangsläufig uneinheitlich und damit unbrauchbar wäre — die
   // Mandatsreferenz grenzt dagegen auf genau die Buchungen ein, die zur selben
   // Gebäude-/Kostengruppen-Zuordnung gehören.
-  const mandatsref = ermittleMandatsref(verwendungszweck);
   if (mandatsref) {
-    const mandatsrefTreffer = historie.filter((h) => ermittleMandatsref(h.verwendungszweck ?? "") === mandatsref);
+    const mandatsrefTreffer = historie.filter((h) => h.mandatsref === mandatsref);
     if (mandatsrefTreffer.length > 0) {
       const auswahlWerte = new Set(mandatsrefTreffer.map((t) => t.gebaeudeAuswahl));
       if (auswahlWerte.size === 1) return [...auswahlWerte][0];
@@ -369,7 +379,8 @@ export function mapKostenRows(
   historie: EmpfaengerHistorie[],
   gebaeudeKandidaten: GebaeudeKandidat[],
 ): ParsedKostenRow[] {
-  const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol } = findeKontoauszugSpalten(headers);
+  const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
+    findeKontoauszugSpalten(headers);
 
   return rows.map((row, i) => {
     const errors: string[] = [];
@@ -382,6 +393,7 @@ export function mapKostenRows(
 
     const verwendungszweck = zweckCol ? (row[zweckCol] ?? "").trim() : "";
     const empfaenger = nameCol ? (row[nameCol] ?? "").trim() : "";
+    const mandatsref = ermittleMandatsrefAusZeile(row, mandatsrefCol, verwendungszweck);
 
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const istEingehend = rohBetrag !== null && rohBetrag > 0;
@@ -404,13 +416,20 @@ export function mapKostenRows(
     let vorgeschlageneKostenartId: string | null = null;
     let vorgeschlageneGebaeudeAuswahl: string | null | undefined;
     if (!ignorieren && errors.length === 0) {
-      vorgeschlageneKostenartId = ermittleKostenartVorschlag(empfaenger, verwendungszweck, historie, gebaeudeKandidaten);
+      vorgeschlageneKostenartId = ermittleKostenartVorschlag(
+        empfaenger,
+        verwendungszweck,
+        historie,
+        gebaeudeKandidaten,
+        mandatsref,
+      );
       vorgeschlageneGebaeudeAuswahl = ermittleGebaeudeVorschlag(
         `${verwendungszweck} ${empfaenger}`,
         empfaenger,
         verwendungszweck,
         gebaeudeKandidaten,
         historie,
+        mandatsref,
       );
     }
 

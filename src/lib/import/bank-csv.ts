@@ -100,6 +100,23 @@ export function ermittleMandatsref(verwendungszweck: string): string | null {
   return MANDATSREF_PATTERN.exec(verwendungszweck)?.[1] ?? null;
 }
 
+// Manche Absender (z.B. Techem) schreiben die Mandatsreferenz als Text in den Verwendungszweck
+// ("Ihre Mandatsref. bei uns: ..."), andere (z.B. Stadtwerke Luebeck Energie) liefern sie
+// stattdessen in einer eigenen CSV-Spalte "Mandatsreferenz" mit — bei diesen enthält der
+// Verwendungszweck selbst gar keinen Hinweis darauf, welche von mehreren Kostenarten des
+// gleichen Empfängers (z.B. Strom vs. Gas) gemeint ist, wohl aber die je Zählpunkt/Vertrag
+// stabile Mandatsreferenz. Die Spalte hat Vorrang, weil sie exakt und nicht auf einen bestimmten
+// Textbaustein angewiesen ist; der Text-Fallback deckt weiterhin Absender wie Techem ab, die gar
+// keine eigene Spalte liefern.
+export function ermittleMandatsrefAusZeile(
+  row: Record<string, string>,
+  mandatsrefCol: string | undefined,
+  verwendungszweck: string,
+): string | null {
+  const ausSpalte = mandatsrefCol ? (row[mandatsrefCol] ?? "").trim() : "";
+  return ausSpalte || ermittleMandatsref(verwendungszweck);
+}
+
 export function textEnthaeltWort(haystack: string, wort: string): boolean {
   if (wort.length < 3) return false;
   const h = normalizeText(haystack);
@@ -120,9 +137,10 @@ export const KONTOAUSZUG_SPALTEN = {
     "zahlungsempfaenger",
     "zahlungspflichtiger",
   ],
+  mandatsreferenz: ["mandatsreferenz"],
 } as const;
 
-/** Liest Datum/Betrag/Verwendungszweck/Name-Spalten anhand der üblichen Bank-CSV-Kopfzeilen aus. */
+/** Liest Datum/Betrag/Verwendungszweck/Name/Mandatsreferenz-Spalten anhand der üblichen Bank-CSV-Kopfzeilen aus. */
 export function findeKontoauszugSpalten(headers: string[]) {
   const datumCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.datum]);
   const betragCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.betrag]);
@@ -130,7 +148,8 @@ export function findeKontoauszugSpalten(headers: string[]) {
   const sollCol = betragCol ? undefined : findColumn(headers, [...KONTOAUSZUG_SPALTEN.soll]);
   const zweckCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.verwendungszweck]);
   const nameCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.name]);
-  return { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol };
+  const mandatsrefCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.mandatsreferenz]);
+  return { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol };
 }
 
 /** Vorzeichenbehafteter Betrag: positiv = eingehend, negativ = ausgehend. */

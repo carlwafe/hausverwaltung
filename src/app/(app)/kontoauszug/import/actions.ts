@@ -18,6 +18,7 @@ import {
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
 import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
+import { ermittleMandatsrefAusZeile, findColumn } from "@/lib/import/bank-csv";
 
 export type PreviewResult =
   | {
@@ -125,6 +126,7 @@ export async function previewImport(
           datum: true,
           betrag: true,
           beschreibung: true,
+          rohdaten: true,
         },
       }),
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
@@ -182,12 +184,17 @@ export async function previewImport(
     // Historie für den Empfänger→Kostenart-Vorschlag. Positionen ohne Empfänger (z.B. von der
     // Sparkasse ohne Namen abgebuchte Kontoführungsgebühren) bleiben drin — für die greift beim
     // Abgleich ein Verwendungszweck-Fallback statt des Empfänger-Namens.
-    const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen.map((k) => ({
-      empfaenger: k.empfaenger ?? "",
-      kostenartId: k.kostenartId,
-      gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId) || null,
-      verwendungszweck: k.beschreibung,
-    }));
+    const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen.map((k) => {
+      const rohdaten = (k.rohdaten as Record<string, string> | null) ?? {};
+      const mandatsrefCol = findColumn(Object.keys(rohdaten), ["mandatsreferenz"]);
+      return {
+        empfaenger: k.empfaenger ?? "",
+        kostenartId: k.kostenartId,
+        gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId) || null,
+        verwendungszweck: k.beschreibung,
+        mandatsref: ermittleMandatsrefAusZeile(rohdaten, mandatsrefCol, k.beschreibung ?? ""),
+      };
+    });
     const kostenRows = mapKostenRows(headers, rows, historie, gebaeude);
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen
