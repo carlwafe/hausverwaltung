@@ -3,6 +3,7 @@ import {
   istEigentuemerBuchung,
   KAUTION_PATTERN,
   leseBetrag,
+  NEBENKOSTENAUSGLEICH_PATTERN,
   parseGermanDate,
   repariereMojibake,
   RUECKBUCHUNG_PATTERN,
@@ -31,6 +32,7 @@ export type ParsedZahlungRow = {
   rueckbuchung: boolean; // Rücklastschrift/Lastschriftwiderspruch: negative Korrektur einer zuvor gutgeschriebenen Miete
   eigentuemerBuchung: boolean; // Buchung von/an die Eigentümerin (Julia Katharina Waller) – keine Miete
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Miete, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
+  nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Miete, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
   rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
   errors: string[];
 };
@@ -131,11 +133,13 @@ export function mapZahlungenRows(
     // wurde — sie müssen als Korrekturbuchung importiert werden, nicht als "ausgehend" ignoriert.
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const kaution = KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(name);
+    const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
     // Ein Kaution-Treffer im Verwendungszweck hat Vorrang vor der Eigentümer-Erkennung: eine
     // Kaution landet oft auf einem Konto, das rechtlich auf die Eigentümerin läuft
     // (Kautionskonto), ist aber keine Mietweiterleitung/Einlage an sie persönlich.
     const eigentuemerBuchung = !kaution && istEigentuemerBuchung(name);
-    const ignorieren = eigentuemerBuchung || kaution || (betrag !== null && betrag <= 0 && !rueckbuchung);
+    const ignorieren =
+      eigentuemerBuchung || kaution || nebenkostenausgleich || (betrag !== null && betrag <= 0 && !rueckbuchung);
 
     let vorgeschlagenerMietvertragId: string | null = null;
     let mehrdeutig = false;
@@ -163,6 +167,7 @@ export function mapZahlungenRows(
       rueckbuchung,
       eigentuemerBuchung,
       kaution,
+      nebenkostenausgleich,
       rohdaten: row,
       errors,
     };

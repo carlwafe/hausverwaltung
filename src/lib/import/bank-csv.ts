@@ -106,6 +106,14 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 // fälschlich als Eigentümer-Buchung statt als Kaution erkennen.
 export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 
+// Rückzahlung/Nachzahlung aus der jährlichen Nebenkostenabrechnung — im Verwendungszweck bisher
+// durchgängig mit "BK-Abr." oder ausgeschrieben "Nebenkosten-/Betriebskostenabrechnung" benannt.
+// Weder Miete noch Kosten noch Kaution: gehört gegen die passende offene
+// NebenkostenabrechnungPosition abgeglichen (siehe kontoauszug/import), nicht in Zahlung/
+// Kostenposition — sonst verfälscht der Betrag dauerhaft die Offene-Posten-Berechnung, die die
+// tatsächliche Abrechnung nie einbezieht.
+export const NEBENKOSTENAUSGLEICH_PATTERN = /bk-abr|nebenkostenabrechnung|betriebskostenabrechnung/i;
+
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
 // Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
 // Adresstext (das oft mitgelieferte "Ext.Ref."-Feld ist häufig leer oder nicht brauchbar). Die

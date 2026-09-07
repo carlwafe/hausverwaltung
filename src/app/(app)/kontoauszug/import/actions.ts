@@ -32,6 +32,7 @@ export type PreviewResult =
       bestehendeZahlungenDatumBetrag: string[];
       bestehendeMietweiterleitungen: string[];
       bestehendeKautionsbuchungen: string[];
+      offeneNebenkostenPositionen: { id: string; label: string; mietvertragId: string | null }[];
       fileName: string;
       importBatchId: string;
     }
@@ -125,6 +126,7 @@ export async function previewImport(
       bestehendeKostenpositionen,
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
+      offeneNebenkostenPositionenRaw,
     ] = await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
@@ -153,6 +155,10 @@ export async function previewImport(
       }),
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
+      prisma.nebenkostenabrechnungPosition.findMany({
+        where: { beglichenAm: null },
+        include: { abrechnung: true, einheit: true, mietvertrag: { include: { mieter: true } } },
+      }),
     ]);
 
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
@@ -242,6 +248,24 @@ export async function previewImport(
         datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck),
       ),
     );
+    // Kandidaten für den Nebenkostenausgleich-Import: nur noch nicht beglichene Positionen (siehe
+    // where-Filter oben) — eine bereits beglichene Position taucht damit von selbst nicht mehr
+    // als Ziel auf, ohne eigenen Dedup-Schlüssel. Label + Vorzeichen der Betragsangabe folgen
+    // derselben Konvention wie saldo (positiv = Guthaben, negativ = Nachzahlung).
+    const offeneNebenkostenPositionen = offeneNebenkostenPositionenRaw.map((p) => {
+      const mieterNamen =
+        p.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? "unbekannt";
+      const saldo = Number(p.saldo);
+      const art = saldo >= 0 ? "Guthaben" : "Nachzahlung";
+      const betragText = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(
+        Math.abs(saldo),
+      );
+      return {
+        id: p.id,
+        label: `${p.abrechnung.jahr} — ${mieterNamen} — ${p.einheit.bezeichnung} (${art} ${betragText})`,
+        mietvertragId: p.mietvertragId,
+      };
+    });
 
     return {
       zahlungenRows,
@@ -254,6 +278,7 @@ export async function previewImport(
       bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
       bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
       bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
+      offeneNebenkostenPositionen,
       fileName: file.name,
       importBatchId: importBatch.id,
     };
@@ -559,5 +584,66 @@ export async function commitKautionsbuchungen(
 
   return `${neu.length} Kautionsbuchung(en) importiert.${
     uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
+  }`;
+}
+
+type NebenkostenausgleichCommitRow = {
+  positionId: string;
+  datum: string;
+  betrag: number; // Rohbetrag von der Bank (Vorzeichen wie im Kontoauszug)
+};
+
+export async function commitNebenkostenausgleich(
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireUser();
+
+  const raw = formData.get("rows");
+  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
+
+  const importBatchId = formData.get("importBatchId");
+
+  let rows: NebenkostenausgleichCommitRow[];
+  try {
+    rows = JSON.parse(raw);
+  } catch {
+    return "Daten konnten nicht gelesen werden.";
+  }
+
+  if (rows.length === 0) return "Keine Buchungen zum Importieren ausgewählt.";
+
+  const fehlende = rows.filter((r) => !r.positionId);
+  if (fehlende.length > 0) {
+    return `${fehlende.length} Zeile(n) haben noch keine Position ausgewählt.`;
+  }
+
+  // Vorzeichen gedreht, wie schon bei saldo: eine ausgehende Guthaben-Auszahlung (negativer
+  // Rohbetrag) wird zu einem positiven beglichenBetrag, eine eingehende Nachzahlung (positiver
+  // Rohbetrag) zu einem negativen — direkt mit saldo vergleichbar. Das where mit beglichenAm:
+  // null verhindert, dass eine (z.B. durch doppeltes Absenden) bereits beglichene Position
+  // stillschweigend überschrieben wird.
+  const ergebnisse = await prisma.$transaction(
+    rows.map((r) =>
+      prisma.nebenkostenabrechnungPosition.updateMany({
+        where: { id: r.positionId, beglichenAm: null },
+        data: { beglichenAm: new Date(r.datum), beglichenBetrag: -r.betrag },
+      }),
+    ),
+  );
+  const beglichen = ergebnisse.reduce((sum, e) => sum + e.count, 0);
+  const uebersprungen = rows.length - beglichen;
+
+  if (typeof importBatchId === "string") {
+    await ergaenzeImportBatchErgebnis(
+      importBatchId,
+      `${beglichen} Nebenkostenabrechnung(en) als beglichen markiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+    );
+  }
+
+  revalidatePath("/nebenkostenabrechnungen");
+
+  return `${beglichen} Position(en) als beglichen markiert.${
+    uebersprungen > 0 ? ` ${uebersprungen} bereits beglichen, übersprungen.` : ""
   }`;
 }

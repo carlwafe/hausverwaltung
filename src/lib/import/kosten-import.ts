@@ -4,6 +4,7 @@ import {
   istEigentuemerBuchung,
   KAUTION_PATTERN,
   leseBetrag,
+  NEBENKOSTENAUSGLEICH_PATTERN,
   normalizeText,
   parseGermanDate,
   repariereMojibake,
@@ -65,7 +66,8 @@ export type ParsedKostenRow = {
   // Rückerstattung/Gutschrift, keine Mieteinnahme.
   gutschrift: boolean;
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Kostenposition, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
-  ignorieren: boolean; // Eigentümer-Buchung, Kaution, oder eingehende Buchung von unbekanntem Absender (vermutlich Miete)
+  nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Kostenposition, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
+  ignorieren: boolean; // Eigentümer-Buchung, Kaution, Nebenkosten-Ausgleich, oder eingehende Buchung von unbekanntem Absender (vermutlich Miete)
   rohdaten: Record<string, string>;
   errors: string[];
 };
@@ -413,14 +415,21 @@ export function mapKostenRows(
     // einem Konto, das rechtlich auf die Eigentümerin läuft (Kautionskonto), ist aber weder eine
     // Mietweiterleitung/Einlage an sie persönlich noch eine normale Kosten-Gutschrift.
     const kaution = istEingehend && (KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(empfaenger));
+    // Anders als kaution unabhängig vom Vorzeichen geprüft: eine Nebenkostenabrechnung kann sowohl
+    // eine Rückzahlung (ausgehend, Guthaben) als auch eine Nachzahlung (eingehend) sein.
+    const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
     const eigentuemerBuchung = !kaution && istEigentuemerBuchung(empfaenger);
     // Eine eingehende Buchung ist meistens eine Mieteinnahme (gehört in den Zahlungen-Import) —
     // außer der Absender ist bereits als Kosten-Empfänger bekannt (hat Historie), dann handelt es
     // sich vermutlich um eine Rückerstattung/Gutschrift (z.B. Techem erstattet eine Überzahlung)
     // und mindert die betroffene Kostenart, statt komplett zu verschwinden.
     const bekannterKostenEmpfaenger = ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
-    const gutschrift = istEingehend && !kaution && bekannterKostenEmpfaenger;
-    const ignorieren = eigentuemerBuchung || kaution || (istEingehend && !kaution && !bekannterKostenEmpfaenger);
+    const gutschrift = istEingehend && !kaution && !nebenkostenausgleich && bekannterKostenEmpfaenger;
+    const ignorieren =
+      eigentuemerBuchung ||
+      kaution ||
+      nebenkostenausgleich ||
+      (istEingehend && !kaution && !nebenkostenausgleich && !bekannterKostenEmpfaenger);
 
     const betrag = rohBetrag !== null ? -rohBetrag : null;
     const jahr = datum ? Number(datum.slice(0, 4)) : null;
@@ -458,6 +467,7 @@ export function mapKostenRows(
       rueckbuchung,
       gutschrift,
       kaution,
+      nebenkostenausgleich,
       ignorieren,
       rohdaten: row,
       errors,

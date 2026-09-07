@@ -352,6 +352,11 @@ model NebenkostenabrechnungPosition {
   // positiv = Guthaben (Vorauszahlung > Kostenanteil), negativ = Nachzahlung fällig.
   saldo               Decimal               @db.Decimal(10, 2)
   details             Json?
+  // Vorzeichen wie saldo: positiv = ausgezahltes Guthaben, negativ = eingezogene Nachzahlung —
+  // direkt mit saldo vergleichbar (z.B. für eine "weicht ab"-Warnung bei Teilzahlung/Rundung).
+  // null = noch nicht beglichen.
+  beglichenAm         DateTime?
+  beglichenBetrag     Decimal?              @db.Decimal(10, 2)
 
   @@unique([abrechnungId, einheitId, mietvertragId])
   @@map("nebenkostenabrechnung_positionen")

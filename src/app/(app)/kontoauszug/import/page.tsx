@@ -9,6 +9,7 @@ import {
   commitKosten,
   commitMietweiterleitungen,
   commitKautionsbuchungen,
+  commitNebenkostenausgleich,
 } from "./actions";
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
@@ -1591,6 +1592,266 @@ function KautionSektion({
   );
 }
 
+// ---------- Nebenkostenabrechnung-Ausgleich ----------
+
+type NebenkostenPositionKandidat = { id: string; label: string; mietvertragId: string | null };
+
+type NebenkostenausgleichEditRow = ParsedZahlungRow & { gewaehltePositionId: string; ausgewaehlt: boolean };
+
+// Gleiches Prinzip wie bei Kaution/Mietweiterleitungen oben.
+type NebenkostenausgleichHinweisKategorie = "erkannt" | "weitere";
+type NebenkostenausgleichHinweisFilter = "alle" | NebenkostenausgleichHinweisKategorie;
+
+function ermittleNebenkostenausgleichHinweis(
+  r: Pick<ParsedZahlungRow, "nebenkostenausgleich">,
+): NebenkostenausgleichHinweisKategorie {
+  return r.nebenkostenausgleich ? "erkannt" : "weitere";
+}
+
+const NEBENKOSTENAUSGLEICH_HINWEIS_LABELS: Record<NebenkostenausgleichHinweisKategorie, string> = {
+  erkannt: "Als Nebenkostenausgleich erkannt",
+  weitere: "Weitere Buchung",
+};
+
+const NEBENKOSTENAUSGLEICH_HINWEIS_FARBEN: Record<NebenkostenausgleichHinweisKategorie, string> = {
+  erkannt: "text-green-400",
+  weitere: "text-neutral-500",
+};
+
+const NEBENKOSTENAUSGLEICH_HINWEIS_OPTIONEN: { value: NebenkostenausgleichHinweisFilter; label: string }[] = [
+  { value: "alle", label: "Alle Hinweise" },
+  { value: "erkannt", label: NEBENKOSTENAUSGLEICH_HINWEIS_LABELS.erkannt },
+  { value: "weitere", label: NEBENKOSTENAUSGLEICH_HINWEIS_LABELS.weitere },
+];
+
+function matchesNebenkostenausgleichHinweisFilter(
+  r: Pick<ParsedZahlungRow, "nebenkostenausgleich">,
+  filter: NebenkostenausgleichHinweisFilter,
+): boolean {
+  if (filter === "alle") return true;
+  return ermittleNebenkostenausgleichHinweis(r) === filter;
+}
+
+// Auto-Vorauswahl nur, wenn der bereits vorgeschlagene Mietvertrag (aus dem Namensabgleich)
+// genau eine offene Position hat — bei mehreren offenen Jahren/Mehrdeutigkeit lieber manuell
+// wählen lassen statt zu raten. Kein Betrags-Abgleich nötig: anders als bei Kaution/Miete ist
+// hier die Mietvertrags-Zuordnung selbst schon das eigentliche Unsicherheitsmoment, nicht der
+// Betrag (der ohnehin nicht exakt zum saldo passen muss, z.B. bei Rundung).
+function ermittleVorgeschlagenePosition(
+  r: Pick<ParsedZahlungRow, "vorgeschlagenerMietvertragId">,
+  positionen: NebenkostenPositionKandidat[],
+): string {
+  if (!r.vorgeschlagenerMietvertragId) return "";
+  const treffer = positionen.filter((p) => p.mietvertragId === r.vorgeschlagenerMietvertragId);
+  return treffer.length === 1 ? treffer[0].id : "";
+}
+
+function toNebenkostenausgleichEditRow(
+  r: ParsedZahlungRow,
+  positionen: NebenkostenPositionKandidat[],
+): NebenkostenausgleichEditRow {
+  const gewaehltePositionId = ermittleVorgeschlagenePosition(r, positionen);
+  return {
+    ...r,
+    gewaehltePositionId,
+    ausgewaehlt: r.errors.length === 0 && Boolean(gewaehltePositionId),
+  };
+}
+
+function NebenkostenausgleichSektion({
+  rows,
+  positionen,
+  importBatchId,
+}: {
+  rows: ParsedZahlungRow[];
+  positionen: NebenkostenPositionKandidat[];
+  importBatchId: string;
+}) {
+  const [commitMessage, commitAction, commitPending] = useActionState(commitNebenkostenausgleich, null);
+  const [editRows, setEditRows] = useState<NebenkostenausgleichEditRow[]>(() =>
+    rows.map((r) => toNebenkostenausgleichEditRow(r, positionen)),
+  );
+  const [hinweisFilter, setHinweisFilter] = useState<NebenkostenausgleichHinweisFilter>("erkannt");
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  function updateRow(rowNumber: number, patch: Partial<NebenkostenausgleichEditRow>) {
+    setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
+  }
+
+  const gefilterteRows = editRows.filter((r) => matchesNebenkostenausgleichHinweisFilter(r, hinweisFilter));
+  const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehltePositionId);
+  const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
+
+  function toggleAll(checked: boolean) {
+    const sichtbareRowNumbers = new Set(gefilterteRows.map((r) => r.rowNumber));
+    setEditRows((rs) =>
+      rs.map((r) =>
+        sichtbareRowNumbers.has(r.rowNumber) && r.errors.length === 0 && r.gewaehltePositionId
+          ? { ...r, ausgewaehlt: checked }
+          : r,
+      ),
+    );
+  }
+
+  const importierbareRows = editRows.filter((r) => r.ausgewaehlt && r.gewaehltePositionId);
+  const rowsForCommit = importierbareRows.map((r) => ({
+    positionId: r.gewaehltePositionId,
+    datum: r.datum,
+    betrag: r.betrag,
+  }));
+
+  if (commitMessage) {
+    return (
+      <div>
+        <h2 className="mb-2 text-lg font-medium text-white">Nebenkostenabrechnung-Ausgleich</h2>
+        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
+        <Link href="/nebenkostenabrechnungen" className="text-sm underline">
+          Zu den Nebenkostenabrechnungen
+        </Link>
+      </div>
+    );
+  }
+
+  if (editRows.length === 0) return null;
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-medium text-white">
+          Nebenkostenabrechnung-Ausgleich ({editRows.length} Buchung{editRows.length === 1 ? "" : "en"})
+        </h2>
+        <select
+          value={hinweisFilter}
+          onChange={(e) => setHinweisFilter(e.target.value as NebenkostenausgleichHinweisFilter)}
+          className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+        >
+          {NEBENKOSTENAUSGLEICH_HINWEIS_OPTIONEN.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="mb-3 text-sm text-neutral-300">
+        Rückzahlungen/Nachzahlungen aus der Nebenkostenabrechnung — keine Miete, keine Kosten,
+        fließt nicht in die Offene-Posten-Berechnung ein.{" "}
+        {importierbareRows.length} werden als beglichen markiert.{" "}
+        {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
+      </p>
+
+      <div className="mb-4 max-h-[420px] overflow-auto rounded-lg border border-neutral-800 pb-32">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+            <tr>
+              <th className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={alleAusgewaehlt}
+                  onChange={(e) => toggleAll(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                />
+              </th>
+              <th className="px-3 py-2">Datum</th>
+              <th className="px-3 py-2">Betrag</th>
+              <th className="px-3 py-2">Verwendungszweck</th>
+              <th className="px-3 py-2">Position</th>
+              <th className="px-3 py-2">Hinweis</th>
+              <th className="px-3 py-2">Rohdaten</th>
+            </tr>
+          </thead>
+          <tbody>
+            {gefilterteRows.map((r) => {
+              const expanded = expandedRow === r.rowNumber;
+              const kategorie = ermittleNebenkostenausgleichHinweis(r);
+              return (
+                <Fragment key={r.rowNumber}>
+                  <tr
+                    className={`border-t border-neutral-800 ${
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={r.ausgewaehlt}
+                        disabled={r.errors.length > 0 || !r.gewaehltePositionId}
+                        onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
+                        className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
+                    <td
+                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
+                      title={`${r.verwendungszweck} ${r.name}`}
+                    >
+                      {r.verwendungszweck || r.name || "–"}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <MietvertragAuswahl
+                        kandidaten={positionen}
+                        value={r.gewaehltePositionId}
+                        leerLabel="– keiner Position zuordnen –"
+                        onChange={(id) =>
+                          updateRow(r.rowNumber, {
+                            gewaehltePositionId: id,
+                            ausgewaehlt: Boolean(id) && r.errors.length === 0,
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {r.errors.length > 0 ? (
+                        <span className="text-red-400">{r.errors.join("; ")}</span>
+                      ) : (
+                        <span className={NEBENKOSTENAUSGLEICH_HINWEIS_FARBEN[kategorie]}>
+                          {NEBENKOSTENAUSGLEICH_HINWEIS_LABELS[kategorie]}
+                        </span>
+                      )}
+                      {r.errors.length === 0 && r.mehrdeutig && (
+                        <span className="ml-1 text-amber-400">mehrdeutig, bitte prüfen</span>
+                      )}
+                      {r.errors.length === 0 && !r.gewaehltePositionId && (
+                        <span className="ml-1 text-neutral-500">keine offene Position gewählt</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <RohdatenToggleButton
+                        expanded={expanded}
+                        onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
+                      />
+                    </td>
+                  </tr>
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
+                </Fragment>
+              );
+            })}
+            {gefilterteRows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
+                  Keine Buchungen für diesen Filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <form action={commitAction}>
+        <input type="hidden" name="rows" value={JSON.stringify(rowsForCommit)} />
+        <input type="hidden" name="importBatchId" value={importBatchId} />
+        <button
+          type="submit"
+          disabled={commitPending || importierbareRows.length === 0}
+          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+        >
+          {commitPending ? "Markiere…" : `${importierbareRows.length} als beglichen markieren`}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ---------- Seite ----------
 
 export default function KontoauszugImportPage() {
@@ -1692,6 +1953,13 @@ export default function KontoauszugImportPage() {
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
             bestehendeListe={preview.bestehendeKautionsbuchungen}
+            importBatchId={preview.importBatchId}
+          />
+
+          <NebenkostenausgleichSektion
+            key={`nebenkostenausgleich-${preview.importBatchId}`}
+            rows={preview.zahlungenRows}
+            positionen={preview.offeneNebenkostenPositionen}
             importBatchId={preview.importBatchId}
           />
         </div>

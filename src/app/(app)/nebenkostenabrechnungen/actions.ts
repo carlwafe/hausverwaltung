@@ -94,9 +94,19 @@ export async function createAbrechnung(formData: FormData) {
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
 
+// Schlüssel zum Wiederfinden einer Position über ein Neu-Berechnen hinweg — die Positions-ID
+// selbst wechselt (Positionen werden komplett gelöscht und neu angelegt), Einheit+Mietvertrag
+// bleiben aber stabil.
+function beglichenSchluessel(einheitId: string, mietvertragId: string | null) {
+  return `${einheitId}|${mietvertragId ?? ""}`;
+}
+
 // Löscht alle Positionen und erzeugt sie mit dem aktuellen Kostenstand neu — z.B. wenn nach dem
 // ersten Entwurf noch eine Rechnung für dasselbe Jahr nachträglich importiert wurde. Die
-// Abrechnung selbst (id, Jahr, Status) bleibt erhalten.
+// Abrechnung selbst (id, Jahr, Status) bleibt erhalten. Bereits erfasste Beglichen-Markierungen
+// (beglichenAm/beglichenBetrag) werden vor dem Löschen gesichert und auf die passende neue
+// Position zurückgeschrieben — sonst würde jedes "Neu berechnen" jede bereits eingetragene
+// Zahlung stillschweigend verwerfen.
 export async function neuBerechnen(id: string) {
   await requireUser();
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
@@ -109,9 +119,17 @@ export async function neuBerechnen(id: string) {
     verbrauchswerte,
   );
 
-  await prisma.$transaction([
-    prisma.nebenkostenabrechnungPosition.deleteMany({ where: { abrechnungId: id } }),
-    prisma.nebenkostenabrechnungPosition.createMany({
+  const bestehendeBeglichen = await prisma.nebenkostenabrechnungPosition.findMany({
+    where: { abrechnungId: id, beglichenAm: { not: null } },
+    select: { einheitId: true, mietvertragId: true, beglichenAm: true, beglichenBetrag: true },
+  });
+  const beglichenMap = new Map(
+    bestehendeBeglichen.map((p) => [beglichenSchluessel(p.einheitId, p.mietvertragId), p]),
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.nebenkostenabrechnungPosition.deleteMany({ where: { abrechnungId: id } });
+    await tx.nebenkostenabrechnungPosition.createMany({
       data: ergebnis.positionen.map((p) => ({
         abrechnungId: id,
         einheitId: p.einheitId,
@@ -122,10 +140,58 @@ export async function neuBerechnen(id: string) {
         vorauszahlungGesamt: p.vorauszahlungGesamt,
         saldo: p.saldo,
       })),
-    }),
-  ]);
+    });
+
+    if (beglichenMap.size === 0) return;
+    const neuePositionen = await tx.nebenkostenabrechnungPosition.findMany({
+      where: { abrechnungId: id },
+      select: { id: true, einheitId: true, mietvertragId: true },
+    });
+    for (const p of neuePositionen) {
+      const beglichen = beglichenMap.get(beglichenSchluessel(p.einheitId, p.mietvertragId));
+      if (!beglichen) continue;
+      await tx.nebenkostenabrechnungPosition.update({
+        where: { id: p.id },
+        data: { beglichenAm: beglichen.beglichenAm, beglichenBetrag: beglichen.beglichenBetrag },
+      });
+    }
+  });
 
   revalidatePath(`/nebenkostenabrechnungen/${id}`);
+}
+
+// Manuelles Markieren für Fälle außerhalb des Kontoauszug-Imports (z.B. Barzahlung, oder eine
+// Buchung aus einem bereits vor diesem Feature importierten Monat). Default-Betrag = saldo
+// (volle, unveränderte Begleichung), abweichender Betrag kann per Formularfeld überschrieben werden.
+export async function markiereBeglichen(formData: FormData) {
+  await requireUser();
+  const positionId = formData.get("positionId");
+  const datum = formData.get("datum");
+  const betragRaw = formData.get("betrag");
+  if (typeof positionId !== "string" || !positionId || typeof datum !== "string" || !datum) {
+    throw new Error("Ungültige Eingabe.");
+  }
+
+  const position = await prisma.nebenkostenabrechnungPosition.findUniqueOrThrow({ where: { id: positionId } });
+  const betrag =
+    typeof betragRaw === "string" && betragRaw.trim() !== "" ? Number(betragRaw) : Number(position.saldo);
+  if (!Number.isFinite(betrag)) throw new Error("Ungültiger Betrag.");
+
+  await prisma.nebenkostenabrechnungPosition.update({
+    where: { id: positionId },
+    data: { beglichenAm: new Date(datum), beglichenBetrag: betrag },
+  });
+  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
+}
+
+// Zurücksetzen, falls versehentlich markiert.
+export async function entferneBeglichen(positionId: string) {
+  await requireUser();
+  const position = await prisma.nebenkostenabrechnungPosition.update({
+    where: { id: positionId },
+    data: { beglichenAm: null, beglichenBetrag: null },
+  });
+  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
 }
 
 export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL") {

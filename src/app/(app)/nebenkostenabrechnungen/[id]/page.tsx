@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
-import { deleteAbrechnung, neuBerechnen, setAbrechnungStatus } from "../actions";
+import { toDateInputValue } from "@/lib/date-utils";
+import {
+  deleteAbrechnung,
+  entferneBeglichen,
+  markiereBeglichen,
+  neuBerechnen,
+  setAbrechnungStatus,
+} from "../actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -212,6 +219,7 @@ export default async function NebenkostenabrechnungDetailPage({
               <th className="px-4 py-2 text-right">Kostenanteil</th>
               <th className="px-4 py-2 text-right">Vorauszahlung</th>
               <th className="px-4 py-2 text-right">Saldo</th>
+              <th className="px-4 py-2">Beglichen</th>
             </tr>
           </thead>
           <tbody>
@@ -247,11 +255,43 @@ export default async function NebenkostenabrechnungDetailPage({
                   {formatEuro(Number(p.saldo))}
                   {Number(p.saldo) >= 0 ? " (Guthaben)" : " (Nachzahlung)"}
                 </td>
+                <td className="px-4 py-2 text-neutral-300">
+                  {p.beglichenAm ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-400">{formatDate(p.beglichenAm)}</span>
+                      <form action={entferneBeglichen.bind(null, p.id)}>
+                        <button
+                          type="submit"
+                          className="text-xs text-neutral-500 underline hover:text-white"
+                        >
+                          zurücksetzen
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    <form action={markiereBeglichen} className="flex items-center gap-1">
+                      <input type="hidden" name="positionId" value={p.id} />
+                      <input
+                        type="date"
+                        name="datum"
+                        required
+                        defaultValue={toDateInputValue(new Date())}
+                        className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-white hover:bg-neutral-900"
+                      >
+                        Markieren
+                      </button>
+                    </form>
+                  )}
+                </td>
               </tr>
             ))}
             {abrechnung.positionen.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
                   Keine Positionen vorhanden.
                 </td>
               </tr>
