@@ -186,6 +186,90 @@ function matchesZahlungHinweisFilter(
   return ermittleZahlungHinweis(r) === filter && tags.length === 0;
 }
 
+// Durchsuchbares Mietvertrag-Auswahlfeld statt eines langen <select> — die Mietvertragsliste
+// (eine Zeile pro Einheit/Mieter) ist bei 63 Einheiten lang und nicht alphabetisch/nach Adresse
+// sortiert, ein reines Dropdown ist damit unhandlich zu durchsuchen. Zeigt beim Fokussieren ein
+// Textfeld statt des aktuell gewählten Labels (leer zum Tippen), filtert die Kandidaten per
+// Teilstring-Suche und schließt beim Verlassen des Felds wieder — ein Klick auf einen
+// Dropdown-Eintrag löst dank onMouseDown-preventDefault kein Blur aus, bevor der Klick
+// ausgewertet wird.
+function MietvertragAuswahl({
+  kandidaten,
+  value,
+  onChange,
+  leerLabel,
+}: {
+  kandidaten: { id: string; label: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  leerLabel: string;
+}) {
+  const [offen, setOffen] = useState(false);
+  const [suche, setSuche] = useState("");
+
+  const aktuellesLabel = kandidaten.find((k) => k.id === value)?.label ?? "";
+  const sucheNorm = suche.trim().toLowerCase();
+  const gefiltert = sucheNorm
+    ? kandidaten.filter((k) => k.label.toLowerCase().includes(sucheNorm))
+    : kandidaten;
+
+  function auswaehlen(id: string) {
+    onChange(id);
+    setSuche("");
+    setOffen(false);
+  }
+
+  return (
+    <div className="relative w-full">
+      <input
+        type="text"
+        value={offen ? suche : aktuellesLabel || leerLabel}
+        onChange={(e) => setSuche(e.target.value)}
+        onFocus={() => {
+          setOffen(true);
+          setSuche("");
+        }}
+        onBlur={() => {
+          setOffen(false);
+          setSuche("");
+        }}
+        placeholder="Suchen…"
+        className={`w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 ${
+          value ? "text-white" : "text-neutral-500"
+        }`}
+      />
+      {offen && (
+        <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => auswaehlen("")}
+            className="block w-full px-2 py-1 text-left text-xs text-neutral-400 hover:bg-neutral-900 hover:text-white"
+          >
+            {leerLabel}
+          </button>
+          {gefiltert.map((k) => (
+            <button
+              key={k.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => auswaehlen(k.id)}
+              className={`block w-full px-2 py-1 text-left text-xs hover:bg-neutral-900 hover:text-white ${
+                k.id === value ? "font-medium text-white" : "text-neutral-300"
+              }`}
+            >
+              {k.label}
+            </button>
+          ))}
+          {gefiltert.length === 0 && (
+            <div className="px-2 py-1 text-xs text-neutral-500">Keine Treffer.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ZahlungenSektion({
   rows,
   kandidaten,
@@ -362,23 +446,17 @@ function ZahlungenSektion({
                       {r.verwendungszweck || r.name || "–"}
                     </td>
                     <td className="px-3 py-1.5">
-                      <select
+                      <MietvertragAuswahl
+                        kandidaten={kandidaten}
                         value={r.gewaehlterMietvertragId}
-                        onChange={(e) =>
+                        leerLabel="– ignorieren –"
+                        onChange={(id) =>
                           updateRow(r.rowNumber, {
-                            gewaehlterMietvertragId: e.target.value,
-                            ausgewaehlt: Boolean(e.target.value) && r.errors.length === 0 && !r.kaution,
+                            gewaehlterMietvertragId: id,
+                            ausgewaehlt: Boolean(id) && r.errors.length === 0 && !r.kaution,
                           })
                         }
-                        className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-                      >
-                        <option value="">– ignorieren –</option>
-                        {kandidaten.map((k) => (
-                          <option key={k.id} value={k.id}>
-                            {k.label}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </td>
                     <td className="px-3 py-1.5">
                       <div className="flex gap-1">
@@ -1387,18 +1465,12 @@ function KautionSektion({
                       {r.verwendungszweck || r.name || "–"}
                     </td>
                     <td className="px-3 py-1.5">
-                      <select
+                      <MietvertragAuswahl
+                        kandidaten={kandidaten}
                         value={r.gewaehlterMietvertragId}
-                        onChange={(e) => updateRow(r.rowNumber, { gewaehlterMietvertragId: e.target.value })}
-                        className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-                      >
-                        <option value="">– keinem Mietvertrag zuordnen –</option>
-                        {kandidaten.map((k) => (
-                          <option key={k.id} value={k.id}>
-                            {k.label}
-                          </option>
-                        ))}
-                      </select>
+                        leerLabel="– keinem Mietvertrag zuordnen –"
+                        onChange={(id) => updateRow(r.rowNumber, { gewaehlterMietvertragId: id })}
+                      />
                     </td>
                     <td className="px-3 py-1.5 text-xs">
                       {r.errors.length > 0 ? (
