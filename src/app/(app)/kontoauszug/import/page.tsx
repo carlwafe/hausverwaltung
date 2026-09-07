@@ -1223,33 +1223,38 @@ function MietweiterleitungenSektion({
 
 type KautionEditRow = ParsedZahlungRow & { gewaehlterMietvertragId: string; ausgewaehlt: boolean };
 
-// Gleiches Prinzip wie bei Mietweiterleitungen oben (siehe MietweiterleitungHinweisKategorie).
+// Gleiches Prinzip wie bei Mietweiterleitungen oben (siehe MietweiterleitungHinweisKategorie),
+// mit derselben Aufspaltung von "erkannt" nach Dedup-Status wie beim Nebenkostenausgleich (siehe
+// NebenkostenausgleichHinweisFilter) — sonst ließe sich "bitte prüfen" nicht getrennt von bereits
+// erledigten Zeilen filtern.
 type KautionHinweisKategorie = "erkannt" | "weitere";
-type KautionHinweisFilter = "alle" | KautionHinweisKategorie;
+type KautionHinweisFilter = "alle" | "erkannt_pruefen" | "erkannt_importiert" | "weitere";
 
 function ermittleKautionHinweis(r: Pick<ParsedZahlungRow, "kaution">): KautionHinweisKategorie {
   return r.kaution ? "erkannt" : "weitere";
 }
 
-const KAUTION_HINWEIS_LABELS: Record<KautionHinweisKategorie, string> = {
-  erkannt: "Als Kaution erkannt",
-  weitere: "Weitere Buchung",
-};
-
-const KAUTION_HINWEIS_FARBEN: Record<KautionHinweisKategorie, string> = {
-  erkannt: "text-green-400",
-  weitere: "text-neutral-500",
-};
+const KAUTION_LABEL_PRUEFEN = "Als Kaution erkannt, bitte prüfen";
+const KAUTION_LABEL_IMPORTIERT = "Als Kaution erkannt, bereits importiert";
+const KAUTION_LABEL_WEITERE = "Weitere Buchung";
 
 const KAUTION_HINWEIS_OPTIONEN: { value: KautionHinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
-  { value: "erkannt", label: KAUTION_HINWEIS_LABELS.erkannt },
-  { value: "weitere", label: KAUTION_HINWEIS_LABELS.weitere },
+  { value: "erkannt_pruefen", label: KAUTION_LABEL_PRUEFEN },
+  { value: "erkannt_importiert", label: KAUTION_LABEL_IMPORTIERT },
+  { value: "weitere", label: KAUTION_LABEL_WEITERE },
 ];
 
-function matchesKautionHinweisFilter(r: Pick<ParsedZahlungRow, "kaution">, filter: KautionHinweisFilter): boolean {
+function matchesKautionHinweisFilter(
+  r: Pick<ParsedZahlungRow, "kaution">,
+  duplikat: boolean,
+  filter: KautionHinweisFilter,
+): boolean {
   if (filter === "alle") return true;
-  return ermittleKautionHinweis(r) === filter;
+  const kategorie = ermittleKautionHinweis(r);
+  if (filter === "weitere") return kategorie === "weitere";
+  if (filter === "erkannt_pruefen") return kategorie === "erkannt" && !duplikat;
+  return kategorie === "erkannt" && duplikat;
 }
 
 // Gleicher Schlüssel wie datumBetragZweckSchluessel in actions.ts — kein Empfänger, da der
@@ -1292,7 +1297,7 @@ function KautionSektion({
   const [editRows, setEditRows] = useState<KautionEditRow[]>(() =>
     rows.map((r) => toKautionEditRow(r, bestehend)),
   );
-  const [hinweisFilter, setHinweisFilter] = useState<KautionHinweisFilter>("erkannt");
+  const [hinweisFilter, setHinweisFilter] = useState<KautionHinweisFilter>("erkannt_pruefen");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   function updateRow(rowNumber: number, patch: Partial<KautionEditRow>) {
@@ -1303,7 +1308,7 @@ function KautionSektion({
     return pruefeKautionsbuchungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
   }
 
-  const gefilterteRows = editRows.filter((r) => matchesKautionHinweisFilter(r, hinweisFilter));
+  const gefilterteRows = editRows.filter((r) => matchesKautionHinweisFilter(r, istBereitsImportiert(r), hinweisFilter));
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -1422,14 +1427,15 @@ function KautionSektion({
                     <td className="px-3 py-1.5 text-xs">
                       {r.errors.length > 0 ? (
                         <span className="text-red-400">{r.errors.join("; ")}</span>
+                      ) : kategorie === "erkannt" ? (
+                        <span className={bereitsImportiert ? "text-green-400" : "text-amber-400"}>
+                          {bereitsImportiert ? KAUTION_LABEL_IMPORTIERT : KAUTION_LABEL_PRUEFEN}
+                        </span>
                       ) : (
-                        <span className={KAUTION_HINWEIS_FARBEN[kategorie]}>{KAUTION_HINWEIS_LABELS[kategorie]}</span>
+                        <span className="text-neutral-500">{KAUTION_LABEL_WEITERE}</span>
                       )}
                       {r.errors.length === 0 && r.mehrdeutig && (
                         <span className="ml-1 text-amber-400">mehrdeutig, bitte prüfen</span>
-                      )}
-                      {r.errors.length === 0 && bereitsImportiert && (
-                        <span className="ml-1 text-amber-400">bereits importiert</span>
                       )}
                     </td>
                     <td className="px-3 py-1.5">
