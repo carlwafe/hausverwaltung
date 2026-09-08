@@ -79,6 +79,12 @@ model Objekt {
   // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
   // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.
   buchhaltungAb         DateTime?
+  // Gespeicherter Stichtag für die Offene-Posten-Ansicht ("Buchhaltung erfasst bis") — null
+  // bedeutet "heute", wird also bei jedem Aufruf automatisch aktuell gehalten. Bewusst
+  // persistiert statt nur als URL-Parameter geführt, damit ein einmal gewählter Stichtag auch
+  // nach dem Verlassen der Seite erhalten bleibt, bis er explizit gespeichert oder
+  // zurückgesetzt wird.
+  buchhaltungBis        DateTime?
   // Referenzpunkt für die simulierte Kontostand-Ansicht: der reale, z.B. von einem
   // Kontoauszug abgelesene Kontostand an einem bestimmten Tag. Die Bank-CSV-Exporte führen
   // selbst keine laufende Saldo-Spalte, daher lässt sich der Kontostand nur relativ zu diesem

@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIst } from "@/lib/soll-ist";
 import { DateInput } from "@/components/date-input";
 import { toDateInputValue } from "@/lib/date-utils";
 import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
+import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -11,16 +11,6 @@ function formatEuro(value: number) {
 
 function formatDatum(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
-}
-
-/** Parst "yyyy-mm-dd" und setzt die Uhrzeit auf das Ende des Tages (inklusive Stichtag). */
-function parseBisParam(raw: string | undefined): Date | null {
-  if (!raw) return null;
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-  const [, jahr, monat, tag] = match;
-  const datum = new Date(Number(jahr), Number(monat) - 1, Number(tag), 23, 59, 59, 999);
-  return Number.isNaN(datum.getTime()) ? null : datum;
 }
 
 async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<OffenePostenRow[]> {
@@ -68,17 +58,12 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
     .sort((a, b) => a.saldo - b.saldo);
 }
 
-export default async function OffenePostenPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ bis?: string }>;
-}) {
-  const { bis: bisParam } = await searchParams;
+export default async function OffenePostenPage() {
   const heute = new Date();
-  const bis = parseBisParam(bisParam) ?? heute;
-  const istHeute = !parseBisParam(bisParam);
+  const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } });
+  const bis = objekt?.buchhaltungBis ?? heute;
+  const istHeute = !objekt?.buchhaltungBis;
 
-  const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
   const zeilen = await ladeZeilen(objekt?.buchhaltungAb ?? null, bis);
   const gesamtRueckstand = zeilen.filter((z) => z.saldo < 0).reduce((sum, z) => sum + z.saldo, 0);
 
@@ -97,10 +82,7 @@ export default async function OffenePostenPage({
         </p>
       </div>
 
-      <form
-        method="get"
-        className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-4"
-      >
+      <form className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-4">
         <DateInput
           key={toDateInputValue(bis)}
           id="bis"
@@ -110,19 +92,24 @@ export default async function OffenePostenPage({
         />
         <button
           type="submit"
+          formAction={setBuchhaltungBis}
           className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
         >
-          Anzeigen
+          Speichern
         </button>
         {!istHeute && (
-          <Link
-            href="/offene-posten"
+          <button
+            type="submit"
+            formAction={resetBuchhaltungBis}
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
           >
-            Zurück auf heute
-          </Link>
+            Zurücksetzen (auf heute)
+          </button>
         )}
       </form>
+      <p className="-mt-4 mb-6 text-xs text-neutral-500">
+        Der Stichtag bleibt gespeichert, bis er zurückgesetzt wird — nicht nur für diesen Aufruf.
+      </p>
 
       <div className="mb-6 rounded-lg border border-neutral-800 p-4">
         <p className="text-xs text-neutral-400">
