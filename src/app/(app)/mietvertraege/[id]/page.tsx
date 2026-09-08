@@ -5,7 +5,9 @@ import { MietvertragForm } from "../mietvertrag-form";
 import { toDateInputValue } from "@/lib/date-utils";
 import { updateMietvertrag, deleteMietvertrag } from "../actions";
 import { deleteZahlung } from "../../zahlungen/actions";
+import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
+import { BelegeSektion } from "@/components/belege-sektion";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { berechneSoll, berechneIst, sollAufschluesselung } from "@/lib/soll-ist";
 
@@ -46,6 +48,7 @@ export default async function MietvertragDetailPage({
         mieter: true,
         kaution: true,
         zahlungen: { orderBy: { datum: "desc" } },
+        dokumente: { orderBy: { createdAt: "desc" } },
       },
     }),
     prisma.einheit.findMany({ include: { gebaeude: true } }),
@@ -242,6 +245,17 @@ export default async function MietvertragDetailPage({
             </table>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <BelegeSektion
+          dokumente={vertrag.dokumente}
+          uploadAction={uploadDokument.bind(null, {
+            mietvertragId: id,
+            revalidatePath: `/mietvertraege/${id}`,
+          })}
+          revalidatePath={`/mietvertraege/${id}`}
+        />
       </div>
     </div>
   );

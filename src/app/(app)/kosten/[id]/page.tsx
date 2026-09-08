@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { updateKostenposition, deleteKostenposition } from "../actions";
+import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
+import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 
 export default async function KostenpositionDetailPage({
@@ -19,6 +21,7 @@ export default async function KostenpositionDetailPage({
         gebaeude: true,
         haus: { include: { gebaeude: true } },
         kostengruppe: true,
+        dokumente: { orderBy: { createdAt: "desc" } },
       },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
@@ -67,6 +70,17 @@ export default async function KostenpositionDetailPage({
         }}
         action={updateKostenposition.bind(null, id)}
       />
+
+      <div className="mt-6">
+        <BelegeSektion
+          dokumente={kostenposition.dokumente}
+          uploadAction={uploadDokument.bind(null, {
+            kostenpositionId: id,
+            revalidatePath: `/kosten/${id}`,
+          })}
+          revalidatePath={`/kosten/${id}`}
+        />
+      </div>
     </div>
   );
 }
