@@ -22,7 +22,6 @@ const columns: Column<OffenePostenRow>[] = [
   {
     key: "einheit",
     label: "Einheit",
-    className: "min-w-[240px]",
     sortValue: (z) => z.einheit,
     searchValue: (z) => z.einheit,
     render: (z) => (
@@ -34,13 +33,10 @@ const columns: Column<OffenePostenRow>[] = [
   {
     key: "mieter",
     label: "Mieter",
+    className: "max-w-[140px]",
     sortValue: (z) => z.mieter,
     searchValue: (z) => z.mieter,
-    render: (z) => (
-      <div className="max-w-[140px] truncate" title={z.mieter}>
-        {z.mieter}
-      </div>
-    ),
+    render: (z) => <div className="whitespace-normal break-words">{z.mieter}</div>,
   },
   {
     key: "status",
