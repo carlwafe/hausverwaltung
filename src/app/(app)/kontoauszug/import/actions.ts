@@ -15,6 +15,7 @@ import {
   type EmpfaengerHistorie,
   type GebaeudeKandidat,
   type KostenartKandidat,
+  type MieterKandidat,
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
 import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
@@ -244,7 +245,10 @@ export async function previewImport(
         mandatsref: ermittleMandatsrefAusZeile(rohdaten, mandatsrefCol, k.beschreibung ?? ""),
       };
     });
-    const kostenRows = mapKostenRows(headers, rows, historie, gebaeude);
+    const mieterKandidaten: MieterKandidat[] = vertraege.flatMap((v) =>
+      v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname })),
+    );
+    const kostenRows = mapKostenRows(headers, rows, historie, gebaeude, mieterKandidaten);
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen
         .filter((k) => k.datum)

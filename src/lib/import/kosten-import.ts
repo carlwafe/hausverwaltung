@@ -9,6 +9,7 @@ import {
   parseGermanDate,
   repariereMojibake,
   RUECKBUCHUNG_PATTERN,
+  textEnthaeltWort,
 } from "./bank-csv";
 import { gebaeudeWert, hausWert, kostengruppeWert } from "../gebaeude-gruppen";
 
@@ -44,6 +45,12 @@ export type EmpfaengerHistorie = {
   mandatsref: string | null;
 };
 
+// Nur für den Gutschrift-Ausschluss unten: ein Mieter, der einmal eine Kostenerstattung erhalten
+// hat (z.B. für eine selbst bezahlte Reparatur), taucht dadurch als Empfänger in der Historie auf
+// — jede spätere eingehende Buchung von ihm (also praktisch jede seiner monatlichen Mietzahlungen)
+// würde ohne diesen Ausschluss fälschlich als weitere Kosten-Gutschrift erkannt.
+export type MieterKandidat = { vorname: string; nachname: string };
+
 export type ParsedKostenRow = {
   rowNumber: number;
   datum: string | null; // ISO yyyy-mm-dd
@@ -71,6 +78,19 @@ export type ParsedKostenRow = {
   rohdaten: Record<string, string>;
   errors: string[];
 };
+
+// Nachname genügt (kein zusätzlicher Vorname-Abgleich nötig): ein falscher Ausschluss bedeutet
+// im schlimmsten Fall nur, dass eine echte Kosten-Gutschrift stattdessen als "vermutlich Miete"
+// im Zahlungen-Import landet und dort manuell aussortiert werden muss — deutlich harmloser als
+// der eigentliche Fehler hier (eine Mietzahlung, die unbemerkt eine Kostenart mindert).
+function istBekannterMieterEmpfaenger(
+  empfaenger: string,
+  verwendungszweck: string,
+  mieterKandidaten: MieterKandidat[],
+): boolean {
+  const text = `${verwendungszweck} ${empfaenger}`;
+  return mieterKandidaten.some((m) => textEnthaeltWort(text, m.nachname));
+}
 
 /**
  * Alle Historie-Einträge, die zu dieser Buchung gehören: normalerweise per (normalisiertem)
@@ -392,6 +412,7 @@ export function mapKostenRows(
   rows: Record<string, string>[],
   historie: EmpfaengerHistorie[],
   gebaeudeKandidaten: GebaeudeKandidat[],
+  mieterKandidaten: MieterKandidat[],
 ): ParsedKostenRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
     findeKontoauszugSpalten(headers);
@@ -426,8 +447,13 @@ export function mapKostenRows(
     // Eine eingehende Buchung ist meistens eine Mieteinnahme (gehört in den Zahlungen-Import) —
     // außer der Absender ist bereits als Kosten-Empfänger bekannt (hat Historie), dann handelt es
     // sich vermutlich um eine Rückerstattung/Gutschrift (z.B. Techem erstattet eine Überzahlung)
-    // und mindert die betroffene Kostenart, statt komplett zu verschwinden.
-    const bekannterKostenEmpfaenger = ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
+    // und mindert die betroffene Kostenart, statt komplett zu verschwinden. Ausnahme: der Absender
+    // ist ein bekannter Mieter (siehe istBekannterMieterEmpfaenger oben) — dann ist eine
+    // eingehende Buchung so gut wie immer seine Miete, selbst wenn er (z.B. für eine einmalige
+    // Kostenerstattung) zufällig auch schon als Kosten-Empfänger in der Historie steht.
+    const bekannterKostenEmpfaenger =
+      !istBekannterMieterEmpfaenger(empfaenger, verwendungszweck, mieterKandidaten) &&
+      ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
     const gutschrift = istEingehend && !kaution && !nebenkostenausgleich && bekannterKostenEmpfaenger;
     const ignorieren =
       eigentuemerBuchung ||
