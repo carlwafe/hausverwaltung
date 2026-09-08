@@ -50,7 +50,7 @@ export default async function MietvertragDetailPage({
     }),
     prisma.einheit.findMany({ include: { gebaeude: true } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
-    prisma.objekt.findFirst({ select: { buchhaltungAb: true } }),
+    prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
   ]);
 
   if (!vertrag) notFound();
@@ -64,18 +64,19 @@ export default async function MietvertragDetailPage({
     mehrwertsteuer: vertrag.mehrwertsteuer ? Number(vertrag.mehrwertsteuer) : 0,
   };
 
-  const soll = berechneSoll(vertragFuerSollIst, new Date(), objekt?.buchhaltungAb ?? null);
+  // Derselbe Stichtag wie auf /offene-posten (statt immer "heute") — sonst zeigen beide Seiten
+  // für denselben Vertrag unterschiedliche Salden, je nachdem wie weit die Buchhaltung tatsächlich
+  // erfasst ist (z.B. wenn eine Miete erst im Folgemonat gebucht wurde).
+  const bis = objekt?.buchhaltungBis ?? new Date();
+  const soll = berechneSoll(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
   const ist = berechneIst(
     vertrag.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
     objekt?.buchhaltungAb ?? null,
+    bis,
   );
   const saldovortrag = Number(vertrag.saldovortrag);
   const saldo = ist - soll + saldovortrag;
-  const sollZeilen = sollAufschluesselung(
-    vertragFuerSollIst,
-    new Date(),
-    objekt?.buchhaltungAb ?? null,
-  ).reverse();
+  const sollZeilen = sollAufschluesselung(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null).reverse();
 
   return (
     <div>
@@ -114,13 +115,15 @@ export default async function MietvertragDetailPage({
       <div className="my-4 grid grid-cols-4 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">
-            Soll ({objekt?.buchhaltungAb ? "seit Buchhaltungs-Stichtag" : "seit Mietbeginn"})
+            Soll ({objekt?.buchhaltungAb ? "seit Buchhaltungs-Stichtag" : "seit Mietbeginn"}, bis{" "}
+            {formatDate(bis)})
           </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(soll)}</p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">
-            Ist (erhaltene Zahlungen{objekt?.buchhaltungAb ? " seit Stichtag" : ""})
+            Ist (erhaltene Zahlungen{objekt?.buchhaltungAb ? " seit Stichtag" : ""}, bis{" "}
+            {formatDate(bis)})
           </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(ist)}</p>
         </div>
