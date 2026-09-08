@@ -176,6 +176,7 @@ function pruefeAlsKostenImportiert(
 function toZahlungEditRow(
   r: ParsedZahlungRow,
   bestehendeZahlungen: Set<string>,
+  bestehendeNebenkostenausgleich: Set<string>,
   skipDuplicates: boolean,
 ): ZahlungEditRow {
   const [jahr, monat] = r.datum ? r.datum.split("-").map(Number) : [new Date().getFullYear(), 1];
@@ -187,9 +188,21 @@ function toZahlungEditRow(
     r.betrag,
     r.verwendungszweck,
   );
+  // Zusätzlich zum Muster-Erkennungsflag r.nebenkostenausgleich (siehe NEBENKOSTENAUSGLEICH_PATTERN)
+  // wird hier immer geprüft, ob Datum+Betrag bereits als Nebenkostenausgleich (sonstige Buchung
+  // oder beglichene Position) erfasst sind — als Netz für frei formulierte Verwendungszwecke, die
+  // das Muster nicht abdeckt (z.B. eine Mieter-Rückfrage zu einer Nachzahlung). Sonst würde eine
+  // solche Buchung unbemerkt zusätzlich als normale Zahlung importiert, obwohl sie bereits korrekt
+  // über den Nebenkostenausgleich-Import archiviert wurde.
+  const bereitsAlsNebenkostenausgleich = pruefeNebenkostenausgleichDuplikat(
+    bestehendeNebenkostenausgleich,
+    r.datum,
+    r.betrag,
+  );
   const ausgewaehlt =
     r.errors.length === 0 &&
     !r.kaution &&
+    !bereitsAlsNebenkostenausgleich &&
     // Ein Vorschlag für eine "ignorierte" Zeile (z.B. eine Nebenkostenrückzahlung) füllt das
     // Feld zwar vor, ist aber — anders als bei einem normalen Mieteingang — nicht über den
     // Betrag bestätigt (siehe findeMietvertrag-Aufruf in zahlungen-import.ts). Deshalb hier
@@ -246,7 +259,7 @@ function ZahlungenSektion({
   const bestehendeNebenkostenausgleich = new Set(bestehendeNebenkostenausgleichListe);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [editRows, setEditRows] = useState<ZahlungEditRow[]>(() =>
-    rows.map((r) => toZahlungEditRow(r, bestehendeZahlungen, skipDuplicates)),
+    rows.map((r) => toZahlungEditRow(r, bestehendeZahlungen, bestehendeNebenkostenausgleich, skipDuplicates)),
   );
   const [hinweisFilter, setHinweisFilter] = useState<ZahlungHinweisFilter>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -277,8 +290,10 @@ function ZahlungenSektion({
     return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag, r.verwendungszweck);
   }
 
+  // Bewusst unabhängig von r.nebenkostenausgleich (dem Muster-Erkennungsflag) geprüft — siehe
+  // toZahlungEditRow oben für die gleiche Überlegung bei der Auto-Auswahl.
   function istBereitsAlsNebenkostenausgleichImportiert(r: ZahlungEditRow): boolean {
-    return r.nebenkostenausgleich && pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
+    return pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
   }
 
   function handleSkipDuplicatesChange(checked: boolean) {
@@ -703,14 +718,31 @@ function pruefeAlsKautionImportiert(
   return bestehendeKautionsbuchungen.has(`${datum}|${(-betrag).toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
-function toKostenEditRow(r: ParsedKostenRow, bestehendeKosten: Set<string>): KostenEditRow {
+function toKostenEditRow(
+  r: ParsedKostenRow,
+  bestehendeKosten: Set<string>,
+  bestehendeNebenkostenausgleich: Set<string>,
+): KostenEditRow {
   const duplikat = pruefeKostenDuplikat(bestehendeKosten, r.empfaenger, r.datum, r.betrag, r.verwendungszweck);
+  // Siehe toZahlungEditRow in der Zahlungen-Sektion für dieselbe Überlegung: bewusst unabhängig
+  // vom Muster-Erkennungsflag r.nebenkostenausgleich geprüft, als Netz für frei formulierte
+  // Verwendungszwecke, die das Muster nicht abdeckt.
+  const bereitsAlsNebenkostenausgleich = pruefeNebenkostenausgleichDuplikat(
+    bestehendeNebenkostenausgleich,
+    r.datum,
+    r.betrag,
+  );
   return {
     ...r,
     gewaehlteKostenartId: r.vorgeschlageneKostenartId ?? "",
     gewaehltesGebaeudeId: r.vorgeschlageneGebaeudeAuswahl ?? "",
     jahrEingabe: r.jahr ?? new Date().getFullYear(),
-    ausgewaehlt: r.errors.length === 0 && !r.ignorieren && hatVollstaendigenVorschlag(r) && !duplikat,
+    ausgewaehlt:
+      r.errors.length === 0 &&
+      !r.ignorieren &&
+      hatVollstaendigenVorschlag(r) &&
+      !duplikat &&
+      !bereitsAlsNebenkostenausgleich,
   };
 }
 
@@ -767,7 +799,7 @@ function KostenSektion({
   const bestehendeKaution = new Set(bestehendeKautionListe);
   const bestehendeNebenkostenausgleich = new Set(bestehendeNebenkostenausgleichListe);
   const [editRows, setEditRows] = useState<KostenEditRow[]>(() =>
-    rows.map((r) => toKostenEditRow(r, bestehendeKosten)),
+    rows.map((r) => toKostenEditRow(r, bestehendeKosten, bestehendeNebenkostenausgleich)),
   );
   const [hinweisFilter, setHinweisFilter] = useState<KostenHinweisFilter>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -790,8 +822,10 @@ function KostenSektion({
     return pruefeAlsKautionImportiert(bestehendeKaution, r.datum, r.betrag, r.verwendungszweck);
   }
 
+  // Bewusst unabhängig von r.nebenkostenausgleich (dem Muster-Erkennungsflag) geprüft — siehe
+  // toKostenEditRow oben für dieselbe Überlegung bei der Auto-Auswahl.
   function istBereitsAlsNebenkostenausgleichImportiert(r: KostenEditRow): boolean {
-    return r.nebenkostenausgleich && pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
+    return pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
   }
 
   const gefilterteRows = editRows.filter((r) =>

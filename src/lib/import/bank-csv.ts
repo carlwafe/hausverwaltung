@@ -107,12 +107,14 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 
 // Rückzahlung/Nachzahlung aus der jährlichen Nebenkostenabrechnung — im Verwendungszweck bisher
-// durchgängig mit "BK-Abr." oder ausgeschrieben "Nebenkosten-/Betriebskostenabrechnung" benannt.
-// Weder Miete noch Kosten noch Kaution: gehört gegen die passende offene
-// NebenkostenabrechnungPosition abgeglichen (siehe kontoauszug/import), nicht in Zahlung/
-// Kostenposition — sonst verfälscht der Betrag dauerhaft die Offene-Posten-Berechnung, die die
-// tatsächliche Abrechnung nie einbezieht.
-export const NEBENKOSTENAUSGLEICH_PATTERN = /bk-abr|nebenkostenabrechnung|betriebskostenabrechnung/i;
+// mit "BK-Abr.", ausgeschrieben "Nebenkosten-/Betriebskostenabrechnung", oder (z.B. bei einer
+// Ratenzahlung oder einem frei formulierten Klärungs-Verwendungszweck eines Mieters) nur "BK
+// Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt. Weder Miete noch
+// Kosten noch Kaution: gehört gegen die passende offene NebenkostenabrechnungPosition abgeglichen
+// (siehe kontoauszug/import), nicht in Zahlung/Kostenposition — sonst verfälscht der Betrag
+// dauerhaft die Offene-Posten-Berechnung, die die tatsächliche Abrechnung nie einbezieht.
+export const NEBENKOSTENAUSGLEICH_PATTERN =
+  /bk-abr|bk\s*nachzahlung|nebenkostenabrechnung|betriebskostenabrechnung|betriebskosten\s*nachzahlung/i;
 
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
 // Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
