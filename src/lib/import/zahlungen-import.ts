@@ -4,6 +4,7 @@ import {
   KAUTION_PATTERN,
   leseBetrag,
   NEBENKOSTENAUSGLEICH_PATTERN,
+  normalizeText,
   parseGermanDate,
   repariereMojibake,
   RUECKBUCHUNG_PATTERN,
@@ -114,6 +115,9 @@ export function mapZahlungenRows(
   headers: string[],
   rows: Record<string, string>[],
   kandidaten: MietvertragKandidat[],
+  // Normalisierte Namen bereits bekannter Kosten-Empfänger (Handwerker, Versorger wie Techem
+  // usw.) — siehe Verwendung unten für den Grund.
+  bekannteKostenEmpfaenger: ReadonlySet<string> = new Set(),
 ): ParsedZahlungRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol } =
     findeKontoauszugSpalten(headers);
@@ -140,18 +144,31 @@ export function mapZahlungenRows(
     // Kaution landet oft auf einem Konto, das rechtlich auf die Eigentümerin läuft
     // (Kautionskonto), ist aber keine Mietweiterleitung/Einlage an sie persönlich.
     const eigentuemerBuchung = !kaution && istEigentuemerBuchung(name);
+    // Der tatsächliche Begünstigte/Zahlungspflichtige ist ein bereits bekannter Kosten-Empfänger
+    // (Versorger, Handwerker usw., siehe kosten-import.ts) — dann ist die Buchung so gut wie nie
+    // eine Miete, selbst wenn der freie Verwendungszweck-Text zufällig einen Namensteil eines
+    // Mieters enthält (Banken zitieren dort oft den Namen der Kontoinhaberin als Referenz, z.B.
+    // "/FOR/Julia Katharina Waller ...", auch wenn die eigentliche Gegenpartei — hier z.B. Techem —
+    // jemand ganz anderes ist; "Katharina" kann dabei zufällig mit einem Mieter-Vornamen
+    // übereinstimmen). Bewusst am echten Empfänger-Feld geprüft, nicht am Verwendungszweck.
+    const istBekannterKostenEmpfaenger = bekannteKostenEmpfaenger.has(normalizeText(name));
     const ignorieren =
-      eigentuemerBuchung || kaution || nebenkostenausgleich || (betrag !== null && betrag <= 0 && !rueckbuchung);
+      eigentuemerBuchung ||
+      kaution ||
+      nebenkostenausgleich ||
+      istBekannterKostenEmpfaenger ||
+      (betrag !== null && betrag <= 0 && !rueckbuchung);
 
     let vorgeschlagenerMietvertragId: string | null = null;
     let mehrdeutig = false;
     // Ein Vorschlag wird für jede Buchung berechnet, die überhaupt einem Mieter gehören könnte —
-    // nur eine Eigentümer-Buchung (Mietweiterleitung/Einlage) scheidet grundsätzlich aus. Das
-    // deckt neben normalen Mieteingängen auch (eigentlich "ignorierte") Kaution-Zeilen ab (die
-    // Kaution-Sektion braucht den Vorschlag) sowie ausgehende Nebenkostenrückzahlungen an Mieter:
-    // der Betrag bestätigt den Treffer hier zwar nicht (er entspricht keiner Warmmiete), aber der
-    // Name im Verwendungszweck/Begünstigten reicht meist trotzdem für eine eindeutige Zuordnung.
-    if (!eigentuemerBuchung && betrag !== null && errors.length === 0) {
+    // nur eine Eigentümer-Buchung (Mietweiterleitung/Einlage) oder ein bekannter Kosten-Empfänger
+    // scheiden grundsätzlich aus. Das deckt neben normalen Mieteingängen auch (eigentlich
+    // "ignorierte") Kaution-Zeilen ab (die Kaution-Sektion braucht den Vorschlag) sowie ausgehende
+    // Nebenkostenrückzahlungen an Mieter: der Betrag bestätigt den Treffer hier zwar nicht (er
+    // entspricht keiner Warmmiete), aber der Name im Verwendungszweck/Begünstigten reicht meist
+    // trotzdem für eine eindeutige Zuordnung.
+    if (!eigentuemerBuchung && !istBekannterKostenEmpfaenger && betrag !== null && errors.length === 0) {
       const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten);
       vorgeschlagenerMietvertragId = treffer.id;
       mehrdeutig = treffer.mehrdeutig;

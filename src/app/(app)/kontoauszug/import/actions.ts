@@ -19,7 +19,12 @@ import {
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
 import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
-import { datumBetragSchluessel, ermittleMandatsrefAusZeile, findColumn } from "@/lib/import/bank-csv";
+import {
+  datumBetragSchluessel,
+  ermittleMandatsrefAusZeile,
+  findColumn,
+  normalizeText,
+} from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 
 export type PreviewResult =
@@ -161,6 +166,15 @@ export async function previewImport(
       prisma.sonstigeBuchung.findMany({ select: { datum: true, betrag: true } }),
     ]);
 
+    // Für den Ausschluss bekannter Kosten-Empfänger aus dem Zahlungen-Mietvertrags-Vorschlag
+    // (siehe Kommentar in zahlungen-import.ts) — dieselbe Quelle wie die weiter unten gebaute
+    // EmpfaengerHistorie, hier aber nur die reinen Namen.
+    const bekannteKostenEmpfaenger = new Set(
+      bestehendeKostenpositionen
+        .map((k) => normalizeText(k.empfaenger ?? ""))
+        .filter((n) => n.length > 0),
+    );
+
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
       id: v.id,
       // Name zuerst statt Einheit zuerst: in der durchsuchbaren Mietvertrag-Auswahl (siehe
@@ -216,7 +230,7 @@ export async function previewImport(
         ),
       ),
     );
-    const zahlungenRows = mapZahlungenRows(headers, rows, mietvertragKandidaten);
+    const zahlungenRows = mapZahlungenRows(headers, rows, mietvertragKandidaten, bekannteKostenEmpfaenger);
 
     const kostenarten: KostenartKandidat[] = kostenartenRaw.map((k) => ({
       id: k.id,
