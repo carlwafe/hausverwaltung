@@ -24,6 +24,7 @@ export default async function DashboardPage() {
           kaltmiete: true,
           nebenkostenVorauszahlung: true,
           mehrwertsteuer: true,
+          saldovortrag: true,
           zahlungen: { select: { datum: true, betrag: true } },
         },
       }),
@@ -57,7 +58,7 @@ export default async function DashboardPage() {
       v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
       buchhaltungAb,
     );
-    const saldo = ist - soll;
+    const saldo = ist - soll + Number(v.saldovortrag);
     return sum + Math.min(saldo, 0);
   }, 0);
 

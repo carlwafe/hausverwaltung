@@ -22,6 +22,7 @@ type Initial = {
   kautionBetrag?: string;
   kautionAnlageform?: string;
   kautionZinssatz?: string;
+  saldovortrag?: string;
 };
 
 export function MietvertragForm({
@@ -59,6 +60,7 @@ export function MietvertragForm({
   const [kautionBetrag, setKautionBetrag] = useState(initial?.kautionBetrag ?? "");
   const [kautionAnlageform, setKautionAnlageform] = useState(initial?.kautionAnlageform ?? "KAUTIONSKONTO");
   const [kautionZinssatz, setKautionZinssatz] = useState(initial?.kautionZinssatz ?? "");
+  const [saldovortrag, setSaldovortrag] = useState(initial?.saldovortrag ?? "0");
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
@@ -216,6 +218,26 @@ export function MietvertragForm({
           <option value="GEPLANT">Geplant</option>
           <option value="BEENDET">Beendet</option>
         </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="saldovortrag">
+          Saldovortrag (€)
+        </label>
+        <input
+          id="saldovortrag"
+          name="saldovortrag"
+          type="number"
+          step="0.01"
+          value={saldovortrag}
+          onChange={(e) => setSaldovortrag(e.target.value)}
+          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
+        <p className="mt-1 text-xs text-neutral-400">
+          Endsaldo aus der Zeit vor dem Buchhaltungs-Stichtag (z.B. aus einem extern
+          abgeschlossenen Jahresbericht) — negativ = Rückstand, positiv = Guthaben. Fließt fix in
+          die Offene-Posten-Berechnung ein.
+        </p>
       </div>
 
       <fieldset className="rounded-md border border-neutral-800 p-4">

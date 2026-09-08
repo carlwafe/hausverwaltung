@@ -14,6 +14,7 @@ export type OffenePostenRow = {
   status: "AKTIV" | "BEENDET";
   soll: number;
   ist: number;
+  saldovortrag: number;
   saldo: number;
 };
 
@@ -56,6 +57,19 @@ const columns: Column<OffenePostenRow>[] = [
     label: "Ist",
     sortValue: (z) => z.ist,
     render: (z) => formatEuro(z.ist),
+  },
+  {
+    key: "saldovortrag",
+    label: "Saldovortrag",
+    sortValue: (z) => z.saldovortrag,
+    render: (z) =>
+      z.saldovortrag === 0 ? (
+        <span className="text-neutral-600">–</span>
+      ) : (
+        <span className={z.saldovortrag < 0 ? "text-red-400" : "text-green-400"}>
+          {formatEuro(z.saldovortrag)}
+        </span>
+      ),
   },
   {
     key: "saldo",

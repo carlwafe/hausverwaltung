@@ -51,7 +51,8 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         buchhaltungAb,
         bis,
       );
-      const saldo = ist - soll;
+      const saldovortrag = Number(v.saldovortrag);
+      const saldo = ist - soll + saldovortrag;
 
       return {
         id: v.id,
@@ -60,6 +61,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         status: v.status as "AKTIV" | "BEENDET",
         soll,
         ist,
+        saldovortrag,
         saldo,
       };
     })

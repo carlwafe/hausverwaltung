@@ -37,6 +37,7 @@ const mietvertragSchema = z
     kautionBetrag: optionalPositiveNumber,
     kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
     kautionZinssatz: optionalNonNegativeNumber,
+    saldovortrag: z.coerce.number().optional().default(0),
   })
   .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
     message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
@@ -66,6 +67,7 @@ async function parseForm(formData: FormData) {
     kautionBetrag: formData.get("kautionBetrag") || "",
     kautionAnlageform: formData.get("kautionAnlageform") || undefined,
     kautionZinssatz: formData.get("kautionZinssatz") || "",
+    saldovortrag: formData.get("saldovortrag") || "0",
   });
 
   if (!parsed.success) {
@@ -101,6 +103,7 @@ export async function createMietvertrag(formData: FormData) {
       nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
       mehrwertsteuer: data.mehrwertsteuer,
       status: data.status,
+      saldovortrag: data.saldovortrag,
       ...(data.kautionBetrag !== undefined
         ? {
             kaution: {
@@ -116,6 +119,7 @@ export async function createMietvertrag(formData: FormData) {
   });
 
   revalidatePath("/mietvertraege");
+  revalidatePath("/offene-posten");
   revalidatePath("/");
   redirect("/mietvertraege");
 }
@@ -136,6 +140,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
         nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
         mehrwertsteuer: data.mehrwertsteuer ?? null,
         status: data.status,
+        saldovortrag: data.saldovortrag,
       },
     });
 
@@ -159,6 +164,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
 
   revalidatePath("/mietvertraege");
   revalidatePath(`/mietvertraege/${id}`);
+  revalidatePath("/offene-posten");
   revalidatePath("/");
   redirect("/mietvertraege");
 }

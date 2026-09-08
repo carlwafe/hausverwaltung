@@ -11,7 +11,12 @@ export default async function ObjektPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Objekt</h1>
-      <ObjektForm initial={objekt} />
+      <ObjektForm
+        initial={{
+          ...objekt,
+          kontostandAnkerBetrag: objekt.kontostandAnkerBetrag?.toString() ?? null,
+        }}
+      />
     </div>
   );
 }

@@ -13,6 +13,8 @@ type Objekt = {
   ort: string;
   beschreibung: string | null;
   buchhaltungAb: Date | string | null;
+  kontostandAnkerDatum: Date | string | null;
+  kontostandAnkerBetrag: string | null;
 };
 
 export function ObjektForm({ initial }: { initial: Objekt }) {
@@ -112,6 +114,37 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
           Mietbeginn, falls dieser später liegt — sinnvoll, wenn ältere Kontoauszüge nicht mehr
           vorliegen und ein jahrzehntealter Mietbeginn sonst einen riesigen, nicht vergleichbaren
           Sollbetrag ergäbe.
+        </p>
+      </div>
+
+      <div className="rounded-md border border-neutral-800 p-4">
+        <p className="mb-3 text-sm font-medium">Kontostand-Anker (optional)</p>
+        <div className="grid grid-cols-2 gap-4">
+          <DateInput
+            id="kontostandAnkerDatum"
+            name="kontostandAnkerDatum"
+            label="Datum"
+            defaultValue={toDateInputValue(initial.kontostandAnkerDatum)}
+          />
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="kontostandAnkerBetrag">
+              Kontostand an diesem Tag (€)
+            </label>
+            <input
+              id="kontostandAnkerBetrag"
+              name="kontostandAnkerBetrag"
+              type="number"
+              step="0.01"
+              defaultValue={initial.kontostandAnkerBetrag ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-neutral-400">
+          Referenzpunkt für die simulierte Kontostand-Ansicht — z.B. der Saldo, der auf einem
+          echten Kontoauszug für dieses Datum steht. Von hier aus wird der Verlauf aus allen
+          erfassten Buchungen (Zahlungen, Kosten, Mietweiterleitungen, Kautionsbuchungen, sonstige
+          Buchungen) vor- und zurückgerechnet.
         </p>
       </div>
 

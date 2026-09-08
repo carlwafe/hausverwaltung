@@ -18,6 +18,7 @@ const FINANZEN: NavLink[] = [
   { href: "/kontoauszug/import", label: "Importieren" },
   { href: "/zahlungen", label: "Zahlungen" },
   { href: "/offene-posten", label: "Offene Posten" },
+  { href: "/kontostand", label: "Kontostand" },
   { href: "/kautionen", label: "Kautionen" },
   { href: "/kosten", label: "Kosten" },
   { href: "/mietweiterleitungen", label: "Mietweiterleitungen" },

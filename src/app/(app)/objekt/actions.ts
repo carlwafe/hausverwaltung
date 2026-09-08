@@ -5,18 +5,31 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 
-const objektSchema = z.object({
-  name: z.string().min(1, "Name ist erforderlich"),
-  strasse: z.string().min(1, "Straße ist erforderlich"),
-  hausnummer: z.string().min(1, "Hausnummer ist erforderlich"),
-  plz: z.string().min(1, "PLZ ist erforderlich"),
-  ort: z.string().min(1, "Ort ist erforderlich"),
-  beschreibung: z.string().optional(),
-  buchhaltungAb: z
-    .union([z.coerce.date(), z.literal("")])
-    .optional()
-    .transform((v) => (v === "" || v === undefined ? null : v)),
-});
+const objektSchema = z
+  .object({
+    name: z.string().min(1, "Name ist erforderlich"),
+    strasse: z.string().min(1, "Straße ist erforderlich"),
+    hausnummer: z.string().min(1, "Hausnummer ist erforderlich"),
+    plz: z.string().min(1, "PLZ ist erforderlich"),
+    ort: z.string().min(1, "Ort ist erforderlich"),
+    beschreibung: z.string().optional(),
+    buchhaltungAb: z
+      .union([z.coerce.date(), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? null : v)),
+    kontostandAnkerDatum: z
+      .union([z.coerce.date(), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? null : v)),
+    kontostandAnkerBetrag: z
+      .union([z.coerce.number(), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" || v === undefined ? null : v)),
+  })
+  .refine((d) => (d.kontostandAnkerDatum === null) === (d.kontostandAnkerBetrag === null), {
+    message: "Kontostand-Anker: Datum und Betrag müssen beide gesetzt sein (oder beide leer bleiben)",
+    path: ["kontostandAnkerBetrag"],
+  });
 
 export async function updateObjekt(
   _prev: string | null,
@@ -32,6 +45,8 @@ export async function updateObjekt(
     ort: formData.get("ort"),
     beschreibung: formData.get("beschreibung") || undefined,
     buchhaltungAb: formData.get("buchhaltungAb") || "",
+    kontostandAnkerDatum: formData.get("kontostandAnkerDatum") || "",
+    kontostandAnkerBetrag: formData.get("kontostandAnkerBetrag") || "",
   });
 
   if (!parsed.success) {
@@ -46,5 +61,6 @@ export async function updateObjekt(
   revalidatePath("/objekt");
   revalidatePath("/");
   revalidatePath("/offene-posten");
+  revalidatePath("/kontostand");
   return null;
 }

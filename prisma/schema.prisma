@@ -68,18 +68,25 @@ model User {
 }
 
 model Objekt {
-  id            String    @id @default(cuid())
-  name          String
-  strasse       String
-  hausnummer    String
-  plz           String
-  ort           String    @default("Eutin")
-  beschreibung  String?
+  id                    String    @id @default(cuid())
+  name                  String
+  strasse               String
+  hausnummer            String
+  plz                   String
+  ort                   String    @default("Eutin")
+  beschreibung          String?
   // Stichtag, ab dem Soll/Ist-Vergleiche gerechnet werden (z.B. weil ältere Kontoauszüge
   // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
   // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.
-  buchhaltungAb DateTime?
-  createdAt     DateTime  @default(now())
+  buchhaltungAb         DateTime?
+  // Referenzpunkt für die simulierte Kontostand-Ansicht: der reale, z.B. von einem
+  // Kontoauszug abgelesene Kontostand an einem bestimmten Tag. Die Bank-CSV-Exporte führen
+  // selbst keine laufende Saldo-Spalte, daher lässt sich der Kontostand nur relativ zu diesem
+  // Anker aus der Summe aller erfassten Buchungen (Zahlungen, Kosten, Mietweiterleitungen,
+  // Kautionsbuchungen, sonstige Buchungen) rekonstruieren, nicht absolut.
+  kontostandAnkerDatum  DateTime?
+  kontostandAnkerBetrag Decimal?  @db.Decimal(10, 2)
+  createdAt             DateTime  @default(now())
 
   gebaeude      Gebaeude[]
   haeuser       Haus[]
@@ -204,6 +211,12 @@ model Mietvertrag {
   // Nebenkosten, aber eine Mehrwertsteuer-Vorauszahlung.
   mehrwertsteuer           Decimal?          @db.Decimal(10, 2)
   status                   MietvertragStatus @default(AKTIV)
+  // Endsaldo aus der Zeit vor `Objekt.buchhaltungAb` (z.B. aus einem extern — außerhalb dieser
+  // App — abgeschlossenen Jahresbericht/einer Nebenkostenabrechnung für ein Jahr, das hier nie
+  // erfasst wurde). Fließt als fixer Startwert in die Offene-Posten-Berechnung ein (saldo = ist -
+  // soll + saldovortrag), ohne dass das betreffende Altjahr selbst nachgebildet werden muss.
+  // Negativ = Rückstand, positiv = Guthaben — gleiche Vorzeichenlogik wie der Saldo selbst.
+  saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
   createdAt                DateTime          @default(now())
 
   kaution               Kaution?

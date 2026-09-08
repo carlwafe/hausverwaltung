@@ -69,7 +69,8 @@ export default async function MietvertragDetailPage({
     vertrag.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
     objekt?.buchhaltungAb ?? null,
   );
-  const saldo = ist - soll;
+  const saldovortrag = Number(vertrag.saldovortrag);
+  const saldo = ist - soll + saldovortrag;
   const sollZeilen = sollAufschluesselung(
     vertragFuerSollIst,
     new Date(),
@@ -105,11 +106,12 @@ export default async function MietvertragDetailPage({
           kautionBetrag: vertrag.kaution?.betrag.toString() ?? "",
           kautionAnlageform: vertrag.kaution?.anlageform ?? "KAUTIONSKONTO",
           kautionZinssatz: vertrag.kaution?.zinssatz?.toString() ?? "",
+          saldovortrag: vertrag.saldovortrag.toString(),
         }}
         action={updateMietvertrag.bind(null, id)}
       />
 
-      <div className="my-4 grid grid-cols-3 gap-4">
+      <div className="my-4 grid grid-cols-4 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">
             Soll ({objekt?.buchhaltungAb ? "seit Buchhaltungs-Stichtag" : "seit Mietbeginn"})
@@ -121,6 +123,14 @@ export default async function MietvertragDetailPage({
             Ist (erhaltene Zahlungen{objekt?.buchhaltungAb ? " seit Stichtag" : ""})
           </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(ist)}</p>
+        </div>
+        <div className="rounded-lg border border-neutral-800 p-4">
+          <p className="text-xs text-neutral-400">Saldovortrag (vor Stichtag)</p>
+          <p
+            className={`mt-1 text-lg font-semibold ${saldovortrag < 0 ? "text-red-400" : saldovortrag > 0 ? "text-green-400" : "text-white"}`}
+          >
+            {formatEuro(saldovortrag)}
+          </p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Saldo</p>
