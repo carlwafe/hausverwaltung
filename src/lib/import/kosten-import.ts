@@ -413,8 +413,12 @@ export function mapKostenRows(
     const istEingehend = rohBetrag !== null && rohBetrag > 0;
     // Ein Kaution-Treffer hat Vorrang vor der Eigentümer-Erkennung: eine Kaution landet oft auf
     // einem Konto, das rechtlich auf die Eigentümerin läuft (Kautionskonto), ist aber weder eine
-    // Mietweiterleitung/Einlage an sie persönlich noch eine normale Kosten-Gutschrift.
-    const kaution = istEingehend && (KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(empfaenger));
+    // Mietweiterleitung/Einlage an sie persönlich noch eine normale Kosten-Gutschrift. Bewusst
+    // unabhängig von istEingehend geprüft (anders als gutschrift unten) — eine Kaution kann
+    // sowohl eingehend (Einzahlung) als auch ausgehend sein (Rückzahlung, oder eine Anlage auf ein
+    // gesondertes Kautionskonto, das auf den Namen der Eigentümerin läuft und sonst fälschlich als
+    // Mietweiterleitung erkannt würde).
+    const kaution = KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(empfaenger);
     // Anders als kaution unabhängig vom Vorzeichen geprüft: eine Nebenkostenabrechnung kann sowohl
     // eine Rückzahlung (ausgehend, Guthaben) als auch eine Nachzahlung (eingehend) sein.
     const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
