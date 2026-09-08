@@ -147,9 +147,10 @@ function pruefeZahlungDuplikat(
   mietvertragId: string,
   datum: string | null,
   betrag: number | null,
+  verwendungszweck: string,
 ): boolean {
   if (!mietvertragId || !datum || betrag === null) return false;
-  return bestehendeZahlungen.has(`${mietvertragId}|${datum}|${betrag.toFixed(2)}`);
+  return bestehendeZahlungen.has(`${mietvertragId}|${datum}|${betrag.toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
 // Prüft, ob eine Buchung bereits als Kostenposition importiert wurde — gleicher Dedup-Schlüssel
@@ -179,7 +180,13 @@ function toZahlungEditRow(
 ): ZahlungEditRow {
   const [jahr, monat] = r.datum ? r.datum.split("-").map(Number) : [new Date().getFullYear(), 1];
   const gewaehlterMietvertragId = r.vorgeschlagenerMietvertragId ?? "";
-  const duplikat = pruefeZahlungDuplikat(bestehendeZahlungen, gewaehlterMietvertragId, r.datum, r.betrag);
+  const duplikat = pruefeZahlungDuplikat(
+    bestehendeZahlungen,
+    gewaehlterMietvertragId,
+    r.datum,
+    r.betrag,
+    r.verwendungszweck,
+  );
   const ausgewaehlt =
     r.errors.length === 0 &&
     !r.kaution &&
@@ -250,15 +257,20 @@ function ZahlungenSektion({
 
   function istBereitsImportiert(r: ZahlungEditRow): boolean {
     if (r.gewaehlterMietvertragId) {
-      return pruefeZahlungDuplikat(bestehendeZahlungen, r.gewaehlterMietvertragId, r.datum, r.betrag);
+      return pruefeZahlungDuplikat(
+        bestehendeZahlungen,
+        r.gewaehlterMietvertragId,
+        r.datum,
+        r.betrag,
+        r.verwendungszweck,
+      );
     }
     // Ohne gewählten Mietvertrag (z.B. eine noch nicht aufgelöste "mehrdeutig"-Zeile) lässt sich
     // der präzise, mietvertragsgebundene Schlüssel gar nicht erst bilden — als Rückfall dient
-    // derselbe großzügigere Datum+Betragshöhe-Schlüssel wie beim Kosten↔Zahlungen-Hinweis, damit
-    // eine tatsächlich schon importierte, aber noch nicht zugeordnete Buchung nicht unmarkiert
-    // bleibt. Wirkt sich nur auf die Anzeige aus (Hinweis-Badge), nicht auf die
-    // Standard-Auswahl/-Abwahl der Zeile.
-    return pruefeAlsZahlungImportiert(bestehendeZahlungenDatumBetrag, r.datum, r.betrag);
+    // derselbe Datum+Betragshöhe+Verwendungszweck-Schlüssel wie beim Kosten↔Zahlungen-Hinweis.
+    // Wirkt sich nur auf die Anzeige aus (Hinweis-Badge), nicht auf die Standard-Auswahl/-Abwahl
+    // der Zeile.
+    return pruefeAlsZahlungImportiert(bestehendeZahlungenDatumBetrag, r.datum, r.betrag, r.verwendungszweck);
   }
 
   function istBereitsAlsKostenImportiert(r: ZahlungEditRow): boolean {
@@ -662,16 +674,19 @@ function pruefeKostenDuplikat(
 // einer eingehenden, ignorierten Kosten-Zeile (Zahlung hat anders als Kostenposition.empfaenger
 // keine eigene Empfänger-Spalte) und als Rückfall in der Zahlungen-Sektion selbst für Zeilen
 // ohne gewählten Mietvertrag (z.B. "mehrdeutig"), wo der präzise mietvertragsgebundene Schlüssel
-// nicht bildbar ist. Bewusst nur Datum+Betrag als Schlüssel — etwas großzügiger als
-// empfänger-/mietvertragsgebundene Schlüssel, reicht aber für einen Hinweis-Badge.
-// Betragshöhe ohne Vorzeichen, siehe Kommentar zu bestehendeZahlungenDatumBetrag in actions.ts.
+// nicht bildbar ist. Verwendungszweck ist Pflicht im Schlüssel, nicht nur Datum+Betrag — sonst
+// meldet z.B. eine noch gar nicht importierte "mehrdeutig"-Zahlung sich fälschlich als "bereits
+// importiert", nur weil zufällig ein ANDERER Mietvertrag am selben Tag denselben (Kaltmiete-)
+// Betrag gezahlt hat. Betragshöhe ohne Vorzeichen, siehe Kommentar zu
+// bestehendeZahlungenDatumBetrag in actions.ts.
 function pruefeAlsZahlungImportiert(
   bestehendeZahlungen: Set<string>,
   datum: string | null,
   betrag: number | null,
+  verwendungszweck: string,
 ): boolean {
   if (!datum || betrag === null) return false;
-  return bestehendeZahlungen.has(`${datum}|${Math.abs(betrag).toFixed(2)}`);
+  return bestehendeZahlungen.has(`${datum}|${Math.abs(betrag).toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
 // Gleicher Schlüssel wie datumBetragZweckSchluessel in actions.ts (Datum|Betrag|Verwendungszweck,
@@ -768,7 +783,7 @@ function KostenSektion({
   }
 
   function istBereitsAlsZahlungImportiert(r: KostenEditRow): boolean {
-    return pruefeAlsZahlungImportiert(bestehendeZahlungen, r.datum, r.betrag);
+    return pruefeAlsZahlungImportiert(bestehendeZahlungen, r.datum, r.betrag, r.verwendungszweck);
   }
 
   function istBereitsAlsKautionImportiert(r: KostenEditRow): boolean {

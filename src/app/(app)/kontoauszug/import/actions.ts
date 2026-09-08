@@ -178,27 +178,40 @@ export async function previewImport(
       const [hausB, whgB] = einheitSortSchluessel(b.einheitBezeichnung);
       return hausA - hausB || whgA - whgB || a.einheitBezeichnung.localeCompare(b.einheitBezeichnung);
     });
+    // Verwendungszweck gehört mit in den Schlüssel, nicht nur Mietvertrag+Datum+Betrag: mehrere
+    // Mieter zahlen oft am selben Tag denselben (Kaltmiete-)Betrag, und eine "mehrdeutig"-Zeile
+    // ohne automatisch vorgeschlagenen Mietvertrag lässt sich versehentlich einem falschen,
+    // aber zufällig genau an diesem Tag mit diesem Betrag bereits zahlenden Mietvertrag zuordnen
+    // — ohne Verwendungszweck im Schlüssel würde das fälschlich als "bereits importiert" gemeldet,
+    // obwohl die eigentlich gemeinte Buchung noch gar nicht importiert wurde.
     const bestehendeZahlungen = new Set(
       vertraege.flatMap((v) =>
         v.zahlungen.map(
-          (z) => `${v.id}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}`,
+          (z) =>
+            `${v.id}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
         ),
       ),
     );
-    // Für den "bereits als Zahlung importiert"-Hinweis im Kosten-Import: Zahlung hat (anders als
-    // Kostenposition.empfaenger) keine eigene Empfänger-Spalte, nur Verwendungszweck (Freitext)
-    // und rohdaten (JSON der Original-CSV-Zeile mit uneinheitlichen Spaltennamen je nach Export)
-    // — beide ungeeignet für einen zuverlässigen Namensabgleich. Der Schlüssel besteht deshalb
-    // bewusst nur aus Datum+Betrag, ohne Namen; das ist etwas großzügiger als der
-    // empfänger-basierte Schlüssel bei Kosten, aber hier reicht das als Hinweis-Badge. Betrag
-    // als Betragshöhe ohne Vorzeichen, da Zahlung das Rohvorzeichen behält (positiv = normale
-    // Miete, negativ = Rücklastschrift-Korrektur), Kosten eingehende Buchungen aber umgekehrt
-    // als negativ speichert (siehe kosten-import.ts) — ein direkter Vorzeichenvergleich würde
-    // hier nie matchen.
+    // Für den "bereits als Zahlung importiert"-Hinweis im Kosten-Import, und als Rückfall in der
+    // Zahlungen-Sektion selbst für Zeilen ohne gewählten Mietvertrag (z.B. "mehrdeutig"), wo der
+    // präzise mietvertragsgebundene Schlüssel (bestehendeZahlungen oben) gar nicht erst gebildet
+    // werden kann: Zahlung hat (anders als Kostenposition.empfaenger) keine eigene
+    // Empfänger-Spalte, nur Verwendungszweck (Freitext) und rohdaten (JSON der Original-CSV-Zeile
+    // mit uneinheitlichen Spaltennamen je nach Export) — beide ungeeignet für einen
+    // zuverlässigen Namensabgleich. Der Schlüssel besteht deshalb aus Datum+Betrag+Verwendungszweck,
+    // ohne Namen — Verwendungszweck ist trotzdem Pflicht im Schlüssel: nur Datum+Betrag allein
+    // matcht sonst jede zufällig gleich hohe Zahlung eines ANDEREN Mietvertrags am selben Tag
+    // (z.B. dieselbe Kaltmiete in mehreren Wohnungen) und meldet eine tatsächlich noch gar nicht
+    // importierte Buchung fälschlich als bereits vorhanden. Betrag als Betragshöhe ohne
+    // Vorzeichen, da Zahlung das Rohvorzeichen behält (positiv = normale Miete, negativ =
+    // Rücklastschrift-Korrektur), Kosten eingehende Buchungen aber umgekehrt als negativ
+    // speichert (siehe kosten-import.ts) — ein direkter Vorzeichenvergleich würde hier nie
+    // matchen.
     const bestehendeZahlungenDatumBetrag = new Set(
       vertraege.flatMap((v) =>
         v.zahlungen.map(
-          (z) => `${z.datum.toISOString().slice(0, 10)}|${Math.abs(Number(z.betrag)).toFixed(2)}`,
+          (z) =>
+            `${z.datum.toISOString().slice(0, 10)}|${Math.abs(Number(z.betrag)).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
         ),
       ),
     );
