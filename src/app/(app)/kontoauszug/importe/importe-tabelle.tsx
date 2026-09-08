@@ -51,23 +51,43 @@ function VollstaendigkeitsZelle({ batchId }: { batchId: string }) {
     return <span className="text-xs text-red-400">{ergebnis.error}</span>;
   }
 
-  if (ergebnis.ungeklaert.length === 0) {
+  if (ergebnis.ungeklaert.length === 0 && ergebnis.doppelteBuchungen.length === 0) {
     return <span className="text-xs text-green-400">Vollständig ({ergebnis.gesamt} Zeilen zugeordnet)</span>;
   }
 
   return (
     <div className="text-xs">
-      <p className="text-amber-400">
-        {ergebnis.ungeklaert.length} von {ergebnis.gesamt} Zeilen ungeklärt
-      </p>
-      <ul className="mt-1 space-y-0.5 text-neutral-400">
-        {ergebnis.ungeklaert.map((z) => (
-          <li key={z.rowNumber}>
-            {z.datum ?? "–"} · {z.betrag !== null ? formatEuro(z.betrag) : "–"} · {z.name || "–"} —{" "}
-            {z.verwendungszweck || "–"}
-          </li>
-        ))}
-      </ul>
+      {ergebnis.ungeklaert.length > 0 && (
+        <>
+          <p className="text-amber-400">
+            {ergebnis.ungeklaert.length} von {ergebnis.gesamt} Zeilen ungeklärt
+          </p>
+          <ul className="mt-1 space-y-0.5 text-neutral-400">
+            {ergebnis.ungeklaert.map((z) => (
+              <li key={z.rowNumber}>
+                {z.datum ?? "–"} · {z.betrag !== null ? formatEuro(z.betrag) : "–"} · {z.name || "–"} —{" "}
+                {z.verwendungszweck || "–"}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {ergebnis.doppelteBuchungen.length > 0 && (
+        <>
+          <p className={ergebnis.ungeklaert.length > 0 ? "mt-2 text-red-400" : "text-red-400"}>
+            {ergebnis.doppelteBuchungen.length} Zeile{ergebnis.doppelteBuchungen.length === 1 ? "" : "n"} mehrfach
+            erfasst
+          </p>
+          <ul className="mt-1 space-y-0.5 text-neutral-400">
+            {ergebnis.doppelteBuchungen.map((z) => (
+              <li key={z.rowNumber}>
+                {z.datum ?? "–"} · {z.betrag !== null ? formatEuro(z.betrag) : "–"} · {z.name || "–"} —{" "}
+                {z.verwendungszweck || "–"} · in: {z.kategorien.join(" + ")}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

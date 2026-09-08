@@ -20,6 +20,23 @@ export type UngeklaerteZeile = {
   verwendungszweck: string;
 };
 
+/**
+ * Eine Zeile, die in mehr als einer Kategorie gefunden wurde — z.B. einmal als Zahlung UND
+ * einmal als sonstige Buchung. Kommt vor, wenn dieselbe Buchung zu unterschiedlichen Zeitpunkten
+ * zweimal importiert/verarbeitet wurde (etwa weil eine Ausschluss-Regel zum Zeitpunkt des ersten
+ * Imports noch nicht existierte). Anders als bei `ungeklaert` fehlt hier nichts — im Gegenteil,
+ * es ist zu viel da, und einer der Datensätze verfälscht dadurch eine Berechnung (z.B. Ist bei
+ * den offenen Posten).
+ */
+export type DoppelteBuchung = {
+  rowNumber: number;
+  datum: string | null;
+  betrag: number | null;
+  name: string;
+  verwendungszweck: string;
+  kategorien: string[];
+};
+
 export type VollstaendigkeitsErgebnis = {
   gesamt: number;
   alsZahlungGefunden: number;
@@ -30,6 +47,7 @@ export type VollstaendigkeitsErgebnis = {
   alsNebenkostenausgleichGefunden: number;
   fehlerzeilen: number;
   ungeklaert: UngeklaerteZeile[];
+  doppelteBuchungen: DoppelteBuchung[];
 };
 
 type Spalten = ReturnType<typeof findeKontoauszugSpalten>;
@@ -90,6 +108,7 @@ export async function pruefeVollstaendigkeit(
   let alsNebenkostenausgleichGefunden = 0;
   let fehlerzeilen = 0;
   const ungeklaert: UngeklaerteZeile[] = [];
+  const doppelteBuchungen: DoppelteBuchung[] = [];
 
   rows.forEach((row, i) => {
     const schluessel = zeilenSchluessel(row, spalten);
@@ -97,39 +116,39 @@ export async function pruefeVollstaendigkeit(
       fehlerzeilen++;
       return;
     }
-    if (bekannteSchluessel.zahlung.has(schluessel)) {
-      alsZahlungGefunden++;
-      return;
-    }
-    if (bekannteSchluessel.kosten.has(schluessel)) {
-      alsKostenGefunden++;
-      return;
-    }
-    if (bekannteSchluessel.mietweiterleitung.has(schluessel)) {
-      alsMietweiterleitungGefunden++;
-      return;
-    }
-    if (bekannteSchluessel.kautionsbuchung.has(schluessel)) {
-      alsKautionsbuchungGefunden++;
-      return;
-    }
-    if (bekannteSchluessel.sonstige.has(schluessel)) {
-      alsSonstigesGefunden++;
-      return;
-    }
+
+    // Bewusst ALLE Kategorien prüfen statt beim ersten Treffer abzubrechen — nur so lässt sich
+    // erkennen, wenn dieselbe Buchung versehentlich in mehr als einer Kategorie gelandet ist
+    // (z.B. einmal als Zahlung UND einmal als sonstige Buchung), statt das beim ersten Treffer
+    // als "erledigt" zu melden und den Doppel-Import stillschweigend zu übersehen.
+    const gefundenIn: string[] = [];
+    if (bekannteSchluessel.zahlung.has(schluessel)) gefundenIn.push("Zahlung");
+    if (bekannteSchluessel.kosten.has(schluessel)) gefundenIn.push("Kosten");
+    if (bekannteSchluessel.mietweiterleitung.has(schluessel)) gefundenIn.push("Mietweiterleitung");
+    if (bekannteSchluessel.kautionsbuchung.has(schluessel)) gefundenIn.push("Kautionsbuchung");
+    if (bekannteSchluessel.sonstige.has(schluessel)) gefundenIn.push("Sonstige Buchung");
+
     const datum = spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null;
     const betrag = leseBetrag(row, spalten);
     if (datum && betrag !== null && bekannteSchluessel.beglichenePositionen.has(datumBetragSchluessel(new Date(datum), betrag))) {
-      alsNebenkostenausgleichGefunden++;
-      return;
+      gefundenIn.push("Nebenkostenausgleich-Position");
     }
-    ungeklaert.push({
-      rowNumber: i + 2,
-      datum,
-      betrag,
-      name: spalten.nameCol ? (row[spalten.nameCol] ?? "").trim() : "",
-      verwendungszweck: spalten.zweckCol ? (row[spalten.zweckCol] ?? "").trim() : "",
-    });
+
+    if (gefundenIn.includes("Zahlung")) alsZahlungGefunden++;
+    if (gefundenIn.includes("Kosten")) alsKostenGefunden++;
+    if (gefundenIn.includes("Mietweiterleitung")) alsMietweiterleitungGefunden++;
+    if (gefundenIn.includes("Kautionsbuchung")) alsKautionsbuchungGefunden++;
+    if (gefundenIn.includes("Sonstige Buchung")) alsSonstigesGefunden++;
+    if (gefundenIn.includes("Nebenkostenausgleich-Position")) alsNebenkostenausgleichGefunden++;
+
+    const name = spalten.nameCol ? (row[spalten.nameCol] ?? "").trim() : "";
+    const verwendungszweck = spalten.zweckCol ? (row[spalten.zweckCol] ?? "").trim() : "";
+
+    if (gefundenIn.length === 0) {
+      ungeklaert.push({ rowNumber: i + 2, datum, betrag, name, verwendungszweck });
+    } else if (gefundenIn.length > 1) {
+      doppelteBuchungen.push({ rowNumber: i + 2, datum, betrag, name, verwendungszweck, kategorien: gefundenIn });
+    }
   });
 
   return {
@@ -142,5 +161,6 @@ export async function pruefeVollstaendigkeit(
     alsNebenkostenausgleichGefunden,
     fehlerzeilen,
     ungeklaert,
+    doppelteBuchungen,
   };
 }
