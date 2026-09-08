@@ -135,7 +135,11 @@ export async function updateMietvertrag(id: string, formData: FormData) {
         einheit: { connect: { id: data.einheitId } },
         mieter: { set: mieterIds(data).map((mid) => ({ id: mid })) },
         beginn: data.beginnUnbekannt ? null : data.beginn,
-        ende: data.ende,
+        // Bewusst mit ?? null statt nur data.ende: Prisma behandelt ein undefined-Feld in
+        // update() als "unverändert lassen", nicht als "auf null setzen" — ohne diesen Fallback
+        // würde ein geleertes Mietende-Feld (z.B. beim Umstellen von Beendet auf Aktiv) beim
+        // Speichern stillschweigend ignoriert und das alte Datum bliebe in der Datenbank stehen.
+        ende: data.ende ?? null,
         kaltmiete: data.kaltmiete,
         nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
         mehrwertsteuer: data.mehrwertsteuer ?? null,
