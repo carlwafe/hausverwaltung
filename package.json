@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node -r dotenv/config scripts/wake-db.mjs && prisma migrate deploy && next build",
+    "build": "node -r dotenv/config scripts/wake-db.mjs && node -r dotenv/config scripts/migrate-with-retry.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate"
