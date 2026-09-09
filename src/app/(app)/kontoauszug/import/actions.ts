@@ -411,14 +411,24 @@ export async function commitZahlungen(
   const existing = await prisma.zahlung.findMany({
     where: { mietvertragId: { in: [...new Set(rows.map((r) => r.mietvertragId))] } },
   });
+  // Verwendungszweck gehört mit in den Schlüssel, genau wie im Vorschau-Check (siehe
+  // pruefeZahlungDuplikat in page.tsx) — sonst wirft z.B. Mietvertrag+Datum+Betrag mehrere
+  // Monatsmieten, die derselbe Mieter am selben Tag mit demselben Betrag nachzahlt (Dez./Jan./
+  // Feb. rückwirkend in einer Überweisung pro Monat), fälschlich in einen Topf: sobald einer
+  // davon schon importiert ist, würden ohne Verwendungszweck im Schlüssel auch die anderen,
+  // tatsächlich neuen Zahlungen hier als Duplikat übersprungen.
   const existingSet = new Set(
     existing.map(
-      (z) => `${z.mietvertragId}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}`,
+      (z) =>
+        `${z.mietvertragId}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
     ),
   );
 
   const neu = rows.filter(
-    (r) => !existingSet.has(`${r.mietvertragId}|${r.datum}|${r.betrag.toFixed(2)}`),
+    (r) =>
+      !existingSet.has(
+        `${r.mietvertragId}|${r.datum}|${r.betrag.toFixed(2)}|${r.verwendungszweck.trim().toLowerCase()}`,
+      ),
   );
   const uebersprungen = rows.length - neu.length;
 
