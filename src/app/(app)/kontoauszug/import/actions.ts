@@ -151,6 +151,7 @@ export async function previewImport(
           betrag: true,
           beschreibung: true,
           rohdaten: true,
+          aufteilungGruppeId: true,
         },
       }),
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
@@ -291,10 +292,30 @@ export async function previewImport(
       reparaturenKostenartId,
       bekannteWarmmieten,
     );
+    // Aufgeteilte Positionen (siehe kosten/actions.ts teileKostenpositionAuf) einzeln zu betrachten
+    // würde eine erneut importierte Original-Buchung nie als "bereits importiert" erkennen —
+    // keiner der Teilbeträge entspricht dem ursprünglich importierten Gesamtbetrag. Für den
+    // Dedup-Schlüssel werden Positionen derselben Gruppe deshalb zu ihrem Summenbetrag
+    // zusammengefasst, bevor der Schlüssel gebildet wird.
+    const aufteilungSummen = new Map<string, number>();
+    for (const k of bestehendeKostenpositionen) {
+      if (!k.aufteilungGruppeId) continue;
+      aufteilungSummen.set(
+        k.aufteilungGruppeId,
+        (aufteilungSummen.get(k.aufteilungGruppeId) ?? 0) + Number(k.betrag),
+      );
+    }
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen
         .filter((k) => k.datum)
-        .map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag), k.beschreibung)),
+        .map((k) =>
+          kostenDedupSchluessel(
+            k.empfaenger,
+            k.datum,
+            k.aufteilungGruppeId ? aufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
+            k.beschreibung,
+          ),
+        ),
     );
     const bestehendeMietweiterleitungen = new Set(
       bestehendeMietweiterleitungenRaw.map((m) =>
@@ -470,10 +491,27 @@ export async function commitKosten(
 
   const bestehend = await prisma.kostenposition.findMany({
     where: { datum: { not: null } },
-    select: { empfaenger: true, datum: true, betrag: true, beschreibung: true },
+    select: { empfaenger: true, datum: true, betrag: true, beschreibung: true, aufteilungGruppeId: true },
   });
+  // Siehe Kommentar bei previewImport: aufgeteilte Positionen zu ihrem Summenbetrag
+  // zusammenfassen, sonst würde die ursprüngliche Buchung hier nie als Duplikat erkannt.
+  const bestehendAufteilungSummen = new Map<string, number>();
+  for (const k of bestehend) {
+    if (!k.aufteilungGruppeId) continue;
+    bestehendAufteilungSummen.set(
+      k.aufteilungGruppeId,
+      (bestehendAufteilungSummen.get(k.aufteilungGruppeId) ?? 0) + Number(k.betrag),
+    );
+  }
   const bestehendSet = new Set(
-    bestehend.map((k) => kostenDedupSchluessel(k.empfaenger, k.datum, Number(k.betrag), k.beschreibung)),
+    bestehend.map((k) =>
+      kostenDedupSchluessel(
+        k.empfaenger,
+        k.datum,
+        k.aufteilungGruppeId ? bestehendAufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
+        k.beschreibung,
+      ),
+    ),
   );
 
   const neu = rows.filter(

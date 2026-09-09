@@ -37,18 +37,91 @@ export type KostenpositionRow = {
   rohdaten: Record<string, string> | null;
   importBatchId: string | null;
   importDateiname: string | null;
+  // Gesetzt, wenn diese Zeile eine von mehreren zusammengehörigen Positionen aus dem Aufteilen
+  // einer ursprünglich einzelnen Buchung ist (siehe aufteilen-form.tsx) — dann werden alle
+  // Zeilen mit demselben Wert zu einer Zeile zusammengefasst dargestellt.
+  aufteilungGruppeId: string | null;
 };
 
-const columns: Column<KostenpositionRow>[] = [
+type KostenpositionAnzeigeRow = KostenpositionRow & {
+  aufteilung?: KostenpositionRow[];
+};
+
+/** Fasst Zeilen mit derselben aufteilungGruppeId zu einer Anzeige-Zeile zusammen. */
+function gruppiereAufteilungen(rows: KostenpositionRow[]): KostenpositionAnzeigeRow[] {
+  const gruppen = new Map<string, KostenpositionRow[]>();
+  const ergebnis: KostenpositionAnzeigeRow[] = [];
+
+  for (const r of rows) {
+    if (!r.aufteilungGruppeId) {
+      ergebnis.push(r);
+      continue;
+    }
+    const bestehende = gruppen.get(r.aufteilungGruppeId);
+    if (bestehende) {
+      bestehende.push(r);
+    } else {
+      const liste = [r];
+      gruppen.set(r.aufteilungGruppeId, liste);
+      ergebnis.push(r); // Platzhalter, wird unten durch die zusammengefasste Version ersetzt
+    }
+  }
+
+  return ergebnis.map((r) => {
+    if (!r.aufteilungGruppeId) return r;
+    const teile = gruppen.get(r.aufteilungGruppeId)!;
+    if (teile[0].id !== r.id) return r; // nur die erste Zeile jeder Gruppe wird dargestellt
+    const betrag = teile.reduce((s, t) => s + t.betrag, 0);
+    const umlagefaehig = teile.every((t) => t.umlagefaehig);
+    return {
+      ...r,
+      kostenartName: `${teile.length} Kostenarten (aufgeteilt)`,
+      umlagefaehig,
+      betrag,
+      aufteilung: teile,
+    };
+  });
+}
+
+function AufteilungZeile({ teile, colSpan }: { teile: KostenpositionRow[]; colSpan: number }) {
+  return (
+    <tr className="border-b border-neutral-800 bg-neutral-950/60">
+      <td colSpan={colSpan} className="px-4 py-3">
+        <p className="mb-2 text-xs font-medium text-neutral-400">Aufgeteilt in:</p>
+        <table className="w-full text-xs">
+          <tbody>
+            {teile.map((t) => (
+              <tr key={t.id} className="border-t border-neutral-800/60 first:border-t-0">
+                <td className="py-1 pr-3">
+                  <Link href={`/kosten/${t.id}`} className="text-neutral-300 hover:underline">
+                    {t.kostenartName}
+                  </Link>
+                  {!t.umlagefaehig && <span className="ml-2 text-neutral-600">(nicht umlagefähig)</span>}
+                </td>
+                <td className="py-1 pr-3 text-neutral-300">{t.beschreibung || "–"}</td>
+                <td className="py-1 text-right text-neutral-300">{formatEuro(t.betrag)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+  );
+}
+
+const columns: Column<KostenpositionAnzeigeRow>[] = [
   {
     key: "datum",
     label: "Datum",
     sortValue: (k) => k.datum ?? "",
-    render: (k) => (
-      <Link href={`/kosten/${k.id}`} className="font-medium hover:underline">
-        {formatDate(k.datum)}
-      </Link>
-    ),
+    render: (k) =>
+      k.aufteilung ? (
+        formatDate(k.datum)
+      ) : (
+        <Link href={`/kosten/${k.id}`} className="font-medium hover:underline">
+          {formatDate(k.datum)}
+        </Link>
+      ),
   },
   {
     key: "gebaeude",
@@ -97,12 +170,24 @@ const columns: Column<KostenpositionRow>[] = [
   {
     key: "quelle",
     label: "Quelle",
-    render: (k, { expanded, toggleExpanded }) =>
-      k.rohdaten ? (
+    render: (k, { expanded, toggleExpanded }) => {
+      if (k.aufteilung) {
+        return (
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            className="rounded-full bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400 hover:bg-blue-500/20"
+          >
+            Aufgeteilt ({k.aufteilung.length}) {expanded ? "▲" : "▼"}
+          </button>
+        );
+      }
+      return k.rohdaten ? (
         <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
       ) : (
         <span className="text-xs text-neutral-600">manuell</span>
-      ),
+      );
+    },
   },
 ];
 
@@ -117,7 +202,8 @@ const csvSpalten: CsvSpalte<KostenpositionRow>[] = [
 ];
 
 export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
-  const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionRow[]>([]);
+  const anzeigeRows = gruppiereAufteilungen(rows);
+  const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionAnzeigeRow[]>([]);
   const [pending, startTransition] = useTransition();
 
   function loeschen() {
@@ -129,8 +215,11 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
     ) {
       return;
     }
+    // Eine aufgeteilte Zeile steht für mehrere echte Kostenpositionen — alle davon löschen,
+    // nicht nur die als Zeile angezeigte erste.
+    const ids = ausgewaehlt.flatMap((r) => (r.aufteilung ? r.aufteilung.map((t) => t.id) : [r.id]));
     startTransition(async () => {
-      await deleteKostenpositionen(ausgewaehlt.map((r) => r.id));
+      await deleteKostenpositionen(ids);
       setAusgewaehlt([]);
     });
   }
@@ -165,21 +254,22 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
       )}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={anzeigeRows}
         emptyMessage="Noch keine Kostenpositionen erfasst."
         searchPlaceholder="Kosten durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
-        renderExpanded={(k, colSpan) =>
-          k.rohdaten ? (
+        renderExpanded={(k, colSpan) => {
+          if (k.aufteilung) return <AufteilungZeile teile={k.aufteilung} colSpan={colSpan} />;
+          return k.rohdaten ? (
             <RohdatenZeile
               rohdaten={k.rohdaten}
               colSpan={colSpan}
               downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
               downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}
             />
-          ) : null
-        }
+          ) : null;
+        }}
       />
     </div>
   );

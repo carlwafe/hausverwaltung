@@ -336,12 +336,20 @@ model Kostenposition {
   importBatch    ImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   importBatchId  String?
   createdAt      DateTime      @default(now())
+  // Gesetzt, wenn diese Position aus dem Aufteilen einer ursprünglich als eine Buchung
+  // importierten Kostenposition entstanden ist (z.B. eine Hausmeister-Rechnung, die sowohl
+  // umlagefähigen Hausmeisterdienst als auch nicht umlagefähigen Winterdienst enthält). Alle
+  // Positionen mit derselben Id gehören zur selben ursprünglichen Buchung — ihre Beträge
+  // summieren sich exakt zum ursprünglich importierten Gesamtbetrag. Der Wert ist die Id der
+  // allerersten (inzwischen gelöschten) Position vor der ersten Aufteilung.
+  aufteilungGruppeId String?
 
   dokumente Dokument[]
 
   @@index([gebaeudeId, jahr])
   @@index([hausId, jahr])
   @@index([kostengruppeId, jahr])
+  @@index([aufteilungGruppeId])
   @@map("kostenpositionen")
 }
 

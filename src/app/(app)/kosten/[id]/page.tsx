@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { updateKostenposition, deleteKostenposition } from "../actions";
+import { AufteilenForm } from "../aufteilen-form";
 import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
@@ -69,6 +70,13 @@ export default async function KostenpositionDetailPage({
           empfaenger: kostenposition.empfaenger,
         }}
         action={updateKostenposition.bind(null, id)}
+      />
+
+      <AufteilenForm
+        kostenpositionId={id}
+        betragGesamt={Number(kostenposition.betrag)}
+        kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
+        aktuelleKostenartId={kostenposition.kostenartId}
       />
 
       <div className="mt-6">

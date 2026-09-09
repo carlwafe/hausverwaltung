@@ -32,6 +32,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
     rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
+    aufteilungGruppeId: k.aufteilungGruppeId,
   }));
 }
 
