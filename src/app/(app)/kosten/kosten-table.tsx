@@ -5,6 +5,13 @@ import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { deleteKostenpositionen } from "./actions";
+import {
+  exportiereAlsCsv,
+  formatDatumFuerCsv,
+  formatEuroFuerCsv,
+  heutigesDatumFuerDateiname,
+  type CsvSpalte,
+} from "@/lib/export-csv";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -99,6 +106,16 @@ const columns: Column<KostenpositionRow>[] = [
   },
 ];
 
+const csvSpalten: CsvSpalte<KostenpositionRow>[] = [
+  { label: "Datum", wert: (k) => formatDatumFuerCsv(k.datum) },
+  { label: "Gebäude", wert: (k) => k.gebaeudeLabel },
+  { label: "Kostenart", wert: (k) => k.kostenartName },
+  { label: "Umlagefähig", wert: (k) => (k.umlagefaehig ? "Ja" : "Nein") },
+  { label: "Betrag", wert: (k) => formatEuroFuerCsv(k.betrag) },
+  { label: "Empfänger", wert: (k) => k.empfaenger ?? "" },
+  { label: "Beschreibung", wert: (k) => k.beschreibung ?? "" },
+];
+
 export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionRow[]>([]);
   const [pending, startTransition] = useTransition();
@@ -118,19 +135,32 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
     });
   }
 
+  function exportieren() {
+    exportiereAlsCsv(`kosten-${heutigesDatumFuerDateiname()}.csv`, csvSpalten, ausgewaehlt);
+  }
+
   return (
     <div>
       {ausgewaehlt.length > 0 && (
         <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
           <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>
-          <button
-            type="button"
-            onClick={loeschen}
-            disabled={pending}
-            className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
-          >
-            {pending ? "Lösche…" : "Ausgewählte löschen"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={exportieren}
+              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-200 hover:bg-neutral-800"
+            >
+              Ausgewählte als CSV exportieren
+            </button>
+            <button
+              type="button"
+              onClick={loeschen}
+              disabled={pending}
+              className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
+            >
+              {pending ? "Lösche…" : "Ausgewählte löschen"}
+            </button>
+          </div>
         </div>
       )}
       <DataTable

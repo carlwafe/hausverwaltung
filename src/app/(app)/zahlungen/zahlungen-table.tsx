@@ -5,6 +5,13 @@ import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { deleteZahlungen } from "./actions";
+import {
+  exportiereAlsCsv,
+  formatDatumFuerCsv,
+  formatEuroFuerCsv,
+  heutigesDatumFuerDateiname,
+  type CsvSpalte,
+} from "@/lib/export-csv";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -104,6 +111,15 @@ const columns: Column<ZahlungRow>[] = [
   },
 ];
 
+const csvSpalten: CsvSpalte<ZahlungRow>[] = [
+  { label: "Datum", wert: (z) => formatDatumFuerCsv(z.datum) },
+  { label: "Einheit", wert: (z) => z.einheitBezeichnung },
+  { label: "Mieter", wert: (z) => z.mieterNamen },
+  { label: "Für Periode", wert: (z) => `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` },
+  { label: "Betrag", wert: (z) => formatEuroFuerCsv(z.betrag) },
+  { label: "Verwendungszweck", wert: (z) => z.verwendungszweck ?? "" },
+];
+
 export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<ZahlungRow[]>([]);
   const [pending, startTransition] = useTransition();
@@ -117,19 +133,32 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
     });
   }
 
+  function exportieren() {
+    exportiereAlsCsv(`zahlungen-${heutigesDatumFuerDateiname()}.csv`, csvSpalten, ausgewaehlt);
+  }
+
   return (
     <div>
       {ausgewaehlt.length > 0 && (
         <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
           <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>
-          <button
-            type="button"
-            onClick={loeschen}
-            disabled={pending}
-            className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
-          >
-            {pending ? "Lösche…" : "Ausgewählte löschen"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={exportieren}
+              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-200 hover:bg-neutral-800"
+            >
+              Ausgewählte als CSV exportieren
+            </button>
+            <button
+              type="button"
+              onClick={loeschen}
+              disabled={pending}
+              className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
+            >
+              {pending ? "Lösche…" : "Ausgewählte löschen"}
+            </button>
+          </div>
         </div>
       )}
       <DataTable
