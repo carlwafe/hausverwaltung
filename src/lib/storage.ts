@@ -3,15 +3,18 @@ import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 
-// Vercel Blob (access: "private") wird nur genutzt, wenn Zugangsdaten dafür konfiguriert sind
-// (auf Vercel selbst automatisch über OIDC, lokal nach einem einmaligen `vercel env pull` über
-// BLOB_READ_WRITE_TOKEN) — ohne läuft weiterhin der lokale Datei-Storage wie bisher, damit die
-// lokale Entwicklung nicht von einem eingerichteten Blob-Store abhängt. Auf Vercel selbst ist ein
-// lokaler Storage keine Option: der Server läuft dort serverless mit flüchtigem Dateisystem,
-// Dateien würden spätestens beim nächsten Deploy verschwinden. Private Blobs sind nie über eine
-// öffentliche URL erreichbar, egal ob der Pfad bekannt ist — Zugriff nur per get() aus
-// Server-Code, hier ausschließlich über die authentifizierte Download-Route.
-const BLOB_VERFUEGBAR = Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_OIDC_TOKEN);
+// Vercel Blob (access: "private") wird nur genutzt, wenn die App tatsächlich auf Vercel läuft
+// (Build oder Runtime) — dafür setzt Vercel automatisch VERCEL=1, unabhängig davon, welche
+// Zugangsdaten sonst gerade im Environment stehen. Bewusst NICHT anhand von
+// BLOB_READ_WRITE_TOKEN/VERCEL_OIDC_TOKEN erkannt: `vercel link`/`vercel env pull` legen einen
+// VERCEL_OIDC_TOKEN auch in die lokale .env.local, ohne dass man tatsächlich auf Vercel läuft —
+// das hätte sonst lokale Entwicklung fälschlich auf den (leeren) Produktions-Blob-Speicher
+// umgeleitet. Ohne VERCEL=1 läuft weiterhin der lokale Datei-Storage wie bisher. Auf Vercel
+// selbst ist ein lokaler Storage keine Option: der Server läuft dort serverless mit flüchtigem
+// Dateisystem, Dateien würden spätestens beim nächsten Deploy verschwinden. Private Blobs sind
+// nie über eine öffentliche URL erreichbar, egal ob der Pfad bekannt ist — Zugriff nur per get()
+// aus Server-Code, hier ausschließlich über die authentifizierte Download-Route.
+const BLOB_VERFUEGBAR = process.env.VERCEL === "1";
 
 const STORAGE_ROOT = path.join(process.cwd(), "var", "storage");
 
