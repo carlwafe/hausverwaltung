@@ -97,8 +97,7 @@ async function ladeMieterZeilen(jahr: number) {
         mieter: true,
         zahlungen: { select: { datum: true, betrag: true } },
         abrechnungspositionen: {
-          where: { beglichenAm: { not: null } },
-          select: { beglichenAm: true, beglichenBetrag: true },
+          select: { saldo: true, beglichenBetrag: true },
         },
       },
     }),
@@ -115,9 +114,9 @@ async function ladeMieterZeilen(jahr: number) {
     einheitBezeichnung: v.einheit.bezeichnung,
     mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
     zahlungen: v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
-    beglicheneNebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
-      beglichenAm: p.beglichenAm!,
-      beglichenBetrag: Number(p.beglichenBetrag),
+    nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
+      saldo: Number(p.saldo),
+      beglichenBetrag: p.beglichenBetrag ? Number(p.beglichenBetrag) : null,
     })),
   }));
 
@@ -261,8 +260,10 @@ export default async function JahresuebersichtPage({
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
         <p className="mb-3 text-sm text-neutral-400">
-          Saldo neu = Saldo alt − Soll + Miete + Abrechn. Negativer Saldo = Rückstand, positiver
-          Saldo = Guthaben/Vorauszahlung.
+          Saldo neu = Saldo alt − Soll + Miete. Negativer Saldo = Rückstand, positiver Saldo =
+          Guthaben/Vorauszahlung. &bdquo;Nebenkostenabrechnung offen&ldquo; ist ein unabhängiger,
+          aktueller Schnappschuss (nicht auf {jahr} beschränkt): positiv = noch auszuzahlendes
+          Guthaben, negativ = noch einzuziehende Nachzahlung.
         </p>
         <div className="overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
@@ -272,7 +273,7 @@ export default async function JahresuebersichtPage({
                 <th className="px-4 py-2 text-right">Saldo alt</th>
                 <th className="px-4 py-2 text-right">Soll</th>
                 <th className="px-4 py-2 text-right">Miete</th>
-                <th className="px-4 py-2 text-right">Abrechn.</th>
+                <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen</th>
                 <th className="px-4 py-2 text-right">Saldo neu</th>
               </tr>
             </thead>
@@ -290,7 +291,7 @@ export default async function JahresuebersichtPage({
                   <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.soll)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.miete)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">
-                    {z.abrechnung !== 0 ? formatEuro(z.abrechnung) : "–"}
+                    {z.nebenkostenabrechnungOffen ? formatEuro(z.nebenkostenabrechnungOffen) : "–"}
                   </td>
                   <td
                     className={`px-4 py-2 text-right font-medium ${z.saldoNeu < 0 ? "text-red-400" : "text-white"}`}
@@ -321,7 +322,7 @@ export default async function JahresuebersichtPage({
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.miete, 0))}
                   </td>
                   <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.abrechnung, 0))}
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + (z.nebenkostenabrechnungOffen ?? 0), 0))}
                   </td>
                   <td className="px-4 py-2 text-right text-white">
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoNeu, 0))}

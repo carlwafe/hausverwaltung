@@ -12,6 +12,7 @@ import {
   neuBerechnen,
   setAbrechnungStatus,
 } from "../actions";
+import { ManuellePositionForm } from "../manuelle-position-form";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -46,14 +47,23 @@ export default async function NebenkostenabrechnungDetailPage({
   });
   if (!abrechnung) notFound();
 
-  const [kostenpositionenRoh, einheitenRoh, verbrauchswerteRoh] = await Promise.all([
+  const [kostenpositionenRoh, einheitenRoh, verbrauchswerteRoh, mietvertraegeRoh] = await Promise.all([
     prisma.kostenposition.findMany({
       where: { jahr: abrechnung.jahr, kostenart: { umlagefaehig: true } },
       include: { kostenart: true },
     }),
     prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
     prisma.verbrauchswert.findMany({ where: { jahr: abrechnung.jahr } }),
+    prisma.mietvertrag.findMany({
+      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      include: { einheit: true, mieter: true },
+      orderBy: { einheit: { bezeichnung: "asc" } },
+    }),
   ]);
+  const mietvertragKandidaten = mietvertraegeRoh.map((v) => ({
+    id: v.id,
+    label: `${v.einheit.bezeichnung} - ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+  }));
   const nichtBeruecksichtigt = ermittleNichtBeruecksichtigteKostenarten(
     abrechnung.jahr,
     kostenpositionenRoh.map((k) => ({
@@ -299,6 +309,12 @@ export default async function NebenkostenabrechnungDetailPage({
           </tbody>
         </table>
       </div>
+
+      <ManuellePositionForm
+        abrechnungId={id}
+        jahr={abrechnung.jahr}
+        mietvertragKandidaten={mietvertragKandidaten}
+      />
     </div>
   );
 }

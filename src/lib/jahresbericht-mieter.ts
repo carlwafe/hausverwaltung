@@ -6,7 +6,10 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   einheitBezeichnung: string;
   mieterNamen: string;
   zahlungen: { datum: Date; betrag: number }[];
-  beglicheneNebenkostenPositionen: { beglichenAm: Date; beglichenBetrag: number }[];
+  // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Abrechnungsjahr —
+  // für "Nebenkostenabrechnung offen" wird der aktuelle Gesamtstand über alle Jahre gebraucht,
+  // nicht nur die Bewegung des Berichtsjahres.
+  nebenkostenPositionen: { saldo: number; beglichenBetrag: number | null }[];
 };
 
 export type MieterJahresberichtZeile = {
@@ -16,14 +19,19 @@ export type MieterJahresberichtZeile = {
   saldoAlt: number;
   soll: number;
   miete: number;
-  abrechnung: number;
   saldoNeu: number;
+  // null = keine einzige Nebenkostenabrechnung-Position für diesen Mietvertrag vorhanden
+  // (unterscheidet sich in der Anzeige bewusst nicht von "0" — beides zeigt "–", da ein
+  // bestätigter Nullsaldo von "nie erfasst" ohnehin nicht unterscheidbar wäre).
+  nebenkostenabrechnungOffen: number | null;
 };
 
 /**
  * Saldo (wie bei Offene Posten: ist - soll + saldovortrag) zu einem beliebigen Stichtag —
  * dieselbe Formel, nur zweimal aufgerufen (Jahresanfang/-ende) statt einmal, um die
- * Jahresbewegung als Differenz zu zeigen.
+ * Jahresbewegung als Differenz zu zeigen. Bewusst ohne jeden Bezug zur
+ * Nebenkostenabrechnung — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
+ * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung.
  */
 function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltungAb: Date | null): number {
   const soll = berechneSoll(v, bis, buchhaltungAb);
@@ -31,14 +39,21 @@ function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltung
   return ist - soll + v.saldovortrag;
 }
 
+/** positiv = noch offenes Guthaben (Vermieter schuldet Mieter), negativ = noch offene Nachzahlung. */
+function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht): number | null {
+  if (v.nebenkostenPositionen.length === 0) return null;
+  return v.nebenkostenPositionen.reduce((sum, p) => sum + (p.saldo - (p.beglichenBetrag ?? 0)), 0);
+}
+
 /**
  * Pro-Mietvertrag-Aufschlüsselung für den Jahresbericht: Saldo alt (1.1.), die Bewegungen des
- * Jahres (Soll, tatsächlich gezahlte Miete, Nebenkostenabrechnungs-Ausgleich) und Saldo neu
- * (31.12. bzw. `buchhaltungBis`, falls das Jahr noch nicht vollständig erfasst ist) — rechnet
- * sich lückenlos zusammen: saldoNeu = saldoAlt - soll + miete + abrechnung.
+ * Jahres (Soll, tatsächlich gezahlte Miete) und Saldo neu (31.12. bzw. `buchhaltungBis`, falls
+ * das Jahr noch nicht vollständig erfasst ist) — rechnet sich lückenlos zusammen: saldoNeu =
+ * saldoAlt - soll + miete. Daneben, informativ und unabhängig von dieser Rechnung, der aktuelle
+ * offene Nebenkostenabrechnung-Saldo (siehe nebenkostenabrechnungOffenBetrag).
  *
- * Nur Mietverträge, die für das Jahr tatsächlich relevant sind (Bewegung oder Saldo ungleich
- * null), werden zurückgegeben — ein Vertrag ohne jede Berührung mit dem Jahr taucht nicht auf.
+ * Nur Mietverträge, die für das Jahr oder den offenen Nebenkostenabrechnung-Saldo tatsächlich
+ * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf.
  */
 export function berechneMieterJahresbericht(
   vertraege: MietvertragFuerJahresbericht[],
@@ -64,13 +79,17 @@ export function berechneMieterJahresbericht(
     const miete = v.zahlungen
       .filter((z) => z.datum >= jahresanfang && z.datum < jahresendeExklusiv && z.datum <= saldoNeuBis)
       .reduce((sum, z) => sum + z.betrag, 0);
-    // Vorzeichen umgedreht gegenüber beglichenBetrag (positiv=Guthaben ausgezahlt): hier eine
-    // Nachzahlung als Einnahme(+), eine Guthaben-Auszahlung als Ausgabe(-) an den Mieter.
-    const abrechnung = v.beglicheneNebenkostenPositionen
-      .filter((p) => p.beglichenAm >= jahresanfang && p.beglichenAm < jahresendeExklusiv)
-      .reduce((sum, p) => sum - p.beglichenBetrag, 0);
+    const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v);
 
-    if (saldoAlt === 0 && soll === 0 && miete === 0 && abrechnung === 0 && saldoNeu === 0) continue;
+    if (
+      saldoAlt === 0 &&
+      soll === 0 &&
+      miete === 0 &&
+      saldoNeu === 0 &&
+      !nebenkostenabrechnungOffen
+    ) {
+      continue;
+    }
 
     zeilen.push({
       mietvertragId: v.id,
@@ -79,8 +98,8 @@ export function berechneMieterJahresbericht(
       saldoAlt,
       soll,
       miete,
-      abrechnung,
       saldoNeu,
+      nebenkostenabrechnungOffen,
     });
   }
 

@@ -94,6 +94,84 @@ export async function createAbrechnung(formData: FormData) {
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
 
+// Legt eine Abrechnung ohne jede Position an, statt sie über berechneNebenkostenabrechnung aus
+// den erfassten Kostenpositionen abzuleiten — für Jahre, deren zugrundeliegende Kostendaten
+// unvollständig/unzuverlässig sind (z.B. 2024, siehe Kommentar in nebenkostenabrechnung.ts). Die
+// einzelnen Positionen (Guthaben/Nachzahlung) werden danach manuell über
+// fuegePositionManuellHinzu eingetragen.
+export async function erstelleLeereAbrechnung(formData: FormData) {
+  await requireEditor();
+  const jahr = Number(formData.get("jahr"));
+  if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
+    throw new Error("Ungültiges Jahr.");
+  }
+
+  const bestehend = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr } });
+  if (bestehend) {
+    throw new Error(`Für ${jahr} existiert bereits eine Abrechnung.`);
+  }
+
+  const abrechnung = await prisma.nebenkostenabrechnung.create({ data: { jahr } });
+
+  revalidatePath("/nebenkostenabrechnungen");
+  redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
+}
+
+// Trägt eine einzelne Position von Hand ein, ohne dass kostenanteilGesamt/vorauszahlungGesamt
+// unabhängig korrekt sein müssen — für eine Abrechnung, deren zugrundeliegende Kostendaten zu
+// unvollständig sind, um die eigentliche Berechnung (berechneNebenkostenabrechnung) sinnvoll
+// laufen zu lassen. saldo ist hier die einzige verlässliche, direkt vom Nutzer eingegebene
+// Zahl — kostenanteilGesamt/vorauszahlungGesamt werden nur so gesetzt, dass ihre Differenz
+// rechnerisch zu saldo passt (0 bzw. -saldo), nicht weil sie echte Kostenanteile darstellen.
+export async function fuegePositionManuellHinzu(
+  abrechnungId: string,
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireEditor();
+
+  const mietvertragId = formData.get("mietvertragId");
+  const zeitraumVon = formData.get("zeitraumVon");
+  const zeitraumBis = formData.get("zeitraumBis");
+  const saldoRaw = formData.get("saldo");
+
+  if (typeof mietvertragId !== "string" || !mietvertragId) return "Bitte einen Mietvertrag wählen.";
+  if (typeof zeitraumVon !== "string" || !zeitraumVon || typeof zeitraumBis !== "string" || !zeitraumBis) {
+    return "Zeitraum ist erforderlich.";
+  }
+  const saldo = typeof saldoRaw === "string" ? Number(saldoRaw.replace(",", ".")) : NaN;
+  if (!Number.isFinite(saldo)) return "Ungültiger Saldo.";
+
+  const mietvertrag = await prisma.mietvertrag.findUnique({
+    where: { id: mietvertragId },
+    select: { einheitId: true },
+  });
+  if (!mietvertrag) return "Mietvertrag nicht gefunden.";
+
+  try {
+    await prisma.nebenkostenabrechnungPosition.create({
+      data: {
+        abrechnungId,
+        einheitId: mietvertrag.einheitId,
+        mietvertragId,
+        zeitraumVon: new Date(zeitraumVon),
+        zeitraumBis: new Date(zeitraumBis),
+        kostenanteilGesamt: -saldo,
+        vorauszahlungGesamt: 0,
+        saldo,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Unique constraint")) {
+      return "Für diesen Mietvertrag existiert in dieser Abrechnung bereits eine Position.";
+    }
+    throw err;
+  }
+
+  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+  return null;
+}
+
 // Schlüssel zum Wiederfinden einer Position über ein Neu-Berechnen hinweg — die Positions-ID
 // selbst wechselt (Positionen werden komplett gelöscht und neu angelegt), Einheit+Mietvertrag
 // bleiben aber stabil.
