@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
+import { berechneMieterJahresbericht, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -86,6 +87,48 @@ async function ladeJahresuebersicht(jahr: number) {
   };
 }
 
+async function ladeMieterZeilen(jahr: number) {
+  const [objekt, vertraegeRaw] = await Promise.all([
+    prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
+    prisma.mietvertrag.findMany({
+      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      include: {
+        einheit: true,
+        mieter: true,
+        zahlungen: { select: { datum: true, betrag: true } },
+        abrechnungspositionen: {
+          where: { beglichenAm: { not: null } },
+          select: { beglichenAm: true, beglichenBetrag: true },
+        },
+      },
+    }),
+  ]);
+
+  const vertraege: MietvertragFuerJahresbericht[] = vertraegeRaw.map((v) => ({
+    id: v.id,
+    beginn: v.beginn,
+    ende: v.ende,
+    kaltmiete: Number(v.kaltmiete),
+    nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+    mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
+    saldovortrag: Number(v.saldovortrag),
+    einheitBezeichnung: v.einheit.bezeichnung,
+    mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    zahlungen: v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+    beglicheneNebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
+      beglichenAm: p.beglichenAm!,
+      beglichenBetrag: Number(p.beglichenBetrag),
+    })),
+  }));
+
+  return berechneMieterJahresbericht(
+    vertraege,
+    jahr,
+    objekt?.buchhaltungAb ?? null,
+    objekt?.buchhaltungBis ?? null,
+  );
+}
+
 export default async function JahresuebersichtPage({
   searchParams,
 }: {
@@ -94,7 +137,7 @@ export default async function JahresuebersichtPage({
   const { jahr: jahrParam } = await searchParams;
   const jahr = Number(jahrParam) || new Date().getFullYear();
 
-  const daten = await ladeJahresuebersicht(jahr);
+  const [daten, mieterZeilen] = await Promise.all([ladeJahresuebersicht(jahr), ladeMieterZeilen(jahr)]);
 
   return (
     <div>
@@ -212,6 +255,81 @@ export default async function JahresuebersichtPage({
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
+        <p className="mb-3 text-sm text-neutral-400">
+          Saldo neu = Saldo alt − Soll + Miete + Abrechn. Negativer Saldo = Rückstand, positiver
+          Saldo = Guthaben/Vorauszahlung.
+        </p>
+        <div className="overflow-auto rounded-lg border border-neutral-800">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-neutral-800 text-left text-xs text-neutral-400">
+                <th className="px-4 py-2">Mietvertrag</th>
+                <th className="px-4 py-2 text-right">Saldo alt</th>
+                <th className="px-4 py-2 text-right">Soll</th>
+                <th className="px-4 py-2 text-right">Miete</th>
+                <th className="px-4 py-2 text-right">Abrechn.</th>
+                <th className="px-4 py-2 text-right">Saldo neu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mieterZeilen.map((z) => (
+                <tr key={z.mietvertragId} className="border-b border-neutral-800">
+                  <td className="px-4 py-2">
+                    <Link href={`/mietvertraege/${z.mietvertragId}`} className="text-white hover:underline">
+                      {z.einheitBezeichnung} – {z.mieterNamen}
+                    </Link>
+                  </td>
+                  <td className={`px-4 py-2 text-right ${z.saldoAlt < 0 ? "text-red-400" : "text-neutral-300"}`}>
+                    {formatEuro(z.saldoAlt)}
+                  </td>
+                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.soll)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.miete)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-300">
+                    {z.abrechnung !== 0 ? formatEuro(z.abrechnung) : "–"}
+                  </td>
+                  <td
+                    className={`px-4 py-2 text-right font-medium ${z.saldoNeu < 0 ? "text-red-400" : "text-white"}`}
+                  >
+                    {formatEuro(z.saldoNeu)}
+                  </td>
+                </tr>
+              ))}
+              {mieterZeilen.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 text-center text-neutral-500">
+                    Keine Mietverträge mit Bewegung in {jahr}.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {mieterZeilen.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-neutral-800 font-medium">
+                  <td className="px-4 py-2 text-white">Summe</td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoAlt, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.soll, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.miete, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.abrechnung, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoNeu, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </div>
       </div>
 
