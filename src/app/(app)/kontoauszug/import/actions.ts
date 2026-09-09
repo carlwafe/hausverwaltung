@@ -167,13 +167,28 @@ export async function previewImport(
       prisma.sonstigeBuchung.findMany({ select: { datum: true, betrag: true } }),
     ]);
 
+    // Ein Mieter kann selbst einmal als Kostenposition-Empfänger auftauchen (z.B. eine
+    // Kleinreparatur- oder sonstige Kostenerstattung, die die Verwaltung an ihn überwiesen hat) —
+    // beide Reihenfolgen (Vorname+Nachname und Nachname+Vorname, je nachdem wie die Bank den
+    // Namen im Kontoauszug formatiert) werden hier ausgeschlossen, damit so ein einmaliger
+    // Treffer nicht jede künftige Mietzahlung dieses Mieters fälschlich als "bekannter
+    // Kosten-Empfänger" (siehe unten) blockiert — sonst bekäme diese Zeile nie wieder einen
+    // Mietvertrags-Vorschlag, siehe zahlungen-import.ts.
+    const eigeneMieterNamen = new Set(
+      vertraege.flatMap((v) =>
+        v.mieter.flatMap((m) => [
+          normalizeText(`${m.vorname}${m.nachname}`),
+          normalizeText(`${m.nachname}${m.vorname}`),
+        ]),
+      ),
+    );
     // Für den Ausschluss bekannter Kosten-Empfänger aus dem Zahlungen-Mietvertrags-Vorschlag
     // (siehe Kommentar in zahlungen-import.ts) — dieselbe Quelle wie die weiter unten gebaute
     // EmpfaengerHistorie, hier aber nur die reinen Namen.
     const bekannteKostenEmpfaenger = new Set(
       bestehendeKostenpositionen
         .map((k) => normalizeText(k.empfaenger ?? ""))
-        .filter((n) => n.length > 0),
+        .filter((n) => n.length > 0 && !eigeneMieterNamen.has(n)),
     );
 
     const mietvertragKandidaten: MietvertragKandidat[] = vertraege.map((v) => ({
@@ -184,7 +199,7 @@ export async function previewImport(
       // sichtbar, auch wenn die Einheit selbst nicht mehr angezeigt wird.
       label: `${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")} — ${v.einheit.bezeichnung}`,
       warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
-      namen: v.mieter.flatMap((m) => [m.vorname, m.nachname]),
+      mieterNamen: v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname })),
       einheitBezeichnung: v.einheit.bezeichnung,
       beginn: v.beginn ? v.beginn.toISOString().slice(0, 10) : null,
       ende: v.ende ? v.ende.toISOString().slice(0, 10) : null,

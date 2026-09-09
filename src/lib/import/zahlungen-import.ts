@@ -16,7 +16,9 @@ export type MietvertragKandidat = {
   id: string;
   label: string;
   warmmiete: number;
-  namen: string[]; // Vor- und Nachnamen aller Mieter
+  // Vor- und Nachname pro Mieter getrennt (nicht als flache Liste) — die Erkennung unten braucht
+  // die Zuordnung, welcher Vorname zu welchem Nachnamen gehört, siehe findeMietvertrag.
+  mieterNamen: { vorname: string; nachname: string }[];
   einheitBezeichnung: string;
   beginn: string | null; // ISO yyyy-mm-dd, null = unbekannt
   ende: string | null; // ISO yyyy-mm-dd
@@ -85,18 +87,37 @@ function findeMietvertrag(
         }
       }
       let getroffeneNamensteile = 0;
-      for (const n of k.namen) {
-        const teile = n.split(/\s+/).filter((t) => t.length >= 3);
-        for (const teil of teile) {
+      for (const { vorname, nachname } of k.mieterNamen) {
+        // Vor- und Nachname je einzeln wortweise prüfen (nicht als ein zusammenhängender String):
+        // manche "Mieter" sind eigentlich Firmen/Institutionen, deren voller Name komplett im
+        // vorname-Feld steckt (z.B. "Wankendorfer Baugenossenschaft für Schleswig-Holstein") —
+        // ein Treffer pro einzelnem, hinreichend langem Wort statt ein Alles-oder-nichts-Treffer
+        // auf die gesamte Phrase.
+        const vornameWorte = vorname.split(/\s+/).filter((t) => t.length >= 3);
+        const nachnameWorte = nachname.split(/\s+/).filter((t) => t.length >= 3);
+        // Nachnamen sind unter den Mietern (und erst recht unter fremden Zahlungspartnern, deren
+        // Verwendungszweck zufällig einen Vornamen enthält, z.B. "... und Thomas") deutlich
+        // seltener/eindeutiger als Vornamen — ein Nachname-Wort-Treffer zählt daher wie bisher
+        // voll, ein Vorname-Wort-Treffer dagegen nur schwach: er reicht allein nie für einen
+        // Vorschlag, sondern nur zusammen mit einem zweiten Treffer (Nachname, weiteres
+        // Vorname-Wort einer mehrteiligen Firmenbezeichnung, oder ein passender Betrag).
+        for (const teil of nachnameWorte) {
           if (textEnthaeltWort(text, teil)) {
             score += teil.length >= 4 ? 3 : 1;
             getroffeneNamensteile++;
           }
         }
+        for (const teil of vornameWorte) {
+          if (textEnthaeltWort(text, teil)) {
+            score += 1;
+            getroffeneNamensteile++;
+          }
+        }
       }
-      // Ein voller Vor+Nachname-Treffer ist ein deutlich stärkeres, spezifischeres Signal als
-      // ein einzelner (evtl. mehrdeutiger, z.B. gängiger Vorname) Namensteil kombiniert mit einer
-      // zufällig übereinstimmenden Miethöhe, die sich mehrere Mieter teilen können.
+      // Mehrere unabhängig getroffene Namensteile (voller Vor+Nachname, oder mehrere Wörter einer
+      // Firmenbezeichnung) sind ein deutlich stärkeres, spezifischeres Signal als ein einzelner
+      // (evtl. mehrdeutiger, z.B. gängiger Vorname) Namensteil kombiniert mit einer zufällig
+      // übereinstimmenden Miethöhe, die sich mehrere Mieter teilen können.
       if (getroffeneNamensteile >= 2) score += 3;
       if (textEnthaeltWort(text, k.einheitBezeichnung.replace(/^HS \d+ WHG \d+ - /, ""))) {
         score += 1;
