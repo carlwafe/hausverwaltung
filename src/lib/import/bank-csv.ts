@@ -106,6 +106,13 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 // fälschlich als Eigentümer-Buchung statt als Kaution erkennen.
 export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 
+// Ebenfalls Vorrang vor der Eigentümer-Erkennung, aus demselben Grund wie Kaution: die
+// eingesammelten Waschgeld-Münzen laufen mitunter über ein privates Konto der Eigentümerin,
+// bevor sie (in beide Richtungen) auf das Geschäftskonto verbucht werden — ohne diese Ausnahme
+// ließe sich eine solche Buchung im Kosten-Import nie der Kostenart "Sonstige Einnahmen
+// (Waschgeld)" zuordnen, weil Empfänger/Absender wortwörtlich "Julia Waller" lautet.
+export const WASCHGELD_PATTERN = /waschgeld/i;
+
 // Rückzahlung/Nachzahlung aus der jährlichen Nebenkostenabrechnung — im Verwendungszweck bisher
 // mit "BK-Abr.", ausgeschrieben "Nebenkosten-/Betriebskostenabrechnung", oder (z.B. bei einer
 // Ratenzahlung oder einem frei formulierten Klärungs-Verwendungszweck eines Mieters) nur "BK

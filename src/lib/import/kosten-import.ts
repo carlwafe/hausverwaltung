@@ -11,6 +11,7 @@ import {
   repariereMojibake,
   RUECKBUCHUNG_PATTERN,
   textEnthaeltWort,
+  WASCHGELD_PATTERN,
 } from "./bank-csv";
 import { gebaeudeWert, hausWert, kostengruppeWert } from "../gebaeude-gruppen";
 
@@ -458,7 +459,8 @@ export function mapKostenRows(
     // Anders als kaution unabhängig vom Vorzeichen geprüft: eine Nebenkostenabrechnung kann sowohl
     // eine Rückzahlung (ausgehend, Guthaben) als auch eine Nachzahlung (eingehend) sein.
     const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
-    const eigentuemerBuchung = !kaution && istEigentuemerBuchung(empfaenger);
+    const eigentuemerBuchung =
+      !kaution && !WASCHGELD_PATTERN.test(verwendungszweck) && istEigentuemerBuchung(empfaenger);
     // Eine eingehende Buchung ist meistens eine Mieteinnahme (gehört in den Zahlungen-Import) —
     // außer der Absender ist bereits als Kosten-Empfänger bekannt (hat Historie), dann handelt es
     // sich vermutlich um eine Rückerstattung/Gutschrift (z.B. Techem erstattet eine Überzahlung)
