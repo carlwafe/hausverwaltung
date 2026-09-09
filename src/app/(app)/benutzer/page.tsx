@@ -27,7 +27,7 @@ export default async function BenutzerPage() {
               <tr key={u.id} className="border-t border-neutral-800">
                 <td className="px-4 py-2">{u.name ?? "–"}</td>
                 <td className="px-4 py-2">{u.email}</td>
-                <td className="px-4 py-2">{u.role === "ADMIN" ? "Admin" : "Verwalter"}</td>
+                <td className="px-4 py-2">{u.role === "ADMIN" ? "Admin" : "Gast"}</td>
                 <td className="px-4 py-2 text-right">
                   <DeleteButton action={deleteBenutzer.bind(null, u.id)} label="Entfernen" />
                 </td>

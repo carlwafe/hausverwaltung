@@ -87,7 +87,7 @@ function NavDropdown({ label, links, pathname }: { label: string; links: NavLink
 export function NavBar({
   user,
 }: {
-  user: { name?: string | null; email?: string | null; role: "ADMIN" | "VERWALTER" };
+  user: { name?: string | null; email?: string | null; role: "ADMIN" | "GAST" };
 }) {
   const pathname = usePathname();
 

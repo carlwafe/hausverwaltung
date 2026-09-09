@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -90,7 +90,7 @@ function mieterIds(data: { mieterId1: string; mieterId2?: string }) {
 }
 
 export async function createMietvertrag(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const data = await parseForm(formData);
 
   await prisma.mietvertrag.create({
@@ -125,7 +125,7 @@ export async function createMietvertrag(formData: FormData) {
 }
 
 export async function updateMietvertrag(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const data = await parseForm(formData);
 
   await prisma.$transaction(async (tx) => {
@@ -174,7 +174,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
 }
 
 export async function deleteMietvertrag(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.mietvertrag.delete({ where: { id } });
   revalidatePath("/mietvertraege");
   revalidatePath("/");

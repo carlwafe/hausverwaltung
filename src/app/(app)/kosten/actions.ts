@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 
 const kostenpositionSchema = z.object({
@@ -38,7 +38,7 @@ function parseForm(formData: FormData) {
 }
 
 export async function createKostenposition(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, ...rest } = parseForm(formData);
 
   await prisma.kostenposition.create({
@@ -56,7 +56,7 @@ export async function createKostenposition(formData: FormData) {
 }
 
 export async function updateKostenposition(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, ...rest } = parseForm(formData);
 
   await prisma.kostenposition.update({
@@ -76,14 +76,14 @@ export async function updateKostenposition(id: string, formData: FormData) {
 }
 
 export async function deleteKostenposition(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.kostenposition.delete({ where: { id } });
   revalidatePath("/kosten");
   redirect("/kosten");
 }
 
 export async function deleteKostenpositionen(ids: string[]) {
-  await requireUser();
+  await requireEditor();
   if (ids.length === 0) return;
   await prisma.kostenposition.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/kosten");

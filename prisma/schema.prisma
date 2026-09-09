@@ -12,7 +12,7 @@ datasource db {
 
 enum Role {
   ADMIN
-  VERWALTER
+  GAST
 }
 
 enum EinheitTyp {
@@ -60,7 +60,7 @@ model User {
   email         String        @unique
   name          String?
   passwordHash  String
-  role          Role          @default(VERWALTER)
+  role          Role          @default(GAST)
   createdAt     DateTime      @default(now())
   importBatches ImportBatch[]
 

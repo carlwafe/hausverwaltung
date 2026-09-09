@@ -18,3 +18,12 @@ export async function requireAdmin() {
   if (user.role !== "ADMIN") redirect("/");
   return user;
 }
+
+/** Für alle schreibenden Server Actions: Gäste haben nur Lesezugriff. */
+export async function requireEditor() {
+  const user = await requireUser();
+  if (user.role === "GAST") {
+    throw new Error("Gäste haben nur Lesezugriff und können nichts ändern.");
+  }
+  return user;
+}

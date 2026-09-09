@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 export async function speichereVerbrauchswerte(formData: FormData) {
-  await requireUser();
+  await requireEditor();
 
   const jahr = Number(formData.get("jahr"));
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {

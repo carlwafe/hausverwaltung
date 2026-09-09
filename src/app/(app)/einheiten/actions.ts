@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 const einheitSchema = z.object({
   gebaeudeId: z.string().min(1, "Gebäude ist erforderlich"),
@@ -38,7 +38,7 @@ function parseForm(formData: FormData) {
 }
 
 export async function createEinheit(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const { gebaeudeId, rest } = parseForm(formData);
 
   await prisma.einheit.create({
@@ -50,7 +50,7 @@ export async function createEinheit(formData: FormData) {
 }
 
 export async function updateEinheit(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const { gebaeudeId, rest } = parseForm(formData);
 
   await prisma.einheit.update({
@@ -64,7 +64,7 @@ export async function updateEinheit(id: string, formData: FormData) {
 }
 
 export async function deleteEinheit(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.einheit.delete({ where: { id } });
   revalidatePath("/einheiten");
   redirect("/einheiten");

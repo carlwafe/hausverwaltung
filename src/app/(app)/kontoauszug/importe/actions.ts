@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireEditor } from "@/lib/session";
 import { leseDatei, loescheDatei } from "@/lib/storage";
 import { pruefeVollstaendigkeit, zeilenSchluesselAusRohdaten, type VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
 import { datumBetragSchluessel } from "@/lib/import/bank-csv";
@@ -87,7 +87,7 @@ export async function pruefeImportVollstaendigkeit(
 }
 
 export async function raeumeVerwaisteImporteAuf(): Promise<void> {
-  await requireUser();
+  await requireEditor();
 
   const verwaist = await prisma.importBatch.findMany({
     where: {

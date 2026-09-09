@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 const VERTEILERSCHLUESSEL = [
   "WOHNFLAECHE",
@@ -37,7 +37,7 @@ function parseForm(formData: FormData) {
 }
 
 export async function createKostenart(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const data = parseForm(formData);
 
   await prisma.kostenart.create({
@@ -53,7 +53,7 @@ export async function createKostenart(formData: FormData) {
 }
 
 export async function updateKostenart(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const data = parseForm(formData);
 
   // Prisma behandelt `undefined` in `data` als "Feld unverändert lassen", nicht als "auf null
@@ -74,7 +74,7 @@ export async function updateKostenart(id: string, formData: FormData) {
 }
 
 export async function deleteKostenart(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.kostenart.delete({ where: { id } });
   revalidatePath("/kostenarten");
   redirect("/kostenarten");

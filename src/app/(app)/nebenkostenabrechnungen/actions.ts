@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -59,7 +59,7 @@ async function ladeBerechnungsdaten(jahr: number) {
 }
 
 export async function createAbrechnung(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const jahr = Number(formData.get("jahr"));
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
     throw new Error("Ungültiges Jahr.");
@@ -108,7 +108,7 @@ function beglichenSchluessel(einheitId: string, mietvertragId: string | null) {
 // Position zurückgeschrieben — sonst würde jedes "Neu berechnen" jede bereits eingetragene
 // Zahlung stillschweigend verwerfen.
 export async function neuBerechnen(id: string) {
-  await requireUser();
+  await requireEditor();
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
   const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte } = await ladeBerechnungsdaten(abrechnung.jahr);
   const ergebnis = berechneNebenkostenabrechnung(
@@ -164,7 +164,7 @@ export async function neuBerechnen(id: string) {
 // Buchung aus einem bereits vor diesem Feature importierten Monat). Default-Betrag = saldo
 // (volle, unveränderte Begleichung), abweichender Betrag kann per Formularfeld überschrieben werden.
 export async function markiereBeglichen(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const positionId = formData.get("positionId");
   const datum = formData.get("datum");
   const betragRaw = formData.get("betrag");
@@ -186,7 +186,7 @@ export async function markiereBeglichen(formData: FormData) {
 
 // Zurücksetzen, falls versehentlich markiert.
 export async function entferneBeglichen(positionId: string) {
-  await requireUser();
+  await requireEditor();
   const position = await prisma.nebenkostenabrechnungPosition.update({
     where: { id: positionId },
     data: { beglichenAm: null, beglichenBetrag: null },
@@ -195,14 +195,14 @@ export async function entferneBeglichen(positionId: string) {
 }
 
 export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL") {
-  await requireUser();
+  await requireEditor();
   await prisma.nebenkostenabrechnung.update({ where: { id }, data: { status } });
   revalidatePath(`/nebenkostenabrechnungen/${id}`);
   revalidatePath("/nebenkostenabrechnungen");
 }
 
 export async function deleteAbrechnung(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.nebenkostenabrechnung.delete({ where: { id } });
   revalidatePath("/nebenkostenabrechnungen");
   redirect("/nebenkostenabrechnungen");

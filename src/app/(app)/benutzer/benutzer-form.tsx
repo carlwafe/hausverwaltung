@@ -56,10 +56,10 @@ export function BenutzerForm() {
         <select
           id="role"
           name="role"
-          defaultValue="VERWALTER"
+          defaultValue="GAST"
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
-          <option value="VERWALTER">Verwalter</option>
+          <option value="GAST">Gast</option>
           <option value="ADMIN">Admin</option>
         </select>
       </div>

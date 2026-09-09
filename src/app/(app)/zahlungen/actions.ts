@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 const zahlungSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
@@ -16,7 +16,7 @@ const zahlungSchema = z.object({
 });
 
 export async function createZahlung(formData: FormData) {
-  await requireUser();
+  await requireEditor();
 
   const parsed = zahlungSchema.safeParse({
     mietvertragId: formData.get("mietvertragId"),
@@ -44,7 +44,7 @@ export async function createZahlung(formData: FormData) {
 }
 
 export async function updateZahlung(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
 
   const parsed = zahlungSchema.safeParse({
     mietvertragId: formData.get("mietvertragId"),
@@ -78,7 +78,7 @@ export async function updateZahlung(id: string, formData: FormData) {
 }
 
 export async function deleteZahlung(id: string) {
-  await requireUser();
+  await requireEditor();
   const zahlung = await prisma.zahlung.delete({ where: { id } });
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
@@ -86,7 +86,7 @@ export async function deleteZahlung(id: string) {
 }
 
 export async function deleteZahlungen(ids: string[]) {
-  await requireUser();
+  await requireEditor();
   if (ids.length === 0) return;
   await prisma.zahlung.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/zahlungen");

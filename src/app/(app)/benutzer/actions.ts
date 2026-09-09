@@ -10,7 +10,7 @@ const userSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich"),
   email: z.string().email("Ungültige E-Mail"),
   password: z.string().min(8, "Passwort muss mindestens 8 Zeichen haben"),
-  role: z.enum(["ADMIN", "VERWALTER"]),
+  role: z.enum(["ADMIN", "GAST"]),
 });
 
 export async function createBenutzer(

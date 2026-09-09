@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireEditor } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
 import {
@@ -343,7 +343,7 @@ export async function commitZahlungen(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireUser();
+  await requireEditor();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";
@@ -419,7 +419,7 @@ export async function commitKosten(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireUser();
+  await requireEditor();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";
@@ -500,7 +500,7 @@ export async function commitMietweiterleitungen(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireUser();
+  await requireEditor();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";
@@ -568,7 +568,7 @@ export async function commitKautionsbuchungen(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireUser();
+  await requireEditor();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";
@@ -648,7 +648,7 @@ export async function commitNebenkostenausgleich(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireUser();
+  await requireEditor();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";

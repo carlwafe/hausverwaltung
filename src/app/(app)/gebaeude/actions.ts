@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 const gebaeudeSchema = z.object({
   strasse: z.string().min(1, "Straße ist erforderlich"),
@@ -28,7 +28,7 @@ async function aufloeseHausAuswahl(hausId: string | undefined, objektId: string)
 }
 
 export async function createGebaeude(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const objektId = await getObjektId();
 
   const parsed = gebaeudeSchema.safeParse({
@@ -53,7 +53,7 @@ export async function createGebaeude(formData: FormData) {
 }
 
 export async function updateGebaeude(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const bestehend = await prisma.gebaeude.findUniqueOrThrow({ where: { id }, select: { objektId: true } });
 
   const parsed = gebaeudeSchema.safeParse({
@@ -83,7 +83,7 @@ export async function updateGebaeude(id: string, formData: FormData) {
 }
 
 export async function deleteGebaeude(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.gebaeude.delete({ where: { id } });
   revalidatePath("/gebaeude");
   redirect("/gebaeude");

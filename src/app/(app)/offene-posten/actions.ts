@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 /** Parst "yyyy-mm-dd" und setzt die Uhrzeit auf das Ende des Tages (inklusive Stichtag). */
 function parseBisWert(raw: FormDataEntryValue | null): Date | null {
@@ -15,7 +15,7 @@ function parseBisWert(raw: FormDataEntryValue | null): Date | null {
 }
 
 export async function setBuchhaltungBis(formData: FormData): Promise<void> {
-  await requireUser();
+  await requireEditor();
   const bis = parseBisWert(formData.get("bis"));
   if (!bis) return;
 
@@ -27,7 +27,7 @@ export async function setBuchhaltungBis(formData: FormData): Promise<void> {
 }
 
 export async function resetBuchhaltungBis(): Promise<void> {
-  await requireUser();
+  await requireEditor();
 
   const objekt = await prisma.objekt.findFirst();
   if (!objekt) return;

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireEditor } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import {
   mapVertraegeRows,
@@ -115,7 +115,7 @@ export async function commitImport(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireUser();
+  await requireEditor();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 
 const mieterSchema = z.object({
   vorname: z.string().min(1, "Vorname ist erforderlich"),
@@ -34,7 +34,7 @@ function parseForm(formData: FormData) {
 }
 
 export async function createMieter(formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const data = parseForm(formData);
 
   await prisma.mieter.create({ data });
@@ -44,7 +44,7 @@ export async function createMieter(formData: FormData) {
 }
 
 export async function updateMieter(id: string, formData: FormData) {
-  await requireUser();
+  await requireEditor();
   const data = parseForm(formData);
 
   await prisma.mieter.update({ where: { id }, data });
@@ -55,7 +55,7 @@ export async function updateMieter(id: string, formData: FormData) {
 }
 
 export async function deleteMieter(id: string) {
-  await requireUser();
+  await requireEditor();
   await prisma.mieter.delete({ where: { id } });
   revalidatePath("/mieter");
   redirect("/mieter");

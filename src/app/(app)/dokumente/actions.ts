@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 import { speichereDatei, loescheDatei } from "@/lib/storage";
 
 type UploadZiel =
@@ -14,7 +14,7 @@ export async function uploadDokument(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  const user = await requireUser();
+  const user = await requireEditor();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -39,7 +39,7 @@ export async function uploadDokument(
 }
 
 export async function deleteDokument(id: string, revalidatePathValue: string): Promise<void> {
-  await requireUser();
+  await requireEditor();
 
   const dokument = await prisma.dokument.findUnique({ where: { id } });
   if (!dokument) return;
