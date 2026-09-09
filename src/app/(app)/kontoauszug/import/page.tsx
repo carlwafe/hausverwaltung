@@ -36,6 +36,7 @@ type ZahlungHinweisKategorie =
   | "fehler"
   | "eigentuemer"
   | "kaution"
+  | "kleinreparatur"
   | "pruefen"
   | "mehrdeutig"
   | "rueckbuchung"
@@ -54,6 +55,7 @@ function ermittleZahlungHinweis(
     | "errors"
     | "eigentuemerBuchung"
     | "kaution"
+    | "kleinreparatur"
     | "ignorieren"
     | "rueckbuchung"
     | "mehrdeutig"
@@ -63,6 +65,7 @@ function ermittleZahlungHinweis(
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
   if (r.kaution) return "kaution";
+  if (r.kleinreparatur) return "kleinreparatur";
   if (r.ignorieren) return "pruefen";
   if (r.rueckbuchung) return "rueckbuchung";
   if (r.mehrdeutig) return "mehrdeutig";
@@ -93,6 +96,7 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   fehler: "Fehler",
   eigentuemer: "Eigentümer-Buchung",
   kaution: "Kaution",
+  kleinreparatur: "Kleinreparatur-Erstattung",
   pruefen: "Bitte prüfen",
   mehrdeutig: "Mehrdeutig",
   rueckbuchung: "Rücklastschrift",
@@ -106,6 +110,7 @@ const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   fehler: "text-red-400",
   eigentuemer: "text-neutral-500",
   kaution: "text-blue-400",
+  kleinreparatur: "text-blue-400",
   pruefen: "text-neutral-500",
   mehrdeutig: "text-amber-400",
   rueckbuchung: "text-red-400",
@@ -132,6 +137,7 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
   },
   { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "kaution", label: ZAHLUNG_HINWEIS_LABELS.kaution },
+  { value: "kleinreparatur", label: ZAHLUNG_HINWEIS_LABELS.kleinreparatur },
   { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
 ];
 
@@ -417,7 +423,8 @@ function ZahlungenSektion({
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
               const bereitsAlsNebenkostenausgleichImportiert = istBereitsAlsNebenkostenausgleichImportiert(r);
-              const kannAuswaehlen = r.errors.length === 0 && !r.kaution && Boolean(r.gewaehlterMietvertragId);
+              const kannAuswaehlen =
+                r.errors.length === 0 && !r.kaution && !r.kleinreparatur && Boolean(r.gewaehlterMietvertragId);
               const expanded = expandedRow === r.rowNumber;
               return (
                 <Fragment key={r.rowNumber}>
@@ -451,7 +458,7 @@ function ZahlungenSektion({
                         onChange={(id) =>
                           updateRow(r.rowNumber, {
                             gewaehlterMietvertragId: id,
-                            ausgewaehlt: Boolean(id) && r.errors.length === 0 && !r.kaution,
+                            ausgewaehlt: Boolean(id) && r.errors.length === 0 && !r.kaution && !r.kleinreparatur,
                           })
                         }
                       />

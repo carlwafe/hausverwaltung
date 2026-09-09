@@ -230,7 +230,26 @@ export async function previewImport(
         ),
       ),
     );
-    const zahlungenRows = mapZahlungenRows(headers, rows, mietvertragKandidaten, bekannteKostenEmpfaenger);
+    // Für die Kleinreparatur-Erkennung (siehe Kommentar in zahlungen-import.ts/kosten-import.ts):
+    // die Id der Kostenart "Reparaturen" sowie alle bereits dort erfassten Beträge, auf den Cent
+    // gerundet.
+    const reparaturenKostenartId = kostenartenRaw.find((k) => k.name === "Reparaturen")?.id ?? null;
+    const bekannteReparaturBetraege = new Set(
+      bestehendeKostenpositionen
+        .filter((k) => k.kostenartId === reparaturenKostenartId)
+        .map((k) => Math.round(Number(k.betrag) * 100) / 100),
+    );
+    const bekannteWarmmieten = new Set(
+      mietvertragKandidaten.map((k) => Math.round(k.warmmiete * 100) / 100),
+    );
+
+    const zahlungenRows = mapZahlungenRows(
+      headers,
+      rows,
+      mietvertragKandidaten,
+      bekannteKostenEmpfaenger,
+      bekannteReparaturBetraege,
+    );
 
     const kostenarten: KostenartKandidat[] = kostenartenRaw.map((k) => ({
       id: k.id,
@@ -262,7 +281,16 @@ export async function previewImport(
     const mieterKandidaten: MieterKandidat[] = vertraege.flatMap((v) =>
       v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname })),
     );
-    const kostenRows = mapKostenRows(headers, rows, historie, gebaeude, mieterKandidaten);
+    const kostenRows = mapKostenRows(
+      headers,
+      rows,
+      historie,
+      gebaeude,
+      mieterKandidaten,
+      bekannteReparaturBetraege,
+      reparaturenKostenartId,
+      bekannteWarmmieten,
+    );
     const bestehendeKosten = new Set(
       bestehendeKostenpositionen
         .filter((k) => k.datum)

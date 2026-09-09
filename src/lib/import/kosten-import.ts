@@ -3,6 +3,7 @@ import {
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
   KAUTION_PATTERN,
+  KLEINREPARATUR_PATTERN,
   leseBetrag,
   NEBENKOSTENAUSGLEICH_PATTERN,
   normalizeText,
@@ -74,6 +75,9 @@ export type ParsedKostenRow = {
   gutschrift: boolean;
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Kostenposition, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Kostenposition, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
+  // Erstattung einer vom Mieter zu tragenden Kleinreparatur (siehe KLEINREPARATUR_PATTERN) —
+  // trotz Mieter-Absender eine Gutschrift auf "Reparaturen", keine Miete.
+  kleinreparatur: boolean;
   ignorieren: boolean; // Eigentümer-Buchung, Kaution, Nebenkosten-Ausgleich, oder eingehende Buchung von unbekanntem Absender (vermutlich Miete)
   rohdaten: Record<string, string>;
   errors: string[];
@@ -413,6 +417,17 @@ export function mapKostenRows(
   historie: EmpfaengerHistorie[],
   gebaeudeKandidaten: GebaeudeKandidat[],
   mieterKandidaten: MieterKandidat[],
+  // Bereits erfasste "Reparaturen"-Kostenbeträge (auf den Cent gerundet) — zweites, schwächeres
+  // Signal für eine Kleinreparatur-Erstattung neben KLEINREPARATUR_PATTERN, siehe dort.
+  bekannteReparaturBetraege: ReadonlySet<number> = new Set(),
+  // Id der Kostenart "Reparaturen", falls vorhanden — wird für eine erkannte
+  // Kleinreparatur-Erstattung direkt vorgeschlagen, weil ein Mieter-Absender naturgemäß keine
+  // Empfänger-Historie hat, aus der sich sonst eine Kostenart ableiten ließe.
+  reparaturenKostenartId: string | null = null,
+  // Bekannte Warmmieten (auf den Cent gerundet) — ein Betrags-Zufallstreffer mit einer
+  // historischen Reparaturrechnung darf keine echte Miete (z.B. eine Garage) fälschlich als
+  // Kleinreparatur-Erstattung markieren, siehe dieselbe Absicherung in zahlungen-import.ts.
+  bekannteWarmmieten: ReadonlySet<number> = new Set(),
 ): ParsedKostenRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
     findeKontoauszugSpalten(headers);
@@ -451,15 +466,32 @@ export function mapKostenRows(
     // ist ein bekannter Mieter (siehe istBekannterMieterEmpfaenger oben) — dann ist eine
     // eingehende Buchung so gut wie immer seine Miete, selbst wenn er (z.B. für eine einmalige
     // Kostenerstattung) zufällig auch schon als Kosten-Empfänger in der Historie steht.
+    const istBekannterMieter = istBekannterMieterEmpfaenger(empfaenger, verwendungszweck, mieterKandidaten);
     const bekannterKostenEmpfaenger =
-      !istBekannterMieterEmpfaenger(empfaenger, verwendungszweck, mieterKandidaten) &&
-      ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
-    const gutschrift = istEingehend && !kaution && !nebenkostenausgleich && bekannterKostenEmpfaenger;
+      !istBekannterMieter && ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
+    // Bewusst unabhängig von istBekannterMieter geprüft (anders als bekannterKostenEmpfaenger
+    // oben): der Namensabgleich schlägt z.B. fehl, wenn die Bank einen Umlaut im Absendernamen
+    // beim Export weglässt ("Jackisch" statt "Jäckisch") — ein starkes Signal wie das
+    // KLEINREPARATUR_PATTERN oder ein exakt passender historischer Reparaturbetrag ist auch ohne
+    // bestätigten Mieter-Namen aussagekräftig genug, siehe dieselbe Logik in
+    // zahlungen-import.ts.
+    const gerundeterRohBetrag = rohBetrag !== null ? Math.round(rohBetrag * 100) / 100 : null;
+    const kleinreparatur =
+      istEingehend &&
+      (KLEINREPARATUR_PATTERN.test(verwendungszweck) ||
+        (gerundeterRohBetrag !== null &&
+          bekannteReparaturBetraege.has(gerundeterRohBetrag) &&
+          !bekannteWarmmieten.has(gerundeterRohBetrag) &&
+          // Siehe dieselbe Absicherung in zahlungen-import.ts: ein expliziter "Miete"-Hinweis im
+          // Verwendungszweck sticht einen bloßen Betrags-Zufallstreffer aus.
+          !/miete/i.test(verwendungszweck)));
+    const gutschrift =
+      istEingehend && !kaution && !nebenkostenausgleich && (bekannterKostenEmpfaenger || kleinreparatur);
     const ignorieren =
       eigentuemerBuchung ||
       kaution ||
       nebenkostenausgleich ||
-      (istEingehend && !kaution && !nebenkostenausgleich && !bekannterKostenEmpfaenger);
+      (istEingehend && !kaution && !nebenkostenausgleich && !bekannterKostenEmpfaenger && !kleinreparatur);
 
     const betrag = rohBetrag !== null ? -rohBetrag : null;
     const jahr = datum ? Number(datum.slice(0, 4)) : null;
@@ -482,6 +514,12 @@ export function mapKostenRows(
         historie,
         mandatsref,
       );
+      // Ein Mieter-Absender hat naturgemäß keine Empfänger-Historie als Kosten-Empfänger, aus der
+      // sich sonst eine Kostenart ableiten ließe — bei einer erkannten Kleinreparatur-Erstattung
+      // deshalb direkt "Reparaturen" vorschlagen, statt die Zeile ohne Vorschlag stehen zu lassen.
+      if (kleinreparatur && !vorgeschlageneKostenartId) {
+        vorgeschlageneKostenartId = reparaturenKostenartId;
+      }
     }
 
     return {
@@ -498,6 +536,7 @@ export function mapKostenRows(
       gutschrift,
       kaution,
       nebenkostenausgleich,
+      kleinreparatur,
       ignorieren,
       rohdaten: row,
       errors,

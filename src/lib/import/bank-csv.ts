@@ -116,6 +116,16 @@ export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 export const NEBENKOSTENAUSGLEICH_PATTERN =
   /bk-abr|bk\s*nachzahlung|nebenkostenabrechnung|betriebskostenabrechnung|betriebskosten\s*nachzahlung/i;
 
+// Eine Kleinreparatur, die laut Mietvertrag vom Mieter direkt getragen wird: der Vermieter zahlt
+// zunächst die Handwerkerrechnung (normale ausgehende Kostenposition unter "Reparaturen"), der
+// Mieter erstattet sie anschließend per Überweisung. Bewusst nur "kleinreparatur" (nicht das
+// allgemeinere "reparatur"), weil dieses zusammengesetzte Wort in der Praxis ausschließlich in
+// eingehenden Erstattungsbuchungen von Mietern auftaucht, während ausgehende
+// Handwerkerrechnungen durchgängig nur "Reparatur"/"Reparaturarbeiten" nennen — eine Erstattung
+// darf keinesfalls als Mieteinnahme durchrutschen, eine echte Handwerkerrechnung aber auch nicht
+// versehentlich hier mitgefangen werden.
+export const KLEINREPARATUR_PATTERN = /kleinreparatur/i;
+
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
 // Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
 // Adresstext (das oft mitgelieferte "Ext.Ref."-Feld ist häufig leer oder nicht brauchbar). Die

@@ -2,6 +2,7 @@ import {
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
   KAUTION_PATTERN,
+  KLEINREPARATUR_PATTERN,
   leseBetrag,
   NEBENKOSTENAUSGLEICH_PATTERN,
   normalizeText,
@@ -34,6 +35,7 @@ export type ParsedZahlungRow = {
   eigentuemerBuchung: boolean; // Buchung von/an die Eigentümerin (Julia Katharina Waller) – keine Miete
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Miete, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Miete, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
+  kleinreparatur: boolean; // Erstattung einer vom Mieter zu tragenden Kleinreparatur – keine Miete, gehört als Gutschrift in den Kosten-Import (siehe kosten-import.ts)
   rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
   errors: string[];
 };
@@ -118,7 +120,19 @@ export function mapZahlungenRows(
   // Normalisierte Namen bereits bekannter Kosten-Empfänger (Handwerker, Versorger wie Techem
   // usw.) — siehe Verwendung unten für den Grund.
   bekannteKostenEmpfaenger: ReadonlySet<string> = new Set(),
+  // Bereits erfasste "Reparaturen"-Kostenbeträge (auf den Cent gerundet) — als zweites,
+  // schwächeres Signal neben KLEINREPARATUR_PATTERN: manche Erstattungen (z.B. eine reine
+  // Banküberweisung ohne aussagekräftigen Verwendungszweck) lassen sich nur daran erkennen, dass
+  // der Betrag exakt einer bereits gezahlten Handwerkerrechnung entspricht.
+  bekannteReparaturBetraege: ReadonlySet<number> = new Set(),
 ): ParsedZahlungRow[] {
+  // Ein Betrags-Zufallstreffer mit einer historischen Reparaturrechnung darf keine echte Miete
+  // verdecken (z.B. eine Garagenmiete, die zufällig auf denselben Centbetrag wie eine frühere
+  // Handwerkerrechnung kommt) — deshalb nur als Signal zählen, wenn der Betrag zu keiner
+  // bekannten Warmmiete passt.
+  const bekannteWarmmieten = new Set(
+    kandidaten.map((k) => Math.round(k.warmmiete * 100) / 100),
+  );
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol } =
     findeKontoauszugSpalten(headers);
 
@@ -140,6 +154,18 @@ export function mapZahlungenRows(
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const kaution = KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(name);
     const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
+    const gerundeterBetrag = betrag !== null ? Math.round(betrag * 100) / 100 : null;
+    const kleinreparatur =
+      KLEINREPARATUR_PATTERN.test(verwendungszweck) ||
+      (gerundeterBetrag !== null &&
+        gerundeterBetrag > 0 &&
+        bekannteReparaturBetraege.has(gerundeterBetrag) &&
+        !bekannteWarmmieten.has(gerundeterBetrag) &&
+        // Zusätzliche Absicherung gegen Betrags-Zufallstreffer: nennt der Verwendungszweck
+        // explizit "Miete" (z.B. eine Garagenmiete, deren Summe aus mehreren Teilbeträgen
+        // zufällig einer historischen Reparaturrechnung entspricht), sticht dieser klare
+        // Text-Hinweis den bloßen Betragstreffer aus.
+        !/miete/i.test(verwendungszweck));
     // Ein Kaution-Treffer im Verwendungszweck hat Vorrang vor der Eigentümer-Erkennung: eine
     // Kaution landet oft auf einem Konto, das rechtlich auf die Eigentümerin läuft
     // (Kautionskonto), ist aber keine Mietweiterleitung/Einlage an sie persönlich.
@@ -156,6 +182,7 @@ export function mapZahlungenRows(
       eigentuemerBuchung ||
       kaution ||
       nebenkostenausgleich ||
+      kleinreparatur ||
       istBekannterKostenEmpfaenger ||
       (betrag !== null && betrag <= 0 && !rueckbuchung);
 
@@ -187,6 +214,7 @@ export function mapZahlungenRows(
       eigentuemerBuchung,
       kaution,
       nebenkostenausgleich,
+      kleinreparatur,
       rohdaten: row,
       errors,
     };
