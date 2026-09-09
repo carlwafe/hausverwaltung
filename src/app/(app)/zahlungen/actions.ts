@@ -83,6 +83,7 @@ export async function deleteZahlung(id: string) {
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
   revalidatePath(`/mietvertraege/${zahlung.mietvertragId}`);
+  redirect("/zahlungen");
 }
 
 export async function deleteZahlungen(ids: string[]) {
