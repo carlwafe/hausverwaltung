@@ -170,3 +170,44 @@ export async function teileKostenpositionAuf(
   revalidatePath("/kosten");
   redirect("/kosten");
 }
+
+// Macht eine Aufteilung wieder rückgängig: alle Positionen derselben aufteilungGruppeId werden
+// zu einer einzigen Position zusammengeführt (Betrag = Summe), unter der Kostenart der Position,
+// von der aus die Aktion aufgerufen wurde. Belege aller Teile wandern auf die neue Position.
+export async function hebeAufteilungAuf(positionId: string) {
+  await requireEditor();
+  const position = await prisma.kostenposition.findUnique({ where: { id: positionId } });
+  if (!position) throw new Error("Kostenposition nicht gefunden.");
+  if (!position.aufteilungGruppeId) throw new Error("Diese Position ist nicht Teil einer Aufteilung.");
+
+  const gruppe = await prisma.kostenposition.findMany({
+    where: { aufteilungGruppeId: position.aufteilungGruppeId },
+  });
+  const summe = gruppe.reduce((sum, p) => sum + Number(p.betrag), 0);
+
+  await prisma.$transaction(async (tx) => {
+    const neu = await tx.kostenposition.create({
+      data: {
+        kostenartId: position.kostenartId,
+        betrag: summe,
+        beschreibung: position.beschreibung,
+        empfaenger: position.empfaenger,
+        gebaeudeId: position.gebaeudeId,
+        hausId: position.hausId,
+        kostengruppeId: position.kostengruppeId,
+        jahr: position.jahr,
+        datum: position.datum,
+        rohdaten: position.rohdaten ?? undefined,
+        importBatchId: position.importBatchId,
+      },
+    });
+    await tx.dokument.updateMany({
+      where: { kostenpositionId: { in: gruppe.map((p) => p.id) } },
+      data: { kostenpositionId: neu.id },
+    });
+    await tx.kostenposition.deleteMany({ where: { aufteilungGruppeId: position.aufteilungGruppeId } });
+  });
+
+  revalidatePath("/kosten");
+  redirect("/kosten");
+}
