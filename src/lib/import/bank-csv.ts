@@ -2,19 +2,25 @@
 // beim Zahlungen- als auch beim Kosten-Import.
 
 // Manche Bank-CSV-Exporte enthalten schon in der Quelldatei mojibake-verstümmelten Text (z.B.
-// "Schˆning" statt "Schöning", "Straﬂe" statt "Straße") — die Datei selbst ist gültiges UTF-8,
-// enthält aber falsch reinterpretierte Zeichen (die Bytes wurden vermutlich einmal als MacRoman
-// statt als das eigentliche Windows-1252 gelesen und dann so nach UTF-8 gespeichert, bevor die
-// Datei bei uns ankam). Ein Decode-Fallback beim Einlesen (siehe spreadsheet.ts) kann das nicht
-// mehr reparieren, da das Einlesen als UTF-8 hier ja bereits fehlerfrei gelingt — nur die
-// bekannten, eindeutigen Einzelzeichen-Fälle lassen sich direkt zurückmappen.
-const MOJIBAKE_ERSATZ: Record<string, string> = {
-  "ˆ": "ö", // ˆ -> ö
-  "ﬂ": "ß", // ﬂ -> ß
-};
+// "Schˆning" statt "Schöning", "Straﬂe" statt "Straße", "f¸r" statt "für", "Gr√ºnig" statt
+// "Grünig") — die Datei selbst ist gültiges UTF-8, enthält aber falsch reinterpretierte Zeichen
+// (die Bytes wurden vermutlich je nach Export einmal als MacRoman, einmal anders falsch gelesen
+// und dann so nach UTF-8 gespeichert, bevor die Datei bei uns ankam — daher mehrere
+// unterschiedliche Ersatzmuster für denselben Ziel-Umlaut, z.B. "¸" und "√º" beide für "ü"). Ein
+// Decode-Fallback beim Einlesen (siehe spreadsheet.ts) kann das nicht mehr reparieren, da das
+// Einlesen als UTF-8 hier ja bereits fehlerfrei gelingt — nur die bekannten, eindeutigen Fälle
+// lassen sich direkt zurückmappen. Als Liste statt fester Zeichenklasse, weil "√º" (für ü) zwei
+// Zeichen sind, keine Einzelzeichen-Ersetzung — muss vor den Einzelzeichen-Mustern geprüft
+// werden, damit "√" nicht isoliert (ohne passenden Treffer) stehen bleibt.
+const MOJIBAKE_MUSTER: [RegExp, string][] = [
+  [/√º/g, "ü"],
+  [/ˆ/g, "ö"],
+  [/ﬂ/g, "ß"],
+  [/¸/g, "ü"],
+];
 
 export function repariereMojibake(s: string): string {
-  return s.replace(/[ˆﬂ]/g, (c) => MOJIBAKE_ERSATZ[c] ?? c);
+  return MOJIBAKE_MUSTER.reduce((text, [muster, ersatz]) => text.replace(muster, ersatz), s);
 }
 
 export function normalizeText(s: string): string {
