@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { KautionenTable, type KautionRow } from "./kautionen-table";
 import { KautionsbuchungenTable, type KautionsbuchungRow } from "./kautionsbuchungen-table";
+import type { KostenpositionKandidat } from "./kaution-bearbeiten-dialog";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -28,10 +29,66 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     anlageform: k.anlageform,
     zinssatz: k.zinssatz ? Number(k.zinssatz) : null,
     einzahlungsdatum: k.einzahlungsdatum ? k.einzahlungsdatum.toISOString() : null,
+    aufloesungsdatum: k.aufloesungsdatum ? k.aufloesungsdatum.toISOString() : null,
+    aufloesungsbetrag: k.aufloesungsbetrag ? Number(k.aufloesungsbetrag) : null,
     rueckzahlungsdatum: k.rueckzahlungsdatum ? k.rueckzahlungsdatum.toISOString() : null,
     rueckzahlungsbetrag: k.rueckzahlungsbetrag ? Number(k.rueckzahlungsbetrag) : null,
-    status: k.status as "AKTIV" | "ZURUECKGEZAHLT",
+    status: k.status as "AKTIV" | "AUFGELOEST" | "ZURUECKGEZAHLT",
     notizen: k.notizen,
+  }));
+}
+
+// Alle bereits mit einer Kaution verrechneten Kostenpositionen (für die "Einbehalten"-Spalte
+// und die Anzeige im Bearbeiten-Dialog, gefiltert nach kautionId — siehe kautionen-table.tsx).
+async function ladeVerknuepfteKostenpositionen(): Promise<KostenpositionKandidat[]> {
+  const positionen = await prisma.kostenposition.findMany({
+    where: { kautionId: { not: null } },
+    select: {
+      id: true,
+      betrag: true,
+      beschreibung: true,
+      empfaenger: true,
+      jahr: true,
+      kautionId: true,
+      kostenart: { select: { name: true } },
+    },
+  });
+  return positionen.map((p) => ({
+    id: p.id,
+    label: `${p.jahr} — ${p.kostenart.name} — ${new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: "EUR",
+    }).format(Number(p.betrag))}${p.beschreibung ? ` — ${p.beschreibung}` : p.empfaenger ? ` — ${p.empfaenger}` : ""}`,
+    betrag: Number(p.betrag),
+    kautionId: p.kautionId,
+  }));
+}
+
+// Für die "verrechnen"-Suche im Bearbeiten-Dialog: alle noch nicht mit einer Kaution
+// verknüpften Kostenpositionen, neueste zuerst (eine Reparatur beim Auszug ist typischerweise
+// eine der zuletzt erfassten Positionen).
+async function ladeUnverknuepfteKostenpositionen(): Promise<KostenpositionKandidat[]> {
+  const positionen = await prisma.kostenposition.findMany({
+    where: { kautionId: null },
+    orderBy: [{ datum: "desc" }, { createdAt: "desc" }],
+    take: 300,
+    select: {
+      id: true,
+      betrag: true,
+      beschreibung: true,
+      empfaenger: true,
+      jahr: true,
+      kostenart: { select: { name: true } },
+    },
+  });
+  return positionen.map((p) => ({
+    id: p.id,
+    label: `${p.jahr} — ${p.kostenart.name} — ${new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: "EUR",
+    }).format(Number(p.betrag))}${p.beschreibung ? ` — ${p.beschreibung}` : p.empfaenger ? ` — ${p.empfaenger}` : ""}`,
+    betrag: Number(p.betrag),
+    kautionId: null,
   }));
 }
 
@@ -60,11 +117,21 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
 }
 
 export default async function KautionenPage() {
-  const [kautionen, kautionsbuchungen] = await Promise.all([ladeKautionen(), ladeKautionsbuchungen()]);
-  const aktive = kautionen.filter((k) => k.status === "AKTIV");
-  const summeAktiv = aktive.reduce((s, k) => s + k.betrag, 0);
+  const [kautionen, kautionsbuchungen, verknuepfteKostenpositionen, kandidatenKostenpositionen] =
+    await Promise.all([
+      ladeKautionen(),
+      ladeKautionsbuchungen(),
+      ladeVerknuepfteKostenpositionen(),
+      ladeUnverknuepfteKostenpositionen(),
+    ]);
+  // "Aktiv" im Sinne der Kennzahlen umfasst auch AUFGELOEST: das Geld ist zwar vom
+  // Kautionskonto abgeflossen, aber noch nicht (vollständig) an den Mieter ausgezahlt — bis zur
+  // tatsächlichen Auszahlung bleibt es eine offene Verbindlichkeit.
+  const nichtAbgeschlossen = kautionen.filter((k) => k.status !== "ZURUECKGEZAHLT");
+  const summeAktiv = nichtAbgeschlossen.reduce((s, k) => s + k.betrag, 0);
+  const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
 
-  const summeJeAnlageform = aktive.reduce<Record<string, number>>((acc, k) => {
+  const summeJeAnlageform = nichtAbgeschlossen.reduce<Record<string, number>>((acc, k) => {
     acc[k.anlageform] = (acc[k.anlageform] ?? 0) + k.betrag;
     return acc;
   }, {});
@@ -74,16 +141,17 @@ export default async function KautionenPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Kautionen</h1>
         <p className="text-sm text-neutral-400">
-          {aktive.length} aktive Kaution{aktive.length === 1 ? "" : "en"}
-          {kautionen.length !== aktive.length &&
-            `, ${kautionen.length - aktive.length} zurückgezahlt`}
+          {nichtAbgeschlossen.length} offene Kaution{nichtAbgeschlossen.length === 1 ? "" : "en"}
+          {aufgeloest.length > 0 && ` (davon ${aufgeloest.length} aufgelöst, noch nicht ausgezahlt)`}
+          {kautionen.length !== nichtAbgeschlossen.length &&
+            `, ${kautionen.length - nichtAbgeschlossen.length} zurückgezahlt`}
           .
         </p>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-400">Kautionsverbindlichkeiten gesamt (aktiv)</p>
+          <p className="text-xs text-neutral-400">Kautionsverbindlichkeiten gesamt (offen)</p>
           <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summeAktiv)}</p>
         </div>
         {Object.entries(summeJeAnlageform).map(([anlageform, summe]) => (
@@ -94,7 +162,11 @@ export default async function KautionenPage() {
         ))}
       </div>
 
-      <KautionenTable rows={kautionen} />
+      <KautionenTable
+        rows={kautionen}
+        verknuepfteKostenpositionen={verknuepfteKostenpositionen}
+        kandidatenKostenpositionen={kandidatenKostenpositionen}
+      />
 
       <div className="mt-10">
         <h2 className="mb-4 text-lg font-medium text-white">

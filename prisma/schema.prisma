@@ -47,6 +47,10 @@ enum KautionAnlageform {
 
 enum KautionStatus {
   AKTIV
+  // Das Kautionskonto wurde aufgelöst (z.B. per Überweisung auf das normale Konto), aber der
+  // Betrag noch nicht (vollständig) an den Mieter ausgezahlt — Zwischenschritt, damit ein
+  // einbehaltener Anteil später aus Auflösungs- ./. Rückzahlungsbetrag berechnet werden kann.
+  AUFGELOEST
   ZURUECKGEZAHLT
 }
 
@@ -243,6 +247,15 @@ model Kaution {
   anlageform          KautionAnlageform @default(KAUTIONSKONTO)
   zinssatz            Decimal?          @db.Decimal(5, 2)
   einzahlungsdatum    DateTime?
+  // Wann/mit welchem Betrag das Kautionskonto aufgelöst wurde (Status AUFGELOEST) — meist eine
+  // Überweisung des vollen hinterlegten Betrags auf das normale Konto, von dort ggf. erst später
+  // (teilweise) an den Mieter ausgezahlt. Optional: nicht jede Kaution läuft über ein separates
+  // Kautionskonto, manche werden direkt aus betrag heraus ausgezahlt (Status AKTIV -> ZURUECKGEZAHLT).
+  aufloesungsdatum    DateTime?
+  aufloesungsbetrag   Decimal?          @db.Decimal(10, 2)
+  // Die tatsächlich an den Mieter ausgezahlte Rückzahlung — kann kleiner als aufloesungsbetrag
+  // (bzw. betrag, falls nie aufgelöst) sein, wenn ein Teil einbehalten wurde. Die Differenz ist
+  // der "einbehaltene" Betrag, siehe kaution.ts.
   rueckzahlungsdatum  DateTime?
   rueckzahlungsbetrag Decimal?          @db.Decimal(10, 2)
   status              KautionStatus     @default(AKTIV)
@@ -251,6 +264,9 @@ model Kaution {
   // wurde, was in unseren Kontoauszügen nirgends als eigene Buchung erscheint.
   notizen             String?
   createdAt           DateTime          @default(now())
+  // Kostenpositionen (typischerweise Reparaturen), die manuell mit dem einbehaltenen Betrag
+  // dieser Kaution verrechnet wurden — siehe kaution.ts effektivEinbehalten.
+  kostenpositionen    Kostenposition[]
 
   @@map("kautionen")
 }
@@ -348,10 +364,16 @@ model Kostenposition {
   // allerersten (inzwischen gelöschten) Position vor der ersten Aufteilung.
   aufteilungGruppeId String?
 
+  // Manuelle Verrechnung mit einer Kaution (z.B. eine Reparatur, die vom einbehaltenen Betrag
+  // beim Auszug abgezogen wird) — siehe Kaution.kostenpositionen, kaution.ts.
+  kaution   Kaution?   @relation(fields: [kautionId], references: [id], onDelete: SetNull)
+  kautionId String?
+
   dokumente Dokument[]
 
   @@index([gebaeudeId, jahr])
   @@index([hausId, jahr])
+  @@index([kautionId])
   @@index([kostengruppeId, jahr])
   @@index([aufteilungGruppeId])
   @@map("kostenpositionen")
