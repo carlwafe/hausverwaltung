@@ -14,7 +14,12 @@ const kostenpositionSchema = z.object({
   // parseGebaeudeAuswahlWert.
   gebaeudeAuswahl: z.string().optional(),
   jahr: z.coerce.number().int().min(2000).max(2100),
-  betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+  // Negativ ist ein legitimer Wert (eine Gutschrift/Erstattung eines bekannten Kosten-Empfängers,
+  // z.B. eine Techem-Rückerstattung, siehe kosten-import.ts) und mindert die Kostenart — nur 0 ist
+  // ungültig. Vorher war hier .positive() gesetzt, wodurch sich eine bereits bestehende Gutschrift
+  // gar nicht mehr bearbeiten ließ (z.B. nur die Gebäude-Zuordnung korrigieren), selbst wenn der
+  // Betrag selbst unverändert blieb.
+  betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
   beschreibung: z.string().optional(),
   empfaenger: z.string().optional(),
 });
