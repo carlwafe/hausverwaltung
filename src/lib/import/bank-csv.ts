@@ -13,10 +13,17 @@
 // Zeichen sind, keine Einzelzeichen-Ersetzung — muss vor den Einzelzeichen-Mustern geprüft
 // werden, damit "√" nicht isoliert (ohne passenden Treffer) stehen bleibt.
 const MOJIBAKE_MUSTER: [RegExp, string][] = [
+  // Zwei-Zeichen-Muster zuerst (siehe Kommentar oben) — "√" gefolgt von einem von der jeweiligen
+  // Zielbuchstabe abhängigen zweiten Zeichen, gegen echte Bankdaten verifiziert.
   [/√º/g, "ü"],
+  [/√ü/g, "ß"],
+  [/√§/g, "ä"],
+  [/√ú/g, "Ü"],
+  [/√∂/g, "ö"],
   [/ˆ/g, "ö"],
   [/ﬂ/g, "ß"],
   [/¸/g, "ü"],
+  [/‹/g, "Ü"],
 ];
 
 export function repariereMojibake(s: string): string {
