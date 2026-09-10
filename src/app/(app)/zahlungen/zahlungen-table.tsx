@@ -49,6 +49,7 @@ export type ZahlungRow = {
   rohdaten: Record<string, string> | null;
   importBatchId: string | null;
   importDateiname: string | null;
+  aufteilungGruppeId: string | null;
 };
 
 const columns: Column<ZahlungRow>[] = [
@@ -68,9 +69,19 @@ const columns: Column<ZahlungRow>[] = [
     sortValue: (z) => z.einheitBezeichnung,
     searchValue: (z) => z.einheitBezeichnung,
     render: (z) => (
-      <Link href={`/mietvertraege/${z.mietvertragId}`} className="font-medium hover:underline">
-        {z.einheitBezeichnung}
-      </Link>
+      <span>
+        <Link href={`/mietvertraege/${z.mietvertragId}`} className="font-medium hover:underline">
+          {z.einheitBezeichnung}
+        </Link>
+        {z.aufteilungGruppeId && (
+          <span
+            title="Teil einer aufgeteilten Zahlung"
+            className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400"
+          >
+            ✂
+          </span>
+        )}
+      </span>
     ),
   },
   {

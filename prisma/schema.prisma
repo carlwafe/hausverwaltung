@@ -286,8 +286,15 @@ model Zahlung {
   importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   importBatchId    String?
   createdAt        DateTime     @default(now())
+  // Gesetzt, wenn diese Zahlung aus dem Aufteilen einer ursprünglich als eine Buchung
+  // importierten/erfassten Zahlung entstanden ist (z.B. eine Überweisung, die Miete für Wohnung
+  // und Garage in einer Summe zahlt). Alle Zahlungen mit derselben Id gehören zur selben
+  // ursprünglichen Buchung — ihre Beträge summieren sich exakt zum ursprünglichen Gesamtbetrag.
+  // Der Wert ist die Id der allerersten (inzwischen gelöschten) Zahlung vor der ersten Aufteilung.
+  aufteilungGruppeId String?
 
   @@index([mietvertragId, periodeJahr, periodeMonat])
+  @@index([aufteilungGruppeId])
   @@map("zahlungen")
 }
 

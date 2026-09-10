@@ -21,6 +21,7 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     rohdaten: (z.rohdaten as Record<string, string> | null) ?? null,
     importBatchId: z.importBatchId,
     importDateiname: z.importBatch?.dateiname ?? null,
+    aufteilungGruppeId: z.aufteilungGruppeId,
   }));
 }
 
