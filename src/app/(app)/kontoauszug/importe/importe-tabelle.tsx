@@ -30,16 +30,25 @@ export type GruppierterImportRow = {
   pruefBatchId: string;
 };
 
-function VollstaendigkeitsZelle({ batchId }: { batchId: string }) {
-  const [ergebnis, setErgebnis] = useState<VollstaendigkeitsErgebnis | { error: string } | null>(null);
-  const [pending, startTransition] = useTransition();
+type Ergebnis = VollstaendigkeitsErgebnis | { error: string };
 
+function VollstaendigkeitsZelle({
+  batchId,
+  ergebnis,
+  pending,
+  onPruefen,
+}: {
+  batchId: string;
+  ergebnis: Ergebnis | null;
+  pending: boolean;
+  onPruefen: (batchId: string) => void;
+}) {
   if (!ergebnis) {
     return (
       <button
         type="button"
         disabled={pending}
-        onClick={() => startTransition(async () => setErgebnis(await pruefeImportVollstaendigkeit(batchId)))}
+        onClick={() => onPruefen(batchId)}
         className="text-xs text-neutral-400 underline hover:text-white disabled:opacity-50"
       >
         {pending ? "Prüfe…" : "Vollständigkeit prüfen"}
@@ -99,8 +108,52 @@ export function ImporteTabelle({
   rows: GruppierterImportRow[];
   verwaisteAnzahl: number;
 }) {
+  const [ergebnisse, setErgebnisse] = useState<Map<string, Ergebnis>>(new Map());
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [, startTransition] = useTransition();
+
+  function pruefeEinzeln(batchId: string) {
+    setPendingIds((s) => new Set(s).add(batchId));
+    startTransition(async () => {
+      const ergebnis = await pruefeImportVollstaendigkeit(batchId);
+      setErgebnisse((m) => new Map(m).set(batchId, ergebnis));
+      setPendingIds((s) => {
+        const next = new Set(s);
+        next.delete(batchId);
+        return next;
+      });
+    });
+  }
+
+  function pruefeAlle() {
+    for (const r of rows) {
+      if (!ergebnisse.has(r.pruefBatchId) && !pendingIds.has(r.pruefBatchId)) {
+        pruefeEinzeln(r.pruefBatchId);
+      }
+    }
+  }
+
+  const alleGeprueft = rows.length > 0 && rows.every((r) => ergebnisse.has(r.pruefBatchId));
+  const irgendeinePruefungLaeuft = pendingIds.size > 0;
+
   return (
     <div>
+      {rows.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            disabled={alleGeprueft || irgendeinePruefungLaeuft}
+            onClick={pruefeAlle}
+            className="text-xs text-neutral-400 underline hover:text-white disabled:opacity-50"
+          >
+            {irgendeinePruefungLaeuft
+              ? "Prüfe…"
+              : alleGeprueft
+                ? "Alle geprüft"
+                : "Vollständigkeit prüfen (alle)"}
+          </button>
+        </div>
+      )}
       {verwaisteAnzahl > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3">
           <p className="text-sm text-neutral-300">
@@ -148,7 +201,12 @@ export function ImporteTabelle({
                   <td className="px-4 py-2 text-neutral-300">{r.anzahlKautionsbuchungen}</td>
                   <td className="px-4 py-2 text-neutral-300">{r.anzahlSonstige}</td>
                   <td className="px-4 py-2">
-                    <VollstaendigkeitsZelle batchId={r.pruefBatchId} />
+                    <VollstaendigkeitsZelle
+                      batchId={r.pruefBatchId}
+                      ergebnis={ergebnisse.get(r.pruefBatchId) ?? null}
+                      pending={pendingIds.has(r.pruefBatchId)}
+                      onPruefen={pruefeEinzeln}
+                    />
                   </td>
                 </tr>
               </Fragment>
