@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { KautionenTable, type KautionRow } from "./kautionen-table";
 import { KautionsbuchungenTable, type KautionsbuchungRow } from "./kautionsbuchungen-table";
+import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 
 function formatEuro(value: number) {
@@ -113,8 +114,25 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
   }));
 }
 
+async function ladeMietvertraege(): Promise<{ id: string; label: string }[]> {
+  const vertraege = await prisma.mietvertrag.findMany({
+    where: { status: { in: ["AKTIV", "BEENDET"] } },
+    include: { einheit: true, mieter: true },
+  });
+  return vertraege
+    .sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung))
+    .map((v) => ({
+      id: v.id,
+      label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+    }));
+}
+
 export default async function KautionenPage() {
-  const [kautionen, kautionsbuchungen] = await Promise.all([ladeKautionen(), ladeKautionsbuchungen()]);
+  const [kautionen, kautionsbuchungen, mietvertraege] = await Promise.all([
+    ladeKautionen(),
+    ladeKautionsbuchungen(),
+    ladeMietvertraege(),
+  ]);
   const offen = kautionen.filter((k) => k.status !== "ERLEDIGT");
   const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
   // Für die Verbindlichkeiten-Summe zählt bei einer bereits aufgelösten Kaution nur noch der
@@ -156,6 +174,7 @@ export default async function KautionenPage() {
         <h2 className="mb-4 text-lg font-medium text-white">
           Kautionsbuchungen ({kautionsbuchungen.length})
         </h2>
+        <NeueKautionsbuchungForm mietvertraege={mietvertraege} />
         <KautionsbuchungenTable rows={kautionsbuchungen} />
       </div>
     </div>
