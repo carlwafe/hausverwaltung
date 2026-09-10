@@ -39,12 +39,6 @@ export type PreviewResult =
       bestehendeZahlungenDatumBetrag: string[];
       bestehendeMietweiterleitungen: string[];
       bestehendeKautionsbuchungen: string[];
-      offeneKautionen: {
-        mietvertragId: string;
-        status: "AKTIV" | "AUFGELOEST";
-        betrag: number;
-        aufloesungsbetrag: number | null;
-      }[];
       offeneNebenkostenPositionen: { id: string; label: string; mietvertragId: string | null }[];
       bestehendeNebenkostenausgleich: string[];
       fileName: string;
@@ -130,7 +124,6 @@ export async function previewImport(
       bestehendeKostenpositionen,
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
-      offeneKautionenRaw,
       offeneNebenkostenPositionenRaw,
       beglicheneNebenkostenPositionenRaw,
       bestehendeSonstigenBuchungenRaw,
@@ -163,10 +156,6 @@ export async function previewImport(
       }),
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
-      prisma.kaution.findMany({
-        where: { status: { in: ["AKTIV", "AUFGELOEST"] } },
-        select: { mietvertragId: true, status: true, betrag: true, aufloesungsbetrag: true },
-      }),
       prisma.nebenkostenabrechnungPosition.findMany({
         where: { beglichenAm: null },
         include: { abrechnung: true, einheit: true, mietvertrag: { include: { mieter: true } } },
@@ -353,15 +342,6 @@ export async function previewImport(
         datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck),
       ),
     );
-    // Für den "als Kautionsrückzahlung markieren"-Vorschlag beim Import (siehe KautionSektion):
-    // nur noch aktive Kautionen sind als Ziel sinnvoll, eine bereits zurückgezahlte würde sonst
-    // ein zweites Mal überschrieben.
-    const offeneKautionen = offeneKautionenRaw.map((k) => ({
-      mietvertragId: k.mietvertragId,
-      status: k.status as "AKTIV" | "AUFGELOEST",
-      betrag: Number(k.betrag),
-      aufloesungsbetrag: k.aufloesungsbetrag ? Number(k.aufloesungsbetrag) : null,
-    }));
     // Kandidaten für den Nebenkostenausgleich-Import: nur noch nicht beglichene Positionen (siehe
     // where-Filter oben) — eine bereits beglichene Position taucht damit von selbst nicht mehr
     // als Ziel auf, ohne eigenen Dedup-Schlüssel. Label + Vorzeichen der Betragsangabe folgen
@@ -398,7 +378,6 @@ export async function previewImport(
       bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
       bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
       bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
-      offeneKautionen,
       offeneNebenkostenPositionen,
       bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
       fileName: file.name,
@@ -674,13 +653,6 @@ type KautionsbuchungCommitRow = {
   empfaenger: string;
   verwendungszweck: string;
   rohdaten: Record<string, string>;
-  // Nur eins von beidem ist jemals gesetzt (siehe KautionSektion: Auflösung nur für eingehende,
-  // Auszahlung nur für ausgehende Buchungen anbietbar) — löst zusätzlich zum Anlegen der
-  // KautionBuchung ein Update der verknüpften Kaution aus (siehe unten).
-  aufloesungsdatum?: string;
-  aufloesungsbetrag?: number;
-  rueckzahlungsdatum?: string;
-  rueckzahlungsbetrag?: number;
 };
 
 export async function commitKautionsbuchungen(
@@ -729,72 +701,17 @@ export async function commitKautionsbuchungen(
     });
   }
 
-  // Für als Kautions-Auflösung oder -Auszahlung markierte Zeilen (siehe KautionSektion): die
-  // verknüpfte Kaution wird über ihre eindeutige mietvertragId gefunden, es gibt dafür keine
-  // eigene FK-Spalte an KautionBuchung — Kaution.mietvertragId ist ohnehin unique. Nur für
-  // tatsächlich neu importierte Zeilen, damit ein erneuter Import eines bereits verarbeiteten
-  // Duplikats die Kaution nicht ein zweites Mal überschreibt. Auflösungen zuerst, damit eine im
-  // selben Batch enthaltene Auszahlung für dieselbe Kaution korrekt von AUFGELOEST (nicht mehr
-  // AKTIV) aus weiterschaltet.
-  const aufloesungen = neu.filter(
-    (r) => r.mietvertragId && r.aufloesungsdatum && r.aufloesungsbetrag !== undefined,
-  );
-  let aufloesungenAktualisiert = 0;
-  if (aufloesungen.length > 0) {
-    const ergebnisse = await Promise.all(
-      aufloesungen.map((r) =>
-        prisma.kaution.updateMany({
-          where: { mietvertragId: r.mietvertragId, status: "AKTIV" },
-          data: {
-            status: "AUFGELOEST",
-            aufloesungsdatum: new Date(r.aufloesungsdatum!),
-            aufloesungsbetrag: r.aufloesungsbetrag,
-          },
-        }),
-      ),
-    );
-    aufloesungenAktualisiert = ergebnisse.reduce((s, e) => s + e.count, 0);
-  }
-
-  const rueckzahlungen = neu.filter(
-    (r) => r.mietvertragId && r.rueckzahlungsdatum && r.rueckzahlungsbetrag !== undefined,
-  );
-  let rueckzahlungenAktualisiert = 0;
-  if (rueckzahlungen.length > 0) {
-    const ergebnisse = await Promise.all(
-      rueckzahlungen.map((r) =>
-        prisma.kaution.updateMany({
-          where: { mietvertragId: r.mietvertragId, status: { in: ["AKTIV", "AUFGELOEST"] } },
-          data: {
-            status: "ZURUECKGEZAHLT",
-            rueckzahlungsdatum: new Date(r.rueckzahlungsdatum!),
-            rueckzahlungsbetrag: r.rueckzahlungsbetrag,
-          },
-        }),
-      ),
-    );
-    rueckzahlungenAktualisiert = ergebnisse.reduce((s, e) => s + e.count, 0);
-  }
-
   if (typeof importBatchId === "string") {
     await ergaenzeImportBatchErgebnis(
       importBatchId,
-      `${neu.length} Kautionsbuchung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}${
-        aufloesungenAktualisiert > 0 ? `, ${aufloesungenAktualisiert} Kaution(en) als aufgelöst markiert` : ""
-      }${
-        rueckzahlungenAktualisiert > 0 ? `, ${rueckzahlungenAktualisiert} Kaution(en) als zurückgezahlt markiert` : ""
-      }`,
+      `${neu.length} Kautionsbuchung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
     );
   }
-
-  if (aufloesungenAktualisiert > 0 || rueckzahlungenAktualisiert > 0) revalidatePath("/mietvertraege");
 
   revalidatePath("/kautionen");
 
   return `${neu.length} Kautionsbuchung(en) importiert.${
     uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
-  }${aufloesungenAktualisiert > 0 ? ` ${aufloesungenAktualisiert} Kaution(en) als aufgelöst markiert.` : ""}${
-    rueckzahlungenAktualisiert > 0 ? ` ${rueckzahlungenAktualisiert} Kaution(en) als zurückgezahlt markiert.` : ""
   }`;
 }
 
