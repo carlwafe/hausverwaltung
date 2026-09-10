@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
-import { RohdatenDialog } from "@/components/rohdaten-dialog";
+import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { aktualisiereKautionsbuchungKategorie, deleteKautionsbuchungen } from "./actions";
 
 function formatEuro(value: number) {
@@ -43,19 +43,6 @@ export type KautionsbuchungRow = {
   importDateiname: string | null;
   kategorie: KautionBuchungKategorie;
 };
-
-function RohdatenZelle({ k }: { k: KautionsbuchungRow }) {
-  if (!k.rohdaten) {
-    return <span className="text-xs text-neutral-600">manuell</span>;
-  }
-  return (
-    <RohdatenDialog
-      rohdaten={k.rohdaten}
-      downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
-      downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}
-    />
-  );
-}
 
 function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
   const [pending, startTransition] = useTransition();
@@ -127,7 +114,12 @@ const columns: Column<KautionsbuchungRow>[] = [
   {
     key: "quelle",
     label: "Quelle",
-    render: (k) => <RohdatenZelle k={k} />,
+    render: (k, { expanded, toggleExpanded }) =>
+      k.rohdaten ? (
+        <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
+      ) : (
+        <span className="text-xs text-neutral-600">manuell</span>
+      ),
   },
 ];
 
@@ -173,6 +165,16 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
         searchPlaceholder="Kautionsbuchungen durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        renderExpanded={(k, colSpan) =>
+          k.rohdaten ? (
+            <RohdatenZeile
+              rohdaten={k.rohdaten}
+              colSpan={colSpan}
+              downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
+              downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}
+            />
+          ) : null
+        }
       />
     </div>
   );
