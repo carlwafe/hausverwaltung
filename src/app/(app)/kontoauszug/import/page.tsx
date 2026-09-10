@@ -1337,7 +1337,17 @@ function MietweiterleitungenSektion({
 
 // ---------- Kaution ----------
 
-type KautionEditRow = ParsedZahlungRow & { gewaehlterMietvertragId: string; ausgewaehlt: boolean };
+type KautionEditRow = ParsedZahlungRow & {
+  gewaehlterMietvertragId: string;
+  ausgewaehlt: boolean;
+  // Nur relevant für Auszahlungen (Betrag < 0) an einen Mietvertrag mit einer noch aktiven
+  // Kaution — siehe kautionZuMietvertrag in KautionSektion. Bewusst nicht automatisch
+  // angehakt: der tatsächlich ausgezahlte Betrag weicht oft von der hinterlegten Kautionshöhe
+  // ab (z.B. wenn ein Teil für eine Reparatur einbehalten wurde), das muss bestätigt werden.
+  rueckzahlungMarkieren: boolean;
+  rueckzahlungsdatum: string;
+  rueckzahlungsbetrag: string;
+};
 
 // Gleiches Prinzip wie bei Mietweiterleitungen oben (siehe MietweiterleitungHinweisKategorie),
 // mit derselben Aufspaltung von "erkannt" nach Dedup-Status wie beim Nebenkostenausgleich (siehe
@@ -1394,22 +1404,28 @@ function toKautionEditRow(r: ParsedZahlungRow, bestehend: Set<string>): KautionE
     // Nur automatisch erkannte Kautionsbuchungen sind initial angehakt — siehe
     // toMietweiterleitungEditRow oben für dieselbe Überlegung.
     ausgewaehlt: r.errors.length === 0 && r.kaution && !duplikat,
+    rueckzahlungMarkieren: false,
+    rueckzahlungsdatum: r.datum ?? "",
+    rueckzahlungsbetrag: r.betrag !== null ? Math.abs(r.betrag).toFixed(2) : "",
   };
 }
 
 function KautionSektion({
   rows,
   kandidaten,
+  offeneKautionen,
   bestehendeListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
+  offeneKautionen: { mietvertragId: string; betrag: number }[];
   bestehendeListe: string[];
   importBatchId: string;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKautionsbuchungen, null);
   const bestehend = new Set(bestehendeListe);
+  const kautionZuMietvertrag = new Map(offeneKautionen.map((k) => [k.mietvertragId, k.betrag]));
   const [editRows, setEditRows] = useState<KautionEditRow[]>(() =>
     rows.map((r) => toKautionEditRow(r, bestehend)),
   );
@@ -1443,6 +1459,12 @@ function KautionSektion({
     empfaenger: r.name,
     verwendungszweck: r.verwendungszweck,
     rohdaten: r.rohdaten,
+    ...(r.rueckzahlungMarkieren && r.betrag !== null && r.betrag < 0 && kautionZuMietvertrag.has(r.gewaehlterMietvertragId)
+      ? {
+          rueckzahlungsdatum: r.rueckzahlungsdatum,
+          rueckzahlungsbetrag: Number(r.rueckzahlungsbetrag.replace(",", ".")),
+        }
+      : {}),
   }));
 
   if (commitMessage) {
@@ -1499,6 +1521,7 @@ function KautionSektion({
               <th className="px-3 py-2">Betrag</th>
               <th className="px-3 py-2">Verwendungszweck</th>
               <th className="px-3 py-2">Mietvertrag</th>
+              <th className="px-3 py-2">Kaution</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
             </tr>
@@ -1508,6 +1531,8 @@ function KautionSektion({
               const bereitsImportiert = istBereitsImportiert(r);
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleKautionHinweis(r);
+              const offeneKaution = kautionZuMietvertrag.get(r.gewaehlterMietvertragId);
+              const kannRueckzahlungMarkieren = r.betrag !== null && r.betrag < 0 && offeneKaution !== undefined;
               return (
                 <Fragment key={r.rowNumber}>
                   <tr
@@ -1540,6 +1565,41 @@ function KautionSektion({
                         onChange={(id) => updateRow(r.rowNumber, { gewaehlterMietvertragId: id })}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      {kannRueckzahlungMarkieren ? (
+                        <div className="min-w-[190px]">
+                          <label className="flex items-center gap-1.5 text-xs text-neutral-300">
+                            <input
+                              type="checkbox"
+                              checked={r.rueckzahlungMarkieren}
+                              onChange={(e) => updateRow(r.rowNumber, { rueckzahlungMarkieren: e.target.checked })}
+                              className="h-3.5 w-3.5 rounded border-neutral-700 bg-transparent"
+                            />
+                            als Kautionsrückzahlung ({formatEuro(offeneKaution!)} hinterlegt)
+                          </label>
+                          {r.rueckzahlungMarkieren && (
+                            <div className="mt-1 flex gap-1">
+                              <input
+                                type="date"
+                                value={r.rueckzahlungsdatum}
+                                onChange={(e) => updateRow(r.rowNumber, { rueckzahlungsdatum: e.target.value })}
+                                className="w-[120px] rounded border border-neutral-700 bg-transparent px-1 py-0.5 text-xs text-white outline-none focus:border-neutral-400"
+                              />
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={r.rueckzahlungsbetrag}
+                                onChange={(e) => updateRow(r.rowNumber, { rueckzahlungsbetrag: e.target.value })}
+                                title="Tatsächlich ausgezahlter Betrag (ohne einbehaltene Beträge)"
+                                className="w-[70px] rounded border border-neutral-700 bg-transparent px-1 py-0.5 text-xs text-white outline-none focus:border-neutral-400"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-neutral-600">–</span>
+                      )}
+                    </td>
                     <td className="px-3 py-1.5 text-xs">
                       {r.errors.length > 0 ? (
                         <span className="text-red-400">{r.errors.join("; ")}</span>
@@ -1561,13 +1621,13 @@ function KautionSektion({
                       />
                     </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={8} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
@@ -2002,6 +2062,7 @@ export default function KontoauszugImportPage() {
             key={`kaution-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
+            offeneKautionen={preview.offeneKautionen}
             bestehendeListe={preview.bestehendeKautionsbuchungen}
             importBatchId={preview.importBatchId}
           />

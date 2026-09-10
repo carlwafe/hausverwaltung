@@ -31,6 +31,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     rueckzahlungsdatum: k.rueckzahlungsdatum ? k.rueckzahlungsdatum.toISOString() : null,
     rueckzahlungsbetrag: k.rueckzahlungsbetrag ? Number(k.rueckzahlungsbetrag) : null,
     status: k.status as "AKTIV" | "ZURUECKGEZAHLT",
+    notizen: k.notizen,
   }));
 }
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { KautionBearbeitenDialog } from "./kaution-bearbeiten-dialog";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -41,6 +42,7 @@ export type KautionRow = {
   rueckzahlungsdatum: string | null;
   rueckzahlungsbetrag: number | null;
   status: "AKTIV" | "ZURUECKGEZAHLT";
+  notizen: string | null;
 };
 
 const columns: Column<KautionRow>[] = [
@@ -107,6 +109,33 @@ const columns: Column<KautionRow>[] = [
       <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[r.status]}`}>
         {STATUS_LABEL[r.status]}
       </span>
+    ),
+  },
+  {
+    key: "notizen",
+    label: "Notizen",
+    sortValue: (r) => r.notizen ?? "",
+    searchValue: (r) => r.notizen ?? "",
+    render: (r) =>
+      r.notizen ? (
+        <span className="block max-w-[200px] truncate text-neutral-300" title={r.notizen}>
+          {r.notizen}
+        </span>
+      ) : (
+        "–"
+      ),
+  },
+  {
+    key: "bearbeiten",
+    label: "",
+    render: (r) => (
+      <KautionBearbeitenDialog
+        id={r.id}
+        status={r.status}
+        rueckzahlungsdatum={r.rueckzahlungsdatum}
+        rueckzahlungsbetrag={r.rueckzahlungsbetrag}
+        notizen={r.notizen}
+      />
     ),
   },
 ];

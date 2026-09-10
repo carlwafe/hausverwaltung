@@ -246,6 +246,10 @@ model Kaution {
   rueckzahlungsdatum  DateTime?
   rueckzahlungsbetrag Decimal?          @db.Decimal(10, 2)
   status              KautionStatus     @default(AKTIV)
+  // Freitext für Fälle, die aus den Kontobewegungen allein nicht rekonstruierbar sind — z.B.
+  // wenn beim Auszug intern auf dem Kautionskonto ein Teilbetrag für eine Reparatur einbehalten
+  // wurde, was in unseren Kontoauszügen nirgends als eigene Buchung erscheint.
+  notizen             String?
   createdAt           DateTime          @default(now())
 
   @@map("kautionen")

@@ -39,6 +39,7 @@ export type PreviewResult =
       bestehendeZahlungenDatumBetrag: string[];
       bestehendeMietweiterleitungen: string[];
       bestehendeKautionsbuchungen: string[];
+      offeneKautionen: { mietvertragId: string; betrag: number }[];
       offeneNebenkostenPositionen: { id: string; label: string; mietvertragId: string | null }[];
       bestehendeNebenkostenausgleich: string[];
       fileName: string;
@@ -124,6 +125,7 @@ export async function previewImport(
       bestehendeKostenpositionen,
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
+      offeneKautionenRaw,
       offeneNebenkostenPositionenRaw,
       beglicheneNebenkostenPositionenRaw,
       bestehendeSonstigenBuchungenRaw,
@@ -156,6 +158,10 @@ export async function previewImport(
       }),
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
+      prisma.kaution.findMany({
+        where: { status: "AKTIV" },
+        select: { mietvertragId: true, betrag: true },
+      }),
       prisma.nebenkostenabrechnungPosition.findMany({
         where: { beglichenAm: null },
         include: { abrechnung: true, einheit: true, mietvertrag: { include: { mieter: true } } },
@@ -342,6 +348,13 @@ export async function previewImport(
         datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck),
       ),
     );
+    // Für den "als Kautionsrückzahlung markieren"-Vorschlag beim Import (siehe KautionSektion):
+    // nur noch aktive Kautionen sind als Ziel sinnvoll, eine bereits zurückgezahlte würde sonst
+    // ein zweites Mal überschrieben.
+    const offeneKautionen = offeneKautionenRaw.map((k) => ({
+      mietvertragId: k.mietvertragId,
+      betrag: Number(k.betrag),
+    }));
     // Kandidaten für den Nebenkostenausgleich-Import: nur noch nicht beglichene Positionen (siehe
     // where-Filter oben) — eine bereits beglichene Position taucht damit von selbst nicht mehr
     // als Ziel auf, ohne eigenen Dedup-Schlüssel. Label + Vorzeichen der Betragsangabe folgen
@@ -378,6 +391,7 @@ export async function previewImport(
       bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
       bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
       bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
+      offeneKautionen,
       offeneNebenkostenPositionen,
       bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
       fileName: file.name,
@@ -653,6 +667,11 @@ type KautionsbuchungCommitRow = {
   empfaenger: string;
   verwendungszweck: string;
   rohdaten: Record<string, string>;
+  // Nur gesetzt, wenn die Zeile im UI als Kautionsrückzahlung markiert wurde (siehe
+  // KautionSektion) — löst zusätzlich zum Anlegen der KautionBuchung ein Update der
+  // verknüpften Kaution aus (siehe unten).
+  rueckzahlungsdatum?: string;
+  rueckzahlungsbetrag?: number;
 };
 
 export async function commitKautionsbuchungen(
@@ -701,18 +720,47 @@ export async function commitKautionsbuchungen(
     });
   }
 
+  // Für als Kautionsrückzahlung markierte Zeilen (siehe KautionSektion): die verknüpfte Kaution
+  // wird über ihre eindeutige mietvertragId gefunden, es gibt dafür keine eigene FK-Spalte an
+  // KautionBuchung — Kaution.mietvertragId ist ohnehin unique. Nur für tatsächlich neu
+  // importierte Zeilen, damit ein erneuter Import eines bereits verarbeiteten Duplikats die
+  // Kaution nicht ein zweites Mal überschreibt.
+  const rueckzahlungen = neu.filter(
+    (r) => r.mietvertragId && r.rueckzahlungsdatum && r.rueckzahlungsbetrag !== undefined,
+  );
+  let rueckzahlungenAktualisiert = 0;
+  if (rueckzahlungen.length > 0) {
+    const ergebnisse = await Promise.all(
+      rueckzahlungen.map((r) =>
+        prisma.kaution.updateMany({
+          where: { mietvertragId: r.mietvertragId, status: "AKTIV" },
+          data: {
+            status: "ZURUECKGEZAHLT",
+            rueckzahlungsdatum: new Date(r.rueckzahlungsdatum!),
+            rueckzahlungsbetrag: r.rueckzahlungsbetrag,
+          },
+        }),
+      ),
+    );
+    rueckzahlungenAktualisiert = ergebnisse.reduce((s, e) => s + e.count, 0);
+  }
+
   if (typeof importBatchId === "string") {
     await ergaenzeImportBatchErgebnis(
       importBatchId,
-      `${neu.length} Kautionsbuchung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+      `${neu.length} Kautionsbuchung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}${
+        rueckzahlungenAktualisiert > 0 ? `, ${rueckzahlungenAktualisiert} Kaution(en) als zurückgezahlt markiert` : ""
+      }`,
     );
   }
+
+  if (rueckzahlungenAktualisiert > 0) revalidatePath("/mietvertraege");
 
   revalidatePath("/kautionen");
 
   return `${neu.length} Kautionsbuchung(en) importiert.${
     uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
-  }`;
+  }${rueckzahlungenAktualisiert > 0 ? ` ${rueckzahlungenAktualisiert} Kaution(en) als zurückgezahlt markiert.` : ""}`;
 }
 
 // Sentinel statt einer echten Position-ID: für eine als Nebenkostenausgleich erkannte Buchung,
