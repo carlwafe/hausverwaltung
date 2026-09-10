@@ -517,6 +517,10 @@ enum KautionBuchungKategorie {
   AUFLOESUNG
   // Teil- oder Gesamtauszahlung der Kaution an den (ausgezogenen) Mieter.
   AUSZAHLUNG_MIETER
+  // Bewusst abgeschlossen, aber keine der vier echten Kategorien — z.B. eine Korrekturbuchung für
+  // eine versehentliche Doppelüberweisung ohne Bezug zu einem echten Auflösungs-/Auszahlungs-
+  // Vorgang. Anders als NICHT_ZUGEORDNET (siehe unten) kein "muss noch bearbeitet werden".
+  SONSTIGES
   // Platzhalter für bereits importierte Altbuchungen, die noch nicht manuell kategorisiert
   // wurden.
   NICHT_ZUGEORDNET

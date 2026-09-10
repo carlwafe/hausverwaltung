@@ -1337,7 +1337,13 @@ function MietweiterleitungenSektion({
 
 // ---------- Kaution ----------
 
-type KautionKategorie = "EINZAHLUNG_MIETER" | "ANLAGE" | "AUFLOESUNG" | "AUSZAHLUNG_MIETER" | "NICHT_ZUGEORDNET";
+type KautionKategorie =
+  | "EINZAHLUNG_MIETER"
+  | "ANLAGE"
+  | "AUFLOESUNG"
+  | "AUSZAHLUNG_MIETER"
+  | "SONSTIGES"
+  | "NICHT_ZUGEORDNET";
 
 type KautionEditRow = ParsedZahlungRow & {
   gewaehlterMietvertragId: string;
@@ -1350,6 +1356,7 @@ const KAUTION_KATEGORIE_LABEL: Record<KautionKategorie, string> = {
   ANLAGE: "Anlage (aufs Kautionskonto)",
   AUFLOESUNG: "Auflösung (vom Kautionskonto)",
   AUSZAHLUNG_MIETER: "Auszahlung Mieter",
+  SONSTIGES: "Sonstiges (z.B. Korrektur)",
   NICHT_ZUGEORDNET: "Nicht zugeordnet",
 };
 
@@ -1567,7 +1574,7 @@ function KautionSektion({
                           className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400"
                         >
                           {(
-                            ["EINZAHLUNG_MIETER", "ANLAGE", "AUFLOESUNG", "AUSZAHLUNG_MIETER"] as const
+                            ["EINZAHLUNG_MIETER", "ANLAGE", "AUFLOESUNG", "AUSZAHLUNG_MIETER", "SONSTIGES"] as const
                           ).map((k) => (
                             <option key={k} value={k} className="bg-neutral-900">
                               {KAUTION_KATEGORIE_LABEL[k]}

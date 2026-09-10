@@ -19,6 +19,7 @@ export type KautionBuchungKategorie =
   | "ANLAGE"
   | "AUFLOESUNG"
   | "AUSZAHLUNG_MIETER"
+  | "SONSTIGES"
   | "NICHT_ZUGEORDNET";
 
 const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
@@ -26,6 +27,7 @@ const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
   ANLAGE: "Anlage (aufs Kautionskonto)",
   AUFLOESUNG: "Auflösung (vom Kautionskonto)",
   AUSZAHLUNG_MIETER: "Auszahlung Mieter",
+  SONSTIGES: "Sonstiges (z.B. Korrektur)",
   NICHT_ZUGEORDNET: "Nicht zugeordnet",
 };
 
