@@ -112,6 +112,17 @@ export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 // ...") von einer echten Auszahlung an den Mieter (ausgehend, aber ohne dieses Wort).
 export const KAUTION_ANLAGE_PATTERN = /anlage/i;
 
+// Das separate Kautionskonto der Eigentümerin — Anlage-Buchungen gehen immer an diese IBAN,
+// Auflösungs-Buchungen (Kautionskonto -> Geschäftskonto, meist beim Auszug) kommen immer von ihr.
+// Zuverlässiger als Text: für "Anlage" existiert zwar das Schlüsselwort oben, für "Auflösung"
+// gibt es dagegen gar keinen wiederkehrenden Textbaustein — ohne die IBAN ließe sich eine
+// Auflösung von einer normalen Einzahlung des Mieters gar nicht unterscheiden.
+const KAUTIONSKONTO_IBAN = "DE92200300000008857864";
+
+export function istKautionskontoIban(iban: string): boolean {
+  return iban.replace(/\s/g, "").toUpperCase() === KAUTIONSKONTO_IBAN;
+}
+
 // Ebenfalls Vorrang vor der Eigentümer-Erkennung, aus demselben Grund wie Kaution: die
 // eingesammelten Waschgeld-Münzen laufen mitunter über ein privates Konto der Eigentümerin,
 // bevor sie (in beide Richtungen) auf das Geschäftskonto verbucht werden — ohne diese Ausnahme
@@ -187,9 +198,10 @@ export const KONTOAUSZUG_SPALTEN = {
     "zahlungspflichtiger",
   ],
   mandatsreferenz: ["mandatsreferenz"],
+  iban: ["kontonummeriban", "iban", "kontonummer"],
 } as const;
 
-/** Liest Datum/Betrag/Verwendungszweck/Name/Mandatsreferenz-Spalten anhand der üblichen Bank-CSV-Kopfzeilen aus. */
+/** Liest Datum/Betrag/Verwendungszweck/Name/Mandatsreferenz/IBAN-Spalten anhand der üblichen Bank-CSV-Kopfzeilen aus. */
 export function findeKontoauszugSpalten(headers: string[]) {
   const datumCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.datum]);
   const betragCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.betrag]);
@@ -198,7 +210,8 @@ export function findeKontoauszugSpalten(headers: string[]) {
   const zweckCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.verwendungszweck]);
   const nameCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.name]);
   const mandatsrefCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.mandatsreferenz]);
-  return { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol };
+  const ibanCol = findColumn(headers, [...KONTOAUSZUG_SPALTEN.iban]);
+  return { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol, ibanCol };
 }
 
 /** Vorzeichenbehafteter Betrag: positiv = eingehend, negativ = ausgehend. */

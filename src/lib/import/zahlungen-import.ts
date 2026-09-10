@@ -1,6 +1,7 @@
 import {
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
+  istKautionskontoIban,
   KAUTION_ANLAGE_PATTERN,
   KAUTION_PATTERN,
   KLEINREPARATUR_PATTERN,
@@ -16,11 +17,10 @@ import {
 // Entspricht den Enum-Werten von KautionBuchungKategorie (siehe schema.prisma), bewusst als
 // eigene String-Union statt Import aus dem generierten Prisma-Client: dieses Modul wird auch von
 // einer Client-Komponente importiert (page.tsx), ein Prisma-Import dort wäre unnötiges Gewicht.
-// EINZAHLUNG_MIETER ist der Vorschlag für jede eingehende Buchung — die selteneren Fälle, in
-// denen eine eingehende Buchung tatsächlich die Auflösung des Kautionskontos ist (keine
-// zuverlässige Texterkennung dafür, siehe KAUTION_ANLAGE_PATTERN-Kommentar), müssen manuell auf
-// "Auflösung" umgestellt werden.
-export type KautionKategorieVorschlag = "EINZAHLUNG_MIETER" | "ANLAGE" | "AUSZAHLUNG_MIETER";
+// EINZAHLUNG_MIETER ist nur noch der Rückfall-Vorschlag für eine eingehende Buchung ohne
+// Kautionskonto-IBAN-Treffer (siehe istKautionskontoIban) — mit Treffer wird stattdessen
+// AUFLOESUNG vorgeschlagen.
+export type KautionKategorieVorschlag = "EINZAHLUNG_MIETER" | "ANLAGE" | "AUFLOESUNG" | "AUSZAHLUNG_MIETER";
 
 export type MietvertragKandidat = {
   id: string;
@@ -165,7 +165,7 @@ export function mapZahlungenRows(
   const bekannteWarmmieten = new Set(
     kandidaten.map((k) => Math.round(k.warmmiete * 100) / 100),
   );
-  const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol } =
+  const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, ibanCol } =
     findeKontoauszugSpalten(headers);
 
   return rows.map((row, i) => {
@@ -179,21 +179,29 @@ export function mapZahlungenRows(
 
     const verwendungszweck = zweckCol ? repariereMojibake((row[zweckCol] ?? "").trim()) : "";
     const name = nameCol ? repariereMojibake((row[nameCol] ?? "").trim()) : "";
+    const iban = ibanCol ? (row[ibanCol] ?? "").trim() : "";
 
     // Rücklastschriften/Lastschriftwidersprüche sind zwar ausgehende Buchungen (negativer
     // Betrag), korrigieren aber eine zuvor gutgeschriebene Miete, die tatsächlich nicht bezahlt
     // wurde — sie müssen als Korrekturbuchung importiert werden, nicht als "ausgehend" ignoriert.
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const kaution = KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(name);
+    // Die Kautionskonto-IBAN ist das zuverlässigste Signal (siehe istKautionskontoIban) — der
+    // Text-Treffer "Anlage" bleibt als Rückfall, falls eine CSV-Quelle mal keine IBAN-Spalte
+    // liefert. Für Auflösung gibt es keinen Text-Rückfall, ohne IBAN-Treffer bleibt eine
+    // eingehende Kaution-Buchung deshalb der Standard-Vorschlag "Einzahlung Mieter".
+    const kautionskontoTreffer = istKautionskontoIban(iban);
     const kautionKategorieVorschlag: KautionKategorieVorschlag | null = !kaution
       ? null
       : betrag === null
         ? null
         : betrag < 0
-          ? KAUTION_ANLAGE_PATTERN.test(verwendungszweck)
+          ? kautionskontoTreffer || KAUTION_ANLAGE_PATTERN.test(verwendungszweck)
             ? "ANLAGE"
             : "AUSZAHLUNG_MIETER"
-          : "EINZAHLUNG_MIETER";
+          : kautionskontoTreffer
+            ? "AUFLOESUNG"
+            : "EINZAHLUNG_MIETER";
     const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
     const gerundeterBetrag = betrag !== null ? Math.round(betrag * 100) / 100 : null;
     const kleinreparatur =

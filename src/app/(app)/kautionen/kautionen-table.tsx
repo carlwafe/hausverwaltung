@@ -7,11 +7,6 @@ function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-function formatDate(iso: string | null) {
-  if (!iso) return "–";
-  return new Intl.DateTimeFormat("de-DE").format(new Date(iso));
-}
-
 const ANLAGEFORM_LABEL: Record<string, string> = {
   KAUTIONSKONTO: "Kautionskonto",
   SPARBUCH: "Sparbuch",
@@ -19,14 +14,16 @@ const ANLAGEFORM_LABEL: Record<string, string> = {
   BAR: "Bar",
 };
 
-const STATUS_LABEL: Record<string, string> = {
+const STATUS_LABEL = {
   AKTIV: "Aktiv",
-  ZURUECKGEZAHLT: "Zurückgezahlt",
-};
+  AUFGELOEST: "Aufgelöst",
+  ERLEDIGT: "Erledigt",
+} as const;
 
-const STATUS_FARBE: Record<string, string> = {
+const STATUS_FARBE: Record<keyof typeof STATUS_LABEL, string> = {
   AKTIV: "bg-green-500/10 text-green-400",
-  ZURUECKGEZAHLT: "bg-neutral-800 text-neutral-300",
+  AUFGELOEST: "bg-amber-500/10 text-amber-400",
+  ERLEDIGT: "bg-neutral-800 text-neutral-300",
 };
 
 export type KautionRow = {
@@ -35,12 +32,18 @@ export type KautionRow = {
   einheitBezeichnung: string;
   mieterNamen: string;
   betrag: number;
+  // true, wenn es mindestens eine "Einzahlung Mieter"-Kautionsbuchung gibt und ihre Summe
+  // (einzahlungSumme) von betrag abweicht.
+  betragAbweichung: boolean;
+  einzahlungSumme: number | null;
   anlageform: string;
   zinssatz: number | null;
-  einzahlungsdatum: string | null;
-  rueckzahlungsdatum: string | null;
-  rueckzahlungsbetrag: number | null;
-  status: "AKTIV" | "ZURUECKGEZAHLT";
+  // Summe der "Auflösung"- bzw. "Auszahlung Mieter"-Kautionsbuchungen dieses Mietvertrags (0,
+  // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist.
+  aufgeloest: number;
+  ausgezahlt: number;
+  einbehalten: number | null;
+  status: keyof typeof STATUS_LABEL;
 };
 
 const columns: Column<KautionRow>[] = [
@@ -66,7 +69,19 @@ const columns: Column<KautionRow>[] = [
     key: "betrag",
     label: "Betrag",
     sortValue: (r) => r.betrag,
-    render: (r) => formatEuro(r.betrag),
+    render: (r) => (
+      <span className="inline-flex items-center gap-1">
+        {formatEuro(r.betrag)}
+        {r.betragAbweichung && (
+          <span
+            title={`Weicht von der Summe der "Einzahlung Mieter"-Kautionsbuchungen ab: ${formatEuro(r.einzahlungSumme!)}`}
+            className="text-amber-400"
+          >
+            ⚠
+          </span>
+        )}
+      </span>
+    ),
   },
   {
     key: "anlageform",
@@ -82,21 +97,29 @@ const columns: Column<KautionRow>[] = [
     render: (r) => (r.zinssatz !== null ? `${r.zinssatz.toLocaleString("de-DE")} %` : "–"),
   },
   {
-    key: "einzahlung",
-    label: "Einzahlung",
-    sortValue: (r) => r.einzahlungsdatum ?? "",
-    render: (r) => formatDate(r.einzahlungsdatum),
+    key: "aufgeloest",
+    label: "Aufgelöst",
+    sortValue: (r) => r.aufgeloest,
+    render: (r) => (r.aufgeloest > 0 ? formatEuro(r.aufgeloest) : "–"),
   },
   {
-    key: "rueckzahlung",
-    label: "Rückzahlung",
-    sortValue: (r) => r.rueckzahlungsdatum ?? "",
+    key: "ausgezahlt",
+    label: "Ausgezahlt",
+    sortValue: (r) => r.ausgezahlt,
+    render: (r) => (r.ausgezahlt > 0 ? formatEuro(r.ausgezahlt) : "–"),
+  },
+  {
+    key: "einbehalten",
+    label: "Einbehalten",
+    sortValue: (r) => r.einbehalten ?? -1,
     render: (r) =>
-      r.rueckzahlungsdatum
-        ? `${formatDate(r.rueckzahlungsdatum)}${
-            r.rueckzahlungsbetrag !== null ? ` (${formatEuro(r.rueckzahlungsbetrag)})` : ""
-          }`
-        : "–",
+      r.einbehalten === null ? (
+        "–"
+      ) : (
+        <span className={r.einbehalten > 0 ? "text-amber-400" : "text-neutral-400"}>
+          {formatEuro(r.einbehalten)}
+        </span>
+      ),
   },
   {
     key: "status",
