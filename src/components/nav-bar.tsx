@@ -8,21 +8,21 @@ import { signOut } from "next-auth/react";
 type NavLink = { href: string; label: string };
 
 const STAMMDATEN: NavLink[] = [
-  { href: "/gebaeude", label: "Gebäude" },
-  { href: "/einheiten", label: "Einheiten" },
   { href: "/mieter", label: "Mieter" },
   { href: "/mietvertraege", label: "Mietverträge" },
+  { href: "/einheiten", label: "Einheiten" },
+  { href: "/gebaeude", label: "Gebäude" },
 ];
 
 const FINANZEN: NavLink[] = [
   { href: "/kontoauszug/import", label: "Importieren" },
-  { href: "/zahlungen", label: "Zahlungen" },
   { href: "/offene-posten", label: "Offene Posten" },
-  { href: "/kontostand", label: "Kontostand" },
-  { href: "/kautionen", label: "Kautionen" },
+  { href: "/zahlungen", label: "Zahlungen" },
   { href: "/kosten", label: "Kosten" },
+  { href: "/kautionen", label: "Kautionen" },
   { href: "/mietweiterleitungen", label: "Mietweiterleitungen" },
   { href: "/sonstige-buchungen", label: "Sonstige Buchungen" },
+  { href: "/kontostand", label: "Kontostand" },
 ];
 
 const ABRECHNUNG: NavLink[] = [
