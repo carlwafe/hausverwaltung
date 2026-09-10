@@ -55,6 +55,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
     rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
+    kategorie: k.kategorie,
   }));
 }
 

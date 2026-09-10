@@ -1,6 +1,7 @@
 import {
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
+  KAUTION_ANLAGE_PATTERN,
   KAUTION_PATTERN,
   KLEINREPARATUR_PATTERN,
   leseBetrag,
@@ -11,6 +12,15 @@ import {
   RUECKBUCHUNG_PATTERN,
   textEnthaeltWort,
 } from "./bank-csv";
+
+// Entspricht den Enum-Werten von KautionBuchungKategorie (siehe schema.prisma), bewusst als
+// eigene String-Union statt Import aus dem generierten Prisma-Client: dieses Modul wird auch von
+// einer Client-Komponente importiert (page.tsx), ein Prisma-Import dort wäre unnötiges Gewicht.
+// EINZAHLUNG_MIETER ist der Vorschlag für jede eingehende Buchung — die selteneren Fälle, in
+// denen eine eingehende Buchung tatsächlich die Auflösung des Kautionskontos ist (keine
+// zuverlässige Texterkennung dafür, siehe KAUTION_ANLAGE_PATTERN-Kommentar), müssen manuell auf
+// "Auflösung" umgestellt werden.
+export type KautionKategorieVorschlag = "EINZAHLUNG_MIETER" | "ANLAGE" | "AUSZAHLUNG_MIETER";
 
 export type MietvertragKandidat = {
   id: string;
@@ -36,6 +46,7 @@ export type ParsedZahlungRow = {
   rueckbuchung: boolean; // Rücklastschrift/Lastschriftwiderspruch: negative Korrektur einer zuvor gutgeschriebenen Miete
   eigentuemerBuchung: boolean; // Buchung von/an die Eigentümerin (Julia Katharina Waller) – keine Miete
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Miete, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
+  kautionKategorieVorschlag: KautionKategorieVorschlag | null; // nur gesetzt, wenn kaution === true
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Miete, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
   kleinreparatur: boolean; // Erstattung einer vom Mieter zu tragenden Kleinreparatur – keine Miete, gehört als Gutschrift in den Kosten-Import (siehe kosten-import.ts)
   rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
@@ -174,6 +185,15 @@ export function mapZahlungenRows(
     // wurde — sie müssen als Korrekturbuchung importiert werden, nicht als "ausgehend" ignoriert.
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const kaution = KAUTION_PATTERN.test(verwendungszweck) || KAUTION_PATTERN.test(name);
+    const kautionKategorieVorschlag: KautionKategorieVorschlag | null = !kaution
+      ? null
+      : betrag === null
+        ? null
+        : betrag < 0
+          ? KAUTION_ANLAGE_PATTERN.test(verwendungszweck)
+            ? "ANLAGE"
+            : "AUSZAHLUNG_MIETER"
+          : "EINZAHLUNG_MIETER";
     const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
     const gerundeterBetrag = betrag !== null ? Math.round(betrag * 100) / 100 : null;
     const kleinreparatur =
@@ -234,6 +254,7 @@ export function mapZahlungenRows(
       rueckbuchung,
       eigentuemerBuchung,
       kaution,
+      kautionKategorieVorschlag,
       nebenkostenausgleich,
       kleinreparatur,
       rohdaten: row,

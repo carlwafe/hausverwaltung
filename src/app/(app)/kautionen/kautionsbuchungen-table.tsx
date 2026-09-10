@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { RohdatenDialog } from "@/components/rohdaten-dialog";
-import { deleteKautionsbuchungen } from "./actions";
+import { aktualisiereKautionsbuchungKategorie, deleteKautionsbuchungen } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -13,6 +13,21 @@ function formatEuro(value: number) {
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("de-DE").format(new Date(iso));
 }
+
+export type KautionBuchungKategorie =
+  | "EINZAHLUNG_MIETER"
+  | "ANLAGE"
+  | "AUFLOESUNG"
+  | "AUSZAHLUNG_MIETER"
+  | "NICHT_ZUGEORDNET";
+
+const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
+  EINZAHLUNG_MIETER: "Einzahlung Mieter",
+  ANLAGE: "Anlage (aufs Kautionskonto)",
+  AUFLOESUNG: "Auflösung (vom Kautionskonto)",
+  AUSZAHLUNG_MIETER: "Auszahlung Mieter",
+  NICHT_ZUGEORDNET: "Nicht zugeordnet",
+};
 
 export type KautionsbuchungRow = {
   id: string;
@@ -26,6 +41,7 @@ export type KautionsbuchungRow = {
   rohdaten: Record<string, string> | null;
   importBatchId: string | null;
   importDateiname: string | null;
+  kategorie: KautionBuchungKategorie;
 };
 
 function RohdatenZelle({ k }: { k: KautionsbuchungRow }) {
@@ -38,6 +54,32 @@ function RohdatenZelle({ k }: { k: KautionsbuchungRow }) {
       downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
       downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}
     />
+  );
+}
+
+function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <select
+      value={k.kategorie}
+      disabled={pending}
+      onChange={(e) =>
+        startTransition(() =>
+          aktualisiereKautionsbuchungKategorie(k.id, e.target.value as KautionBuchungKategorie),
+        )
+      }
+      className={`rounded-md border px-1.5 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-50 ${
+        k.kategorie === "NICHT_ZUGEORDNET"
+          ? "border-amber-800 bg-amber-500/10 text-amber-300"
+          : "border-neutral-700 bg-transparent text-white"
+      }`}
+    >
+      {(Object.keys(KATEGORIE_LABEL) as KautionBuchungKategorie[]).map((kat) => (
+        <option key={kat} value={kat} className="bg-neutral-900 text-white">
+          {KATEGORIE_LABEL[kat]}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -76,6 +118,13 @@ const columns: Column<KautionsbuchungRow>[] = [
     render: (k) => k.verwendungszweck || "–",
   },
   {
+    key: "kategorie",
+    label: "Kategorie",
+    sortValue: (k) => KATEGORIE_LABEL[k.kategorie],
+    searchValue: (k) => KATEGORIE_LABEL[k.kategorie],
+    render: (k) => <KategorieZelle k={k} />,
+  },
+  {
     key: "quelle",
     label: "Quelle",
     render: (k) => <RohdatenZelle k={k} />,
@@ -85,6 +134,7 @@ const columns: Column<KautionsbuchungRow>[] = [
 export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KautionsbuchungRow[]>([]);
   const [pending, startTransition] = useTransition();
+  const nichtZugeordnet = rows.filter((r) => r.kategorie === "NICHT_ZUGEORDNET").length;
 
   function loeschen() {
     if (ausgewaehlt.length === 0) return;
@@ -97,6 +147,12 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
 
   return (
     <div>
+      {nichtZugeordnet > 0 && (
+        <p className="mb-3 text-sm text-amber-400">
+          {nichtZugeordnet} Buchung{nichtZugeordnet === 1 ? "" : "en"} noch ohne Kategorie — bitte in der
+          Tabelle nachtragen.
+        </p>
+      )}
       {ausgewaehlt.length > 0 && (
         <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
           <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>

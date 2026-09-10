@@ -1337,7 +1337,21 @@ function MietweiterleitungenSektion({
 
 // ---------- Kaution ----------
 
-type KautionEditRow = ParsedZahlungRow & { gewaehlterMietvertragId: string; ausgewaehlt: boolean };
+type KautionKategorie = "EINZAHLUNG_MIETER" | "ANLAGE" | "AUFLOESUNG" | "AUSZAHLUNG_MIETER" | "NICHT_ZUGEORDNET";
+
+type KautionEditRow = ParsedZahlungRow & {
+  gewaehlterMietvertragId: string;
+  ausgewaehlt: boolean;
+  kategorie: KautionKategorie;
+};
+
+const KAUTION_KATEGORIE_LABEL: Record<KautionKategorie, string> = {
+  EINZAHLUNG_MIETER: "Einzahlung Mieter",
+  ANLAGE: "Anlage (aufs Kautionskonto)",
+  AUFLOESUNG: "Auflösung (vom Kautionskonto)",
+  AUSZAHLUNG_MIETER: "Auszahlung Mieter",
+  NICHT_ZUGEORDNET: "Nicht zugeordnet",
+};
 
 // Gleiches Prinzip wie bei Mietweiterleitungen oben (siehe MietweiterleitungHinweisKategorie),
 // mit derselben Aufspaltung von "erkannt" nach Dedup-Status wie beim Nebenkostenausgleich (siehe
@@ -1394,6 +1408,7 @@ function toKautionEditRow(r: ParsedZahlungRow, bestehend: Set<string>): KautionE
     // Nur automatisch erkannte Kautionsbuchungen sind initial angehakt — siehe
     // toMietweiterleitungEditRow oben für dieselbe Überlegung.
     ausgewaehlt: r.errors.length === 0 && r.kaution && !duplikat,
+    kategorie: r.kautionKategorieVorschlag ?? "EINZAHLUNG_MIETER",
   };
 }
 
@@ -1443,6 +1458,7 @@ function KautionSektion({
     empfaenger: r.name,
     verwendungszweck: r.verwendungszweck,
     rohdaten: r.rohdaten,
+    kategorie: r.kategorie,
   }));
 
   if (commitMessage) {
@@ -1499,6 +1515,7 @@ function KautionSektion({
               <th className="px-3 py-2">Betrag</th>
               <th className="px-3 py-2">Verwendungszweck</th>
               <th className="px-3 py-2">Mietvertrag</th>
+              <th className="px-3 py-2">Kategorie</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
             </tr>
@@ -1540,6 +1557,27 @@ function KautionSektion({
                         onChange={(id) => updateRow(r.rowNumber, { gewaehlterMietvertragId: id })}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      {r.kaution ? (
+                        <select
+                          value={r.kategorie}
+                          onChange={(e) =>
+                            updateRow(r.rowNumber, { kategorie: e.target.value as KautionKategorie })
+                          }
+                          className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400"
+                        >
+                          {(
+                            ["EINZAHLUNG_MIETER", "ANLAGE", "AUFLOESUNG", "AUSZAHLUNG_MIETER"] as const
+                          ).map((k) => (
+                            <option key={k} value={k} className="bg-neutral-900">
+                              {KAUTION_KATEGORIE_LABEL[k]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-neutral-600">–</span>
+                      )}
+                    </td>
                     <td className="px-3 py-1.5 text-xs">
                       {r.errors.length > 0 ? (
                         <span className="text-red-400">{r.errors.join("; ")}</span>
@@ -1561,13 +1599,13 @@ function KautionSektion({
                       />
                     </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={8} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>

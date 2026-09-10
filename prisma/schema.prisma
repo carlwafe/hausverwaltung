@@ -495,9 +495,31 @@ model KautionBuchung {
   importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   importBatchId    String?
   createdAt        DateTime     @default(now())
+  // Welche Art von Kautionsbewegung das ist — siehe KautionBuchungKategorie. Default deckt
+  // bereits importierte Altbuchungen ab, die noch keiner der vier echten Kategorien zugeordnet
+  // wurden (vorübergehend, bis manuell nachgetragen).
+  kategorie        KautionBuchungKategorie @default(NICHT_ZUGEORDNET)
 
   @@index([mietvertragId])
   @@map("kautionsbuchungen")
+}
+
+enum KautionBuchungKategorie {
+  // Ursprüngliche Einzahlung der Kaution durch den Mieter (oder in seinem Auftrag, z.B. eine
+  // Behörde) auf das Konto, bei Mietbeginn.
+  EINZAHLUNG_MIETER
+  // Interne Überweisung vom Geschäfts- aufs Kautionskonto — Verwendungszweck nennt dafür
+  // zuverlässig das Wort "Anlage" (siehe KAUTION_ANLAGE_PATTERN in bank-csv.ts).
+  ANLAGE
+  // Interne Überweisung vom Kautionskonto zurück aufs Geschäftskonto, meist beim Auszug — dafür
+  // gibt es (anders als bei ANLAGE) kein zuverlässiges Schlüsselwort, muss aktuell manuell
+  // gesetzt werden.
+  AUFLOESUNG
+  // Teil- oder Gesamtauszahlung der Kaution an den (ausgezogenen) Mieter.
+  AUSZAHLUNG_MIETER
+  // Platzhalter für bereits importierte Altbuchungen, die noch nicht manuell kategorisiert
+  // wurden.
+  NICHT_ZUGEORDNET
 }
 
 // Bankbuchung, die bewusst keiner der anderen Kategorien zugeordnet wird — z.B. eine

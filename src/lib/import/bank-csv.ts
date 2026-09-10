@@ -106,6 +106,12 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 // fälschlich als Eigentümer-Buchung statt als Kaution erkennen.
 export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
 
+// Unterscheidet innerhalb der Kaution-Buchungen die interne Überweisung vom Geschäfts- aufs
+// Kautionskonto (immer ausgehend, Verwendungszweck nennt explizit "Anlage" — in allen bisher
+// beobachteten realen Buchungen zuverlässig, z.B. "Anlage Mietsicherheit ...", "Anlage Kaution
+// ...") von einer echten Auszahlung an den Mieter (ausgehend, aber ohne dieses Wort).
+export const KAUTION_ANLAGE_PATTERN = /anlage/i;
+
 // Ebenfalls Vorrang vor der Eigentümer-Erkennung, aus demselben Grund wie Kaution: die
 // eingesammelten Waschgeld-Münzen laufen mitunter über ein privates Konto der Eigentümerin,
 // bevor sie (in beide Richtungen) auf das Geschäftskonto verbucht werden — ohne diese Ausnahme
