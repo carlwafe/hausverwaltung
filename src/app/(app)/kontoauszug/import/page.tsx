@@ -1337,13 +1337,7 @@ function MietweiterleitungenSektion({
 
 // ---------- Kaution ----------
 
-type KautionKategorie =
-  | "EINZAHLUNG_MIETER"
-  | "ANLAGE"
-  | "AUFLOESUNG"
-  | "AUSZAHLUNG_MIETER"
-  | "SONSTIGES"
-  | "NICHT_ZUGEORDNET";
+type KautionKategorie = "EINZAHLUNG_MIETER" | "ANLAGE" | "AUFLOESUNG" | "AUSZAHLUNG_MIETER" | "SONSTIGES";
 
 type KautionEditRow = ParsedZahlungRow & {
   gewaehlterMietvertragId: string;
@@ -1357,7 +1351,6 @@ const KAUTION_KATEGORIE_LABEL: Record<KautionKategorie, string> = {
   AUFLOESUNG: "Auflösung (vom Kautionskonto)",
   AUSZAHLUNG_MIETER: "Auszahlung Mieter",
   SONSTIGES: "Sonstiges (z.B. Korrektur)",
-  NICHT_ZUGEORDNET: "Nicht zugeordnet",
 };
 
 // Gleiches Prinzip wie bei Mietweiterleitungen oben (siehe MietweiterleitungHinweisKategorie),

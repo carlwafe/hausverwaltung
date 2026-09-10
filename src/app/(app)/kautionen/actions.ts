@@ -17,7 +17,6 @@ const KATEGORIE_WERTE = [
   "AUFLOESUNG",
   "AUSZAHLUNG_MIETER",
   "SONSTIGES",
-  "NICHT_ZUGEORDNET",
 ] as const;
 type KautionBuchungKategorie = (typeof KATEGORIE_WERTE)[number];
 

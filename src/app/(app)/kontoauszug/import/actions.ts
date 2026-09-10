@@ -653,13 +653,7 @@ type KautionsbuchungCommitRow = {
   empfaenger: string;
   verwendungszweck: string;
   rohdaten: Record<string, string>;
-  kategorie:
-    | "EINZAHLUNG_MIETER"
-    | "ANLAGE"
-    | "AUFLOESUNG"
-    | "AUSZAHLUNG_MIETER"
-    | "SONSTIGES"
-    | "NICHT_ZUGEORDNET";
+  kategorie: "EINZAHLUNG_MIETER" | "ANLAGE" | "AUFLOESUNG" | "AUSZAHLUNG_MIETER" | "SONSTIGES";
 };
 
 export async function commitKautionsbuchungen(

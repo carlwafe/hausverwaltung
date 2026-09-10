@@ -19,8 +19,7 @@ export type KautionBuchungKategorie =
   | "ANLAGE"
   | "AUFLOESUNG"
   | "AUSZAHLUNG_MIETER"
-  | "SONSTIGES"
-  | "NICHT_ZUGEORDNET";
+  | "SONSTIGES";
 
 const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
   EINZAHLUNG_MIETER: "Einzahlung Mieter",
@@ -28,7 +27,6 @@ const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
   AUFLOESUNG: "Auflösung (vom Kautionskonto)",
   AUSZAHLUNG_MIETER: "Auszahlung Mieter",
   SONSTIGES: "Sonstiges (z.B. Korrektur)",
-  NICHT_ZUGEORDNET: "Nicht zugeordnet",
 };
 
 export type KautionsbuchungRow = {
@@ -57,11 +55,7 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
           aktualisiereKautionsbuchungKategorie(k.id, e.target.value as KautionBuchungKategorie),
         )
       }
-      className={`rounded-md border px-1.5 py-1 text-xs outline-none focus:border-neutral-400 disabled:opacity-50 ${
-        k.kategorie === "NICHT_ZUGEORDNET"
-          ? "border-amber-800 bg-amber-500/10 text-amber-300"
-          : "border-neutral-700 bg-transparent text-white"
-      }`}
+      className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400 disabled:opacity-50"
     >
       {(Object.keys(KATEGORIE_LABEL) as KautionBuchungKategorie[]).map((kat) => (
         <option key={kat} value={kat} className="bg-neutral-900 text-white">
@@ -128,7 +122,6 @@ const columns: Column<KautionsbuchungRow>[] = [
 export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KautionsbuchungRow[]>([]);
   const [pending, startTransition] = useTransition();
-  const nichtZugeordnet = rows.filter((r) => r.kategorie === "NICHT_ZUGEORDNET").length;
 
   function loeschen() {
     if (ausgewaehlt.length === 0) return;
@@ -141,12 +134,6 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
 
   return (
     <div>
-      {nichtZugeordnet > 0 && (
-        <p className="mb-3 text-sm text-amber-400">
-          {nichtZugeordnet} Buchung{nichtZugeordnet === 1 ? "" : "en"} noch ohne Kategorie — bitte in der
-          Tabelle nachtragen.
-        </p>
-      )}
       {ausgewaehlt.length > 0 && (
         <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
           <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>

@@ -502,10 +502,10 @@ model KautionBuchung {
   importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   importBatchId    String?
   createdAt        DateTime     @default(now())
-  // Welche Art von Kautionsbewegung das ist — siehe KautionBuchungKategorie. Default deckt
-  // bereits importierte Altbuchungen ab, die noch keiner der vier echten Kategorien zugeordnet
-  // wurden (vorübergehend, bis manuell nachgetragen).
-  kategorie        KautionBuchungKategorie @default(NICHT_ZUGEORDNET)
+  // Welche Art von Kautionsbewegung das ist — siehe KautionBuchungKategorie. Kein Default mehr
+  // (früher NICHT_ZUGEORDNET als Platzhalter für Altbuchungen) — jede Buchung bekommt beim
+  // Import bereits eine echte Kategorie zugewiesen.
+  kategorie        KautionBuchungKategorie
 
   @@index([mietvertragId])
   @@map("kautionsbuchungen")
@@ -526,11 +526,8 @@ enum KautionBuchungKategorie {
   AUSZAHLUNG_MIETER
   // Bewusst abgeschlossen, aber keine der vier echten Kategorien — z.B. eine Korrekturbuchung für
   // eine versehentliche Doppelüberweisung ohne Bezug zu einem echten Auflösungs-/Auszahlungs-
-  // Vorgang. Anders als NICHT_ZUGEORDNET (siehe unten) kein "muss noch bearbeitet werden".
+  // Vorgang.
   SONSTIGES
-  // Platzhalter für bereits importierte Altbuchungen, die noch nicht manuell kategorisiert
-  // wurden.
-  NICHT_ZUGEORDNET
 }
 
 // Bankbuchung, die bewusst keiner der anderen Kategorien zugeordnet wird — z.B. eine
