@@ -489,10 +489,18 @@ export function mapKostenRows(
           !/miete/i.test(verwendungszweck)));
     const gutschrift =
       istEingehend && !kaution && !nebenkostenausgleich && (bekannterKostenEmpfaenger || kleinreparatur);
+    // Eine Rücklastschrift ist zwar eine ausgehende Buchung, aber keine Kostenposition — sie
+    // korrigiert lediglich eine zuvor gutgeschriebene Miete, die tatsächlich nicht bezahlt wurde,
+    // und wird bereits vollständig im Zahlungen-Import als negative Korrekturbuchung erfasst (siehe
+    // rueckbuchung in zahlungen-import.ts). Ohne diesen Ausschluss würde z.B. ein Mieter, der
+    // früher einmal eine Kleinreparatur-Erstattung erhalten hat, dazu führen, dass seine spätere
+    // Rücklastschrift per Empfänger-Historie fälschlich als "Reparaturen"-Kosten vorgeschlagen und
+    // vorausgewählt wird.
     const ignorieren =
       eigentuemerBuchung ||
       kaution ||
       nebenkostenausgleich ||
+      rueckbuchung ||
       (istEingehend && !kaution && !nebenkostenausgleich && !bekannterKostenEmpfaenger && !kleinreparatur);
 
     const betrag = rohBetrag !== null ? -rohBetrag : null;

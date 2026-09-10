@@ -588,9 +588,12 @@ function ermittleKostenHinweis(
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
   if (r.kaution) return "kaution";
+  // Vor dem generischen ignorieren-Fall geprüft, damit eine (ausgehende) Rücklastschrift nicht
+  // fälschlich als "Eingehend, bitte prüfen" beschriftet wird — sie ist zwar ignorieren === true
+  // (siehe kosten-import.ts), aber ein eigener, aussagekräftigerer Hinweis.
+  if (r.rueckbuchung) return "rueckbuchung";
   if (r.ignorieren) return "eingehend";
   if (r.gutschrift) return "gutschrift";
-  if (r.rueckbuchung) return "rueckbuchung";
   return hatVollstaendigenVorschlag(r) ? "vorschlag" : "pruefen";
 }
 
