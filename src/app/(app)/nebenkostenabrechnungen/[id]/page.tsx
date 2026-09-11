@@ -13,6 +13,7 @@ import {
   setAbrechnungStatus,
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
+import { VorverteilteKostenanteileForm, type VorverteilteZeile } from "../vorverteilte-kostenanteile-form";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -47,19 +48,32 @@ export default async function NebenkostenabrechnungDetailPage({
   });
   if (!abrechnung) notFound();
 
-  const [kostenpositionenRoh, einheitenRoh, verbrauchswerteRoh, mietvertraegeRoh] = await Promise.all([
-    prisma.kostenposition.findMany({
-      where: { jahr: abrechnung.jahr, kostenart: { umlagefaehig: true } },
-      include: { kostenart: true },
-    }),
-    prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
-    prisma.verbrauchswert.findMany({ where: { jahr: abrechnung.jahr } }),
-    prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET"] } },
-      include: { einheit: true, mieter: true },
-      orderBy: { einheit: { bezeichnung: "asc" } },
-    }),
-  ]);
+  const [
+    kostenpositionenRoh,
+    einheitenRoh,
+    verbrauchswerteRoh,
+    mietvertraegeRoh,
+    vorverteilteKostenarten,
+    vorverteilteKostenanteileRoh,
+  ] = await Promise.all([
+      prisma.kostenposition.findMany({
+        where: { jahr: abrechnung.jahr, kostenart: { umlagefaehig: true } },
+        include: { kostenart: true },
+      }),
+      prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
+      prisma.verbrauchswert.findMany({ where: { jahr: abrechnung.jahr } }),
+      prisma.mietvertrag.findMany({
+        where: { status: { in: ["AKTIV", "BEENDET"] } },
+        include: { einheit: true, mieter: true },
+        orderBy: { einheit: { bezeichnung: "asc" } },
+      }),
+      prisma.kostenart.findMany({
+        where: { standardVerteilerschluessel: "VORVERTEILT" },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.vorverteilterKostenanteil.findMany({ where: { jahr: abrechnung.jahr } }),
+    ]);
   const mietvertragKandidaten = mietvertraegeRoh.map((v) => ({
     id: v.id,
     label: `${v.einheit.bezeichnung} - ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
@@ -90,6 +104,47 @@ export default async function NebenkostenabrechnungDetailPage({
       jahr: v.jahr,
       wert: Number(v.wert),
     })),
+  );
+
+  // Für jede Kostenart mit VORVERTEILT: Gebäude-/Haus-/Kostengruppen-Zuordnung wird nicht neu
+  // modelliert, sondern wie an anderen Stellen im Kosten-Modul aus der jüngsten bestehenden
+  // Kostenposition dieser Kostenart abgeleitet (dieselbe Kostenart wird bisher immer konsistent
+  // für denselben Gebäude-/Haus-/Kostengruppen-Scope gebucht).
+  const wohnungenRoh = einheitenRoh.filter((e) => e.typ === "WOHNUNG");
+  const vorverteilteGruppen = await Promise.all(
+    vorverteilteKostenarten.map(async (k) => {
+      const juengste = await prisma.kostenposition.findFirst({
+        where: { kostenartId: k.id },
+        orderBy: { datum: "desc" },
+        select: { gebaeudeId: true, hausId: true, kostengruppeId: true },
+      });
+      const passendeEinheitIds = new Set(
+        (juengste?.kostengruppeId
+          ? wohnungenRoh.filter((e) => e.gebaeude.kostengruppen.some((kg) => kg.id === juengste.kostengruppeId))
+          : juengste?.hausId
+            ? wohnungenRoh.filter((e) => e.gebaeude.hausId === juengste.hausId)
+            : juengste?.gebaeudeId
+              ? wohnungenRoh.filter((e) => e.gebaeudeId === juengste.gebaeudeId)
+              : []
+        ).map((e) => e.id),
+      );
+      const betraege = new Map(
+        vorverteilteKostenanteileRoh
+          .filter((v) => v.kostenartId === k.id)
+          .map((v) => [v.mietvertragId, Number(v.betrag)]),
+      );
+      const zeilen: VorverteilteZeile[] = abrechnung.positionen
+        .filter((p) => p.mietvertragId && passendeEinheitIds.has(p.einheitId))
+        .map((p) => ({
+          mietvertragId: p.mietvertragId!,
+          einheitBezeichnung: p.einheit.bezeichnung,
+          mieterNamen: p.mietvertrag ? p.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") : "–",
+          zeitraumVon: p.zeitraumVon.toISOString(),
+          zeitraumBis: p.zeitraumBis.toISOString(),
+          betrag: betraege.get(p.mietvertragId!) ?? null,
+        }));
+      return { kostenartId: k.id, kostenartName: k.name, zeilen };
+    }),
   );
 
   const summeKostenanteil = abrechnung.positionen.reduce((s, p) => s + Number(p.kostenanteilGesamt), 0);
@@ -182,24 +237,25 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       )}
 
-      {nichtBeruecksichtigt.some((n) => n.grund === "vorverteilt") && (
-        <div className="mb-6 rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
+      {vorverteilteGruppen.length > 0 && (
+        <div className="mb-6">
           <p className="mb-2 text-sm font-medium text-neutral-300">
-            Extern vorverteilte Kostenarten — hier bewusst nicht berechnet
+            Extern vorverteilte Kostenarten — hier bewusst nicht selbst berechnet
           </p>
-          <ul className="space-y-1 text-sm text-neutral-300">
-            {nichtBeruecksichtigt
-              .filter((n) => n.grund === "vorverteilt")
-              .map((n) => (
-                <li key={n.kostenartName}>
-                  {n.kostenartName}: {formatEuro(n.summe)}
-                </li>
-              ))}
-          </ul>
-          <p className="mt-2 text-xs text-neutral-500">
-            Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Aufschlüsselung) und wird
-            separat importiert, nicht hier berechnet.
+          <p className="mb-3 text-xs text-neutral-500">
+            Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Gesamtabrechnung) — trag den
+            jeweiligen Betrag pro Mietvertrag ein und klicke danach auf &quot;Neu berechnen&quot;,
+            damit er in den Kostenanteil einfließt.
           </p>
+          {vorverteilteGruppen.map((g) => (
+            <VorverteilteKostenanteileForm
+              key={g.kostenartId}
+              jahr={abrechnung.jahr}
+              kostenartId={g.kostenartId}
+              kostenartName={g.kostenartName}
+              zeilen={g.zeilen}
+            />
+          ))}
         </div>
       )}
 

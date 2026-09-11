@@ -52,6 +52,18 @@ export type VerbrauchswertFuerAbrechnung = {
   wert: number;
 };
 
+// Der tatsächliche, extern (z.B. von Techem) schon korrekt pro Mieter berechnete Anteil einer
+// Kostenart mit Verteilerschlüssel VORVERTEILT — wird nicht wie die anderen Verteilerschlüssel im
+// Pool verrechnet, sondern direkt auf die Position des jeweiligen Mietvertrags addiert (Techems
+// eigener Betrag hat den Zeitanteil bei einem Mieterwechsel schon eingerechnet, siehe
+// VorverteilterKostenanteil in schema.prisma).
+export type VorverteilterKostenanteilFuerAbrechnung = {
+  mietvertragId: string;
+  kostenartId: string;
+  jahr: number;
+  betrag: number;
+};
+
 export type AbrechnungPositionErgebnis = {
   einheitId: string;
   mietvertragId: string;
@@ -220,6 +232,7 @@ export function berechneNebenkostenabrechnung(
   einheiten: EinheitFuerAbrechnung[],
   mietvertraege: MietvertragFuerAbrechnung[],
   verbrauchswerte: VerbrauchswertFuerAbrechnung[] = [],
+  vorverteilteAnteile: VorverteilterKostenanteilFuerAbrechnung[] = [],
 ): AbrechnungErgebnis {
   const { anteilProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(
     jahr,
@@ -248,7 +261,13 @@ export function berechneNebenkostenabrechnung(
       const tage = tageZwischen(von, bis);
       const zeitanteil = tage / tageGesamt;
 
-      const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil);
+      // Vorverteilter Anteil (z.B. Techem-Heizkosten) kommt ohne erneute Zeitanteil-Prorata
+      // obendrauf — siehe VorverteilterKostenanteilFuerAbrechnung oben.
+      const vorverteilterAnteil = vorverteilteAnteile
+        .filter((v) => v.mietvertragId === mv.id && v.jahr === jahr)
+        .reduce((s, v) => s + v.betrag, 0);
+
+      const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
       const vorauszahlungGesamt = round2(mv.nebenkostenVorauszahlung * 12 * zeitanteil);
 
       positionen.push({

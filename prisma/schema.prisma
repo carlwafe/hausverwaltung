@@ -229,12 +229,13 @@ model Mietvertrag {
   saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
   createdAt                DateTime          @default(now())
 
-  kaution               Kaution?
-  kautionsbuchungen     KautionBuchung[]
-  zahlungen             Zahlung[]
-  dokumente             Dokument[]
-  abrechnungspositionen NebenkostenabrechnungPosition[]
-  sonstigeBuchungen     SonstigeBuchung[]
+  kaution                   Kaution?
+  kautionsbuchungen         KautionBuchung[]
+  zahlungen                 Zahlung[]
+  dokumente                 Dokument[]
+  abrechnungspositionen     NebenkostenabrechnungPosition[]
+  sonstigeBuchungen         SonstigeBuchung[]
+  vorverteilteKostenanteile VorverteilterKostenanteil[]
 
   @@map("mietvertraege")
 }
@@ -272,20 +273,20 @@ model Kaution {
 }
 
 model Zahlung {
-  id               String       @id @default(cuid())
-  mietvertrag      Mietvertrag  @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
-  mietvertragId    String
-  datum            DateTime
-  betrag           Decimal      @db.Decimal(10, 2)
-  periodeMonat     Int
-  periodeJahr      Int
-  verwendungszweck String?
+  id                 String       @id @default(cuid())
+  mietvertrag        Mietvertrag  @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId      String
+  datum              DateTime
+  betrag             Decimal      @db.Decimal(10, 2)
+  periodeMonat       Int
+  periodeJahr        Int
+  verwendungszweck   String?
   // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
   // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
-  rohdaten         Json?
-  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId    String?
-  createdAt        DateTime     @default(now())
+  rohdaten           Json?
+  importBatch        ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId      String?
+  createdAt          DateTime     @default(now())
   // Gesetzt, wenn diese Zahlung aus dem Aufteilen einer ursprünglich als eine Buchung
   // importierten/erfassten Zahlung entstanden ist (z.B. eine Überweisung, die Miete für Wohnung
   // und Garage in einer Summe zahlt). Alle Zahlungen mit derselben Id gehören zur selben
@@ -308,8 +309,9 @@ model Kostenart {
   masseinheit                 String?
   createdAt                   DateTime             @default(now())
 
-  kostenpositionen Kostenposition[]
-  verbrauchswerte  Verbrauchswert[]
+  kostenpositionen          Kostenposition[]
+  verbrauchswerte           Verbrauchswert[]
+  vorverteilteKostenanteile VorverteilterKostenanteil[]
 
   @@map("kostenarten")
 }
@@ -335,34 +337,58 @@ model Verbrauchswert {
   @@map("verbrauchswerte")
 }
 
-model Kostenposition {
-  id             String        @id @default(cuid())
-  kostenart      Kostenart     @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+// Der tatsächliche, extern (z.B. von Techem) schon korrekt pro Mieter berechnete Anteil einer
+// Kostenart mit Verteilerschlüssel VORVERTEILT (siehe Kommentar dort) — die Engine berechnet
+// diese Kostenart nie selbst (siehe src/lib/nebenkostenabrechnung.ts), sondern addiert stattdessen
+// den hier erfassten Betrag auf die passende NebenkostenabrechnungPosition. Pro Mietvertrag statt
+// pro Einheit (wie Verbrauchswert), weil z.B. Techem bei einem unterjährigen Mieterwechsel selbst
+// schon pro Nutzungszeitraum aufteilt — entspricht 1:1 unserem eigenen Modell "eine Position pro
+// Mietvertrag/Zeitraum". Bewusst unabhängig vom NebenkostenabrechnungPosition-Lebenszyklus (wird
+// bei einem "Neu berechnen" nicht gelöscht), damit der eingetragene Wert erhalten bleibt.
+model VorverteilterKostenanteil {
+  id             String      @id @default(cuid())
+  mietvertrag    Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId  String
+  kostenart      Kostenart   @relation(fields: [kostenartId], references: [id], onDelete: Cascade)
   kostenartId    String
+  jahr           Int
+  betrag         Decimal     @db.Decimal(10, 2)
+  notizen        String?
+  createdAt      DateTime    @default(now())
+  aktualisiertAm DateTime    @updatedAt
+
+  @@unique([mietvertragId, kostenartId, jahr])
+  @@map("vorverteilte_kostenanteile")
+}
+
+model Kostenposition {
+  id                 String        @id @default(cuid())
+  kostenart          Kostenart     @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+  kostenartId        String
   // Höchstens eins von gebaeude/haus/kostengruppe ist gesetzt: gebaeude für eine einzelne
   // Adresse (z.B. eine Reparatur), haus für ein ganzes Bauwerk mit mehreren Hausnummern (z.B.
   // Grundsteuer), kostengruppe für eine frei zusammengestellte Gruppe über Haus-Grenzen hinweg
   // (z.B. wenn ein Versorger mehrere Häuser gemeinsam abrechnet). Sind alle drei null, betrifft
   // die Kostenposition das ganze Objekt (z.B. Bankgebühren).
-  gebaeude       Gebaeude?     @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
-  gebaeudeId     String?
-  haus           Haus?         @relation(fields: [hausId], references: [id], onDelete: SetNull)
-  hausId         String?
-  kostengruppe   Kostengruppe? @relation(fields: [kostengruppeId], references: [id], onDelete: SetNull)
-  kostengruppeId String?
-  jahr           Int
+  gebaeude           Gebaeude?     @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
+  gebaeudeId         String?
+  haus               Haus?         @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId             String?
+  kostengruppe       Kostengruppe? @relation(fields: [kostengruppeId], references: [id], onDelete: SetNull)
+  kostengruppeId     String?
+  jahr               Int
   // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
   // Kostenpositionen kennen nur das Jahr).
-  datum          DateTime?
-  betrag         Decimal       @db.Decimal(10, 2)
-  beschreibung   String?
-  empfaenger     String?
+  datum              DateTime?
+  betrag             Decimal       @db.Decimal(10, 2)
+  beschreibung       String?
+  empfaenger         String?
   // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
   // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
-  rohdaten       Json?
-  importBatch    ImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId  String?
-  createdAt      DateTime      @default(now())
+  rohdaten           Json?
+  importBatch        ImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId      String?
+  createdAt          DateTime      @default(now())
   // Gesetzt, wenn diese Position aus dem Aufteilen einer ursprünglich als eine Buchung
   // importierten Kostenposition entstanden ist (z.B. eine Hausmeister-Rechnung, die sowohl
   // umlagefähigen Hausmeisterdienst als auch nicht umlagefähigen Winterdienst enthält). Alle
@@ -373,7 +399,7 @@ model Kostenposition {
 
   // Manuelle Verrechnung mit einer Kaution (z.B. eine Reparatur, die vom einbehaltenen Betrag
   // beim Auszug abgezogen wird) — siehe Kaution.kostenpositionen, kaution.ts.
-  kaution   Kaution?   @relation(fields: [kautionId], references: [id], onDelete: SetNull)
+  kaution   Kaution? @relation(fields: [kautionId], references: [id], onDelete: SetNull)
   kautionId String?
 
   dokumente Dokument[]
@@ -491,17 +517,17 @@ model EigentuemerBuchung {
 // Anlageform/Status) — hier geht es nur um die reine Buchungshistorie aus dem
 // Kontoauszug-Import. Kein automatischer Abgleich zwischen beiden.
 model KautionBuchung {
-  id               String       @id @default(cuid())
-  mietvertrag      Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  id               String                  @id @default(cuid())
+  mietvertrag      Mietvertrag?            @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
   mietvertragId    String?
   datum            DateTime
-  betrag           Decimal      @db.Decimal(10, 2)
+  betrag           Decimal                 @db.Decimal(10, 2)
   empfaenger       String?
   verwendungszweck String?
   rohdaten         Json?
-  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch      ImportBatch?            @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   importBatchId    String?
-  createdAt        DateTime     @default(now())
+  createdAt        DateTime                @default(now())
   // Welche Art von Kautionsbewegung das ist — siehe KautionBuchungKategorie. Kein Default mehr
   // (früher NICHT_ZUGEORDNET als Platzhalter für Altbuchungen) — jede Buchung bekommt beim
   // Import bereits eine echte Kategorie zugewiesen.

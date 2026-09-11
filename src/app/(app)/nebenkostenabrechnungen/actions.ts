@@ -10,18 +10,21 @@ import {
   type KostenpositionFuerAbrechnung,
   type MietvertragFuerAbrechnung,
   type VerbrauchswertFuerAbrechnung,
+  type VorverteilterKostenanteilFuerAbrechnung,
 } from "@/lib/nebenkostenabrechnung";
 
 async function ladeBerechnungsdaten(jahr: number) {
-  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw] = await Promise.all([
-    prisma.kostenposition.findMany({
-      where: { jahr, kostenart: { umlagefaehig: true } },
-      include: { kostenart: true },
-    }),
-    prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
-    prisma.mietvertrag.findMany(),
-    prisma.verbrauchswert.findMany({ where: { jahr } }),
-  ]);
+  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw, vorverteilteAnteileRaw] =
+    await Promise.all([
+      prisma.kostenposition.findMany({
+        where: { jahr, kostenart: { umlagefaehig: true } },
+        include: { kostenart: true },
+      }),
+      prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
+      prisma.mietvertrag.findMany(),
+      prisma.verbrauchswert.findMany({ where: { jahr } }),
+      prisma.vorverteilterKostenanteil.findMany({ where: { jahr } }),
+    ]);
 
   const kostenpositionen: KostenpositionFuerAbrechnung[] = kostenpositionenRaw.map((k) => ({
     betrag: Number(k.betrag),
@@ -54,8 +57,14 @@ async function ladeBerechnungsdaten(jahr: number) {
     jahr: v.jahr,
     wert: Number(v.wert),
   }));
+  const vorverteilteAnteile: VorverteilterKostenanteilFuerAbrechnung[] = vorverteilteAnteileRaw.map((v) => ({
+    mietvertragId: v.mietvertragId,
+    kostenartId: v.kostenartId,
+    jahr: v.jahr,
+    betrag: Number(v.betrag),
+  }));
 
-  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte };
+  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile };
 }
 
 export async function createAbrechnung(formData: FormData) {
@@ -70,8 +79,16 @@ export async function createAbrechnung(formData: FormData) {
     throw new Error(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
-  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte } = await ladeBerechnungsdaten(jahr);
-  const ergebnis = berechneNebenkostenabrechnung(jahr, kostenpositionen, einheiten, mietvertraege, verbrauchswerte);
+  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile } =
+    await ladeBerechnungsdaten(jahr);
+  const ergebnis = berechneNebenkostenabrechnung(
+    jahr,
+    kostenpositionen,
+    einheiten,
+    mietvertraege,
+    verbrauchswerte,
+    vorverteilteAnteile,
+  );
 
   const abrechnung = await prisma.nebenkostenabrechnung.create({
     data: {
@@ -188,13 +205,15 @@ function beglichenSchluessel(einheitId: string, mietvertragId: string | null) {
 export async function neuBerechnen(id: string) {
   await requireEditor();
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
-  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte } = await ladeBerechnungsdaten(abrechnung.jahr);
+  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile } =
+    await ladeBerechnungsdaten(abrechnung.jahr);
   const ergebnis = berechneNebenkostenabrechnung(
     abrechnung.jahr,
     kostenpositionen,
     einheiten,
     mietvertraege,
     verbrauchswerte,
+    vorverteilteAnteile,
   );
 
   const bestehendeBeglichen = await prisma.nebenkostenabrechnungPosition.findMany({
@@ -270,6 +289,54 @@ export async function entferneBeglichen(positionId: string) {
     data: { beglichenAm: null, beglichenBetrag: null },
   });
   revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
+}
+
+// Speichert die von Techem (o.ä.) schon fertig pro Mieter berechneten Beträge für eine
+// VORVERTEILT-Kostenart — analog zu speichereVerbrauchswerte, nur pro Mietvertrag statt pro
+// Einheit (siehe VorverteilterKostenanteil in schema.prisma). Wirkt erst nach einem "Neu
+// berechnen" auf die Positionen, genau wie neu erfasste Verbrauchswerte.
+export async function speichereVorverteilteKostenanteile(formData: FormData) {
+  await requireEditor();
+
+  const jahr = Number(formData.get("jahr"));
+  if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
+    throw new Error("Ungültiges Jahr.");
+  }
+  const kostenartId = String(formData.get("kostenartId") ?? "");
+  if (!kostenartId) {
+    throw new Error("Bitte eine Kostenart auswählen.");
+  }
+
+  const mietvertragIds = formData.getAll("mietvertragId").map(String);
+  const eintraege: { mietvertragId: string; betrag: number | null }[] = [];
+  for (const mietvertragId of mietvertragIds) {
+    const roh = formData.get(`betrag_${mietvertragId}`);
+    const text = typeof roh === "string" ? roh.trim().replace(",", ".") : "";
+    if (text === "") {
+      eintraege.push({ mietvertragId, betrag: null });
+      continue;
+    }
+    const betrag = Number(text);
+    if (!Number.isFinite(betrag) || betrag < 0) {
+      throw new Error(`Ungültiger Betrag für einen Mietvertrag: "${text}".`);
+    }
+    eintraege.push({ mietvertragId, betrag });
+  }
+
+  await prisma.$transaction(
+    eintraege.map(({ mietvertragId, betrag }) =>
+      betrag === null
+        ? prisma.vorverteilterKostenanteil.deleteMany({ where: { mietvertragId, kostenartId, jahr } })
+        : prisma.vorverteilterKostenanteil.upsert({
+            where: { mietvertragId_kostenartId_jahr: { mietvertragId, kostenartId, jahr } },
+            create: { mietvertragId, kostenartId, jahr, betrag },
+            update: { betrag },
+          }),
+    ),
+  );
+
+  const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
+  if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
 
 export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL") {
