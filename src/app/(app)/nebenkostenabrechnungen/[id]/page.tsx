@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -5,9 +6,11 @@ import { DeleteButton } from "@/components/delete-button";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
 import { toDateInputValue } from "@/lib/date-utils";
+import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import {
   deleteAbrechnung,
   entferneBeglichen,
+  ladeBerechnungsdaten,
   markiereBeglichen,
   neuBerechnen,
   setAbrechnungStatus,
@@ -21,6 +24,19 @@ function formatEuro(value: number) {
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
+}
+
+function formatZahl(n: number) {
+  return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(n);
+}
+
+// Beschreibt die Verteilungsbasis eines Kostenanteil-Beleg-Eintrags für die Anzeige, z.B.
+// "35,20 von 420,50 m²" (WOHNFLAECHE), "1 von 12 Einheiten" (EINHEITEN), "180 von 950 kWh"
+// (VERBRAUCH_MANUELL) oder "extern vorverteilt" (VORVERTEILT).
+function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
+  if (d.verteilerschluessel === "VORVERTEILT") return "extern vorverteilt";
+  if (d.verteilerschluessel === "EINHEITEN") return `1 von ${formatZahl(d.poolMasswert)} Einheiten`;
+  return `${formatZahl(d.einheitMasswert)} von ${formatZahl(d.poolMasswert)} ${d.masseinheit}`.trim();
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -48,20 +64,9 @@ export default async function NebenkostenabrechnungDetailPage({
   });
   if (!abrechnung) notFound();
 
-  const [
-    kostenpositionenRoh,
-    einheitenRoh,
-    verbrauchswerteRoh,
-    mietvertraegeRoh,
-    vorverteilteKostenarten,
-    vorverteilteKostenanteileRoh,
-  ] = await Promise.all([
-      prisma.kostenposition.findMany({
-        where: { jahr: abrechnung.jahr, kostenart: { umlagefaehig: true } },
-        include: { kostenart: true },
-      }),
-      prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
-      prisma.verbrauchswert.findMany({ where: { jahr: abrechnung.jahr } }),
+  const [{ kostenpositionen, einheiten, verbrauchswerte }, mietvertraegeRoh, vorverteilteKostenarten, vorverteilteKostenanteileRoh] =
+    await Promise.all([
+      ladeBerechnungsdaten(abrechnung.jahr),
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
         include: { einheit: true, mieter: true },
@@ -80,37 +85,16 @@ export default async function NebenkostenabrechnungDetailPage({
   }));
   const nichtBeruecksichtigt = ermittleNichtBeruecksichtigteKostenarten(
     abrechnung.jahr,
-    kostenpositionenRoh.map((k) => ({
-      betrag: Number(k.betrag),
-      gebaeudeId: k.gebaeudeId,
-      hausId: k.hausId,
-      kostengruppeId: k.kostengruppeId,
-      kostenartId: k.kostenartId,
-      verteilerschluessel: k.kostenart.standardVerteilerschluessel,
-      kostenartName: k.kostenart.name,
-    })),
-    einheitenRoh.map((e) => ({
-      id: e.id,
-      bezeichnung: e.bezeichnung,
-      typ: e.typ,
-      gebaeudeId: e.gebaeudeId,
-      hausId: e.gebaeude.hausId,
-      kostengruppenIds: e.gebaeude.kostengruppen.map((kg) => kg.id),
-      wohnflaecheQm: Number(e.wohnflaecheQm),
-    })),
-    verbrauchswerteRoh.map((v) => ({
-      einheitId: v.einheitId,
-      kostenartId: v.kostenartId,
-      jahr: v.jahr,
-      wert: Number(v.wert),
-    })),
+    kostenpositionen,
+    einheiten,
+    verbrauchswerte,
   );
 
   // Für jede Kostenart mit VORVERTEILT: Gebäude-/Haus-/Kostengruppen-Zuordnung wird nicht neu
   // modelliert, sondern wie an anderen Stellen im Kosten-Modul aus der jüngsten bestehenden
   // Kostenposition dieser Kostenart abgeleitet (dieselbe Kostenart wird bisher immer konsistent
   // für denselben Gebäude-/Haus-/Kostengruppen-Scope gebucht).
-  const wohnungenRoh = einheitenRoh.filter((e) => e.typ === "WOHNUNG");
+  const wohnungenRoh = einheiten.filter((e) => e.typ === "WOHNUNG");
   const vorverteilteGruppen = await Promise.all(
     vorverteilteKostenarten.map(async (k) => {
       const juengste = await prisma.kostenposition.findFirst({
@@ -120,9 +104,9 @@ export default async function NebenkostenabrechnungDetailPage({
       });
       const passendeEinheitIds = new Set(
         (juengste?.kostengruppeId
-          ? wohnungenRoh.filter((e) => e.gebaeude.kostengruppen.some((kg) => kg.id === juengste.kostengruppeId))
+          ? wohnungenRoh.filter((e) => e.kostengruppenIds.includes(juengste.kostengruppeId!))
           : juengste?.hausId
-            ? wohnungenRoh.filter((e) => e.gebaeude.hausId === juengste.hausId)
+            ? wohnungenRoh.filter((e) => e.hausId === juengste.hausId)
             : juengste?.gebaeudeId
               ? wohnungenRoh.filter((e) => e.gebaeudeId === juengste.gebaeudeId)
               : []
@@ -289,8 +273,14 @@ export default async function NebenkostenabrechnungDetailPage({
             </tr>
           </thead>
           <tbody>
-            {abrechnung.positionen.map((p) => (
-              <tr key={p.id} className="border-t border-neutral-800 hover:bg-neutral-900">
+            {abrechnung.positionen.map((p) => {
+              const details = ((p.details as KostenanteilDetailEintrag[] | null) ?? []).slice().sort((a, b) =>
+                a.kostenartName.localeCompare(b.kostenartName, "de"),
+              );
+              const summeDetails = details.reduce((s, d) => s + d.anteilZeitraum, 0);
+              return (
+              <Fragment key={p.id}>
+              <tr className="border-t border-neutral-800 hover:bg-neutral-900">
                 <td className="px-4 py-2 text-white">
                   <Link href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
                     {p.einheit.bezeichnung}
@@ -354,7 +344,62 @@ export default async function NebenkostenabrechnungDetailPage({
                   )}
                 </td>
               </tr>
-            ))}
+              <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
+                <td colSpan={8} className="px-4 py-2">
+                  <details className="text-xs">
+                    <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
+                      Kostenanteil-Aufschlüsselung {details.length > 0 ? `(${details.length})` : ""}
+                    </summary>
+                    {details.length === 0 ? (
+                      <p className="mt-2 text-neutral-500">
+                        Keine Aufschlüsselung gespeichert — manuell erfasste Position oder vor
+                        Einführung dieser Übersicht berechnet. &quot;Neu berechnen&quot; klicken, um sie
+                        nachzutragen.
+                      </p>
+                    ) : (
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full max-w-4xl text-xs">
+                          <thead className="text-left text-neutral-500">
+                            <tr>
+                              <th className="py-1 pr-3">Kostenart</th>
+                              <th className="py-1 pr-3">Kostenkreis</th>
+                              <th className="py-1 pr-3 text-right">Gesamt (Jahr)</th>
+                              <th className="py-1 pr-3">Verteilung</th>
+                              <th className="py-1 pr-3 text-right">Anteil (volles Jahr)</th>
+                              <th className="py-1 pr-3 text-right">Anteil (Zeitraum)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {details.map((d, i) => (
+                              <tr key={i} className="border-t border-neutral-800">
+                                <td className="py-1 pr-3 text-neutral-300">{d.kostenartName}</td>
+                                <td className="py-1 pr-3 text-neutral-500">{d.scopeLabel}</td>
+                                <td className="py-1 pr-3 text-right text-neutral-300">
+                                  {formatEuro(d.gesamtbetragPool)}
+                                </td>
+                                <td className="py-1 pr-3 text-neutral-500">{formatVerteilungsbasis(d)}</td>
+                                <td className="py-1 pr-3 text-right text-neutral-300">{formatEuro(d.anteilJahr)}</td>
+                                <td className="py-1 pr-3 text-right text-white">{formatEuro(d.anteilZeitraum)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t border-neutral-800 font-medium">
+                              <td colSpan={5} className="py-1 pr-3 text-right text-neutral-400">
+                                Summe Aufschlüsselung
+                              </td>
+                              <td className="py-1 pr-3 text-right text-white">{formatEuro(summeDetails)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </details>
+                </td>
+              </tr>
+              </Fragment>
+              );
+            })}
             {abrechnung.positionen.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">

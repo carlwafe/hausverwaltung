@@ -23,6 +23,12 @@ export type KostenpositionFuerAbrechnung = {
   kostenartId: string;
   verteilerschluessel: VerteilerschluesselTyp | null;
   kostenartName: string;
+  // Anzeige-Label des Kostenkreises (z.B. "Haus 5, 7, 9 (Breslauer Str.)" oder "Objekt gesamt") —
+  // vorberechnet übergeben (statt hier aus Gebäude/Haus/Kostengruppe abgeleitet), damit diese
+  // reine Berechnungs-Engine ohne Prisma-Zugriff auskommt.
+  scopeLabel: string;
+  // Nur bei VERBRAUCH_MANUELL relevant (z.B. "kWh", "m³") — für die Anzeige der Verteilungsbasis.
+  masseinheit: string | null;
 };
 
 export type EinheitFuerAbrechnung = {
@@ -60,9 +66,35 @@ export type VerbrauchswertFuerAbrechnung = {
 export type VorverteilterKostenanteilFuerAbrechnung = {
   mietvertragId: string;
   kostenartId: string;
+  kostenartName: string;
   jahr: number;
   betrag: number;
 };
+
+// Ein vollständig nachvollziehbarer Beleg-Eintrag für eine einzelne Kostenart innerhalb einer
+// Position: der Gesamtbetrag dieser Kostenart in ihrem Kostenkreis (z.B. "Grundsteuer Haus 5, 7, 9"
+// für das ganze Jahr), die Verteilungsbasis (z.B. Wohnfläche der Einheit von der Gesamtwohnfläche
+// des Kreises) und der daraus resultierende Anteil — einmal für das volle Jahr (anteilJahr) und
+// einmal tatsächlich in kostenanteilGesamt eingeflossen (anteilZeitraum, nach Zeitanteil-Prorata
+// bei einem unterjährigen Mietvertrag). Summe aller anteilZeitraum-Werte einer Position ergibt
+// (bis auf Rundung) kostenanteilGesamt.
+export type KostenanteilDetailEintrag = {
+  kostenartId: string;
+  kostenartName: string;
+  scopeLabel: string;
+  verteilerschluessel: VerteilerschluesselTyp;
+  gesamtbetragPool: number;
+  einheitMasswert: number;
+  poolMasswert: number;
+  masseinheit: string;
+  anteilJahr: number;
+  anteilZeitraum: number;
+};
+
+// Wie KostenanteilDetailEintrag, aber noch ohne Zeitanteil-Prorata — wird pro Einheit für das
+// ganze Jahr ermittelt (berechneEinheitAnteile), dann pro Mietvertrag/Zeitraum skaliert
+// (berechneNebenkostenabrechnung).
+type KostenanteilJahrDetail = Omit<KostenanteilDetailEintrag, "anteilZeitraum">;
 
 export type AbrechnungPositionErgebnis = {
   einheitId: string;
@@ -72,6 +104,7 @@ export type AbrechnungPositionErgebnis = {
   kostenanteilGesamt: number;
   vorauszahlungGesamt: number;
   saldo: number;
+  details: KostenanteilDetailEintrag[];
 };
 
 export type AusschlussGrund = "kein_verteilerschluessel" | "unvollstaendige_verbrauchswerte" | "vorverteilt";
@@ -111,7 +144,7 @@ function ermittlePool(
 
 function vermerkeAusschluss(
   nichtBeruecksichtigt: Map<string, NichtBeruecksichtigteKostenart>,
-  kp: KostenpositionFuerAbrechnung,
+  kp: Pick<KostenpositionFuerAbrechnung, "kostenartName" | "verteilerschluessel" | "betrag">,
   grund: AusschlussGrund,
 ) {
   const bisherig = nichtBeruecksichtigt.get(kp.kostenartName);
@@ -146,43 +179,122 @@ export function ermittleNichtBeruecksichtigteKostenarten(
   return berechneEinheitAnteile(jahr, kostenpositionen, einheiten, verbrauchswerte).nichtBeruecksichtigt;
 }
 
+// Gruppiert Kostenpositionen nach Kostenart+Kostenkreis (Gebäude/Haus/Kostengruppe/Objekt), damit
+// z.B. zwei Grundsteuer-Rechnungen für Haus 5, 7, 9 im selben Jahr als ein gemeinsamer
+// Gesamtbetrag in der Aufschlüsselung erscheinen, statt als zwei separate Zeilen.
+type KostenartGruppe = {
+  kostenartId: string;
+  kostenartName: string;
+  scopeLabel: string;
+  scope: Pick<KostenpositionFuerAbrechnung, "gebaeudeId" | "hausId" | "kostengruppeId">;
+  verteilerschluessel: VerteilerschluesselTyp | null;
+  masseinheit: string | null;
+  betrag: number;
+};
+
+function gruppenSchluessel(
+  kp: Pick<KostenpositionFuerAbrechnung, "kostenartId" | "gebaeudeId" | "hausId" | "kostengruppeId">,
+): string {
+  const scope = kp.kostengruppeId
+    ? `kg:${kp.kostengruppeId}`
+    : kp.hausId
+      ? `haus:${kp.hausId}`
+      : kp.gebaeudeId
+        ? `geb:${kp.gebaeudeId}`
+        : "objekt";
+  return `${kp.kostenartId}|${scope}`;
+}
+
+function pushDetail(
+  detailsProEinheit: Map<string, KostenanteilJahrDetail[]>,
+  einheitId: string,
+  eintrag: KostenanteilJahrDetail,
+) {
+  const liste = detailsProEinheit.get(einheitId);
+  if (liste) liste.push(eintrag);
+  else detailsProEinheit.set(einheitId, [eintrag]);
+}
+
 function berechneEinheitAnteile(
   jahr: number,
   kostenpositionen: KostenpositionFuerAbrechnung[],
   einheiten: EinheitFuerAbrechnung[],
   verbrauchswerte: VerbrauchswertFuerAbrechnung[],
-): { anteilProEinheit: Map<string, number>; nichtBeruecksichtigt: NichtBeruecksichtigteKostenart[] } {
+): {
+  anteilProEinheit: Map<string, number>;
+  detailsProEinheit: Map<string, KostenanteilJahrDetail[]>;
+  nichtBeruecksichtigt: NichtBeruecksichtigteKostenart[];
+} {
   const wohnungen = einheiten.filter((e) => e.typ === "WOHNUNG");
   const anteilProEinheit = new Map<string, number>(wohnungen.map((e) => [e.id, 0]));
+  const detailsProEinheit = new Map<string, KostenanteilJahrDetail[]>();
   const nichtBeruecksichtigt = new Map<string, NichtBeruecksichtigteKostenart>();
 
+  const gruppen = new Map<string, KostenartGruppe>();
   for (const kp of kostenpositionen) {
-    if (kp.verteilerschluessel === "VORVERTEILT") {
-      vermerkeAusschluss(nichtBeruecksichtigt, kp, "vorverteilt");
+    const schluessel = gruppenSchluessel(kp);
+    const bisherig = gruppen.get(schluessel);
+    gruppen.set(schluessel, {
+      kostenartId: kp.kostenartId,
+      kostenartName: kp.kostenartName,
+      scopeLabel: kp.scopeLabel,
+      scope: { gebaeudeId: kp.gebaeudeId, hausId: kp.hausId, kostengruppeId: kp.kostengruppeId },
+      verteilerschluessel: kp.verteilerschluessel,
+      masseinheit: kp.masseinheit,
+      betrag: (bisherig?.betrag ?? 0) + kp.betrag,
+    });
+  }
+
+  for (const g of gruppen.values()) {
+    if (g.verteilerschluessel === "VORVERTEILT") {
+      vermerkeAusschluss(nichtBeruecksichtigt, g, "vorverteilt");
       continue;
     }
     if (
-      kp.verteilerschluessel !== "WOHNFLAECHE" &&
-      kp.verteilerschluessel !== "EINHEITEN" &&
-      kp.verteilerschluessel !== "VERBRAUCH_MANUELL"
+      g.verteilerschluessel !== "WOHNFLAECHE" &&
+      g.verteilerschluessel !== "EINHEITEN" &&
+      g.verteilerschluessel !== "VERBRAUCH_MANUELL"
     ) {
-      vermerkeAusschluss(nichtBeruecksichtigt, kp, "kein_verteilerschluessel");
+      vermerkeAusschluss(nichtBeruecksichtigt, g, "kein_verteilerschluessel");
       continue;
     }
 
-    const pool = ermittlePool(kp, wohnungen);
+    const pool = ermittlePool(g.scope, wohnungen);
     if (pool.length === 0) continue;
 
-    if (kp.verteilerschluessel === "WOHNFLAECHE") {
+    if (g.verteilerschluessel === "WOHNFLAECHE") {
       const gesamtflaeche = pool.reduce((s, e) => s + e.wohnflaecheQm, 0);
       if (gesamtflaeche <= 0) continue;
       for (const e of pool) {
-        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + kp.betrag * (e.wohnflaecheQm / gesamtflaeche));
+        const anteil = g.betrag * (e.wohnflaecheQm / gesamtflaeche);
+        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteil);
+        pushDetail(detailsProEinheit, e.id, {
+          kostenartId: g.kostenartId,
+          kostenartName: g.kostenartName,
+          scopeLabel: g.scopeLabel,
+          verteilerschluessel: g.verteilerschluessel,
+          gesamtbetragPool: g.betrag,
+          einheitMasswert: e.wohnflaecheQm,
+          poolMasswert: gesamtflaeche,
+          masseinheit: "m²",
+          anteilJahr: anteil,
+        });
       }
-    } else if (kp.verteilerschluessel === "EINHEITEN") {
-      const anteilProKopf = kp.betrag / pool.length;
+    } else if (g.verteilerschluessel === "EINHEITEN") {
+      const anteilProKopf = g.betrag / pool.length;
       for (const e of pool) {
         anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteilProKopf);
+        pushDetail(detailsProEinheit, e.id, {
+          kostenartId: g.kostenartId,
+          kostenartName: g.kostenartName,
+          scopeLabel: g.scopeLabel,
+          verteilerschluessel: g.verteilerschluessel,
+          gesamtbetragPool: g.betrag,
+          einheitMasswert: 1,
+          poolMasswert: pool.length,
+          masseinheit: "Einheiten",
+          anteilJahr: anteilProKopf,
+        });
       }
     } else {
       // VERBRAUCH_MANUELL: Werte pro Einheit für diese Kostenart+Jahr nachschlagen. Fehlt auch
@@ -192,7 +304,7 @@ function berechneEinheitAnteile(
       let vollstaendig = true;
       for (const e of pool) {
         const eintrag = verbrauchswerte.find(
-          (v) => v.einheitId === e.id && v.kostenartId === kp.kostenartId && v.jahr === jahr,
+          (v) => v.einheitId === e.id && v.kostenartId === g.kostenartId && v.jahr === jahr,
         );
         if (!eintrag) {
           vollstaendig = false;
@@ -201,19 +313,31 @@ function berechneEinheitAnteile(
         werteProEinheit.set(e.id, eintrag.wert);
       }
       if (!vollstaendig) {
-        vermerkeAusschluss(nichtBeruecksichtigt, kp, "unvollstaendige_verbrauchswerte");
+        vermerkeAusschluss(nichtBeruecksichtigt, g, "unvollstaendige_verbrauchswerte");
         continue;
       }
       const gesamtwert = [...werteProEinheit.values()].reduce((s, w) => s + w, 0);
       if (gesamtwert <= 0) continue;
       for (const e of pool) {
         const wert = werteProEinheit.get(e.id) ?? 0;
-        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + kp.betrag * (wert / gesamtwert));
+        const anteil = g.betrag * (wert / gesamtwert);
+        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteil);
+        pushDetail(detailsProEinheit, e.id, {
+          kostenartId: g.kostenartId,
+          kostenartName: g.kostenartName,
+          scopeLabel: g.scopeLabel,
+          verteilerschluessel: g.verteilerschluessel,
+          gesamtbetragPool: g.betrag,
+          einheitMasswert: wert,
+          poolMasswert: gesamtwert,
+          masseinheit: g.masseinheit ?? "",
+          anteilJahr: anteil,
+        });
       }
     }
   }
 
-  return { anteilProEinheit, nichtBeruecksichtigt: [...nichtBeruecksichtigt.values()] };
+  return { anteilProEinheit, detailsProEinheit, nichtBeruecksichtigt: [...nichtBeruecksichtigt.values()] };
 }
 
 /**
@@ -234,7 +358,7 @@ export function berechneNebenkostenabrechnung(
   verbrauchswerte: VerbrauchswertFuerAbrechnung[] = [],
   vorverteilteAnteile: VorverteilterKostenanteilFuerAbrechnung[] = [],
 ): AbrechnungErgebnis {
-  const { anteilProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(
+  const { anteilProEinheit, detailsProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(
     jahr,
     kostenpositionen,
     einheiten,
@@ -263,12 +387,33 @@ export function berechneNebenkostenabrechnung(
 
       // Vorverteilter Anteil (z.B. Techem-Heizkosten) kommt ohne erneute Zeitanteil-Prorata
       // obendrauf — siehe VorverteilterKostenanteilFuerAbrechnung oben.
-      const vorverteilterAnteil = vorverteilteAnteile
-        .filter((v) => v.mietvertragId === mv.id && v.jahr === jahr)
-        .reduce((s, v) => s + v.betrag, 0);
+      const vorverteilteEintraege = vorverteilteAnteile.filter((v) => v.mietvertragId === mv.id && v.jahr === jahr);
+      const vorverteilterAnteil = vorverteilteEintraege.reduce((s, v) => s + v.betrag, 0);
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
       const vorauszahlungGesamt = round2(mv.nebenkostenVorauszahlung * 12 * zeitanteil);
+
+      // Vollständige Belegkette für diese Position: pro Kostenart der Jahresgesamtbetrag ihres
+      // Kostenkreises, die Verteilungsbasis und der daraus resultierende, zeitanteilig auf diesen
+      // Mietvertrag bezogene Anteil — Summe ergibt (bis auf Rundung) kostenanteilGesamt.
+      const details: KostenanteilDetailEintrag[] = [
+        ...(detailsProEinheit.get(einheitId) ?? []).map((d) => ({
+          ...d,
+          anteilZeitraum: d.anteilJahr * zeitanteil,
+        })),
+        ...vorverteilteEintraege.map((v) => ({
+          kostenartId: v.kostenartId,
+          kostenartName: v.kostenartName,
+          scopeLabel: "Extern vorverteilt (z.B. Techem-Gesamtabrechnung)",
+          verteilerschluessel: "VORVERTEILT" as const,
+          gesamtbetragPool: v.betrag,
+          einheitMasswert: 1,
+          poolMasswert: 1,
+          masseinheit: "",
+          anteilJahr: v.betrag,
+          anteilZeitraum: v.betrag,
+        })),
+      ];
 
       positionen.push({
         einheitId,
@@ -278,6 +423,7 @@ export function berechneNebenkostenabrechnung(
         kostenanteilGesamt,
         vorauszahlungGesamt,
         saldo: round2(vorauszahlungGesamt - kostenanteilGesamt),
+        details,
       });
     }
   }

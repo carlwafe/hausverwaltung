@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -13,17 +14,19 @@ import {
   type VorverteilterKostenanteilFuerAbrechnung,
 } from "@/lib/nebenkostenabrechnung";
 
-async function ladeBerechnungsdaten(jahr: number) {
+// Auch von der Detailseite genutzt (für die live geprüfte "nicht berücksichtigt"-Anzeige und die
+// vorverteilten Kostenarten), nicht nur beim eigentlichen Berechnen/Neu-Berechnen.
+export async function ladeBerechnungsdaten(jahr: number) {
   const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw, vorverteilteAnteileRaw] =
     await Promise.all([
       prisma.kostenposition.findMany({
         where: { jahr, kostenart: { umlagefaehig: true } },
-        include: { kostenart: true },
+        include: { kostenart: true, gebaeude: true, haus: { include: { gebaeude: true } }, kostengruppe: true },
       }),
       prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
       prisma.mietvertrag.findMany(),
       prisma.verbrauchswert.findMany({ where: { jahr } }),
-      prisma.vorverteilterKostenanteil.findMany({ where: { jahr } }),
+      prisma.vorverteilterKostenanteil.findMany({ where: { jahr }, include: { kostenart: true } }),
     ]);
 
   const kostenpositionen: KostenpositionFuerAbrechnung[] = kostenpositionenRaw.map((k) => ({
@@ -34,6 +37,8 @@ async function ladeBerechnungsdaten(jahr: number) {
     kostenartId: k.kostenartId,
     verteilerschluessel: k.kostenart.standardVerteilerschluessel,
     kostenartName: k.kostenart.name,
+    scopeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe),
+    masseinheit: k.kostenart.masseinheit,
   }));
   const einheiten: EinheitFuerAbrechnung[] = einheitenRaw.map((e) => ({
     id: e.id,
@@ -60,6 +65,7 @@ async function ladeBerechnungsdaten(jahr: number) {
   const vorverteilteAnteile: VorverteilterKostenanteilFuerAbrechnung[] = vorverteilteAnteileRaw.map((v) => ({
     mietvertragId: v.mietvertragId,
     kostenartId: v.kostenartId,
+    kostenartName: v.kostenart.name,
     jahr: v.jahr,
     betrag: Number(v.betrag),
   }));
@@ -102,6 +108,7 @@ export async function createAbrechnung(formData: FormData) {
           kostenanteilGesamt: p.kostenanteilGesamt,
           vorauszahlungGesamt: p.vorauszahlungGesamt,
           saldo: p.saldo,
+          details: p.details,
         })),
       },
     },
@@ -236,6 +243,7 @@ export async function neuBerechnen(id: string) {
         kostenanteilGesamt: p.kostenanteilGesamt,
         vorauszahlungGesamt: p.vorauszahlungGesamt,
         saldo: p.saldo,
+        details: p.details,
       })),
     });
 
