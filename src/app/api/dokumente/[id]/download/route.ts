@@ -19,10 +19,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Datei nicht mehr verfügbar." }, { status: 404 });
   }
 
+  // Bilder inline ausliefern (z.B. für Foto-Vorschauen als <img src>), alles andere weiterhin als
+  // Download — ein Browser würde eine "attachment"-Disposition nicht als <img> rendern.
+  const disposition = dokument.mimeType?.startsWith("image/") ? "inline" : "attachment";
+
   return new NextResponse(new Uint8Array(inhalt), {
     headers: {
       "Content-Type": dokument.mimeType ?? "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(dokument.dateiname)}"`,
+      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(dokument.dateiname)}"`,
     },
   });
 }

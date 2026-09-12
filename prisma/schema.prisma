@@ -178,6 +178,7 @@ model Einheit {
   mietvertraege                   Mietvertrag[]
   nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
   verbrauchswerte                 Verbrauchswert[]
+  dokumente                       Dokument[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
@@ -465,6 +466,10 @@ model Dokument {
   mietvertragId    String?
   kostenposition   Kostenposition? @relation(fields: [kostenpositionId], references: [id], onDelete: Cascade)
   kostenpositionId String?
+  // Fotos einer Einheit (Zustand, Ausstattung) — dieselbe Ablage wie Mietvertrags-/Kosten-Belege,
+  // nur mit einem dritten möglichen Ziel.
+  einheit          Einheit?        @relation(fields: [einheitId], references: [id], onDelete: Cascade)
+  einheitId        String?
   hochgeladenVon   String?
   createdAt        DateTime        @default(now())
 

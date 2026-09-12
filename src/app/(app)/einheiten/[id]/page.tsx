@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { EinheitForm } from "../einheit-form";
 import { updateEinheit, deleteEinheit } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
+import { FotosSektion } from "@/components/fotos-sektion";
+import { uploadDokument } from "../../dokumente/actions";
 import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
 
 function formatDate(d: Date) {
@@ -28,13 +30,18 @@ export default async function EinheitDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [einheit, gebaeudeRaw, mietvertraege] = await Promise.all([
+  const [einheit, gebaeudeRaw, mietvertraege, fotos] = await Promise.all([
     prisma.einheit.findUnique({ where: { id } }),
     prisma.gebaeude.findMany(),
     prisma.mietvertrag.findMany({
       where: { einheitId: id },
       include: { mieter: true },
       orderBy: { beginn: { sort: "desc", nulls: "last" } },
+    }),
+    prisma.dokument.findMany({
+      where: { einheitId: id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, dateiname: true },
     }),
   ]);
   if (!einheit) notFound();
@@ -120,6 +127,17 @@ export default async function EinheitDetailPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <FotosSektion
+          fotos={fotos}
+          uploadAction={uploadDokument.bind(null, {
+            einheitId: id,
+            revalidatePath: `/einheiten/${id}`,
+          })}
+          revalidatePath={`/einheiten/${id}`}
+        />
       </div>
     </div>
   );
