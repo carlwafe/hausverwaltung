@@ -1,13 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { DeleteButton } from "./delete-button";
 import { deleteDokument } from "@/app/(app)/dokumente/actions";
+import { ermittleZuGrosseDateien } from "@/lib/upload-limits";
 
 export type FotoRow = {
   id: string;
   dateiname: string;
 };
+
+function formatBytes(n: number) {
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function FotosSektion({
   fotos,
@@ -19,6 +24,19 @@ export function FotosSektion({
   revalidatePath: string;
 }) {
   const [error, formAction, pending] = useActionState(uploadAction, null);
+  const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
+
+  function pruefeDateigroessen(e: React.ChangeEvent<HTMLInputElement>) {
+    const zuGross = ermittleZuGrosseDateien(e.target.files);
+    if (zuGross.length > 0) {
+      setGroessenFehler(
+        `Dateien dürfen maximal 1 MB groß sein: ${zuGross.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")}.`,
+      );
+      e.target.value = "";
+    } else {
+      setGroessenFehler(null);
+    }
+  }
 
   return (
     <div className="rounded-lg border border-neutral-800 p-4">
@@ -58,16 +76,19 @@ export function FotosSektion({
           accept="image/*"
           multiple
           required
+          onChange={pruefeDateigroessen}
           className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-sm file:text-white"
         />
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || groessenFehler !== null}
           className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
         >
           {pending ? "Lädt hoch…" : "Hochladen"}
         </button>
       </form>
+      <p className="mt-1 text-xs text-neutral-500">Maximal 1 MB pro Datei.</p>
+      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </div>
   );
