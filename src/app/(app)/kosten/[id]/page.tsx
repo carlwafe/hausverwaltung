@@ -74,6 +74,7 @@ export default async function KostenpositionDetailPage({
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
         gebaeude={gebaeudeGruppen}
         virtuelleAuszahlungen={virtuelleAuszahlungen}
+        istImportiert={kostenposition.rohdaten !== null}
         initial={{
           kostenartId: kostenposition.kostenartId,
           gebaeudeAuswahl: gebaeudeAuswahlWert(
@@ -82,6 +83,7 @@ export default async function KostenpositionDetailPage({
             kostenposition.kostengruppeId,
           ),
           jahr: kostenposition.jahr,
+          datum: kostenposition.datum ? kostenposition.datum.toISOString().slice(0, 10) : null,
           betrag: kostenposition.betrag.toString(),
           beschreibung: kostenposition.beschreibung,
           empfaenger: kostenposition.empfaenger,

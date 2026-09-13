@@ -11,6 +11,8 @@ type Kostenposition = {
   // Vorbelegter Wert für das Gebäude/Haus-<select>, siehe gebaeudeAuswahlWert.
   gebaeudeAuswahl: string;
   jahr: number;
+  // yyyy-mm-dd, passend zum <input type="date">, oder null ohne bekanntes Datum.
+  datum: string | null;
   betrag: string;
   beschreibung: string | null;
   empfaenger: string | null;
@@ -22,6 +24,9 @@ export function KostenpositionForm({
   gebaeude,
   virtuelleAuszahlungen,
   initial,
+  // Echte, per Kontoauszug importierte Kontobewegung — ihr Datum stammt aus der Bank und darf
+  // hier nicht verändert werden (nur bei initial relevant, eine neue Position ist nie importiert).
+  istImportiert = false,
   action,
 }: {
   kostenarten: { id: string; label: string }[];
@@ -29,6 +34,7 @@ export function KostenpositionForm({
   /** Kautionsbuchungen der Kategorie VIRTUELLE_AUSZAHLUNG — mögliche Gegenbuchungen. */
   virtuelleAuszahlungen: VirtuelleAuszahlungOption[];
   initial?: Kostenposition;
+  istImportiert?: boolean;
   action: (formData: FormData) => Promise<void>;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -120,19 +126,38 @@ export function KostenpositionForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="betrag">
-            Betrag (€)
+          <label className="mb-1 block text-sm font-medium" htmlFor="datum">
+            Datum (optional)
           </label>
           <input
-            id="betrag"
-            name="betrag"
-            type="number"
-            step="0.01"
-            required
-            defaultValue={initial?.betrag}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            id="datum"
+            name="datum"
+            type="date"
+            disabled={istImportiert}
+            defaultValue={initial?.datum ?? ""}
+            className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 disabled:opacity-50"
           />
+          {istImportiert && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Importierte Kontobewegung — Datum kann nicht geändert werden.
+            </p>
+          )}
         </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="betrag">
+          Betrag (€)
+        </label>
+        <input
+          id="betrag"
+          name="betrag"
+          type="number"
+          step="0.01"
+          required
+          defaultValue={initial?.betrag}
+          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
       </div>
 
       <div>

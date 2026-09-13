@@ -46,37 +46,43 @@ function parseForm(formData: FormData) {
   return { ...rest, gebaeudeId, hausId, kostengruppeId };
 }
 
+// Das Datumsfeld wird bei einer importierten Position deaktiviert (siehe kostenposition-form.tsx)
+// — ein deaktiviertes <input> wird beim Absenden gar nicht erst mitgeschickt, `formData.get`
+// liefert dann null. Das unterscheidet zuverlässig "Feld war deaktiviert, nicht anfassen" von
+// "Feld war leer, Nutzer hat kein Datum eingetragen".
+function parseDatumFeld(formData: FormData): { vorhanden: boolean; wert: Date | null } {
+  const raw = formData.get("datum");
+  if (raw === null) return { vorhanden: false, wert: null };
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  return { vorhanden: true, wert: trimmed ? new Date(trimmed) : null };
+}
+
 // Eine virtuelle Gutschrift ohne eigenes datum würde nicht in /kontostand einfließen (das dort nur
-// Kostenpositionen mit datum != null zählt) und ihre verknüpfte Kautionsbuchung nicht ausgleichen
-// — manuell erfasste Kostenpositionen kennen sonst nur das Jahr (siehe kostenpositionSchema, kein
-// eigenes Datumsfeld im Formular). Übernimmt dafür beim Verknüpfen automatisch das Datum der
-// Kautionsbuchung, aber NUR wenn die Position noch gar kein eigenes datum hat — sonst würde beim
-// Verknüpfen einer bereits real importierten Position (z.B. eine per Kontoauszug erfasste
-// Reparatur) deren echtes Buchungsdatum stillschweigend überschrieben. Gibt `undefined` zurück,
-// wenn nichts geändert werden soll (keine Verknüpfung, oder bereits ein eigenes datum vorhanden).
+// Kostenpositionen mit datum != null zählt) und ihre verknüpfte Kautionsbuchung nicht ausgleichen.
+// Übernimmt deshalb, falls der Nutzer selbst kein Datum eingetragen hat, automatisch das Datum der
+// verknüpften Kautionsbuchung als Vorschlag.
 async function ermittleDatumFuerVirtuelleGutschrift(
   virtuelleKautionBuchungId: string | undefined,
-  bestehendesDatum: Date | null,
-): Promise<Date | undefined> {
-  if (!virtuelleKautionBuchungId || bestehendesDatum) return undefined;
+): Promise<Date | null> {
+  if (!virtuelleKautionBuchungId) return null;
   const buchung = await prisma.kautionBuchung.findUnique({
     where: { id: virtuelleKautionBuchungId },
     select: { datum: true },
   });
-  return buchung?.datum ?? undefined;
+  return buchung?.datum ?? null;
 }
 
 export async function createKostenposition(formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
-  // Eine neu erstellte Position hat noch kein eigenes datum, daher hier immer null als Basis.
-  const datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId, null);
+  const { wert: explizitesDatum } = parseDatumFeld(formData);
+  const datum = explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId));
 
   await prisma.kostenposition.create({
     data: {
       ...rest,
-      datum: datum ?? null,
+      datum,
       kostenart: { connect: { id: kostenartId } },
       ...(gebaeudeId ? { gebaeude: { connect: { id: gebaeudeId } } } : {}),
       ...(hausId ? { haus: { connect: { id: hausId } } } : {}),
@@ -96,13 +102,14 @@ export async function updateKostenposition(id: string, formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
-  // Bestehendes datum nachschlagen, statt es beim Verknüpfen blind zu überschreiben — betrifft vor
-  // allem real importierte Positionen mit einem eigenen, echten Buchungsdatum. Beim Entfernen einer
-  // Verknüpfung wird datum bewusst NICHT zurückgesetzt (auch wenn es ursprünglich von der
-  // Kautionsbuchung übernommen wurde) — ein automatisches Löschen hier wäre nicht von einem
-  // versehentlichen Überschreiben eines echten Datums zu unterscheiden.
-  const bestehend = await prisma.kostenposition.findUnique({ where: { id }, select: { datum: true } });
-  const datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId, bestehend?.datum ?? null);
+  // Bei einer importierten Position (Datumsfeld deaktiviert) war "datum" gar nicht im FormData
+  // enthalten — dann bleibt das echte Buchungsdatum unangetastet. Sonst übernimmt ein vom Nutzer
+  // eingetragenes Datum immer Vorrang; ist das Feld leer, greift wie beim Anlegen die Vorbelegung
+  // aus einer verknüpften Kautionsbuchung, sonst wird das Datum explizit gelöscht.
+  const { vorhanden, wert: explizitesDatum } = parseDatumFeld(formData);
+  const datum = vorhanden
+    ? (explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId)))
+    : undefined;
 
   await prisma.kostenposition.update({
     where: { id },
