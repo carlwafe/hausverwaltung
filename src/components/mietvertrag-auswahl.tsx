@@ -12,12 +12,17 @@ import { createPortal } from "react-dom";
 // für die Auswahl offener Nebenkostenabrechnung-Positionen wiederverwendet.
 export function MietvertragAuswahl({
   kandidaten,
+  defaultKandidaten,
   value,
   onChange,
   leerLabel,
   size = "sm",
 }: {
   kandidaten: { id: string; label: string }[];
+  /** Wird angezeigt, solange noch nichts gesucht wurde (z.B. eine sinnvolle Vorauswahl wie
+   * "gleicher Tag") — bei Sucheingabe wird trotzdem über die volle `kandidaten`-Liste gesucht,
+   * damit ältere Einträge weiterhin auffindbar bleiben. Ohne Angabe wie bisher: volle Liste. */
+  defaultKandidaten?: { id: string; label: string }[];
   value: string;
   onChange: (id: string) => void;
   leerLabel: string;
@@ -42,7 +47,7 @@ export function MietvertragAuswahl({
     : // Ohne Sucheingabe (z.B. direkt nach dem Fokussieren) steht die aktuelle Auswahl ganz oben —
       // sie ist sonst je nach Position in der Kandidatenliste nur durch Scrollen auffindbar, obwohl
       // man beim Öffnen meist genau sie sucht.
-      [...kandidaten].sort((a, b) => (a.id === value ? -1 : b.id === value ? 1 : 0));
+      [...(defaultKandidaten ?? kandidaten)].sort((a, b) => (a.id === value ? -1 : b.id === value ? 1 : 0));
 
   function auswaehlen(id: string) {
     onChange(id);

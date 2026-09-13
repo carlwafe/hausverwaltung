@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
+import type { VirtuelleAuszahlungOption } from "./virtuelle-auszahlungen";
 
 type Kostenposition = {
   kostenartId: string;
@@ -26,7 +27,7 @@ export function KostenpositionForm({
   kostenarten: { id: string; label: string }[];
   gebaeude: { label: string; optionen: { value: string; label: string }[] }[];
   /** Kautionsbuchungen der Kategorie VIRTUELLE_AUSZAHLUNG — mögliche Gegenbuchungen. */
-  virtuelleAuszahlungen: { id: string; label: string }[];
+  virtuelleAuszahlungen: VirtuelleAuszahlungOption[];
   initial?: Kostenposition;
   action: (formData: FormData) => Promise<void>;
 }) {
@@ -38,6 +39,12 @@ export function KostenpositionForm({
   const [virtuelleKautionBuchungId, setVirtuelleKautionBuchungId] = useState(
     initial?.virtuelleKautionBuchungId ?? "",
   );
+  // Vorauswahl auf Kautionsbuchungen vom heutigen Tag, solange noch nicht gesucht wurde — das
+  // Kosten-Formular kennt (anders als die Kaution-Seite) kein eigenes Buchungsdatum, "heute" ist
+  // hier die sinnvollste Näherung, da eine virtuelle Gutschrift meist zeitnah zur zugehörigen
+  // Auszahlung erfasst wird. Fällt auf die volle Liste zurück, falls an diesem Tag nichts passt.
+  const heuteISO = new Date().toISOString().slice(0, 10);
+  const auszahlungenHeute = virtuelleAuszahlungen.filter((v) => v.datumISO === heuteISO);
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
@@ -160,9 +167,11 @@ export function KostenpositionForm({
         <p className="mb-1 text-xs text-neutral-500">
           Für eine Gutschrift, die keine eigene Kontobewegung ist — z.B. eine Reparatur, die vom
           einbehaltenen Kautionsrest bezahlt wurde, statt über alle Mieter umgelegt zu werden.
+          Zeigt zunächst nur Auszahlungen vom heutigen Tag — zum Suchen einfach tippen.
         </p>
         <MietvertragAuswahl
           kandidaten={virtuelleAuszahlungen}
+          defaultKandidaten={auszahlungenHeute.length > 0 ? auszahlungenHeute : undefined}
           value={virtuelleKautionBuchungId}
           onChange={setVirtuelleKautionBuchungId}
           leerLabel="– keine –"

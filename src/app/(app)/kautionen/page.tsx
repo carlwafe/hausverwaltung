@@ -125,7 +125,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
 
 // Kandidaten für die Verknüpfung einer neuen virtuellen Auszahlung mit ihrer Gegenbuchung — nur
 // Gutschriften (negativer Betrag) kommen als Gegenbuchung infrage.
-async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string }[]> {
+async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string; datumISO: string | null }[]> {
   const positionen = await prisma.kostenposition.findMany({
     where: { betrag: { lt: 0 } },
     orderBy: { createdAt: "desc" },
@@ -134,6 +134,7 @@ async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string 
   return positionen.map((k) => ({
     id: k.id,
     label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart.name} — ${formatEuro(Number(k.betrag))}${k.virtuelleKautionBuchungId ? " (bereits verknüpft)" : ""}`,
+    datumISO: k.datum ? k.datum.toISOString().slice(0, 10) : null,
   }));
 }
 

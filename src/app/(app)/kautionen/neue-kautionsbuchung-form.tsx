@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { erstelleKautionsbuchung } from "./actions";
 
+type VirtuelleGutschrift = { id: string; label: string; datumISO: string | null };
+
 const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "EINZAHLUNG_MIETER", label: "Einzahlung Mieter (eingehend)" },
   { value: "ANLAGE", label: "Anlage aufs Kautionskonto (ausgehend)" },
@@ -30,14 +32,21 @@ export function NeueKautionsbuchungForm({
   mietvertraege: { id: string; label: string }[];
   /** Kostenpositionen mit negativem Betrag (Gutschriften) — mögliche Gegenbuchungen für eine
    * virtuelle Auszahlung. */
-  virtuelleGutschriften: { id: string; label: string }[];
+  virtuelleGutschriften: VirtuelleGutschrift[];
 }) {
   const [offen, setOffen] = useState(false);
   const [mietvertragId, setMietvertragId] = useState("");
+  const [datum, setDatum] = useState("");
   const [kategorie, setKategorie] = useState("");
   const [kostenpositionId, setKostenpositionId] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Vorauswahl auf Kostenpositionen vom selben Tag wie das oben eingetragene Buchungsdatum,
+  // solange noch nicht gesucht wurde — Volltextsuche bleibt über alle Kandidaten möglich, siehe
+  // MietvertragAuswahl. Fällt auf die volle Liste zurück, falls an diesem Tag nichts passt (z.B.
+  // solange das Datum noch nicht ausgefüllt ist).
+  const gutschriftenAmTag = datum ? virtuelleGutschriften.filter((g) => g.datumISO === datum) : [];
 
   function submit(formData: FormData) {
     startTransition(async () => {
@@ -48,6 +57,7 @@ export function NeueKautionsbuchungForm({
       }
       setFehler(null);
       setMietvertragId("");
+      setDatum("");
       setKategorie("");
       setKostenpositionId("");
       setOffen(false);
@@ -95,6 +105,8 @@ export function NeueKautionsbuchungForm({
               name="datum"
               type="date"
               required
+              value={datum}
+              onChange={(e) => setDatum(e.target.value)}
               className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
@@ -141,8 +153,12 @@ export function NeueKautionsbuchungForm({
             <label className="mb-1 block text-xs text-neutral-400">
               Verknüpfte Kostenposition (optional)
             </label>
+            <p className="mb-1 text-xs text-neutral-500">
+              Zeigt zunächst nur Gutschriften vom selben Tag — zum Suchen einfach tippen.
+            </p>
             <MietvertragAuswahl
               kandidaten={virtuelleGutschriften}
+              defaultKandidaten={gutschriftenAmTag.length > 0 ? gutschriftenAmTag : undefined}
               value={kostenpositionId}
               onChange={setKostenpositionId}
               leerLabel="– keine –"
