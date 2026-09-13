@@ -22,6 +22,9 @@ const kostenpositionSchema = z.object({
   betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
   beschreibung: z.string().optional(),
   empfaenger: z.string().optional(),
+  // Verknüpft diese Position als virtuelle Gutschrift mit einer Kautionsbuchung der Kategorie
+  // VIRTUELLE_AUSZAHLUNG (Gegenbuchung, siehe Kostenposition.virtuelleKautionBuchungId im Schema).
+  virtuelleKautionBuchungId: z.string().optional(),
 });
 
 function parseForm(formData: FormData) {
@@ -32,6 +35,7 @@ function parseForm(formData: FormData) {
     betrag: formData.get("betrag"),
     beschreibung: formData.get("beschreibung") || undefined,
     empfaenger: formData.get("empfaenger") || undefined,
+    virtuelleKautionBuchungId: formData.get("virtuelleKautionBuchungId") || undefined,
   });
 
   if (!parsed.success) {
@@ -42,41 +46,84 @@ function parseForm(formData: FormData) {
   return { ...rest, gebaeudeId, hausId, kostengruppeId };
 }
 
+// Eine virtuelle Gutschrift muss ein echtes datum tragen, um wie gewollt ganz normal in
+// /kontostand einzufließen (das dort nur Kostenpositionen mit datum != null zählt) und dort die
+// verknüpfte Kautionsbuchung auszugleichen — manuell erfasste Kostenpositionen kennen sonst nur
+// das Jahr (siehe kostenpositionSchema, kein eigenes Datumsfeld im Formular). Übernimmt dafür
+// automatisch das Datum der verknüpften Kautionsbuchung, statt den Nutzer ein weiteres Feld
+// ausfüllen zu lassen. Gibt bewusst `undefined` (statt `null`) zurück, wenn keine Verknüpfung
+// gesetzt ist, damit ein bestehendes echtes Buchungsdatum (z.B. einer per Kontoauszug
+// importierten Position) beim Bearbeiten nicht überschrieben wird.
+async function ermittleDatumFuerVirtuelleGutschrift(
+  virtuelleKautionBuchungId: string | undefined,
+): Promise<Date | null | undefined> {
+  if (!virtuelleKautionBuchungId) return undefined;
+  const buchung = await prisma.kautionBuchung.findUnique({
+    where: { id: virtuelleKautionBuchungId },
+    select: { datum: true },
+  });
+  return buchung?.datum ?? undefined;
+}
+
 export async function createKostenposition(formData: FormData) {
   await requireEditor();
-  const { kostenartId, gebaeudeId, hausId, kostengruppeId, ...rest } = parseForm(formData);
+  const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
+    parseForm(formData);
+  const datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId);
 
   await prisma.kostenposition.create({
     data: {
       ...rest,
+      datum: datum ?? null,
       kostenart: { connect: { id: kostenartId } },
       ...(gebaeudeId ? { gebaeude: { connect: { id: gebaeudeId } } } : {}),
       ...(hausId ? { haus: { connect: { id: hausId } } } : {}),
       ...(kostengruppeId ? { kostengruppe: { connect: { id: kostengruppeId } } } : {}),
+      ...(virtuelleKautionBuchungId
+        ? { virtuelleKautionBuchung: { connect: { id: virtuelleKautionBuchungId } } }
+        : {}),
     },
   });
 
   revalidatePath("/kosten");
+  revalidatePath("/kautionen");
   redirect("/kosten");
 }
 
 export async function updateKostenposition(id: string, formData: FormData) {
   await requireEditor();
-  const { kostenartId, gebaeudeId, hausId, kostengruppeId, ...rest } = parseForm(formData);
+  const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
+    parseForm(formData);
+  let datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId);
+  if (datum === undefined && !virtuelleKautionBuchungId) {
+    // Falls diese Position bisher verknüpft war und die Verknüpfung jetzt entfernt wird, muss das
+    // von der Kautionsbuchung übernommene Datum mit zurückgesetzt werden — sonst bliebe sie trotz
+    // aufgehobener Verknüpfung weiter wie eine virtuelle Gutschrift in /kontostand.
+    const bestehend = await prisma.kostenposition.findUnique({
+      where: { id },
+      select: { virtuelleKautionBuchungId: true },
+    });
+    if (bestehend?.virtuelleKautionBuchungId) datum = null;
+  }
 
   await prisma.kostenposition.update({
     where: { id },
     data: {
       ...rest,
+      ...(datum !== undefined ? { datum } : {}),
       kostenart: { connect: { id: kostenartId } },
       gebaeude: gebaeudeId ? { connect: { id: gebaeudeId } } : { disconnect: true },
       haus: hausId ? { connect: { id: hausId } } : { disconnect: true },
       kostengruppe: kostengruppeId ? { connect: { id: kostengruppeId } } : { disconnect: true },
+      virtuelleKautionBuchung: virtuelleKautionBuchungId
+        ? { connect: { id: virtuelleKautionBuchungId } }
+        : { disconnect: true },
     },
   });
 
   revalidatePath("/kosten");
   revalidatePath(`/kosten/${id}`);
+  revalidatePath("/kautionen");
   redirect("/kosten");
 }
 

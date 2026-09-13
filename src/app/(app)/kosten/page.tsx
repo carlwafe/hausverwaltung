@@ -33,6 +33,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
     aufteilungGruppeId: k.aufteilungGruppeId,
+    virtuelleKautionBuchungId: k.virtuelleKautionBuchungId,
   }));
 }
 

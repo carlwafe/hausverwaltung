@@ -10,6 +10,10 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "AUFLOESUNG", label: "Auflösung vom Kautionskonto (eingehend)" },
   { value: "AUSZAHLUNG_MIETER", label: "Auszahlung Mieter (ausgehend)" },
   { value: "SONSTIGES", label: "Sonstiges (z.B. Korrektur)" },
+  {
+    value: "VIRTUELLE_AUSZAHLUNG",
+    label: "Virtuelle Auszahlung (kein Kontofluss, bereits über eine Kostenposition gebucht)",
+  },
 ];
 
 /**
@@ -21,11 +25,17 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
  */
 export function NeueKautionsbuchungForm({
   mietvertraege,
+  virtuelleGutschriften,
 }: {
   mietvertraege: { id: string; label: string }[];
+  /** Kostenpositionen mit negativem Betrag (Gutschriften) — mögliche Gegenbuchungen für eine
+   * virtuelle Auszahlung. */
+  virtuelleGutschriften: { id: string; label: string }[];
 }) {
   const [offen, setOffen] = useState(false);
   const [mietvertragId, setMietvertragId] = useState("");
+  const [kategorie, setKategorie] = useState("");
+  const [kostenpositionId, setKostenpositionId] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -38,6 +48,8 @@ export function NeueKautionsbuchungForm({
       }
       setFehler(null);
       setMietvertragId("");
+      setKategorie("");
+      setKostenpositionId("");
       setOffen(false);
     });
   }
@@ -109,7 +121,8 @@ export function NeueKautionsbuchungForm({
             id="kategorie"
             name="kategorie"
             required
-            defaultValue=""
+            value={kategorie}
+            onChange={(e) => setKategorie(e.target.value)}
             className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
           >
             <option value="" disabled>
@@ -122,6 +135,21 @@ export function NeueKautionsbuchungForm({
             ))}
           </select>
         </div>
+        {kategorie === "VIRTUELLE_AUSZAHLUNG" && (
+          <div>
+            <input type="hidden" name="verknuepfteKostenpositionId" value={kostenpositionId} />
+            <label className="mb-1 block text-xs text-neutral-400">
+              Verknüpfte Kostenposition (optional)
+            </label>
+            <MietvertragAuswahl
+              kandidaten={virtuelleGutschriften}
+              value={kostenpositionId}
+              onChange={setKostenpositionId}
+              leerLabel="– keine –"
+              size="md"
+            />
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs text-neutral-400" htmlFor="verwendungszweck">
             Notiz (optional)

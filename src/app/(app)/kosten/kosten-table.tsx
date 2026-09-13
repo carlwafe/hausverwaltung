@@ -43,6 +43,9 @@ export type KostenpositionRow = {
   // zusammengefasste Anzeige (z.B. "2 Kostenarten") wäre über die Kostenart-Suche nicht mehr
   // auffindbar — "Hausmeister" suchen würde die Buchung dann nicht mehr finden.
   aufteilungGruppeId: string | null;
+  // Gesetzt bei einer virtuellen Gutschrift — Gegenbuchung zu einer Kautionsbuchung der Kategorie
+  // VIRTUELLE_AUSZAHLUNG, ohne eigenen Kontofluss (siehe Kostenposition.virtuelleKautionBuchungId).
+  virtuelleKautionBuchungId: string | null;
 };
 
 const columns: Column<KostenpositionRow>[] = [
@@ -77,6 +80,14 @@ const columns: Column<KostenpositionRow>[] = [
             className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400"
           >
             ✂
+          </span>
+        )}
+        {k.virtuelleKautionBuchungId && (
+          <span
+            title="Virtuelle Gutschrift — keine eigene Kontobewegung, verrechnet mit einer Kaution"
+            className="ml-1.5 inline-block rounded-full bg-purple-500/10 px-1.5 text-xs text-purple-400"
+          >
+            V
           </span>
         )}
       </span>

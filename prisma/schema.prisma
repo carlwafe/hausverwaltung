@@ -266,9 +266,6 @@ model Kaution {
   // wurde, was in unseren Kontoauszügen nirgends als eigene Buchung erscheint.
   notizen             String?
   createdAt           DateTime          @default(now())
-  // Kostenpositionen (typischerweise Reparaturen), die manuell mit dem einbehaltenen Betrag
-  // dieser Kaution verrechnet wurden — siehe kaution.ts effektivEinbehalten.
-  kostenpositionen    Kostenposition[]
 
   @@map("kautionen")
 }
@@ -398,16 +395,19 @@ model Kostenposition {
   // allerersten (inzwischen gelöschten) Position vor der ersten Aufteilung.
   aufteilungGruppeId String?
 
-  // Manuelle Verrechnung mit einer Kaution (z.B. eine Reparatur, die vom einbehaltenen Betrag
-  // beim Auszug abgezogen wird) — siehe Kaution.kostenpositionen, kaution.ts.
-  kaution   Kaution? @relation(fields: [kautionId], references: [id], onDelete: SetNull)
-  kautionId String?
+  // Virtuelle Gegenbuchung zu einer Kautionsbuchung der Kategorie VIRTUELLE_AUSZAHLUNG (z.B. eine
+  // Reparatur, die vom einbehaltenen Kautionsrest bezahlt wurde, statt über alle Mieter umgelegt
+  // zu werden) — üblicherweise eine negative Gutschrift unter derselben Kostenart wie die reale
+  // Rechnung. Ein und dieselbe Kautionsbuchung kann von mehreren Kostenpositionen referenziert
+  // werden (z.B. falls ein einbehaltener Betrag auf zwei Kostenarten aufgeteilt wird).
+  virtuelleKautionBuchung   KautionBuchung? @relation(fields: [virtuelleKautionBuchungId], references: [id], onDelete: SetNull)
+  virtuelleKautionBuchungId String?
 
   dokumente Dokument[]
 
   @@index([gebaeudeId, jahr])
   @@index([hausId, jahr])
-  @@index([kautionId])
+  @@index([virtuelleKautionBuchungId])
   @@index([kostengruppeId, jahr])
   @@index([aufteilungGruppeId])
   @@map("kostenpositionen")
@@ -522,21 +522,24 @@ model EigentuemerBuchung {
 // Anlageform/Status) — hier geht es nur um die reine Buchungshistorie aus dem
 // Kontoauszug-Import. Kein automatischer Abgleich zwischen beiden.
 model KautionBuchung {
-  id               String                  @id @default(cuid())
-  mietvertrag      Mietvertrag?            @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
-  mietvertragId    String?
-  datum            DateTime
-  betrag           Decimal                 @db.Decimal(10, 2)
-  empfaenger       String?
-  verwendungszweck String?
-  rohdaten         Json?
-  importBatch      ImportBatch?            @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId    String?
-  createdAt        DateTime                @default(now())
+  id                    String                  @id @default(cuid())
+  mietvertrag           Mietvertrag?            @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  mietvertragId         String?
+  datum                 DateTime
+  betrag                Decimal                 @db.Decimal(10, 2)
+  empfaenger            String?
+  verwendungszweck      String?
+  rohdaten              Json?
+  importBatch           ImportBatch?            @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId         String?
+  createdAt             DateTime                @default(now())
   // Welche Art von Kautionsbewegung das ist — siehe KautionBuchungKategorie. Kein Default mehr
   // (früher NICHT_ZUGEORDNET als Platzhalter für Altbuchungen) — jede Buchung bekommt beim
   // Import bereits eine echte Kategorie zugewiesen.
-  kategorie        KautionBuchungKategorie
+  kategorie             KautionBuchungKategorie
+  // Kostenpositionen, deren virtuelle Gutschrift diese Buchung als Gegenbuchung referenziert
+  // (Kategorie VIRTUELLE_AUSZAHLUNG) — siehe Kostenposition.virtuelleKautionBuchungId.
+  virtuelleGutschriften Kostenposition[]
 
   @@index([mietvertragId])
   @@map("kautionsbuchungen")
@@ -559,6 +562,13 @@ enum KautionBuchungKategorie {
   // eine versehentliche Doppelüberweisung ohne Bezug zu einem echten Auflösungs-/Auszahlungs-
   // Vorgang.
   SONSTIGES
+  // Wie AUSZAHLUNG_MIETER, aber ohne eigene Kontobewegung — der Betrag wurde bereits über eine
+  // reale Kostenposition abgebucht (z.B. eine Reparatur, vom einbehaltenen Kautionsrest bezahlt).
+  // Fließt bewusst ganz normal in /kontostand und die Jahresübersicht ein wie jede andere
+  // Kategorie — sie gleicht sich dort rein durch das entgegengesetzte Vorzeichen der verknüpften
+  // Kostenposition (Kostenposition.virtuelleKautionBuchungId) von selbst aus, ohne eigene
+  // Ausschluss-Logik.
+  VIRTUELLE_AUSZAHLUNG
 }
 
 // Bankbuchung, die bewusst keiner der anderen Kategorien zugeordnet wird — z.B. eine

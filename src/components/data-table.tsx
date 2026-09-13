@@ -33,6 +33,7 @@ export function DataTable<T extends { id: string }>({
   selectable = false,
   onSelectionChange,
   rowClassName,
+  rowId,
   renderExpanded,
 }: {
   columns: Column<T>[];
@@ -46,6 +47,9 @@ export function DataTable<T extends { id: string }>({
   onSelectionChange?: (selectedRows: T[]) => void;
   /** Optionale zusätzliche Klassen (z.B. eine dezente Hintergrundfarbe) für eine ganze Zeile. */
   rowClassName?: (row: T) => string;
+  /** Optionale DOM-`id` fürs `<tr>` (z.B. für einen `#anchor`-Link von einer anderen Seite auf
+   * eine bestimmte Zeile). */
+  rowId?: (row: T) => string;
   /** Zusätzliche volle Tabellenzeile direkt unter einer aufgeklappten Zeile (z.B. Rohdaten) —
    * eine Spalte steuert das Auf-/Zuklappen über den `ctx`-Parameter ihres render(). Immer nur
    * eine Zeile gleichzeitig aufgeklappt. Element muss selbst ein <tr> sein; colSpan (die
@@ -178,6 +182,7 @@ export function DataTable<T extends { id: string }>({
               return (
                 <Fragment key={row.id}>
                   <tr
+                    id={rowId?.(row)}
                     className={`border-t border-neutral-800 hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
                   >
                     {selectable && (

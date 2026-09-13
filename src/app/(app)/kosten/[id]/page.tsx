@@ -8,6 +8,7 @@ import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
+import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -19,7 +20,7 @@ export default async function KostenpositionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [kostenposition, kostenarten, gebaeude] = await Promise.all([
+  const [kostenposition, kostenarten, gebaeude, virtuelleAuszahlungen] = await Promise.all([
     prisma.kostenposition.findUnique({
       where: { id },
       include: {
@@ -28,6 +29,7 @@ export default async function KostenpositionDetailPage({
         haus: { include: { gebaeude: true } },
         kostengruppe: true,
         dokumente: { orderBy: { createdAt: "desc" } },
+        virtuelleKautionBuchung: true,
       },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
@@ -38,6 +40,7 @@ export default async function KostenpositionDetailPage({
         kostengruppen: { select: { id: true, bezeichnung: true } },
       },
     }),
+    ladeVirtuelleAuszahlungen(),
   ]);
   if (!kostenposition) notFound();
 
@@ -70,6 +73,7 @@ export default async function KostenpositionDetailPage({
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
         gebaeude={gebaeudeGruppen}
+        virtuelleAuszahlungen={virtuelleAuszahlungen}
         initial={{
           kostenartId: kostenposition.kostenartId,
           gebaeudeAuswahl: gebaeudeAuswahlWert(
@@ -81,9 +85,26 @@ export default async function KostenpositionDetailPage({
           betrag: kostenposition.betrag.toString(),
           beschreibung: kostenposition.beschreibung,
           empfaenger: kostenposition.empfaenger,
+          virtuelleKautionBuchungId: kostenposition.virtuelleKautionBuchungId,
         }}
         action={updateKostenposition.bind(null, id)}
       />
+
+      {kostenposition.virtuelleKautionBuchung && (
+        <div className="mt-4 rounded-lg border border-purple-900/40 bg-purple-500/5 p-4">
+          <p className="text-sm text-purple-300">
+            Virtuelle Gutschrift — verknüpft mit Kautionsbuchung vom{" "}
+            {new Intl.DateTimeFormat("de-DE").format(kostenposition.virtuelleKautionBuchung.datum)} (
+            {formatEuro(Number(kostenposition.virtuelleKautionBuchung.betrag))}).{" "}
+            <Link
+              href={`/kautionen#kautionsbuchung-${kostenposition.virtuelleKautionBuchung.id}`}
+              className="underline hover:text-purple-200"
+            >
+              Kautionsbuchung anzeigen
+            </Link>
+          </p>
+        </div>
+      )}
 
       {aufteilungGeschwister.length > 0 ? (
         <div className="mt-4 rounded-lg border border-neutral-800 p-4">

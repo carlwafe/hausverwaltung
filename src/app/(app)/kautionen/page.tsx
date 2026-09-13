@@ -49,7 +49,11 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // (Auflösung eingehend = positiv, Auszahlung ausgehend = negativ) — hier auf positive
     // Beträge normalisiert, damit "Einbehalten" als einfache Differenz berechnet werden kann.
     else if (b.kategorie === "AUFLOESUNG") eintrag.aufgeloest += betrag;
-    else if (b.kategorie === "AUSZAHLUNG_MIETER") eintrag.ausgezahlt += Math.abs(betrag);
+    // VIRTUELLE_AUSZAHLUNG zählt genauso wie eine echte Auszahlung Mieter — der Betrag ist der
+    // Kaution trotzdem endgültig entzogen, nur ohne eigene Kontobewegung (siehe Gegenbuchung auf
+    // der Kosten-Seite, Kostenposition.virtuelleKautionBuchungId).
+    else if (b.kategorie === "AUSZAHLUNG_MIETER" || b.kategorie === "VIRTUELLE_AUSZAHLUNG")
+      eintrag.ausgezahlt += Math.abs(betrag);
     summenProMietvertrag.set(key, eintrag);
   }
 
@@ -95,6 +99,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
     include: {
       mietvertrag: { include: { einheit: true, mieter: true } },
       importBatch: true,
+      virtuelleGutschriften: { include: { kostenart: true } },
     },
   });
 
@@ -111,6 +116,24 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
     kategorie: k.kategorie,
+    verknuepfteKostenpositionen: k.virtuelleGutschriften.map((kp) => ({
+      id: kp.id,
+      label: `${kp.kostenart.name} (${formatEuro(Number(kp.betrag))})`,
+    })),
+  }));
+}
+
+// Kandidaten für die Verknüpfung einer neuen virtuellen Auszahlung mit ihrer Gegenbuchung — nur
+// Gutschriften (negativer Betrag) kommen als Gegenbuchung infrage.
+async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string }[]> {
+  const positionen = await prisma.kostenposition.findMany({
+    where: { betrag: { lt: 0 } },
+    orderBy: { createdAt: "desc" },
+    include: { kostenart: true },
+  });
+  return positionen.map((k) => ({
+    id: k.id,
+    label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart.name} — ${formatEuro(Number(k.betrag))}${k.virtuelleKautionBuchungId ? " (bereits verknüpft)" : ""}`,
   }));
 }
 
@@ -128,10 +151,11 @@ async function ladeMietvertraege(): Promise<{ id: string; label: string }[]> {
 }
 
 export default async function KautionenPage() {
-  const [kautionen, kautionsbuchungen, mietvertraege] = await Promise.all([
+  const [kautionen, kautionsbuchungen, mietvertraege, virtuelleGutschriften] = await Promise.all([
     ladeKautionen(),
     ladeKautionsbuchungen(),
     ladeMietvertraege(),
+    ladeVirtuelleGutschriften(),
   ]);
   const offen = kautionen.filter((k) => k.status !== "ERLEDIGT");
   const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
@@ -174,7 +198,7 @@ export default async function KautionenPage() {
         <h2 className="mb-4 text-lg font-medium text-white">
           Kautionsbuchungen ({kautionsbuchungen.length})
         </h2>
-        <NeueKautionsbuchungForm mietvertraege={mietvertraege} />
+        <NeueKautionsbuchungForm mietvertraege={mietvertraege} virtuelleGutschriften={virtuelleGutschriften} />
         <KautionsbuchungenTable rows={kautionsbuchungen} />
       </div>
     </div>

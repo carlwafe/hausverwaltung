@@ -19,7 +19,8 @@ export type KautionBuchungKategorie =
   | "ANLAGE"
   | "AUFLOESUNG"
   | "AUSZAHLUNG_MIETER"
-  | "SONSTIGES";
+  | "SONSTIGES"
+  | "VIRTUELLE_AUSZAHLUNG";
 
 const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
   EINZAHLUNG_MIETER: "Einzahlung Mieter",
@@ -27,6 +28,7 @@ const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
   AUFLOESUNG: "Auflösung (vom Kautionskonto)",
   AUSZAHLUNG_MIETER: "Auszahlung Mieter",
   SONSTIGES: "Sonstiges (z.B. Korrektur)",
+  VIRTUELLE_AUSZAHLUNG: "Virtuelle Auszahlung",
 };
 
 export type KautionsbuchungRow = {
@@ -42,6 +44,9 @@ export type KautionsbuchungRow = {
   importBatchId: string | null;
   importDateiname: string | null;
   kategorie: KautionBuchungKategorie;
+  // Kostenpositionen, deren virtuelle Gutschrift auf diese Buchung verweist (nur bei
+  // kategorie === "VIRTUELLE_AUSZAHLUNG" relevant).
+  verknuepfteKostenpositionen: { id: string; label: string }[];
 };
 
 function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
@@ -105,7 +110,29 @@ const columns: Column<KautionsbuchungRow>[] = [
     label: "Kategorie",
     sortValue: (k) => KATEGORIE_LABEL[k.kategorie],
     searchValue: (k) => KATEGORIE_LABEL[k.kategorie],
-    render: (k) => <KategorieZelle k={k} />,
+    render: (k) => (
+      <div className="flex items-center gap-1.5">
+        <KategorieZelle k={k} />
+        {k.kategorie === "VIRTUELLE_AUSZAHLUNG" && (
+          <span
+            title="Virtuelle Buchung — kein realer Kontofluss"
+            className="inline-block rounded-full bg-purple-500/10 px-1.5 text-xs text-purple-400"
+          >
+            V
+          </span>
+        )}
+        {k.verknuepfteKostenpositionen.map((kp) => (
+          <Link
+            key={kp.id}
+            href={`/kosten/${kp.id}`}
+            className="text-xs text-neutral-500 hover:text-white hover:underline"
+            title={kp.label}
+          >
+            → Kosten
+          </Link>
+        ))}
+      </div>
+    ),
   },
   {
     key: "quelle",
@@ -154,6 +181,7 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
         searchPlaceholder="Kautionsbuchungen durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        rowId={(k) => `kautionsbuchung-${k.id}`}
         renderExpanded={(k, colSpan) =>
           k.rohdaten ? (
             <RohdatenZeile

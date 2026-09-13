@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { KostenpositionForm } from "../kostenposition-form";
 import { createKostenposition } from "../actions";
 import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
+import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
 
 export default async function NeueKostenpositionPage() {
-  const [kostenarten, gebaeude] = await Promise.all([
+  const [kostenarten, gebaeude, virtuelleAuszahlungen] = await Promise.all([
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
     prisma.gebaeude.findMany({
       orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
@@ -13,6 +14,7 @@ export default async function NeueKostenpositionPage() {
         kostengruppen: { select: { id: true, bezeichnung: true } },
       },
     }),
+    ladeVirtuelleAuszahlungen(),
   ]);
 
   return (
@@ -21,6 +23,7 @@ export default async function NeueKostenpositionPage() {
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
         gebaeude={gruppiereGebaeude(gebaeude)}
+        virtuelleAuszahlungen={virtuelleAuszahlungen}
         action={createKostenposition}
       />
     </div>

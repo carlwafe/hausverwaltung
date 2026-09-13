@@ -18,6 +18,7 @@ const KATEGORIE_WERTE = [
   "AUFLOESUNG",
   "AUSZAHLUNG_MIETER",
   "SONSTIGES",
+  "VIRTUELLE_AUSZAHLUNG",
 ] as const;
 type KautionBuchungKategorie = (typeof KATEGORIE_WERTE)[number];
 
@@ -37,6 +38,9 @@ const kautionsbuchungSchema = z.object({
   betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
   kategorie: z.enum(KATEGORIE_WERTE, { message: "Kategorie ist erforderlich" }),
   verwendungszweck: z.string().optional(),
+  // Nur bei Kategorie VIRTUELLE_AUSZAHLUNG relevant — verknüpft die neue Buchung direkt mit ihrer
+  // Gegenbuchung auf der Kosten-Seite (Kostenposition.virtuelleKautionBuchungId).
+  verknuepfteKostenpositionId: z.string().optional(),
 });
 
 // Für Fälle, die sich nicht aus einer einzelnen Kontobuchung ergeben (z.B. ein einbehaltener
@@ -54,16 +58,26 @@ export async function erstelleKautionsbuchung(_prev: string | null, formData: Fo
     betrag: formData.get("betrag"),
     kategorie: formData.get("kategorie"),
     verwendungszweck: formData.get("verwendungszweck") || undefined,
+    verknuepfteKostenpositionId: formData.get("verknuepfteKostenpositionId") || undefined,
   });
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
-  const { mietvertragId, datum, betrag, kategorie, verwendungszweck } = parsed.data;
+  const { mietvertragId, datum, betrag, kategorie, verwendungszweck, verknuepfteKostenpositionId } = parsed.data;
 
-  await prisma.kautionBuchung.create({
-    data: { mietvertragId, datum: new Date(datum), betrag, kategorie, verwendungszweck },
+  await prisma.$transaction(async (tx) => {
+    const buchung = await tx.kautionBuchung.create({
+      data: { mietvertragId, datum: new Date(datum), betrag, kategorie, verwendungszweck },
+    });
+    if (verknuepfteKostenpositionId) {
+      await tx.kostenposition.update({
+        where: { id: verknuepfteKostenpositionId },
+        data: { virtuelleKautionBuchungId: buchung.id },
+      });
+    }
   });
 
   revalidatePath("/kautionen");
+  revalidatePath("/kosten");
   return null;
 }

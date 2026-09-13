@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
+import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 
 type Kostenposition = {
   kostenartId: string;
@@ -12,16 +13,20 @@ type Kostenposition = {
   betrag: string;
   beschreibung: string | null;
   empfaenger: string | null;
+  virtuelleKautionBuchungId: string | null;
 };
 
 export function KostenpositionForm({
   kostenarten,
   gebaeude,
+  virtuelleAuszahlungen,
   initial,
   action,
 }: {
   kostenarten: { id: string; label: string }[];
   gebaeude: { label: string; optionen: { value: string; label: string }[] }[];
+  /** Kautionsbuchungen der Kategorie VIRTUELLE_AUSZAHLUNG — mögliche Gegenbuchungen. */
+  virtuelleAuszahlungen: { id: string; label: string }[];
   initial?: Kostenposition;
   action: (formData: FormData) => Promise<void>;
 }) {
@@ -30,6 +35,9 @@ export function KostenpositionForm({
     null,
   );
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.label);
+  const [virtuelleKautionBuchungId, setVirtuelleKautionBuchungId] = useState(
+    initial?.virtuelleKautionBuchungId ?? "",
+  );
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
@@ -143,6 +151,22 @@ export function KostenpositionForm({
           rows={3}
           defaultValue={initial?.beschreibung ?? ""}
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
+      </div>
+
+      <div>
+        <input type="hidden" name="virtuelleKautionBuchungId" value={virtuelleKautionBuchungId} />
+        <label className="mb-1 block text-sm font-medium">Verknüpfte Kautions-Auszahlung (optional)</label>
+        <p className="mb-1 text-xs text-neutral-500">
+          Für eine Gutschrift, die keine eigene Kontobewegung ist — z.B. eine Reparatur, die vom
+          einbehaltenen Kautionsrest bezahlt wurde, statt über alle Mieter umgelegt zu werden.
+        </p>
+        <MietvertragAuswahl
+          kandidaten={virtuelleAuszahlungen}
+          value={virtuelleKautionBuchungId}
+          onChange={setVirtuelleKautionBuchungId}
+          leerLabel="– keine –"
+          size="md"
         />
       </div>
 
