@@ -9,6 +9,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
+import { ladeEinheitenFuerAuswahl } from "../einheiten-liste";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -20,7 +21,7 @@ export default async function KostenpositionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [kostenposition, kostenarten, gebaeude, virtuelleAuszahlungen] = await Promise.all([
+  const [kostenposition, kostenarten, gebaeude, virtuelleAuszahlungen, einheiten] = await Promise.all([
     prisma.kostenposition.findUnique({
       where: { id },
       include: {
@@ -28,6 +29,7 @@ export default async function KostenpositionDetailPage({
         gebaeude: true,
         haus: { include: { gebaeude: true } },
         kostengruppe: true,
+        einheit: { include: { gebaeude: true } },
         dokumente: { orderBy: { createdAt: "desc" } },
         virtuelleKautionBuchung: true,
       },
@@ -41,6 +43,7 @@ export default async function KostenpositionDetailPage({
       },
     }),
     ladeVirtuelleAuszahlungen(),
+    ladeEinheitenFuerAuswahl(),
   ]);
   if (!kostenposition) notFound();
 
@@ -52,11 +55,12 @@ export default async function KostenpositionDetailPage({
       })
     : [];
 
-  const gebaeudeGruppen = gruppiereGebaeude(gebaeude);
+  const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
   const gebaeudeLabel = gebaeudeOderHausLabel(
     kostenposition.gebaeude,
     kostenposition.haus,
     kostenposition.kostengruppe,
+    kostenposition.einheit,
   );
 
   return (
@@ -81,6 +85,7 @@ export default async function KostenpositionDetailPage({
             kostenposition.gebaeudeId,
             kostenposition.hausId,
             kostenposition.kostengruppeId,
+            kostenposition.einheitId,
           ),
           jahr: kostenposition.jahr,
           datum: kostenposition.datum ? kostenposition.datum.toISOString().slice(0, 10) : null,

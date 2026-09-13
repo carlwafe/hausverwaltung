@@ -42,8 +42,8 @@ function parseForm(formData: FormData) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
   }
   const { gebaeudeAuswahl, ...rest } = parsed.data;
-  const { gebaeudeId, hausId, kostengruppeId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
-  return { ...rest, gebaeudeId, hausId, kostengruppeId };
+  const { gebaeudeId, hausId, kostengruppeId, einheitId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
+  return { ...rest, gebaeudeId, hausId, kostengruppeId, einheitId };
 }
 
 // Das Datumsfeld wird bei einer importierten Position deaktiviert (siehe kostenposition-form.tsx)
@@ -74,7 +74,7 @@ async function ermittleDatumFuerVirtuelleGutschrift(
 
 export async function createKostenposition(formData: FormData) {
   await requireEditor();
-  const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
+  const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
   const { wert: explizitesDatum } = parseDatumFeld(formData);
   const datum = explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId));
@@ -87,6 +87,7 @@ export async function createKostenposition(formData: FormData) {
       ...(gebaeudeId ? { gebaeude: { connect: { id: gebaeudeId } } } : {}),
       ...(hausId ? { haus: { connect: { id: hausId } } } : {}),
       ...(kostengruppeId ? { kostengruppe: { connect: { id: kostengruppeId } } } : {}),
+      ...(einheitId ? { einheit: { connect: { id: einheitId } } } : {}),
       ...(virtuelleKautionBuchungId
         ? { virtuelleKautionBuchung: { connect: { id: virtuelleKautionBuchungId } } }
         : {}),
@@ -100,7 +101,7 @@ export async function createKostenposition(formData: FormData) {
 
 export async function updateKostenposition(id: string, formData: FormData) {
   await requireEditor();
-  const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
+  const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
   // Bei einer importierten Position (Datumsfeld deaktiviert) war "datum" gar nicht im FormData
   // enthalten — dann bleibt das echte Buchungsdatum unangetastet. Sonst übernimmt ein vom Nutzer
@@ -120,6 +121,7 @@ export async function updateKostenposition(id: string, formData: FormData) {
       gebaeude: gebaeudeId ? { connect: { id: gebaeudeId } } : { disconnect: true },
       haus: hausId ? { connect: { id: hausId } } : { disconnect: true },
       kostengruppe: kostengruppeId ? { connect: { id: kostengruppeId } } : { disconnect: true },
+      einheit: einheitId ? { connect: { id: einheitId } } : { disconnect: true },
       virtuelleKautionBuchung: virtuelleKautionBuchungId
         ? { connect: { id: virtuelleKautionBuchungId } }
         : { disconnect: true },
@@ -206,6 +208,7 @@ export async function teileKostenpositionAuf(
           gebaeudeId: original.gebaeudeId,
           hausId: original.hausId,
           kostengruppeId: original.kostengruppeId,
+          einheitId: original.einheitId,
           jahr: original.jahr,
           datum: original.datum,
           rohdaten: original.rohdaten ?? undefined,
@@ -252,6 +255,7 @@ export async function hebeAufteilungAuf(positionId: string) {
         gebaeudeId: position.gebaeudeId,
         hausId: position.hausId,
         kostengruppeId: position.kostengruppeId,
+        einheitId: position.einheitId,
         jahr: position.jahr,
         datum: position.datum,
         rohdaten: position.rohdaten ?? undefined,

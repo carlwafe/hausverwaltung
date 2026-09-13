@@ -179,6 +179,7 @@ model Einheit {
   nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
   verbrauchswerte                 Verbrauchswert[]
   dokumente                       Dokument[]
+  kostenpositionen                Kostenposition[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
@@ -363,17 +364,21 @@ model Kostenposition {
   id                 String        @id @default(cuid())
   kostenart          Kostenart     @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
   kostenartId        String
-  // Höchstens eins von gebaeude/haus/kostengruppe ist gesetzt: gebaeude für eine einzelne
-  // Adresse (z.B. eine Reparatur), haus für ein ganzes Bauwerk mit mehreren Hausnummern (z.B.
-  // Grundsteuer), kostengruppe für eine frei zusammengestellte Gruppe über Haus-Grenzen hinweg
-  // (z.B. wenn ein Versorger mehrere Häuser gemeinsam abrechnet). Sind alle drei null, betrifft
-  // die Kostenposition das ganze Objekt (z.B. Bankgebühren).
+  // Höchstens eins von gebaeude/haus/kostengruppe/einheit ist gesetzt: gebaeude für eine
+  // einzelne Adresse (z.B. eine Reparatur), haus für ein ganzes Bauwerk mit mehreren
+  // Hausnummern (z.B. Grundsteuer), kostengruppe für eine frei zusammengestellte Gruppe über
+  // Haus-Grenzen hinweg (z.B. wenn ein Versorger mehrere Häuser gemeinsam abrechnet), einheit
+  // als spezifischste Ebene für Kosten, die nur eine einzelne Wohnung betreffen (z.B. eine
+  // Kleinreparatur). Sind alle vier null, betrifft die Kostenposition das ganze Objekt (z.B.
+  // Bankgebühren).
   gebaeude           Gebaeude?     @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
   gebaeudeId         String?
   haus               Haus?         @relation(fields: [hausId], references: [id], onDelete: SetNull)
   hausId             String?
   kostengruppe       Kostengruppe? @relation(fields: [kostengruppeId], references: [id], onDelete: SetNull)
   kostengruppeId     String?
+  einheit            Einheit?      @relation(fields: [einheitId], references: [id], onDelete: SetNull)
+  einheitId          String?
   jahr               Int
   // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
   // Kostenpositionen kennen nur das Jahr).
@@ -409,6 +414,7 @@ model Kostenposition {
   @@index([hausId, jahr])
   @@index([virtuelleKautionBuchungId])
   @@index([kostengruppeId, jahr])
+  @@index([einheitId, jahr])
   @@index([aufteilungGruppeId])
   @@map("kostenpositionen")
 }

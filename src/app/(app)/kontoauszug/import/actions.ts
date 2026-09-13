@@ -12,13 +12,14 @@ import {
 } from "@/lib/import/zahlungen-import";
 import {
   mapKostenRows,
+  type EinheitKandidat,
   type EmpfaengerHistorie,
   type GebaeudeKandidat,
   type KostenartKandidat,
   type MieterKandidat,
   type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
-import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
+import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
 import {
   datumBetragSchluessel,
   ermittleMandatsrefAusZeile,
@@ -35,6 +36,7 @@ export type PreviewResult =
       kostenRows: ParsedKostenRow[];
       kostenarten: KostenartKandidat[];
       gebaeude: GebaeudeKandidat[];
+      einheiten: EinheitMitAdresse[];
       bestehendeKosten: string[];
       bestehendeZahlungenDatumBetrag: string[];
       bestehendeMietweiterleitungen: string[];
@@ -121,6 +123,7 @@ export async function previewImport(
       vertraege,
       kostenartenRaw,
       gebaeudeRaw,
+      einheitenRaw,
       bestehendeKostenpositionen,
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
@@ -140,6 +143,14 @@ export async function previewImport(
           kostengruppen: { select: { id: true, bezeichnung: true } },
         },
       }),
+      prisma.einheit.findMany({
+        select: {
+          id: true,
+          bezeichnung: true,
+          gebaeudeId: true,
+          gebaeude: { select: { strasse: true, hausnummer: true } },
+        },
+      }),
       prisma.kostenposition.findMany({
         select: {
           empfaenger: true,
@@ -147,6 +158,7 @@ export async function previewImport(
           gebaeudeId: true,
           hausId: true,
           kostengruppeId: true,
+          einheitId: true,
           datum: true,
           betrag: true,
           beschreibung: true,
@@ -280,6 +292,12 @@ export async function previewImport(
       haus: g.haus,
       kostengruppen: g.kostengruppen,
     }));
+    const einheiten: EinheitMitAdresse[] = einheitenRaw;
+    const einheitKandidaten: EinheitKandidat[] = einheitenRaw.map((e) => ({
+      id: e.id,
+      gebaeudeId: e.gebaeudeId,
+      bezeichnung: e.bezeichnung,
+    }));
     // Historie für den Empfänger→Kostenart-Vorschlag. Positionen ohne Empfänger (z.B. von der
     // Sparkasse ohne Namen abgebuchte Kontoführungsgebühren) bleiben drin — für die greift beim
     // Abgleich ein Verwendungszweck-Fallback statt des Empfänger-Namens.
@@ -289,13 +307,13 @@ export async function previewImport(
       return {
         empfaenger: k.empfaenger ?? "",
         kostenartId: k.kostenartId,
-        gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId) || null,
+        gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId, k.einheitId) || null,
         verwendungszweck: k.beschreibung,
         mandatsref: ermittleMandatsrefAusZeile(rohdaten, mandatsrefCol, k.beschreibung ?? ""),
       };
     });
     const mieterKandidaten: MieterKandidat[] = vertraege.flatMap((v) =>
-      v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname })),
+      v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname, einheitId: v.einheit.id })),
     );
     const kostenRows = mapKostenRows(
       headers,
@@ -306,6 +324,7 @@ export async function previewImport(
       bekannteReparaturBetraege,
       reparaturenKostenartId,
       bekannteWarmmieten,
+      einheitKandidaten,
     );
     // Aufgeteilte Positionen (siehe kosten/actions.ts teileKostenpositionAuf) einzeln zu betrachten
     // würde eine erneut importierte Original-Buchung nie als "bereits importiert" erkennen —
@@ -374,6 +393,7 @@ export async function previewImport(
       kostenRows,
       kostenarten,
       gebaeude,
+      einheiten,
       bestehendeKosten: [...bestehendeKosten],
       bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
       bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
@@ -547,12 +567,13 @@ export async function commitKosten(
   if (neu.length > 0) {
     await prisma.kostenposition.createMany({
       data: neu.map((r) => {
-        const { gebaeudeId, hausId, kostengruppeId } = parseGebaeudeAuswahlWert(r.gebaeudeAuswahl);
+        const { gebaeudeId, hausId, kostengruppeId, einheitId } = parseGebaeudeAuswahlWert(r.gebaeudeAuswahl);
         return {
           kostenartId: r.kostenartId,
           gebaeudeId,
           hausId,
           kostengruppeId,
+          einheitId,
           jahr: r.jahr,
           datum: new Date(r.datum),
           betrag: r.betrag,

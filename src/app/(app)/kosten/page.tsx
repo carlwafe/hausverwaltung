@@ -15,6 +15,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
       gebaeude: true,
       haus: { include: { gebaeude: true } },
       kostengruppe: true,
+      einheit: { include: { gebaeude: true } },
       importBatch: true,
     },
   });
@@ -23,7 +24,7 @@ async function ladeKosten(): Promise<KostenpositionRow[]> {
     id: k.id,
     jahr: k.jahr,
     datum: k.datum ? k.datum.toISOString() : null,
-    gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe),
+    gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe, k.einheit),
     kostenartName: k.kostenart.name,
     umlagefaehig: k.kostenart.umlagefaehig,
     betrag: Number(k.betrag),

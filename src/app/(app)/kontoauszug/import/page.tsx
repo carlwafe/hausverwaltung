@@ -14,7 +14,7 @@ import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
-import { gruppiereGebaeude } from "@/lib/gebaeude-gruppen";
+import { gruppiereGebaeude, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { datumBetragSchluessel } from "@/lib/import/bank-csv";
 
@@ -781,6 +781,7 @@ function KostenSektion({
   rows,
   kostenarten,
   gebaeude,
+  einheiten,
   bestehendeKostenListe,
   bestehendeZahlungenListe,
   bestehendeKautionListe,
@@ -797,6 +798,7 @@ function KostenSektion({
     haus: { id: string } | null;
     kostengruppen: { id: string; bezeichnung: string }[];
   }[];
+  einheiten: EinheitMitAdresse[];
   bestehendeKostenListe: string[];
   bestehendeZahlungenListe: string[];
   bestehendeKautionListe: string[];
@@ -814,7 +816,7 @@ function KostenSektion({
   const [hinweisFilter, setHinweisFilter] = useState<KostenHinweisFilter>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
-  const gebaeudeGruppen = gruppiereGebaeude(gebaeude);
+  const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
 
   function updateRow(rowNumber: number, patch: Partial<KostenEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
@@ -2025,6 +2027,7 @@ export default function KontoauszugImportPage() {
             rows={preview.kostenRows}
             kostenarten={preview.kostenarten}
             gebaeude={preview.gebaeude}
+            einheiten={preview.einheiten}
             bestehendeKostenListe={preview.bestehendeKosten}
             bestehendeZahlungenListe={preview.bestehendeZahlungenDatumBetrag}
             bestehendeKautionListe={preview.bestehendeKautionsbuchungen}

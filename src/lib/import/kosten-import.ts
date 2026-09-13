@@ -13,7 +13,7 @@ import {
   textEnthaeltWort,
   WASCHGELD_PATTERN,
 } from "./bank-csv";
-import { gebaeudeWert, hausWert, kostengruppeWert } from "../gebaeude-gruppen";
+import { gebaeudeWert, hausWert, kostengruppeWert, einheitWert } from "../gebaeude-gruppen";
 
 export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean };
 export type GebaeudeKandidat = {
@@ -24,6 +24,7 @@ export type GebaeudeKandidat = {
   haus: { id: string } | null;
   kostengruppen: { id: string; bezeichnung: string }[];
 };
+export type EinheitKandidat = { id: string; gebaeudeId: string; bezeichnung: string };
 
 // Eine bereits erfasste Kostenposition, aus der eine Empfänger→Kostenart/Gebäude-Zuordnung
 // gelernt wird. gebaeudeAuswahl ist derselbe "gebaeude:<id>"/"haus:<id>"/"kostengruppe:<id>"-Wert
@@ -47,11 +48,12 @@ export type EmpfaengerHistorie = {
   mandatsref: string | null;
 };
 
-// Nur für den Gutschrift-Ausschluss unten: ein Mieter, der einmal eine Kostenerstattung erhalten
-// hat (z.B. für eine selbst bezahlte Reparatur), taucht dadurch als Empfänger in der Historie auf
-// — jede spätere eingehende Buchung von ihm (also praktisch jede seiner monatlichen Mietzahlungen)
-// würde ohne diesen Ausschluss fälschlich als weitere Kosten-Gutschrift erkannt.
-export type MieterKandidat = { vorname: string; nachname: string };
+// Für den Gutschrift-Ausschluss unten (ein Mieter, der einmal eine Kostenerstattung erhalten hat
+// — z.B. für eine selbst bezahlte Reparatur —, taucht dadurch als Empfänger in der Historie auf;
+// jede spätere eingehende Buchung von ihm würde ohne diesen Ausschluss fälschlich als weitere
+// Kosten-Gutschrift erkannt) UND für den Einheit-Vorschlag anhand eines im Verwendungszweck
+// gefundenen Mieternamens (siehe ermittleEinheitVorschlagViaMieter).
+export type MieterKandidat = { vorname: string; nachname: string; einheitId: string };
 
 export type ParsedKostenRow = {
   rowNumber: number;
@@ -95,6 +97,49 @@ function istBekannterMieterEmpfaenger(
 ): boolean {
   const text = `${verwendungszweck} ${empfaenger}`;
   return mieterKandidaten.some((m) => textEnthaeltWort(text, m.nachname));
+}
+
+/**
+ * Schlägt eine Einheit anhand eines im Buchungstext gefundenen Mieternamens vor (z.B. eine
+ * Kleinreparatur-Rechnung, deren Verwendungszweck den Namen des betroffenen Mieters nennt). Anders
+ * als istBekannterMieterEmpfaenger oben (reiner Ausschluss, Nachname genügt) wird hier eine
+ * konkrete Einheit zugeordnet — deshalb strenger: zuerst Vor- UND Nachname gemeinsam im Text
+ * gesucht, erst wenn das nichts findet als Rückfall der Nachname allein, aber nur, wenn alle
+ * Treffer (auch aus anderen Wohnungen) zur selben Einheit gehören. Mehrdeutige Treffer (z.B. zwei
+ * unterschiedliche Mietparteien mit demselben Nachnamen in verschiedenen Wohnungen) ergeben bewusst
+ * keinen Vorschlag, statt zu raten.
+ */
+function ermittleEinheitVorschlagViaMieter(
+  empfaenger: string,
+  verwendungszweck: string,
+  mieterKandidaten: MieterKandidat[],
+): string | null {
+  const text = `${verwendungszweck} ${empfaenger}`;
+  const vollTreffer = mieterKandidaten.filter(
+    (m) => textEnthaeltWort(text, m.nachname) && textEnthaeltWort(text, m.vorname),
+  );
+  const kandidaten = vollTreffer.length > 0 ? vollTreffer : mieterKandidaten.filter((m) => textEnthaeltWort(text, m.nachname));
+  if (kandidaten.length === 0) return null;
+  const einheiten = new Set(kandidaten.map((k) => k.einheitId));
+  return einheiten.size === 1 ? kandidaten[0].einheitId : null;
+}
+
+const WHG_PATTERN = /\bwhg\.?\s*(\d+)\b/i;
+
+/**
+ * Schlägt eine Einheit anhand einer im Text gefundenen Wohnungsnummer vor (z.B. "Breslauer Str. 5
+ * WHG 2"), sofern bereits genau ein einzelnes Gebäude per Adresstext ermittelt wurde (siehe
+ * ermittleGebaeudeVorschlag). Passt die gefundene Nummer zu genau einer Einheit dieses Gebäudes
+ * (Einheit.bezeichnung folgt dem Muster "HS <Hausnummer> WHG <n> - ..."), wird diese vorgeschlagen
+ * — bei keinem oder mehreren Treffern bleibt es beim Gebäude-Vorschlag.
+ */
+function ermittleEinheitVorschlagViaWhg(text: string, gebaeudeId: string, einheiten: EinheitKandidat[]): string | null {
+  const treffer = WHG_PATTERN.exec(text);
+  if (!treffer) return null;
+  const passende = einheiten.filter(
+    (e) => e.gebaeudeId === gebaeudeId && new RegExp(`\\bwhg\\s*${treffer[1]}\\b`, "i").test(e.bezeichnung),
+  );
+  return passende.length === 1 ? passende[0].id : null;
 }
 
 /**
@@ -317,7 +362,9 @@ function findeHausnummernSpanne(textLeicht: string, strassen: string[]): Zahlber
  * Adresshinweis), bleibt bewusst kein Vorschlag.
  *
  * Adresstext-Erkennung im Detail:
- * - Genau eine Hausnummer im Text (z.B. "Breslauer Str. 14") → dieses eine Gebäude.
+ * - Genau eine Hausnummer im Text (z.B. "Breslauer Str. 14") → dieses eine Gebäude, oder — falls
+ *   zusätzlich eine Wohnungsnummer folgt (z.B. "Breslauer Str. 14 WHG 2") — direkt diese einzelne
+ *   Einheit (siehe ermittleEinheitVorschlagViaWhg).
  * - Eine oder mehrere Von-Bis-Spannen, deren Gesamt-Minimum/-Maximum genau den Mitgliedern
  *   eines Hauses (z.B. "Breslauer Str. 11 - 15" bei Haus 11/13/15) oder einer Kostengruppe (z.B.
  *   "Breslauer Str. 2-6,8-12" oder "2-12" bei einer Kostengruppe, die mehrere Häuser
@@ -334,6 +381,7 @@ function ermittleGebaeudeVorschlag(
   gebaeude: GebaeudeKandidat[],
   historie: EmpfaengerHistorie[],
   mandatsref: string | null,
+  einheiten: EinheitKandidat[] = [],
 ): string | null | undefined {
   const textLeicht = stripStrassenwort(text).toLowerCase();
   const strassen = [
@@ -352,7 +400,10 @@ function ermittleGebaeudeVorschlag(
       );
       return pattern.test(textLeicht);
     });
-    if (adressTreffer.length === 1) return gebaeudeWert(adressTreffer[0].id);
+    if (adressTreffer.length === 1) {
+      const einheitId = ermittleEinheitVorschlagViaWhg(textLeicht, adressTreffer[0].id, einheiten);
+      return einheitId ? einheitWert(einheitId) : gebaeudeWert(adressTreffer[0].id);
+    }
     // Mehrdeutig (mehrere Adressen im Text) — nicht ermittelbar, nicht "sicher kein Gebäude".
     if (adressTreffer.length > 1) return undefined;
   } else {
@@ -429,6 +480,8 @@ export function mapKostenRows(
   // historischen Reparaturrechnung darf keine echte Miete (z.B. eine Garage) fälschlich als
   // Kleinreparatur-Erstattung markieren, siehe dieselbe Absicherung in zahlungen-import.ts.
   bekannteWarmmieten: ReadonlySet<number> = new Set(),
+  // Für den Einheit-Vorschlag per Adresse+Wohnungsnummer (siehe ermittleEinheitVorschlagViaWhg).
+  einheitKandidaten: EinheitKandidat[] = [],
 ): ParsedKostenRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
     findeKontoauszugSpalten(headers);
@@ -516,14 +569,22 @@ export function mapKostenRows(
         gebaeudeKandidaten,
         mandatsref,
       );
-      vorgeschlageneGebaeudeAuswahl = ermittleGebaeudeVorschlag(
-        `${verwendungszweck} ${empfaenger}`,
-        empfaenger,
-        verwendungszweck,
-        gebaeudeKandidaten,
-        historie,
-        mandatsref,
-      );
+      // Ein im Text gefundener Mieter-Name ist das direkteste Signal für eine konkrete Einheit —
+      // wird deshalb zuerst geprüft, bevor auf die allgemeinere Adress-/Historie-Erkennung
+      // zurückgefallen wird (die ihrerseits über WHG-Nummer im Text ebenfalls eine Einheit treffen
+      // kann, siehe ermittleEinheitVorschlagViaWhg).
+      const einheitViaMieter = ermittleEinheitVorschlagViaMieter(empfaenger, verwendungszweck, mieterKandidaten);
+      vorgeschlageneGebaeudeAuswahl = einheitViaMieter
+        ? einheitWert(einheitViaMieter)
+        : ermittleGebaeudeVorschlag(
+            `${verwendungszweck} ${empfaenger}`,
+            empfaenger,
+            verwendungszweck,
+            gebaeudeKandidaten,
+            historie,
+            mandatsref,
+            einheitKandidaten,
+          );
       // Ein Mieter-Absender hat naturgemäß keine Empfänger-Historie als Kosten-Empfänger, aus der
       // sich sonst eine Kostenart ableiten ließe — bei einer erkannten Kleinreparatur-Erstattung
       // deshalb direkt "Reparaturen" vorschlagen, statt die Zeile ohne Vorschlag stehen zu lassen.

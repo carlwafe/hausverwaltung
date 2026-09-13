@@ -1,8 +1,8 @@
 // Berechnungs-Engine für die Nebenkostenabrechnung. Reine Funktionen auf einfachen Datenstrukturen
 // (kein Prisma-Import hier) — die aufrufende Server Action lädt die Daten und übergibt sie, das
 // macht die Berechnung isoliert testbar (z.B. per tsx-Skript gegen echte Daten). Kosten können auf
-// vier Ebenen liegen (Objekt gesamt, Haus, Kostengruppe, einzelnes Gebäude) — der Pool der
-// betroffenen Einheiten wird je Kostenposition passend dazu ermittelt.
+// fünf Ebenen liegen (Objekt gesamt, Haus, Kostengruppe, einzelnes Gebäude, einzelne Einheit) —
+// der Pool der betroffenen Einheiten wird je Kostenposition passend dazu ermittelt.
 
 export type VerteilerschluesselTyp =
   | "WOHNFLAECHE"
@@ -18,8 +18,11 @@ export type KostenpositionFuerAbrechnung = {
   hausId: string | null;
   // Frei zusammengestellte Gruppe mehrerer Gebäude über Haus-Grenzen hinweg (z.B. wenn ein
   // Versorger mehrere Häuser gemeinsam abrechnet) — höchstens eins von gebaeudeId/hausId/
-  // kostengruppeId ist gesetzt.
+  // kostengruppeId/einheitId ist gesetzt.
   kostengruppeId: string | null;
+  // Spezifischste Ebene: Kosten, die nur eine einzelne Wohnung betreffen (z.B. eine
+  // Kleinreparatur) — der Pool besteht dann nur aus dieser einen Einheit.
+  einheitId: string | null;
   kostenartId: string;
   verteilerschluessel: VerteilerschluesselTyp | null;
   kostenartName: string;
@@ -133,9 +136,10 @@ function tageImJahr(jahr: number): number {
 }
 
 function ermittlePool(
-  kp: Pick<KostenpositionFuerAbrechnung, "gebaeudeId" | "hausId" | "kostengruppeId">,
+  kp: Pick<KostenpositionFuerAbrechnung, "gebaeudeId" | "hausId" | "kostengruppeId" | "einheitId">,
   wohnungen: EinheitFuerAbrechnung[],
 ): EinheitFuerAbrechnung[] {
+  if (kp.einheitId) return wohnungen.filter((e) => e.id === kp.einheitId);
   if (kp.kostengruppeId) return wohnungen.filter((e) => e.kostengruppenIds.includes(kp.kostengruppeId!));
   if (kp.hausId) return wohnungen.filter((e) => e.hausId === kp.hausId);
   if (kp.gebaeudeId) return wohnungen.filter((e) => e.gebaeudeId === kp.gebaeudeId);
@@ -186,22 +190,24 @@ type KostenartGruppe = {
   kostenartId: string;
   kostenartName: string;
   scopeLabel: string;
-  scope: Pick<KostenpositionFuerAbrechnung, "gebaeudeId" | "hausId" | "kostengruppeId">;
+  scope: Pick<KostenpositionFuerAbrechnung, "gebaeudeId" | "hausId" | "kostengruppeId" | "einheitId">;
   verteilerschluessel: VerteilerschluesselTyp | null;
   masseinheit: string | null;
   betrag: number;
 };
 
 function gruppenSchluessel(
-  kp: Pick<KostenpositionFuerAbrechnung, "kostenartId" | "gebaeudeId" | "hausId" | "kostengruppeId">,
+  kp: Pick<KostenpositionFuerAbrechnung, "kostenartId" | "gebaeudeId" | "hausId" | "kostengruppeId" | "einheitId">,
 ): string {
-  const scope = kp.kostengruppeId
-    ? `kg:${kp.kostengruppeId}`
-    : kp.hausId
-      ? `haus:${kp.hausId}`
-      : kp.gebaeudeId
-        ? `geb:${kp.gebaeudeId}`
-        : "objekt";
+  const scope = kp.einheitId
+    ? `einheit:${kp.einheitId}`
+    : kp.kostengruppeId
+      ? `kg:${kp.kostengruppeId}`
+      : kp.hausId
+        ? `haus:${kp.hausId}`
+        : kp.gebaeudeId
+          ? `geb:${kp.gebaeudeId}`
+          : "objekt";
   return `${kp.kostenartId}|${scope}`;
 }
 
@@ -238,7 +244,12 @@ function berechneEinheitAnteile(
       kostenartId: kp.kostenartId,
       kostenartName: kp.kostenartName,
       scopeLabel: kp.scopeLabel,
-      scope: { gebaeudeId: kp.gebaeudeId, hausId: kp.hausId, kostengruppeId: kp.kostengruppeId },
+      scope: {
+        gebaeudeId: kp.gebaeudeId,
+        hausId: kp.hausId,
+        kostengruppeId: kp.kostengruppeId,
+        einheitId: kp.einheitId,
+      },
       verteilerschluessel: kp.verteilerschluessel,
       masseinheit: kp.masseinheit,
       betrag: (bisherig?.betrag ?? 0) + kp.betrag,

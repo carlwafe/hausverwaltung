@@ -21,7 +21,13 @@ export async function ladeBerechnungsdaten(jahr: number) {
     await Promise.all([
       prisma.kostenposition.findMany({
         where: { jahr, kostenart: { umlagefaehig: true } },
-        include: { kostenart: true, gebaeude: true, haus: { include: { gebaeude: true } }, kostengruppe: true },
+        include: {
+          kostenart: true,
+          gebaeude: true,
+          haus: { include: { gebaeude: true } },
+          kostengruppe: true,
+          einheit: { include: { gebaeude: true } },
+        },
       }),
       prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
       prisma.mietvertrag.findMany(),
@@ -34,10 +40,11 @@ export async function ladeBerechnungsdaten(jahr: number) {
     gebaeudeId: k.gebaeudeId,
     hausId: k.hausId,
     kostengruppeId: k.kostengruppeId,
+    einheitId: k.einheitId,
     kostenartId: k.kostenartId,
     verteilerschluessel: k.kostenart.standardVerteilerschluessel,
     kostenartName: k.kostenart.name,
-    scopeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe),
+    scopeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe, k.einheit),
     masseinheit: k.kostenart.masseinheit,
   }));
   const einheiten: EinheitFuerAbrechnung[] = einheitenRaw.map((e) => ({
