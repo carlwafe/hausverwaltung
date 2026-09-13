@@ -46,18 +46,19 @@ function parseForm(formData: FormData) {
   return { ...rest, gebaeudeId, hausId, kostengruppeId };
 }
 
-// Eine virtuelle Gutschrift muss ein echtes datum tragen, um wie gewollt ganz normal in
-// /kontostand einzufließen (das dort nur Kostenpositionen mit datum != null zählt) und dort die
-// verknüpfte Kautionsbuchung auszugleichen — manuell erfasste Kostenpositionen kennen sonst nur
-// das Jahr (siehe kostenpositionSchema, kein eigenes Datumsfeld im Formular). Übernimmt dafür
-// automatisch das Datum der verknüpften Kautionsbuchung, statt den Nutzer ein weiteres Feld
-// ausfüllen zu lassen. Gibt bewusst `undefined` (statt `null`) zurück, wenn keine Verknüpfung
-// gesetzt ist, damit ein bestehendes echtes Buchungsdatum (z.B. einer per Kontoauszug
-// importierten Position) beim Bearbeiten nicht überschrieben wird.
+// Eine virtuelle Gutschrift ohne eigenes datum würde nicht in /kontostand einfließen (das dort nur
+// Kostenpositionen mit datum != null zählt) und ihre verknüpfte Kautionsbuchung nicht ausgleichen
+// — manuell erfasste Kostenpositionen kennen sonst nur das Jahr (siehe kostenpositionSchema, kein
+// eigenes Datumsfeld im Formular). Übernimmt dafür beim Verknüpfen automatisch das Datum der
+// Kautionsbuchung, aber NUR wenn die Position noch gar kein eigenes datum hat — sonst würde beim
+// Verknüpfen einer bereits real importierten Position (z.B. eine per Kontoauszug erfasste
+// Reparatur) deren echtes Buchungsdatum stillschweigend überschrieben. Gibt `undefined` zurück,
+// wenn nichts geändert werden soll (keine Verknüpfung, oder bereits ein eigenes datum vorhanden).
 async function ermittleDatumFuerVirtuelleGutschrift(
   virtuelleKautionBuchungId: string | undefined,
-): Promise<Date | null | undefined> {
-  if (!virtuelleKautionBuchungId) return undefined;
+  bestehendesDatum: Date | null,
+): Promise<Date | undefined> {
+  if (!virtuelleKautionBuchungId || bestehendesDatum) return undefined;
   const buchung = await prisma.kautionBuchung.findUnique({
     where: { id: virtuelleKautionBuchungId },
     select: { datum: true },
@@ -69,7 +70,8 @@ export async function createKostenposition(formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
-  const datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId);
+  // Eine neu erstellte Position hat noch kein eigenes datum, daher hier immer null als Basis.
+  const datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId, null);
 
   await prisma.kostenposition.create({
     data: {
@@ -94,17 +96,13 @@ export async function updateKostenposition(id: string, formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
-  let datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId);
-  if (datum === undefined && !virtuelleKautionBuchungId) {
-    // Falls diese Position bisher verknüpft war und die Verknüpfung jetzt entfernt wird, muss das
-    // von der Kautionsbuchung übernommene Datum mit zurückgesetzt werden — sonst bliebe sie trotz
-    // aufgehobener Verknüpfung weiter wie eine virtuelle Gutschrift in /kontostand.
-    const bestehend = await prisma.kostenposition.findUnique({
-      where: { id },
-      select: { virtuelleKautionBuchungId: true },
-    });
-    if (bestehend?.virtuelleKautionBuchungId) datum = null;
-  }
+  // Bestehendes datum nachschlagen, statt es beim Verknüpfen blind zu überschreiben — betrifft vor
+  // allem real importierte Positionen mit einem eigenen, echten Buchungsdatum. Beim Entfernen einer
+  // Verknüpfung wird datum bewusst NICHT zurückgesetzt (auch wenn es ursprünglich von der
+  // Kautionsbuchung übernommen wurde) — ein automatisches Löschen hier wäre nicht von einem
+  // versehentlichen Überschreiben eines echten Datums zu unterscheiden.
+  const bestehend = await prisma.kostenposition.findUnique({ where: { id }, select: { datum: true } });
+  const datum = await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId, bestehend?.datum ?? null);
 
   await prisma.kostenposition.update({
     where: { id },
