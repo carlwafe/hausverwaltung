@@ -67,9 +67,12 @@ function ermittleZahlungHinweis(
   if (r.kaution) return "kaution";
   if (r.kleinreparatur) return "kleinreparatur";
   if (r.ignorieren) return "pruefen";
+  // Eine Rücklastschrift mit bereits eindeutig ermitteltem Mietvertrag (z.B. über die
+  // Mandatsreferenz) braucht keine gesonderte manuelle Prüfung mehr — das negative Vorzeichen im
+  // Betrag bleibt als Hinweis sichtbar, analog zur Gutschrift im Kosten-Import.
+  if (r.vorgeschlagenerMietvertragId) return "vorschlag";
   if (r.rueckbuchung) return "rueckbuchung";
   if (r.mehrdeutig) return "mehrdeutig";
-  if (r.vorgeschlagenerMietvertragId) return "vorschlag";
   return "pruefen";
 }
 
