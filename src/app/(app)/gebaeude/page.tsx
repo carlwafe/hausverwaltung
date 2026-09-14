@@ -22,6 +22,7 @@ async function ladeGebaeude(): Promise<GebaeudeRow[]> {
           .sort((a, b) => Number(a) - Number(b))
           .join(", ")
       : null,
+    hausId: g.hausId,
     hausnummer: g.hausnummer,
     einheitenCount: g._count.einheiten,
   }));

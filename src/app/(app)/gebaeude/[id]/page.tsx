@@ -5,6 +5,8 @@ import { GebaeudeForm } from "../gebaeude-form";
 import { updateGebaeude, deleteGebaeude } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
 import { hausLabel } from "@/lib/gebaeude-gruppen";
+import { KostenTable } from "../../kosten/kosten-table";
+import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 
 export default async function GebaeudeDetailPage({
   params,
@@ -12,12 +14,13 @@ export default async function GebaeudeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [gebaeude, haeuserRaw] = await Promise.all([
+  const [gebaeude, haeuserRaw, kosten] = await Promise.all([
     prisma.gebaeude.findUnique({
       where: { id },
-      include: { einheiten: { orderBy: { bezeichnung: "asc" } } },
+      include: { einheiten: { orderBy: { bezeichnung: "asc" } }, haus: { include: { gebaeude: true } } },
     }),
     prisma.haus.findMany({ include: { gebaeude: true } }),
+    ladeKosten({ gebaeudeId: id, kostenart: { name: { in: REPARATUR_SANIERUNG_KOSTENART_NAMEN } } }),
   ]);
   if (!gebaeude) notFound();
   const haeuser = haeuserRaw.map((h) => ({ id: h.id, label: hausLabel(h.gebaeude) }));
@@ -25,9 +28,19 @@ export default async function GebaeudeDetailPage({
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-white">
-          {gebaeude.strasse} {gebaeude.hausnummer}
-        </h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-white">
+            {gebaeude.strasse} {gebaeude.hausnummer}
+          </h1>
+          {gebaeude.haus && (
+            <Link
+              href={`/haeuser/${gebaeude.haus.id}`}
+              className="text-sm text-neutral-400 hover:text-white hover:underline"
+            >
+              {hausLabel(gebaeude.haus.gebaeude)} →
+            </Link>
+          )}
+        </div>
         <DeleteButton
           action={deleteGebaeude.bind(null, id)}
           confirmText="Gebäude wirklich löschen? Das geht nur, wenn keine Einheiten mehr zugeordnet sind."
@@ -77,6 +90,13 @@ export default async function GebaeudeDetailPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-lg font-medium text-white">
+          Reparaturen, Sanierung & Modernisierung dieses Gebäudes ({kosten.length})
+        </h2>
+        <KostenTable rows={kosten} />
       </div>
     </div>
   );

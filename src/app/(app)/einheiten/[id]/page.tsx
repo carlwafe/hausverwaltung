@@ -7,6 +7,8 @@ import { DeleteButton } from "@/components/delete-button";
 import { FotosSektion } from "@/components/fotos-sektion";
 import { uploadDokument } from "../../dokumente/actions";
 import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
+import { KostenTable } from "../../kosten/kosten-table";
+import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -30,7 +32,7 @@ export default async function EinheitDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [einheit, gebaeudeRaw, mietvertraege, fotos] = await Promise.all([
+  const [einheit, gebaeudeRaw, mietvertraege, fotos, kosten] = await Promise.all([
     prisma.einheit.findUnique({ where: { id } }),
     prisma.gebaeude.findMany(),
     prisma.mietvertrag.findMany({
@@ -43,6 +45,7 @@ export default async function EinheitDetailPage({
       orderBy: { createdAt: "desc" },
       select: { id: true, dateiname: true },
     }),
+    ladeKosten({ einheitId: id, kostenart: { name: { in: REPARATUR_SANIERUNG_KOSTENART_NAMEN } } }),
   ]);
   if (!einheit) notFound();
   const gebaeude = sortByStrasseUndHausnummer(gebaeudeRaw);
@@ -127,6 +130,13 @@ export default async function EinheitDetailPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-4 text-lg font-medium text-white">
+          Reparaturen, Sanierung & Modernisierung dieser Einheit ({kosten.length})
+        </h2>
+        <KostenTable rows={kosten} />
       </div>
 
       <div className="mt-8">

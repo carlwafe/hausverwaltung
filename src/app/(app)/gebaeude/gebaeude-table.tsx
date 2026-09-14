@@ -7,6 +7,7 @@ export type GebaeudeRow = {
   id: string;
   strasse: string;
   haus: string | null;
+  hausId: string | null;
   hausnummer: string;
   einheitenCount: number;
 };
@@ -28,7 +29,14 @@ const columns: Column<GebaeudeRow>[] = [
     label: "Haus",
     sortValue: (g) => g.haus ?? "",
     searchValue: (g) => g.haus ?? "",
-    render: (g) => g.haus || "–",
+    render: (g) =>
+      g.haus && g.hausId ? (
+        <Link href={`/haeuser/${g.hausId}`} className="hover:underline">
+          {g.haus}
+        </Link>
+      ) : (
+        "–"
+      ),
   },
   {
     key: "hausnummer",

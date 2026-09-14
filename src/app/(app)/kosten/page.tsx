@@ -1,41 +1,9 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { KostenTable, type KostenpositionRow } from "./kosten-table";
-import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
+import { KostenTable } from "./kosten-table";
+import { ladeKosten } from "./kosten-liste";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
-}
-
-async function ladeKosten(): Promise<KostenpositionRow[]> {
-  const positionen = await prisma.kostenposition.findMany({
-    orderBy: [{ jahr: "desc" }, { createdAt: "desc" }],
-    include: {
-      kostenart: true,
-      gebaeude: true,
-      haus: { include: { gebaeude: true } },
-      kostengruppe: true,
-      einheit: { include: { gebaeude: true } },
-      importBatch: true,
-    },
-  });
-
-  return positionen.map((k) => ({
-    id: k.id,
-    jahr: k.jahr,
-    datum: k.datum ? k.datum.toISOString() : null,
-    gebaeudeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe, k.einheit),
-    kostenartName: k.kostenart.name,
-    umlagefaehig: k.kostenart.umlagefaehig,
-    betrag: Number(k.betrag),
-    empfaenger: k.empfaenger,
-    beschreibung: k.beschreibung,
-    rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
-    importBatchId: k.importBatchId,
-    importDateiname: k.importBatch?.dateiname ?? null,
-    aufteilungGruppeId: k.aufteilungGruppeId,
-    virtuelleKautionBuchungId: k.virtuelleKautionBuchungId,
-  }));
 }
 
 export default async function KostenPage() {
