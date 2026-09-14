@@ -32,7 +32,7 @@ async function ladeJahresuebersicht(jahr: number) {
       where: { beglichenAm: { gte: jahresanfang, lt: jahresende } },
       select: { beglichenBetrag: true },
     }),
-    prisma.sonstigeBuchung.findMany({
+    prisma.nebenkostenausgleichZahlung.findMany({
       where: { datum: { gte: jahresanfang, lt: jahresende } },
       orderBy: { datum: "asc" },
     }),
@@ -337,8 +337,8 @@ export default async function JahresuebersichtPage({
       {daten.sonstigeBuchungen.length > 0 && (
         <div className="rounded-lg border border-amber-900 bg-amber-950/30 p-4">
           <p className="mb-2 text-sm font-medium text-amber-400">
-            {daten.sonstigeBuchungen.length} Sonstige Buchung(en) in {jahr} — nicht in der
-            Berechnung oben enthalten, bitte manuell prüfen
+            {daten.sonstigeBuchungen.length} Nebenkostenausgleich-Zahlung(en) in {jahr} — nicht in
+            der Berechnung oben enthalten, bitte manuell prüfen
           </p>
           <ul className="space-y-1 text-sm text-neutral-300">
             {daten.sonstigeBuchungen.map((s) => (
@@ -348,10 +348,10 @@ export default async function JahresuebersichtPage({
             ))}
           </ul>
           <Link
-            href="/sonstige-buchungen"
+            href="/nebenkostenausgleich"
             className="mt-2 inline-block text-sm text-amber-400 hover:underline"
           >
-            Zu Sonstige Buchungen →
+            Zu Nebenkostenausgleich →
           </Link>
         </div>
       )}

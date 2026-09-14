@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { SonstigeBuchungenTable, type SonstigeBuchungRow } from "./sonstige-buchungen-table";
+import {
+  NebenkostenausgleichZahlungenTable,
+  type NebenkostenausgleichZahlungRow,
+} from "./nebenkostenausgleich-zahlungen-table";
 
-async function ladeSonstigeBuchungen(): Promise<SonstigeBuchungRow[]> {
-  const buchungen = await prisma.sonstigeBuchung.findMany({
+async function ladeNebenkostenausgleichZahlungen(): Promise<NebenkostenausgleichZahlungRow[]> {
+  const zahlungen = await prisma.nebenkostenausgleichZahlung.findMany({
     orderBy: { datum: "desc" },
     include: {
       importBatch: true,
@@ -11,10 +14,11 @@ async function ladeSonstigeBuchungen(): Promise<SonstigeBuchungRow[]> {
     },
   });
 
-  return buchungen.map((b) => ({
+  return zahlungen.map((b) => ({
     id: b.id,
     datum: b.datum.toISOString(),
     betrag: Number(b.betrag),
+    jahr: b.jahr,
     empfaenger: b.empfaenger,
     verwendungszweck: b.verwendungszweck,
     mietvertragId: b.mietvertragId,
@@ -26,18 +30,20 @@ async function ladeSonstigeBuchungen(): Promise<SonstigeBuchungRow[]> {
   }));
 }
 
-export default async function SonstigeBuchungenPage() {
-  const buchungen = await ladeSonstigeBuchungen();
+export default async function NebenkostenausgleichPage() {
+  const zahlungen = await ladeNebenkostenausgleichZahlungen();
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Sonstige Buchungen</h1>
+          <h1 className="text-2xl font-semibold text-white">Nebenkostenausgleich</h1>
           <p className="text-sm text-neutral-400">
-            {buchungen.length} Buchung{buchungen.length === 1 ? "" : "en"} — rein archivarisch, ohne
-            Einfluss auf Soll/Ist oder die Nebenkostenabrechnung (z.B. Nebenkostenausgleiche aus
-            Jahren ohne Abrechnung in dieser App)
+            {zahlungen.length} Zahlung{zahlungen.length === 1 ? "" : "en"} — Rückzahlungen/
+            Nachzahlungen aus der Nebenkostenabrechnung, ohne Einfluss auf Soll/Ist. Mit
+            Abrechnungsjahr wird eine Zahlung automatisch mit der passenden Position verknüpft,
+            sobald eine Abrechnung für dieses Jahr erstellt oder neu berechnet wird; ohne Jahr
+            bleibt sie rein archivarisch.
           </p>
         </div>
         <Link
@@ -48,7 +54,7 @@ export default async function SonstigeBuchungenPage() {
         </Link>
       </div>
 
-      <SonstigeBuchungenTable rows={buchungen} />
+      <NebenkostenausgleichZahlungenTable rows={zahlungen} />
     </div>
   );
 }

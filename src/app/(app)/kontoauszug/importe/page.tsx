@@ -13,7 +13,7 @@ export default async function KontoauszugImportePage() {
           kostenpositionen: true,
           eigentuemerbuchungen: true,
           kautionsbuchungen: true,
-          sonstigeBuchungen: true,
+          nebenkostenausgleichZahlungen: true,
         },
       },
     },
@@ -28,7 +28,7 @@ export default async function KontoauszugImportePage() {
     anzahlKosten: b._count.kostenpositionen,
     anzahlMietweiterleitungen: b._count.eigentuemerbuchungen,
     anzahlKautionsbuchungen: b._count.kautionsbuchungen,
-    anzahlSonstige: b._count.sonstigeBuchungen,
+    anzahlSonstige: b._count.nebenkostenausgleichZahlungen,
   }));
   const verwaisteAnzahl = rows.filter(
     (r) =>

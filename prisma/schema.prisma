@@ -231,13 +231,13 @@ model Mietvertrag {
   saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
   createdAt                DateTime          @default(now())
 
-  kaution                   Kaution?
-  kautionsbuchungen         KautionBuchung[]
-  zahlungen                 Zahlung[]
-  dokumente                 Dokument[]
-  abrechnungspositionen     NebenkostenabrechnungPosition[]
-  sonstigeBuchungen         SonstigeBuchung[]
-  vorverteilteKostenanteile VorverteilterKostenanteil[]
+  kaution                       Kaution?
+  kautionsbuchungen             KautionBuchung[]
+  zahlungen                     Zahlung[]
+  dokumente                     Dokument[]
+  abrechnungspositionen         NebenkostenabrechnungPosition[]
+  nebenkostenausgleichZahlungen NebenkostenausgleichZahlung[]
+  vorverteilteKostenanteile     VorverteilterKostenanteil[]
 
   @@map("mietvertraege")
 }
@@ -496,11 +496,11 @@ model ImportBatch {
   anzahlZeilen Int?
   erstelltAm   DateTime @default(now())
 
-  zahlungen            Zahlung[]
-  kostenpositionen     Kostenposition[]
-  eigentuemerbuchungen EigentuemerBuchung[]
-  kautionsbuchungen    KautionBuchung[]
-  sonstigeBuchungen    SonstigeBuchung[]
+  zahlungen                     Zahlung[]
+  kostenpositionen              Kostenposition[]
+  eigentuemerbuchungen          EigentuemerBuchung[]
+  kautionsbuchungen             KautionBuchung[]
+  nebenkostenausgleichZahlungen NebenkostenausgleichZahlung[]
 
   @@map("import_batches")
 }
@@ -577,17 +577,23 @@ enum KautionBuchungKategorie {
   VIRTUELLE_AUSZAHLUNG
 }
 
-// Bankbuchung, die bewusst keiner der anderen Kategorien zugeordnet wird — z.B. eine
-// Nebenkostenabrechnung-Rückzahlung/-nachzahlung für ein Jahr, das nie in dieser App abgerechnet
-// wurde (weil die Abrechnung schon vorher extern erstellt wurde) und für das deshalb nie eine
-// offene NebenkostenabrechnungPosition existieren wird. Rein archivarisch: fließt in keine
-// Berechnung ein (weder Offene Posten noch Nebenkostenabrechnung) — dient nur dazu, dass die
-// Vollständigkeitsprüfung eines Kontoauszugs die Zeile als geklärt erkennt, statt sie dauerhaft
-// als "ungeklärt" zu melden.
-model SonstigeBuchung {
+// Eine Nebenkostenabrechnung-Rückzahlung/-nachzahlung, unabhängig davon, ob es für ihr Jahr
+// bereits eine Nebenkostenabrechnung in dieser App gibt — der Import schreibt hierher, egal ob
+// (noch) eine passende NebenkostenabrechnungPosition existiert. Steht `jahr` fest, wird beim
+// Erstellen/Neu-Berechnen einer Abrechnung für genau dieses Jahr automatisch nach passenden
+// Zeilen (Mietvertrag+Jahr) gesucht und die passende Position als beglichen markiert (siehe
+// synchronisiertNebenkostenausgleich in nebenkostenabrechnungen/actions.ts) — unabhängig vom
+// Lebenszyklus einer einzelnen Abrechnung (übersteht also auch deren Löschen+Neuanlegen). `jahr:
+// null` bedeutet rein archivarisch, ohne automatische Verknüpfung (z.B. eine wirklich unklare
+// Buchung) — dient dann nur dazu, dass die Vollständigkeitsprüfung eines Kontoauszugs die Zeile
+// als geklärt erkennt, statt sie dauerhaft als "ungeklärt" zu melden.
+model NebenkostenausgleichZahlung {
   id               String       @id @default(cuid())
   mietvertrag      Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
   mietvertragId    String?
+  // Das Abrechnungsjahr, auf das sich diese Zahlung bezieht — z.B. eine "BK-Abr 2023"-Auszahlung,
+  // die erst 2024 überwiesen wurde (nicht das Buchungsjahr, das oft ein Jahr später liegt).
+  jahr             Int?
   datum            DateTime
   betrag           Decimal      @db.Decimal(10, 2)
   empfaenger       String?
@@ -598,5 +604,6 @@ model SonstigeBuchung {
   createdAt        DateTime     @default(now())
 
   @@index([mietvertragId])
-  @@map("sonstige_buchungen")
+  @@index([mietvertragId, jahr])
+  @@map("nebenkostenausgleich_zahlungen")
 }

@@ -1647,7 +1647,26 @@ const SONSTIGE_SENTINEL = "__sonstige__";
 
 type NebenkostenPositionKandidat = { id: string; label: string; mietvertragId: string | null };
 
-type NebenkostenausgleichEditRow = ParsedZahlungRow & { gewaehltePositionId: string; ausgewaehlt: boolean };
+type NebenkostenausgleichEditRow = ParsedZahlungRow & {
+  gewaehltePositionId: string;
+  ausgewaehlt: boolean;
+  // Nur relevant, wenn gewaehltePositionId === SONSTIGE_SENTINEL — Mietvertrag-Bestätigung/
+  // -Korrektur sowie optionales Abrechnungsjahr für die spätere automatische Verknüpfung.
+  sonstigeMietvertragId: string;
+  sonstigeJahr: string;
+};
+
+// Sucht eine vierstellige Jahreszahl im Buchungstext (z.B. "BK-Abr. 2024", "Betriebskostenabrechnung
+// 2023") als Vorschlag fürs Abrechnungsjahr — findet sich keine, wird das Vorjahr des
+// Buchungsdatums vorgeschlagen (eine Nebenkostenabrechnung wird typischerweise fürs Vorjahr
+// beglichen). Rein ein Vorschlag, im Feld frei änderbar/löschbar.
+function ermittleJahrVorschlag(verwendungszweck: string, buchungsdatum: string | null): string {
+  const treffer = /\b(19|20)\d{2}\b/.exec(verwendungszweck);
+  if (treffer) return treffer[0];
+  if (!buchungsdatum) return "";
+  const buchungsjahr = Number(buchungsdatum.slice(0, 4));
+  return Number.isFinite(buchungsjahr) ? String(buchungsjahr - 1) : "";
+}
 
 // Gleiches Prinzip wie bei Kaution/Mietweiterleitungen oben, mit einer Ausnahme: "erkannt" wird
 // für den Filter zusätzlich nach Dedup-Status aufgespalten (siehe pruefeNebenkostenausgleichDuplikat
@@ -1725,17 +1744,23 @@ function toNebenkostenausgleichEditRow(
     // Ein erkanntes Duplikat wird nicht automatisch angehakt — siehe toKautionEditRow oben für
     // dieselbe Überlegung.
     ausgewaehlt: r.errors.length === 0 && Boolean(gewaehltePositionId) && !duplikat,
+    sonstigeMietvertragId: r.vorgeschlagenerMietvertragId ?? "",
+    sonstigeJahr: r.nebenkostenausgleich ? ermittleJahrVorschlag(r.verwendungszweck, r.datum) : "",
   };
 }
 
 function NebenkostenausgleichSektion({
   rows,
   positionen,
+  kandidaten,
   bestehendeListe,
   importBatchId,
 }: {
   rows: ParsedZahlungRow[];
   positionen: NebenkostenPositionKandidat[];
+  /** Alle Mietverträge, für die im Feld "Mietvertrag" unter "Keine offene Position" gesucht
+   * werden kann — Bestätigung/Korrektur des automatisch vorgeschlagenen Mietvertrags. */
+  kandidaten: { id: string; label: string }[];
   bestehendeListe: string[];
   importBatchId: string;
 }) {
@@ -1747,10 +1772,16 @@ function NebenkostenausgleichSektion({
   const [hinweisFilter, setHinweisFilter] = useState<NebenkostenausgleichHinweisFilter>("erkannt_pruefen");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   // Zusätzlich zu den echten offenen Positionen immer wählbar: für eine Buchung, zu der es (z.B.
-  // weil das Abrechnungsjahr nie in dieser App abgerechnet wurde) nie eine passende Position
-  // geben wird — landet dann rein archivarisch als SonstigeBuchung, siehe commitNebenkostenausgleich.
+  // weil das Abrechnungsjahr nie in dieser App abgerechnet wurde) noch keine passende Position
+  // gibt — landet als NebenkostenausgleichZahlung, siehe commitNebenkostenausgleich. Mit
+  // angegebenem Jahr wird sie automatisch mit der passenden Position verknüpft, sobald eine
+  // Abrechnung für dieses Jahr existiert oder erstellt wird; ohne Jahr bleibt sie rein
+  // archivarisch, wie bisher.
   const kandidatenMitSonstige = [
-    { id: SONSTIGE_SENTINEL, label: "Keine offene Position — als sonstige Buchung archivieren" },
+    {
+      id: SONSTIGE_SENTINEL,
+      label: "Keine offene Position — archivieren (optional für ein Abrechnungsjahr vormerken)",
+    },
     ...positionen,
   ];
 
@@ -1782,7 +1813,10 @@ function NebenkostenausgleichSektion({
   const importierbareRows = editRows.filter((r) => r.ausgewaehlt && r.gewaehltePositionId);
   const rowsForCommit = importierbareRows.map((r) => ({
     positionId: r.gewaehltePositionId,
-    mietvertragId: r.vorgeschlagenerMietvertragId || null,
+    mietvertragId:
+      (r.gewaehltePositionId === SONSTIGE_SENTINEL ? r.sonstigeMietvertragId : r.vorgeschlagenerMietvertragId) ||
+      null,
+    jahr: r.gewaehltePositionId === SONSTIGE_SENTINEL && r.sonstigeJahr ? Number(r.sonstigeJahr) : null,
     datum: r.datum,
     betrag: r.betrag,
     empfaenger: r.name,
@@ -1918,6 +1952,32 @@ function NebenkostenausgleichSektion({
                       />
                     </td>
                   </tr>
+                  {r.gewaehltePositionId === SONSTIGE_SENTINEL && (
+                    <tr className="border-t border-neutral-800 bg-neutral-950/40">
+                      <td />
+                      <td colSpan={6} className="flex flex-wrap items-center gap-3 px-3 py-2">
+                        <label className="flex items-center gap-1.5 text-xs text-neutral-400">
+                          Mietvertrag
+                          <MietvertragAuswahl
+                            kandidaten={kandidaten}
+                            value={r.sonstigeMietvertragId}
+                            leerLabel="– keinem Mietvertrag zuordnen –"
+                            onChange={(id) => updateRow(r.rowNumber, { sonstigeMietvertragId: id })}
+                          />
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs text-neutral-400">
+                          Abrechnungsjahr (optional, für automatische Verknüpfung)
+                          <input
+                            type="number"
+                            value={r.sonstigeJahr}
+                            onChange={(e) => updateRow(r.rowNumber, { sonstigeJahr: e.target.value })}
+                            placeholder="z.B. 2023"
+                            className="w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-sm text-white outline-none focus:border-neutral-400"
+                          />
+                        </label>
+                      </td>
+                    </tr>
+                  )}
                   {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
                 </Fragment>
               );
@@ -2059,6 +2119,7 @@ export default function KontoauszugImportPage() {
             key={`nebenkostenausgleich-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
             positionen={preview.offeneNebenkostenPositionen}
+            kandidaten={preview.mietvertragKandidaten}
             bestehendeListe={preview.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
           />

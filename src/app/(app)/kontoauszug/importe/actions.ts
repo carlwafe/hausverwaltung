@@ -39,7 +39,7 @@ export async function pruefeImportVollstaendigkeit(
     prisma.kostenposition.findMany({ select: { rohdaten: true } }),
     prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
     prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
-    prisma.sonstigeBuchung.findMany({ select: { rohdaten: true } }),
+    prisma.nebenkostenausgleichZahlung.findMany({ select: { rohdaten: true } }),
     prisma.nebenkostenabrechnungPosition.findMany({
       where: { beglichenAm: { not: null } },
       select: { beglichenAm: true, beglichenBetrag: true },
@@ -96,7 +96,7 @@ export async function raeumeVerwaisteImporteAuf(): Promise<void> {
       kostenpositionen: { none: {} },
       eigentuemerbuchungen: { none: {} },
       kautionsbuchungen: { none: {} },
-      sonstigeBuchungen: { none: {} },
+      nebenkostenausgleichZahlungen: { none: {} },
     },
     select: { id: true, speicherpfad: true },
   });

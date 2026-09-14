@@ -27,6 +27,7 @@ import {
   normalizeText,
 } from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
+import { synchronisiertNebenkostenausgleich } from "../../nebenkostenabrechnungen/actions";
 
 export type PreviewResult =
   | {
@@ -176,7 +177,7 @@ export async function previewImport(
         where: { beglichenAm: { not: null } },
         select: { beglichenAm: true, beglichenBetrag: true },
       }),
-      prisma.sonstigeBuchung.findMany({ select: { datum: true, betrag: true } }),
+      prisma.nebenkostenausgleichZahlung.findMany({ select: { datum: true, betrag: true } }),
     ]);
 
     // Ein Mieter kann selbst einmal als Kostenposition-Empfänger auftauchen (z.B. eine
@@ -744,11 +745,12 @@ export async function commitKautionsbuchungen(
 }
 
 // Sentinel statt einer echten Position-ID: für eine als Nebenkostenausgleich erkannte Buchung,
-// zu der es keine offene NebenkostenabrechnungPosition gibt und auch nie geben wird (z.B. eine
-// Rückzahlung für ein Jahr, dessen Abrechnung schon vor dieser App extern erstellt wurde) — wird
-// als SonstigeBuchung rein archivarisch abgelegt, damit die Vollständigkeitsprüfung die Zeile
-// als geklärt erkennt, ohne dass irgendeine Berechnung (Offene Posten, Nebenkostenabrechnung)
-// davon berührt wird. Nicht exportiert, da eine "use server"-Datei nur async-Funktionen
+// zu der es (noch) keine offene NebenkostenabrechnungPosition gibt — wird als
+// NebenkostenausgleichZahlung abgelegt, mit optionalem Jahr. Mit Jahr: wird automatisch mit der
+// passenden Position verknüpft, sobald eine Abrechnung für dieses Jahr existiert/neu berechnet
+// wird (siehe synchronisiertNebenkostenausgleich in nebenkostenabrechnungen/actions.ts). Ohne
+// Jahr: rein archivarisch, wie bisher — dient nur dazu, dass die Vollständigkeitsprüfung die
+// Zeile als geklärt erkennt. Nicht exportiert, da eine "use server"-Datei nur async-Funktionen
 // exportieren darf — derselbe Literal ist in page.tsx als SONSTIGE_SENTINEL dupliziert, beide
 // Stellen sind über diesen Kommentar verknüpft.
 const NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL = "__sonstige__";
@@ -756,6 +758,10 @@ const NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL = "__sonstige__";
 type NebenkostenausgleichCommitRow = {
   positionId: string; // echte Position-ID, oder NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL
   mietvertragId: string | null;
+  // Abrechnungsjahr, falls beim Import angegeben (siehe NebenkostenausgleichZahlung.jahr) — nur
+  // bei positionId === NEBENKOSTENAUSGLEICH_SONSTIGE_SENTINEL relevant. null = rein archivarisch,
+  // wie bisher.
+  jahr: number | null;
   datum: string;
   betrag: number; // Rohbetrag von der Bank (Vorzeichen wie im Kontoauszug)
   empfaenger: string;
@@ -812,7 +818,7 @@ export async function commitNebenkostenausgleich(
   // Dedup wie bei Kaution/Mietweiterleitung: gegen den gesamten Bestand, nicht nur diesen Batch.
   let sonstigeNeu = 0;
   if (sonstigeRows.length > 0) {
-    const bestehend = await prisma.sonstigeBuchung.findMany({
+    const bestehend = await prisma.nebenkostenausgleichZahlung.findMany({
       select: { datum: true, betrag: true, verwendungszweck: true },
     });
     const bestehendSet = new Set(
@@ -823,9 +829,10 @@ export async function commitNebenkostenausgleich(
     );
     sonstigeNeu = neu.length;
     if (neu.length > 0) {
-      await prisma.sonstigeBuchung.createMany({
+      await prisma.nebenkostenausgleichZahlung.createMany({
         data: neu.map((r) => ({
           mietvertragId: r.mietvertragId || undefined,
+          jahr: r.jahr,
           datum: new Date(r.datum),
           betrag: r.betrag,
           empfaenger: r.empfaenger || null,
@@ -834,6 +841,18 @@ export async function commitNebenkostenausgleich(
           importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
         })),
       });
+      // Existiert für ein angegebenes Jahr bereits eine Abrechnung, soll der Abgleich sofort
+      // sichtbar werden, statt erst auf ein manuelles "Neu berechnen" zu warten.
+      const betroffeneJahre = [...new Set(neu.map((r) => r.jahr).filter((j): j is number => j !== null))];
+      if (betroffeneJahre.length > 0) {
+        const abrechnungen = await prisma.nebenkostenabrechnung.findMany({
+          where: { jahr: { in: betroffeneJahre } },
+          select: { id: true, jahr: true },
+        });
+        for (const a of abrechnungen) {
+          await synchronisiertNebenkostenausgleich(a.id, a.jahr);
+        }
+      }
     }
   }
 

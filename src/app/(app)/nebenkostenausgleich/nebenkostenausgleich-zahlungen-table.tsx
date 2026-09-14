@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
-import { deleteSonstigeBuchungen } from "./actions";
+import { deleteNebenkostenausgleichZahlungen } from "./actions";
 import {
   exportiereAlsCsv,
   formatDatumFuerCsv,
@@ -21,10 +21,11 @@ function formatDate(iso: string) {
   return new Intl.DateTimeFormat("de-DE").format(new Date(iso));
 }
 
-export type SonstigeBuchungRow = {
+export type NebenkostenausgleichZahlungRow = {
   id: string;
   datum: string;
   betrag: number;
+  jahr: number | null;
   empfaenger: string | null;
   verwendungszweck: string | null;
   mietvertragId: string | null;
@@ -35,7 +36,7 @@ export type SonstigeBuchungRow = {
   importDateiname: string | null;
 };
 
-const columns: Column<SonstigeBuchungRow>[] = [
+const columns: Column<NebenkostenausgleichZahlungRow>[] = [
   {
     key: "datum",
     label: "Datum",
@@ -49,6 +50,19 @@ const columns: Column<SonstigeBuchungRow>[] = [
     render: (b) => (
       <span className={b.betrag < 0 ? "text-red-400" : "text-green-400"}>{formatEuro(b.betrag)}</span>
     ),
+  },
+  {
+    key: "jahr",
+    label: "Abrechnungsjahr",
+    sortValue: (b) => b.jahr ?? 0,
+    render: (b) =>
+      b.jahr ? (
+        <Link href="/nebenkostenabrechnungen" className="hover:underline">
+          {b.jahr}
+        </Link>
+      ) : (
+        <span className="text-neutral-500">–</span>
+      ),
   },
   {
     key: "mietvertrag",
@@ -90,9 +104,10 @@ const columns: Column<SonstigeBuchungRow>[] = [
   },
 ];
 
-const csvSpalten: CsvSpalte<SonstigeBuchungRow>[] = [
+const csvSpalten: CsvSpalte<NebenkostenausgleichZahlungRow>[] = [
   { label: "Datum", wert: (b) => formatDatumFuerCsv(b.datum) },
   { label: "Betrag", wert: (b) => formatEuroFuerCsv(b.betrag) },
+  { label: "Abrechnungsjahr", wert: (b) => (b.jahr ? String(b.jahr) : "") },
   {
     label: "Mietvertrag",
     wert: (b) => (b.mietvertragId ? `${b.einheitBezeichnung ?? ""} – ${b.mieterNamen ?? ""}` : ""),
@@ -101,21 +116,21 @@ const csvSpalten: CsvSpalte<SonstigeBuchungRow>[] = [
   { label: "Verwendungszweck", wert: (b) => b.verwendungszweck ?? "" },
 ];
 
-export function SonstigeBuchungenTable({ rows }: { rows: SonstigeBuchungRow[] }) {
-  const [ausgewaehlt, setAusgewaehlt] = useState<SonstigeBuchungRow[]>([]);
+export function NebenkostenausgleichZahlungenTable({ rows }: { rows: NebenkostenausgleichZahlungRow[] }) {
+  const [ausgewaehlt, setAusgewaehlt] = useState<NebenkostenausgleichZahlungRow[]>([]);
   const [pending, startTransition] = useTransition();
 
   function loeschen() {
     if (ausgewaehlt.length === 0) return;
     if (!confirm(`${ausgewaehlt.length} Buchung(en) wirklich unwiderruflich löschen?`)) return;
     startTransition(async () => {
-      await deleteSonstigeBuchungen(ausgewaehlt.map((r) => r.id));
+      await deleteNebenkostenausgleichZahlungen(ausgewaehlt.map((r) => r.id));
       setAusgewaehlt([]);
     });
   }
 
   function exportieren() {
-    exportiereAlsCsv(`sonstige-buchungen-${heutigesDatumFuerDateiname()}.csv`, csvSpalten, ausgewaehlt);
+    exportiereAlsCsv(`nebenkostenausgleich-${heutigesDatumFuerDateiname()}.csv`, csvSpalten, ausgewaehlt);
   }
 
   return (
@@ -145,8 +160,8 @@ export function SonstigeBuchungenTable({ rows }: { rows: SonstigeBuchungRow[] })
       <DataTable
         columns={columns}
         rows={rows}
-        emptyMessage="Noch keine sonstigen Buchungen erfasst."
-        searchPlaceholder="Sonstige Buchungen durchsuchen…"
+        emptyMessage="Noch keine Nebenkostenausgleich-Zahlungen erfasst."
+        searchPlaceholder="Nebenkostenausgleich durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
         renderExpanded={(b, colSpan) =>

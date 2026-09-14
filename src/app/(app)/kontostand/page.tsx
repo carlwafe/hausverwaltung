@@ -26,7 +26,7 @@ async function ladeEintraege(): Promise<KontostandEintrag[]> {
     prisma.kautionBuchung.findMany({
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
     }),
-    prisma.sonstigeBuchung.findMany({
+    prisma.nebenkostenausgleichZahlung.findMany({
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
     }),
   ]);
