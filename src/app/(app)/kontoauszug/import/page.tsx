@@ -231,6 +231,18 @@ function matchesZahlungHinweisFilter(
   filter: ZahlungHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
+  // Der Rücklastschrift-Filter ist bewusst nicht exklusiv zur Kategorie: eine Rücklastschrift mit
+  // bereits vollständigem Vorschlag zeigt "Vorschlag übernommen" als Kategorie (siehe
+  // ermittleZahlungHinweis), soll aber trotzdem weiterhin auffindbar sein, wenn gezielt nach
+  // Rücklastschriften gefiltert wird — anders als die generischen Tags unten, die eine Zeile aus
+  // ihrer Kategorie-Ansicht herausnehmen. Dieselbe Prioritätskette wie in ermittleZahlungHinweis,
+  // nur ohne den dortigen Vorrang von "vorschlag" vor "rueckbuchung".
+  if (filter === "rueckbuchung") {
+    if (r.errors.length > 0 || r.eigentuemerBuchung || r.kaution || r.kleinreparatur || r.ignorieren) {
+      return false;
+    }
+    return r.rueckbuchung;
+  }
   const tags: (ZahlungHinweisKategorie | ZahlungHinweisTag)[] = ermittleZahlungTags(
     bereitsImportiert,
     bereitsAlsKostenImportiert,
@@ -504,6 +516,14 @@ function ZahlungenSektion({
                             <span className={ZAHLUNG_HINWEIS_FARBEN[kategorie]}>
                               {ZAHLUNG_HINWEIS_LABELS[kategorie]}
                             </span>
+                            {/* Zusatz-Hinweis, wenn die Zeile trotz Rücklastschrift als "Vorschlag
+                                übernommen" kategorisiert wurde (siehe ermittleZahlungHinweis) —
+                                sonst stünde "Rücklastschrift" bereits als Hauptkategorie oben. */}
+                            {kategorie !== "rueckbuchung" && r.rueckbuchung && (
+                              <span className={`ml-1 ${ZAHLUNG_HINWEIS_FARBEN.rueckbuchung}`}>
+                                {ZAHLUNG_HINWEIS_LABELS.rueckbuchung}
+                              </span>
+                            )}
                             {tags.map((tag) => (
                               <span key={tag} className={`ml-1 ${ZAHLUNG_HINWEIS_FARBEN[tag]}`}>
                                 {ZAHLUNG_HINWEIS_LABELS[tag]}
