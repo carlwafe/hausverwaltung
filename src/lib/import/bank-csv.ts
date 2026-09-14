@@ -116,8 +116,11 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 // Anders als bei istEigentuemerBuchung ist hier ein Treffer im Verwendungszweck bewusst
 // ausreichend und nötig: eine Kaution wird oft auf ein Konto eingezahlt, das rechtlich auf den
 // Namen der Eigentümerin läuft (Kautionskonto) — der Empfänger-Name allein würde die Zeile also
-// fälschlich als Eigentümer-Buchung statt als Kaution erkennen.
-export const KAUTION_PATTERN = /kaution|mietsicherheit/i;
+// fälschlich als Eigentümer-Buchung statt als Kaution erkennen. "mietsicherhe" statt des vollen
+// Worts, damit auch ein Verschreiber wie "Mietsicherhet" (fehlendes i) noch matcht — beide Worte
+// teilen sich den Wortstamm bis dorthin. "ms\s*whg" deckt Kanthaks eigene Kurzform "MS WHG2"/
+// "MS WHG 2" ab, die in echten Kontoauszügen wiederholt genau in dieser Kombination vorkommt.
+export const KAUTION_PATTERN = /kaution|mietsicherhe|\bms\s*whg/i;
 
 // Unterscheidet innerhalb der Kaution-Buchungen die interne Überweisung vom Geschäfts- aufs
 // Kautionskonto (immer ausgehend, Verwendungszweck nennt explizit "Anlage" — in allen bisher
