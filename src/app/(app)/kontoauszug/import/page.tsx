@@ -593,8 +593,13 @@ function ermittleKostenHinweis(
   // (siehe kosten-import.ts), aber ein eigener, aussagekräftigerer Hinweis.
   if (r.rueckbuchung) return "rueckbuchung";
   if (r.ignorieren) return "eingehend";
+  // Eine Gutschrift mit bereits vollständig ermittelter Kostenart+Gebäude (z.B. wiederkehrende
+  // Waschgeld-Einnahmen mit eigener Kostenart) braucht keine gesonderte manuelle Prüfung mehr —
+  // das negative Vorzeichen im Betrag bleibt als Hinweis sichtbar. Nur eine Gutschrift ohne
+  // sicheren Vorschlag landet noch in der eigenen "Gutschrift"-Kategorie zur Kontrolle.
+  if (hatVollstaendigenVorschlag(r)) return "vorschlag";
   if (r.gutschrift) return "gutschrift";
-  return hatVollstaendigenVorschlag(r) ? "vorschlag" : "pruefen";
+  return "pruefen";
 }
 
 function ermittleKostenTags(
