@@ -793,6 +793,18 @@ function matchesKostenHinweisFilter(
   filter: KostenHinweisFilter,
 ): boolean {
   if (filter === "alle") return true;
+  // Der Gutschrift-Filter ist bewusst nicht exklusiv zur Kategorie: eine Gutschrift mit bereits
+  // vollständigem Vorschlag zeigt "Vorschlag übernommen" als Kategorie (siehe
+  // ermittleKostenHinweis), soll aber trotzdem weiterhin auffindbar sein, wenn gezielt nach
+  // Gutschriften gefiltert wird — anders als die generischen Tags unten, die eine Zeile aus ihrer
+  // Kategorie-Ansicht herausnehmen. Dieselbe Prioritätskette wie in ermittleKostenHinweis, nur
+  // ohne den dortigen Vorrang von "vorschlag" vor "gutschrift".
+  if (filter === "gutschrift") {
+    if (r.errors.length > 0 || r.eigentuemerBuchung || r.kaution || r.rueckbuchung || r.ignorieren) {
+      return false;
+    }
+    return r.gutschrift;
+  }
   const tags: (KostenHinweisKategorie | KostenHinweisTag)[] = ermittleKostenTags(
     bereitsImportiert,
     bereitsAlsZahlungImportiert,
@@ -1078,6 +1090,14 @@ function KostenSektion({
                             <span className={KOSTEN_HINWEIS_FARBEN[kategorie]}>
                               {KOSTEN_HINWEIS_LABELS[kategorie]}
                             </span>
+                            {/* Zusatz-Hinweis, wenn die Zeile trotz Gutschrift als "Vorschlag
+                                übernommen" kategorisiert wurde (siehe ermittleKostenHinweis) —
+                                sonst stünde "Gutschrift" bereits als Hauptkategorie oben. */}
+                            {kategorie !== "gutschrift" && r.gutschrift && (
+                              <span className={`ml-1 ${KOSTEN_HINWEIS_FARBEN.gutschrift}`}>
+                                {KOSTEN_HINWEIS_LABELS.gutschrift}
+                              </span>
+                            )}
                             {tags.map((tag) => (
                               <span key={tag} className={`ml-1 ${KOSTEN_HINWEIS_FARBEN[tag]}`}>
                                 {KOSTEN_HINWEIS_LABELS[tag]}
