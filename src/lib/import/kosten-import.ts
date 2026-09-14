@@ -404,8 +404,13 @@ function ermittleGebaeudeVorschlag(
       const strasseBasis = stripStrassenwort(g.strasse).trim().toLowerCase();
       const hausnummer = g.hausnummer.trim().toLowerCase();
       if (!strasseBasis || !hausnummer) return false;
+      // Die einzige nicht-numerische Hausnummer ("G" für das Garagen-Gebäude) wird im
+      // Verwendungszweck praktisch nie als einzelner Buchstabe, sondern ausgeschrieben als
+      // "Garage" genannt (z.B. "Koenigsberger Str. GARAGE Grundsteuer B") — deshalb hier als
+      // Alternative mitgematcht, statt nur den wörtlichen Buchstaben "g" zu suchen.
+      const hausnummerMuster = hausnummer === "g" ? "(?:g|garage)" : escapeRegExp(hausnummer);
       const pattern = new RegExp(
-        `\\b${escapeRegExp(strasseBasis)}\\b[^0-9]{0,15}\\b${escapeRegExp(hausnummer)}\\b`,
+        `\\b${escapeRegExp(strasseBasis)}\\b[^0-9]{0,15}\\b${hausnummerMuster}\\b`,
         "i",
       );
       return pattern.test(textLeicht);
