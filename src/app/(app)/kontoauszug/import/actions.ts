@@ -313,7 +313,12 @@ export async function previewImport(
       };
     });
     const mieterKandidaten: MieterKandidat[] = vertraege.flatMap((v) =>
-      v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname, einheitId: v.einheit.id })),
+      v.mieter.map((m) => ({
+        vorname: m.vorname,
+        nachname: m.nachname,
+        einheitId: v.einheit.id,
+        einheitTyp: v.einheit.typ,
+      })),
     );
     const kostenRows = mapKostenRows(
       headers,

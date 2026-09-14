@@ -52,8 +52,11 @@ export type EmpfaengerHistorie = {
 // — z.B. für eine selbst bezahlte Reparatur —, taucht dadurch als Empfänger in der Historie auf;
 // jede spätere eingehende Buchung von ihm würde ohne diesen Ausschluss fälschlich als weitere
 // Kosten-Gutschrift erkannt) UND für den Einheit-Vorschlag anhand eines im Verwendungszweck
-// gefundenen Mieternamens (siehe ermittleEinheitVorschlagViaMieter).
-export type MieterKandidat = { vorname: string; nachname: string; einheitId: string };
+// gefundenen Mieternamens (siehe ermittleEinheitVorschlagViaMieter). einheitTyp wird dort genutzt,
+// um bei einem Mieter mit mehreren Mietverträgen (z.B. Wohnung + separate Garage — beide unter
+// demselben Namen) die Garage als Tie-Breaker auszuschließen, statt bei Mehrdeutigkeit ganz auf
+// einen Vorschlag zu verzichten.
+export type MieterKandidat = { vorname: string; nachname: string; einheitId: string; einheitTyp: string };
 
 export type ParsedKostenRow = {
   rowNumber: number;
@@ -107,7 +110,10 @@ function istBekannterMieterEmpfaenger(
  * gesucht, erst wenn das nichts findet als Rückfall der Nachname allein, aber nur, wenn alle
  * Treffer (auch aus anderen Wohnungen) zur selben Einheit gehören. Mehrdeutige Treffer (z.B. zwei
  * unterschiedliche Mietparteien mit demselben Nachnamen in verschiedenen Wohnungen) ergeben bewusst
- * keinen Vorschlag, statt zu raten.
+ * keinen Vorschlag, statt zu raten — außer die Mehrdeutigkeit kommt nur daher, dass derselbe Mieter
+ * zusätzlich zu seiner Wohnung noch eine separate Garage gemietet hat (beide Mietverträge tragen
+ * seinen Namen): dann zählt nur die Wohnung, da eine namentlich zugeordnete Rechnung (z.B. "Herd")
+ * praktisch nie eine Garage betrifft.
  */
 function ermittleEinheitVorschlagViaMieter(
   empfaenger: string,
@@ -121,7 +127,11 @@ function ermittleEinheitVorschlagViaMieter(
   const kandidaten = vollTreffer.length > 0 ? vollTreffer : mieterKandidaten.filter((m) => textEnthaeltWort(text, m.nachname));
   if (kandidaten.length === 0) return null;
   const einheiten = new Set(kandidaten.map((k) => k.einheitId));
-  return einheiten.size === 1 ? kandidaten[0].einheitId : null;
+  if (einheiten.size === 1) return kandidaten[0].einheitId;
+
+  const wohnungKandidaten = kandidaten.filter((k) => k.einheitTyp !== "GARAGE");
+  const wohnungEinheiten = new Set(wohnungKandidaten.map((k) => k.einheitId));
+  return wohnungEinheiten.size === 1 ? wohnungKandidaten[0].einheitId : null;
 }
 
 const WHG_PATTERN = /\bwhg\.?\s*(\d+)\b/i;
