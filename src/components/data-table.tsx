@@ -35,6 +35,7 @@ export function DataTable<T extends { id: string }>({
   rowClassName,
   rowId,
   renderExpanded,
+  dateValue,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -56,8 +57,15 @@ export function DataTable<T extends { id: string }>({
    * tatsächliche Spaltenzahl inkl. Auswahl-Spalte) wird von DataTable mitgegeben, siehe
    * RohdatenZeile. */
   renderExpanded?: (row: T, colSpan: number) => React.ReactNode;
+  /** ISO-Datum (oder null) einer Zeile — wenn gesetzt, werden zusätzlich zur Suche zwei
+   * Von/Bis-Datumsfelder angezeigt. Zeilen ohne Datum (z.B. manuell erfasste Kosten, die nur ein
+   * Jahr kennen) verschwinden dabei, sobald von/bis aktiv gefiltert wird — ein unbekanntes Datum
+   * lässt sich nicht als "im Zeitraum" bestätigen. */
+  dateValue?: (row: T) => string | null;
 }) {
   const [query, setQuery] = useState("");
+  const [von, setVon] = useState("");
+  const [bis, setBis] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -66,12 +74,24 @@ export function DataTable<T extends { id: string }>({
   const hatSuche = columns.some((c) => c.searchValue);
 
   const gefiltert = useMemo(() => {
-    if (!hatSuche || !query.trim()) return rows;
-    const q = normalize(query);
-    return rows.filter((r) =>
-      columns.some((c) => c.searchValue && normalize(c.searchValue(r)).includes(q)),
-    );
-  }, [rows, query, columns, hatSuche]);
+    let ergebnis = rows;
+    if (hatSuche && query.trim()) {
+      const q = normalize(query);
+      ergebnis = ergebnis.filter((r) =>
+        columns.some((c) => c.searchValue && normalize(c.searchValue(r)).includes(q)),
+      );
+    }
+    if (dateValue && (von || bis)) {
+      ergebnis = ergebnis.filter((r) => {
+        const tag = dateValue(r)?.slice(0, 10);
+        if (!tag) return false;
+        if (von && tag < von) return false;
+        if (bis && tag > bis) return false;
+        return true;
+      });
+    }
+    return ergebnis;
+  }, [rows, query, columns, hatSuche, dateValue, von, bis]);
 
   const sortiert = useMemo(() => {
     if (!sortKey) return gefiltert;
@@ -123,15 +143,51 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div>
-      {hatSuche && (
-        <div className="mb-3">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="w-full max-w-xs rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
-          />
+      {(hatSuche || dateValue) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {hatSuche && (
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full max-w-xs rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
+            />
+          )}
+          {dateValue && (
+            <div className="flex items-center gap-2 text-sm text-neutral-400">
+              <label className="flex items-center gap-1.5">
+                von
+                <input
+                  type="date"
+                  value={von}
+                  onChange={(e) => setVon(e.target.value)}
+                  className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+                />
+              </label>
+              <label className="flex items-center gap-1.5">
+                bis
+                <input
+                  type="date"
+                  value={bis}
+                  onChange={(e) => setBis(e.target.value)}
+                  className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+                />
+              </label>
+              {(von || bis) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVon("");
+                    setBis("");
+                  }}
+                  className="text-xs text-neutral-500 underline hover:text-white"
+                >
+                  zurücksetzen
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -199,6 +199,7 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         searchPlaceholder="Kosten durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        dateValue={(k) => k.datum}
         renderExpanded={(k, colSpan) =>
           k.rohdaten ? (
             <RohdatenZeile

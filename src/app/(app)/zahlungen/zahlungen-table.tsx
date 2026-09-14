@@ -179,6 +179,7 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         searchPlaceholder="Zahlungen durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        dateValue={(z) => z.datum}
         renderExpanded={(z, colSpan) =>
           z.rohdaten ? (
             <RohdatenZeile
