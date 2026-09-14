@@ -55,9 +55,15 @@ export type ParsedZahlungRow = {
 
 const TAGE_TOLERANZ_VOR_BEGINN = 14;
 const TAGE_TOLERANZ_NACH_ENDE = 60;
+// Eine Nebenkostenabrechnung für das Auszugsjahr wird oft erst viele Monate später erstellt und
+// beglichen (§556(3) BGB erlaubt bis zu 12 Monate nach Ende des Abrechnungszeitraums, in der
+// Praxis mit Verzögerungen manchmal noch später) — für Zeilen, die bereits unabhängig über
+// NEBENKOSTENAUSGLEICH_PATTERN als solche erkannt sind, gilt deshalb ein deutlich großzügigeres
+// Fenster als für normale, laufende Mietzahlungen.
+const TAGE_TOLERANZ_NACH_ENDE_NEBENKOSTENAUSGLEICH = 730;
 
 /** Prüft, ob eine Zahlung (mit etwas Toleranz für Kaution/Rücklastschriften) in den Mietzeitraum fällt. */
-function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat): boolean {
+function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat, toleranzNachEndeTage: number): boolean {
   if (!datum) return true;
   const zahlungMs = new Date(datum).getTime();
   if (k.beginn) {
@@ -65,7 +71,7 @@ function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat): bool
     if (zahlungMs < beginnMs) return false;
   }
   if (k.ende) {
-    const endeMs = new Date(k.ende).getTime() + TAGE_TOLERANZ_NACH_ENDE * 86400000;
+    const endeMs = new Date(k.ende).getTime() + toleranzNachEndeTage * 86400000;
     if (zahlungMs > endeMs) return false;
   }
   return true;
@@ -77,11 +83,15 @@ function findeMietvertrag(
   betrag: number | null,
   datum: string | null,
   kandidaten: MietvertragKandidat[],
+  nebenkostenausgleich: boolean,
 ): { id: string | null; mehrdeutig: boolean } {
   const text = `${verwendungszweck} ${name}`;
+  const toleranzNachEndeTage = nebenkostenausgleich
+    ? TAGE_TOLERANZ_NACH_ENDE_NEBENKOSTENAUSGLEICH
+    : TAGE_TOLERANZ_NACH_ENDE;
 
   const scored = kandidaten
-    .filter((k) => liegtImMietzeitraum(datum, k))
+    .filter((k) => liegtImMietzeitraum(datum, k, toleranzNachEndeTage))
     .map((k) => {
       let score = 0;
       if (betrag !== null) {
@@ -245,7 +255,7 @@ export function mapZahlungenRows(
     // entspricht keiner Warmmiete), aber der Name im Verwendungszweck/Begünstigten reicht meist
     // trotzdem für eine eindeutige Zuordnung.
     if (!eigentuemerBuchung && !istBekannterKostenEmpfaenger && betrag !== null && errors.length === 0) {
-      const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten);
+      const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten, nebenkostenausgleich);
       vorgeschlagenerMietvertragId = treffer.id;
       mehrdeutig = treffer.mehrdeutig;
     }
