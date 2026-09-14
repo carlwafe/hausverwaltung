@@ -222,11 +222,11 @@ export default async function NebenkostenabrechnungDetailPage({
       )}
 
       {vorverteilteGruppen.length > 0 && (
-        <div className="mb-6">
-          <p className="mb-2 text-sm font-medium text-neutral-300">
-            Extern vorverteilte Kostenarten — hier bewusst nicht selbst berechnet
-          </p>
-          <p className="mb-3 text-xs text-neutral-500">
+        <details className="mb-6">
+          <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300 hover:text-white">
+            Extern vorverteilte Kostenarten — hier bewusst nicht selbst berechnet ({vorverteilteGruppen.length})
+          </summary>
+          <p className="mb-3 mt-2 text-xs text-neutral-500">
             Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Gesamtabrechnung) — trag den
             jeweiligen Betrag pro Mietvertrag ein und klicke danach auf &quot;Neu berechnen&quot;,
             damit er in den Kostenanteil einfließt.
@@ -240,7 +240,7 @@ export default async function NebenkostenabrechnungDetailPage({
               zeilen={g.zeilen}
             />
           ))}
-        </div>
+        </details>
       )}
 
       <div className="mb-6 grid grid-cols-3 gap-4">
