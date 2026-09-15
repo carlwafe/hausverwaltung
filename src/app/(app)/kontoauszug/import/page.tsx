@@ -15,6 +15,7 @@ import {
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { useSpaltenSortierung, SortableTh } from "@/components/spalten-sortierung";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { gruppiereGebaeude, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
@@ -345,6 +346,21 @@ function ZahlungenSektion({
       hinweisFilter,
     ),
   );
+  const { sortiert: sortierteRows, spalte: sortSpalte, richtung: sortRichtung, toggleSort } = useSpaltenSortierung(
+    gefilterteRows,
+    (r, spalte) => {
+      switch (spalte) {
+        case "datum":
+          return r.datum;
+        case "betrag":
+          return r.betrag;
+        case "text":
+          return r.verwendungszweck || r.name;
+        default:
+          return null;
+      }
+    },
+  );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehlterMietvertragId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -448,9 +464,9 @@ function ZahlungenSektion({
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
-              <th className="px-3 py-2">Datum</th>
-              <th className="px-3 py-2">Betrag</th>
-              <th className="px-3 py-2">Verwendungszweck / Name</th>
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Verwendungszweck / Name" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Mietvertrag</th>
               <th className="px-3 py-2">Periode</th>
               <th className="px-3 py-2">Hinweis</th>
@@ -458,7 +474,7 @@ function ZahlungenSektion({
             </tr>
           </thead>
           <tbody>
-            {gefilterteRows.map((r) => {
+            {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
               const bereitsAlsNebenkostenausgleichImportiert = istBereitsAlsNebenkostenausgleichImportiert(r);
@@ -917,6 +933,23 @@ function KostenSektion({
       hinweisFilter,
     ),
   );
+  const { sortiert: sortierteRows, spalte: sortSpalte, richtung: sortRichtung, toggleSort } = useSpaltenSortierung(
+    gefilterteRows,
+    (r, spalte) => {
+      switch (spalte) {
+        case "datum":
+          return r.datum;
+        case "betrag":
+          return r.betrag;
+        case "text":
+          return r.empfaenger || r.verwendungszweck;
+        case "jahr":
+          return r.jahr;
+        default:
+          return null;
+      }
+    },
+  );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehlteKostenartId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -998,18 +1031,18 @@ function KostenSektion({
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
-              <th className="px-3 py-2">Datum</th>
-              <th className="px-3 py-2">Betrag</th>
-              <th className="px-3 py-2">Empfänger / Verwendungszweck</th>
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Empfänger / Verwendungszweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Kostenart</th>
               <th className="min-w-[140px] px-3 py-2">Gebäude</th>
-              <th className="px-3 py-2">Jahr</th>
+              <SortableTh label="Jahr" spalteKey="jahr" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
             </tr>
           </thead>
           <tbody>
-            {gefilterteRows.map((r) => {
+            {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsZahlungImportiert = istBereitsAlsZahlungImportiert(r);
               const bereitsAlsKautionImportiert = istBereitsAlsKautionImportiert(r);
@@ -1272,6 +1305,21 @@ function MietweiterleitungenSektion({
   }
 
   const gefilterteRows = editRows.filter((r) => matchesMietweiterleitungHinweisFilter(r, hinweisFilter));
+  const { sortiert: sortierteRows, spalte: sortSpalte, richtung: sortRichtung, toggleSort } = useSpaltenSortierung(
+    gefilterteRows,
+    (r, spalte) => {
+      switch (spalte) {
+        case "datum":
+          return r.datum;
+        case "betrag":
+          return r.betrag;
+        case "text":
+          return r.verwendungszweck || r.name;
+        default:
+          return null;
+      }
+    },
+  );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -1345,15 +1393,15 @@ function MietweiterleitungenSektion({
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
-              <th className="px-3 py-2">Datum</th>
-              <th className="px-3 py-2">Betrag</th>
-              <th className="px-3 py-2">Verwendungszweck</th>
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Verwendungszweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
             </tr>
           </thead>
           <tbody>
-            {gefilterteRows.map((r) => {
+            {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleMietweiterleitungHinweis(r);
@@ -1538,6 +1586,21 @@ function KautionSektion({
   }
 
   const gefilterteRows = editRows.filter((r) => matchesKautionHinweisFilter(r, istBereitsImportiert(r), hinweisFilter));
+  const { sortiert: sortierteRows, spalte: sortSpalte, richtung: sortRichtung, toggleSort } = useSpaltenSortierung(
+    gefilterteRows,
+    (r, spalte) => {
+      switch (spalte) {
+        case "datum":
+          return r.datum;
+        case "betrag":
+          return r.betrag;
+        case "text":
+          return r.verwendungszweck || r.name;
+        default:
+          return null;
+      }
+    },
+  );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -1613,9 +1676,9 @@ function KautionSektion({
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
-              <th className="px-3 py-2">Datum</th>
-              <th className="px-3 py-2">Betrag</th>
-              <th className="px-3 py-2">Verwendungszweck</th>
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Verwendungszweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Mietvertrag</th>
               <th className="px-3 py-2">Kategorie</th>
               <th className="px-3 py-2">Hinweis</th>
@@ -1623,7 +1686,7 @@ function KautionSektion({
             </tr>
           </thead>
           <tbody>
-            {gefilterteRows.map((r) => {
+            {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleKautionHinweis(r);
@@ -1891,6 +1954,21 @@ function NebenkostenausgleichSektion({
       hinweisFilter,
     ),
   );
+  const { sortiert: sortierteRows, spalte: sortSpalte, richtung: sortRichtung, toggleSort } = useSpaltenSortierung(
+    gefilterteRows,
+    (r, spalte) => {
+      switch (spalte) {
+        case "datum":
+          return r.datum;
+        case "betrag":
+          return r.betrag;
+        case "text":
+          return r.verwendungszweck || r.name;
+        default:
+          return null;
+      }
+    },
+  );
   const auswaehlbareRows = gefilterteRows.filter((r) => r.errors.length === 0 && r.gewaehltePositionId);
   const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
 
@@ -1981,16 +2059,16 @@ function NebenkostenausgleichSektion({
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
-              <th className="px-3 py-2">Datum</th>
-              <th className="px-3 py-2">Betrag</th>
-              <th className="px-3 py-2">Verwendungszweck</th>
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Verwendungszweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Position</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
             </tr>
           </thead>
           <tbody>
-            {gefilterteRows.map((r) => {
+            {sortierteRows.map((r) => {
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleNebenkostenausgleichHinweis(r);
               const duplikat = pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag);
