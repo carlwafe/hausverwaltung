@@ -9,9 +9,9 @@ import { toDateInputValue } from "@/lib/date-utils";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import {
   deleteAbrechnung,
-  entferneBeglichen,
+  erfasseNebenkostenausgleichZahlungManuell,
   ladeBerechnungsdaten,
-  markiereBeglichen,
+  ladeNebenkostenausgleichSummen,
   neuBerechnen,
   setAbrechnungStatus,
 } from "../actions";
@@ -64,21 +64,30 @@ export default async function NebenkostenabrechnungDetailPage({
   });
   if (!abrechnung) notFound();
 
-  const [{ kostenpositionen, einheiten, verbrauchswerte }, mietvertraegeRoh, vorverteilteKostenarten, vorverteilteKostenanteileRoh] =
-    await Promise.all([
-      ladeBerechnungsdaten(abrechnung.jahr),
-      prisma.mietvertrag.findMany({
-        where: { status: { in: ["AKTIV", "BEENDET"] } },
-        include: { einheit: true, mieter: true },
-        orderBy: { einheit: { bezeichnung: "asc" } },
-      }),
-      prisma.kostenart.findMany({
-        where: { standardVerteilerschluessel: "VORVERTEILT" },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.vorverteilterKostenanteil.findMany({ where: { jahr: abrechnung.jahr } }),
-    ]);
+  const [
+    { kostenpositionen, einheiten, verbrauchswerte },
+    mietvertraegeRoh,
+    vorverteilteKostenarten,
+    vorverteilteKostenanteileRoh,
+    nebenkostenausgleichSummen,
+  ] = await Promise.all([
+    ladeBerechnungsdaten(abrechnung.jahr),
+    prisma.mietvertrag.findMany({
+      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      include: { einheit: true, mieter: true },
+      orderBy: { einheit: { bezeichnung: "asc" } },
+    }),
+    prisma.kostenart.findMany({
+      where: { standardVerteilerschluessel: "VORVERTEILT" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.vorverteilterKostenanteil.findMany({ where: { jahr: abrechnung.jahr } }),
+    ladeNebenkostenausgleichSummen(
+      abrechnung.jahr,
+      abrechnung.positionen.map((p) => p.mietvertragId),
+    ),
+  ]);
   const mietvertragKandidaten = mietvertraegeRoh.map((v) => ({
     id: v.id,
     label: `${v.einheit.bezeichnung} - ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
@@ -258,6 +267,16 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       </div>
 
+      <p className="mb-3 text-sm text-neutral-400">
+        Die Spalte &quot;Rückzahlung/Gutschrift&quot; zeigt die Summe der tatsächlich importierten/
+        erfassten Nebenkostenausgleich-Zahlungen für Mietvertrag und Jahr — stimmt sie mit dem Saldo
+        überein, gilt die Position als beglichen. Einzelne Zahlungen lassen sich unter{" "}
+        <Link href="/nebenkostenausgleich" className="underline hover:text-white">
+          Nebenkostenausgleich
+        </Link>{" "}
+        einsehen und korrigieren.
+      </p>
+
       <div className="overflow-x-auto rounded-lg border border-neutral-800">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
@@ -269,7 +288,7 @@ export default async function NebenkostenabrechnungDetailPage({
               <th className="px-4 py-2 text-right">Kostenanteil</th>
               <th className="px-4 py-2 text-right">Vorauszahlung</th>
               <th className="px-4 py-2 text-right">Saldo</th>
-              <th className="px-4 py-2">Beglichen</th>
+              <th className="px-4 py-2">Rückzahlung/Gutschrift</th>
             </tr>
           </thead>
           <tbody>
@@ -312,36 +331,62 @@ export default async function NebenkostenabrechnungDetailPage({
                   {Number(p.saldo) >= 0 ? " (Guthaben)" : " (Nachzahlung)"}
                 </td>
                 <td className="px-4 py-2 text-neutral-300">
-                  {p.beglichenAm ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-400">{formatDate(p.beglichenAm)}</span>
-                      <form action={entferneBeglichen.bind(null, p.id)}>
-                        <button
-                          type="submit"
-                          className="text-xs text-neutral-500 underline hover:text-white"
+                  {(() => {
+                    const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
+                    if (!eintrag) {
+                      if (!p.mietvertragId) return <span className="text-neutral-500">–</span>;
+                      return (
+                        <form
+                          action={erfasseNebenkostenausgleichZahlungManuell}
+                          className="flex flex-wrap items-center gap-1"
                         >
-                          zurücksetzen
-                        </button>
-                      </form>
-                    </div>
-                  ) : (
-                    <form action={markiereBeglichen} className="flex items-center gap-1">
-                      <input type="hidden" name="positionId" value={p.id} />
-                      <input
-                        type="date"
-                        name="datum"
-                        required
-                        defaultValue={toDateInputValue(new Date())}
-                        className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-white hover:bg-neutral-900"
-                      >
-                        Markieren
-                      </button>
-                    </form>
-                  )}
+                          <input type="hidden" name="mietvertragId" value={p.mietvertragId} />
+                          <input type="hidden" name="jahr" value={abrechnung.jahr} />
+                          <input
+                            type="date"
+                            name="datum"
+                            required
+                            defaultValue={toDateInputValue(new Date())}
+                            className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            name="betrag"
+                            required
+                            placeholder={formatEuro(Number(p.saldo))}
+                            className="w-24 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-white hover:bg-neutral-900"
+                          >
+                            Erfassen
+                          </button>
+                        </form>
+                      );
+                    }
+                    const stimmtUeberein = Math.abs(eintrag.summe - Number(p.saldo)) < 0.01;
+                    return (
+                      <div>
+                        <span className={stimmtUeberein ? "text-green-400" : "text-amber-400"}>
+                          {formatEuro(eintrag.summe)}
+                        </span>
+                        <span className="ml-1 text-xs text-neutral-500">
+                          ({formatDate(eintrag.juengstesDatum)})
+                        </span>
+                        {stimmtUeberein ? (
+                          <span className="ml-2 rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">
+                            beglichen
+                          </span>
+                        ) : (
+                          <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400">
+                            weicht von Saldo ab
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </td>
               </tr>
               <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">

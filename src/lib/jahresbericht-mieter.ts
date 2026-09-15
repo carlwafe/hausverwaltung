@@ -8,8 +8,9 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   zahlungen: { datum: Date; betrag: number }[];
   // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Abrechnungsjahr —
   // für "Nebenkostenabrechnung offen" wird der aktuelle Gesamtstand über alle Jahre gebraucht,
-  // nicht nur die Bewegung des Berichtsjahres.
-  nebenkostenPositionen: { saldo: number; beglichenBetrag: number | null }[];
+  // nicht nur die Bewegung des Berichtsjahres. zahlungSumme = tatsächlich gezahlte/erhaltene
+  // Summe für Mietvertrag+Jahr aus dem Nebenkostenausgleich-Archiv (0 = noch nichts erfasst).
+  nebenkostenPositionen: { saldo: number; zahlungSumme: number }[];
 };
 
 export type MieterJahresberichtZeile = {
@@ -42,7 +43,7 @@ function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltung
 /** positiv = noch offenes Guthaben (Vermieter schuldet Mieter), negativ = noch offene Nachzahlung. */
 function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht): number | null {
   if (v.nebenkostenPositionen.length === 0) return null;
-  return v.nebenkostenPositionen.reduce((sum, p) => sum + (p.saldo - (p.beglichenBetrag ?? 0)), 0);
+  return v.nebenkostenPositionen.reduce((sum, p) => sum + (p.saldo - p.zahlungSumme), 0);
 }
 
 /**

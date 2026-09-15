@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireEditor } from "@/lib/session";
 import { leseDatei, loescheDatei } from "@/lib/storage";
 import { pruefeVollstaendigkeit, zeilenSchluesselAusRohdaten, type VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
-import { datumBetragSchluessel } from "@/lib/import/bank-csv";
 
 export async function pruefeImportVollstaendigkeit(
   importBatchId: string,
@@ -27,24 +26,14 @@ export async function pruefeImportVollstaendigkeit(
   // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
   // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
   // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.
-  const [
-    alleZahlungen,
-    alleKosten,
-    alleMietweiterleitungen,
-    alleKautionsbuchungen,
-    alleSonstigenBuchungen,
-    alleBeglichenenPositionen,
-  ] = await Promise.all([
-    prisma.zahlung.findMany({ select: { rohdaten: true } }),
-    prisma.kostenposition.findMany({ select: { rohdaten: true } }),
-    prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
-    prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
-    prisma.nebenkostenausgleichZahlung.findMany({ select: { rohdaten: true } }),
-    prisma.nebenkostenabrechnungPosition.findMany({
-      where: { beglichenAm: { not: null } },
-      select: { beglichenAm: true, beglichenBetrag: true },
-    }),
-  ]);
+  const [alleZahlungen, alleKosten, alleMietweiterleitungen, alleKautionsbuchungen, alleSonstigenBuchungen] =
+    await Promise.all([
+      prisma.zahlung.findMany({ select: { rohdaten: true } }),
+      prisma.kostenposition.findMany({ select: { rohdaten: true } }),
+      prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
+      prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
+      prisma.nebenkostenausgleichZahlung.findMany({ select: { rohdaten: true } }),
+    ]);
   const zahlung = new Set(
     alleZahlungen
       .map((z) => zeilenSchluesselAusRohdaten(z.rohdaten))
@@ -70,11 +59,6 @@ export async function pruefeImportVollstaendigkeit(
       .map((s) => zeilenSchluesselAusRohdaten(s.rohdaten))
       .filter((s): s is string => s !== null),
   );
-  const beglichenePositionen = new Set(
-    alleBeglichenenPositionen
-      .filter((p) => p.beglichenAm !== null)
-      .map((p) => datumBetragSchluessel(p.beglichenAm, Number(p.beglichenBetrag))),
-  );
 
   return pruefeVollstaendigkeit(inhalt, batch.dateiname, {
     zahlung,
@@ -82,7 +66,6 @@ export async function pruefeImportVollstaendigkeit(
     mietweiterleitung,
     kautionsbuchung,
     sonstige,
-    beglichenePositionen,
   });
 }
 

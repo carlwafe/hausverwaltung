@@ -4,13 +4,7 @@
 // Import sichtbare) Fehlerzeile. Was übrig bleibt, ist eine Zeile, die weder importiert noch
 // anderweitig erklärt ist und manuell nachgesehen werden sollte.
 import { parseSpreadsheetFile } from "./spreadsheet";
-import {
-  datumBetragSchluessel,
-  findeKontoauszugSpalten,
-  leseBetrag,
-  parseGermanDate,
-  repariereMojibake,
-} from "./bank-csv";
+import { findeKontoauszugSpalten, leseBetrag, parseGermanDate, repariereMojibake } from "./bank-csv";
 
 export type UngeklaerteZeile = {
   rowNumber: number;
@@ -44,7 +38,6 @@ export type VollstaendigkeitsErgebnis = {
   alsMietweiterleitungGefunden: number;
   alsKautionsbuchungGefunden: number;
   alsSonstigesGefunden: number;
-  alsNebenkostenausgleichGefunden: number;
   fehlerzeilen: number;
   ungeklaert: UngeklaerteZeile[];
   doppelteBuchungen: DoppelteBuchung[];
@@ -90,10 +83,6 @@ export async function pruefeVollstaendigkeit(
     mietweiterleitung: Set<string>;
     kautionsbuchung: Set<string>;
     sonstige: Set<string>;
-    // Beglichene NebenkostenabrechnungPosition — die kennt (anders als die anderen Kategorien)
-    // keine Rohdaten der Quellzeile, nur beglichenAm/beglichenBetrag, deshalb ein gröberer
-    // Datum+Betragshöhe-Schlüssel (siehe datumBetragSchluessel) statt des vollen zeilenSchluessel.
-    beglichenePositionen: Set<string>;
   },
 ): Promise<VollstaendigkeitsErgebnis> {
   const file = new File([new Uint8Array(dateiInhalt)], dateiname);
@@ -105,7 +94,6 @@ export async function pruefeVollstaendigkeit(
   let alsMietweiterleitungGefunden = 0;
   let alsKautionsbuchungGefunden = 0;
   let alsSonstigesGefunden = 0;
-  let alsNebenkostenausgleichGefunden = 0;
   let fehlerzeilen = 0;
   const ungeklaert: UngeklaerteZeile[] = [];
   const doppelteBuchungen: DoppelteBuchung[] = [];
@@ -130,16 +118,12 @@ export async function pruefeVollstaendigkeit(
 
     const datum = spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null;
     const betrag = leseBetrag(row, spalten);
-    if (datum && betrag !== null && bekannteSchluessel.beglichenePositionen.has(datumBetragSchluessel(new Date(datum), betrag))) {
-      gefundenIn.push("Nebenkostenausgleich-Position");
-    }
 
     if (gefundenIn.includes("Zahlung")) alsZahlungGefunden++;
     if (gefundenIn.includes("Kosten")) alsKostenGefunden++;
     if (gefundenIn.includes("Mietweiterleitung")) alsMietweiterleitungGefunden++;
     if (gefundenIn.includes("Kautionsbuchung")) alsKautionsbuchungGefunden++;
     if (gefundenIn.includes("Sonstige Buchung")) alsSonstigesGefunden++;
-    if (gefundenIn.includes("Nebenkostenausgleich-Position")) alsNebenkostenausgleichGefunden++;
 
     const name = spalten.nameCol ? (row[spalten.nameCol] ?? "").trim() : "";
     const verwendungszweck = spalten.zweckCol ? (row[spalten.zweckCol] ?? "").trim() : "";
@@ -158,7 +142,6 @@ export async function pruefeVollstaendigkeit(
     alsMietweiterleitungGefunden,
     alsKautionsbuchungGefunden,
     alsSonstigesGefunden,
-    alsNebenkostenausgleichGefunden,
     fehlerzeilen,
     ungeklaert,
     doppelteBuchungen,

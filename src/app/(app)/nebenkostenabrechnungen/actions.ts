@@ -120,8 +120,6 @@ export async function createAbrechnung(formData: FormData) {
       },
     },
   });
-  await synchronisiertNebenkostenausgleich(abrechnung.id, jahr);
-
   revalidatePath("/nebenkostenabrechnungen");
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
@@ -200,73 +198,48 @@ export async function fuegePositionManuellHinzu(
     throw err;
   }
 
-  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({
-    where: { id: abrechnungId },
-    select: { jahr: true },
-  });
-  await synchronisiertNebenkostenausgleich(abrechnungId, abrechnung.jahr);
-
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
   return null;
 }
 
-// Schlüssel zum Wiederfinden einer Position über ein Neu-Berechnen hinweg — die Positions-ID
-// selbst wechselt (Positionen werden komplett gelöscht und neu angelegt), Einheit+Mietvertrag
-// bleiben aber stabil.
-function beglichenSchluessel(einheitId: string, mietvertragId: string | null) {
-  return `${einheitId}|${mietvertragId ?? ""}`;
-}
+// Gebündelte Summe je Mietvertrag für ein Abrechnungsjahr aus dem NebenkostenausgleichZahlung-
+// Archiv — die einzige Quelle für den "Rückzahlung/Gutschrift"-Status auf der Detailseite, statt
+// eines separat gepflegten Felds auf der Position. Vorzeichen gedreht (wie überall in diesem
+// Modul): eine ausgehende Guthaben-Auszahlung (negativer Rohbetrag) wird zu einem positiven, mit
+// saldo direkt vergleichbaren Wert, eine eingehende Nachzahlung zu einem negativen.
+export async function ladeNebenkostenausgleichSummen(
+  jahr: number,
+  mietvertragIds: (string | null)[],
+): Promise<Map<string, { summe: number; juengstesDatum: Date }>> {
+  const ids = [...new Set(mietvertragIds.filter((id): id is string => id !== null))];
+  if (ids.length === 0) return new Map();
 
-// Gleicht offene Positionen einer Abrechnung gegen bereits importierte, aber (zum
-// Importzeitpunkt) unverknüpfte NebenkostenausgleichZahlung-Zeilen desselben Jahres ab — z.B. weil
-// die Abrechnung erst nachträglich erstellt wurde, oder weil beim Import zufällig noch keine
-// offene Position für genau diesen Mietvertrag existierte. Mehrere Zahlungen desselben
-// Mietvertrags/Jahres (z.B. eine rückgebuchte und erneut überwiesene Auszahlung, oder eine in
-// Raten gezahlte Nachzahlung) werden aufsummiert; beglichenAm ist das Datum der jüngsten davon.
-// Rührt eine bereits beglichene Position (beglichenAm gesetzt) nicht an — weder ein manuell
-// markierter noch ein direkt beim Import gematchter Abgleich wird überschrieben.
-export async function synchronisiertNebenkostenausgleich(abrechnungId: string, jahr: number) {
-  const offenePositionen = await prisma.nebenkostenabrechnungPosition.findMany({
-    where: { abrechnungId, beglichenAm: null, mietvertragId: { not: null } },
-    select: { id: true, mietvertragId: true },
-  });
-  if (offenePositionen.length === 0) return;
-
-  const mietvertragIds = offenePositionen.map((p) => p.mietvertragId as string);
   const zahlungen = await prisma.nebenkostenausgleichZahlung.findMany({
-    where: { jahr, mietvertragId: { in: mietvertragIds } },
+    where: { jahr, mietvertragId: { in: ids } },
     select: { mietvertragId: true, datum: true, betrag: true },
   });
-  if (zahlungen.length === 0) return;
 
-  const zahlungenNachMietvertrag = new Map<string, typeof zahlungen>();
+  const ergebnis = new Map<string, { summe: number; juengstesDatum: Date }>();
   for (const z of zahlungen) {
-    const liste = zahlungenNachMietvertrag.get(z.mietvertragId as string) ?? [];
-    liste.push(z);
-    zahlungenNachMietvertrag.set(z.mietvertragId as string, liste);
+    const mietvertragId = z.mietvertragId as string;
+    const bisher = ergebnis.get(mietvertragId);
+    const betrag = -Number(z.betrag);
+    if (!bisher) {
+      ergebnis.set(mietvertragId, { summe: betrag, juengstesDatum: z.datum });
+    } else {
+      bisher.summe += betrag;
+      if (z.datum > bisher.juengstesDatum) bisher.juengstesDatum = z.datum;
+    }
   }
-
-  for (const position of offenePositionen) {
-    const liste = zahlungenNachMietvertrag.get(position.mietvertragId as string);
-    if (!liste || liste.length === 0) continue;
-    const summe = liste.reduce((s, z) => s + Number(z.betrag), 0);
-    const juengstesDatum = liste.reduce((max, z) => (z.datum > max ? z.datum : max), liste[0].datum);
-    // Vorzeichen gedreht, wie schon beim direkten Positions-Match in commitNebenkostenausgleich:
-    // eine ausgehende Guthaben-Auszahlung (negativer Rohbetrag) wird zu einem positiven
-    // beglichenBetrag, eine eingehende Nachzahlung (positiver Rohbetrag) zu einem negativen.
-    await prisma.nebenkostenabrechnungPosition.update({
-      where: { id: position.id },
-      data: { beglichenAm: juengstesDatum, beglichenBetrag: -summe },
-    });
-  }
+  return ergebnis;
 }
 
 // Löscht alle Positionen und erzeugt sie mit dem aktuellen Kostenstand neu — z.B. wenn nach dem
 // ersten Entwurf noch eine Rechnung für dasselbe Jahr nachträglich importiert wurde. Die
-// Abrechnung selbst (id, Jahr, Status) bleibt erhalten. Bereits erfasste Beglichen-Markierungen
-// (beglichenAm/beglichenBetrag) werden vor dem Löschen gesichert und auf die passende neue
-// Position zurückgeschrieben — sonst würde jedes "Neu berechnen" jede bereits eingetragene
-// Zahlung stillschweigend verwerfen.
+// Abrechnung selbst (id, Jahr, Status) bleibt erhalten. Anders als früher muss hier nichts mehr
+// gesichert/zurückgeschrieben werden: der Rückzahlung/Gutschrift-Status hängt nur noch an
+// Mietvertrag+Jahr (ladeNebenkostenausgleichSummen), nicht an der (bei jedem Neu-Berechnen
+// wechselnden) Position-ID.
 export async function neuBerechnen(id: string) {
   await requireEditor();
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
@@ -279,14 +252,6 @@ export async function neuBerechnen(id: string) {
     mietvertraege,
     verbrauchswerte,
     vorverteilteAnteile,
-  );
-
-  const bestehendeBeglichen = await prisma.nebenkostenabrechnungPosition.findMany({
-    where: { abrechnungId: id, beglichenAm: { not: null } },
-    select: { einheitId: true, mietvertragId: true, beglichenAm: true, beglichenBetrag: true },
-  });
-  const beglichenMap = new Map(
-    bestehendeBeglichen.map((p) => [beglichenSchluessel(p.einheitId, p.mietvertragId), p]),
   );
 
   await prisma.$transaction(async (tx) => {
@@ -304,62 +269,47 @@ export async function neuBerechnen(id: string) {
         details: p.details,
       })),
     });
-
-    if (beglichenMap.size === 0) return;
-    const neuePositionen = await tx.nebenkostenabrechnungPosition.findMany({
-      where: { abrechnungId: id },
-      select: { id: true, einheitId: true, mietvertragId: true },
-    });
-    for (const p of neuePositionen) {
-      const beglichen = beglichenMap.get(beglichenSchluessel(p.einheitId, p.mietvertragId));
-      if (!beglichen) continue;
-      await tx.nebenkostenabrechnungPosition.update({
-        where: { id: p.id },
-        data: { beglichenAm: beglichen.beglichenAm, beglichenBetrag: beglichen.beglichenBetrag },
-      });
-    }
   });
-
-  // Zusätzlich zu den oben wiederhergestellten (schon vorher beglichenen) Positionen: Positionen,
-  // für die seit dem letzten Berechnen eine passende NebenkostenausgleichZahlung hinzugekommen
-  // ist (oder die Abrechnung überhaupt erst nach dem Import dieser Zahlung entstanden ist).
-  await synchronisiertNebenkostenausgleich(id, abrechnung.jahr);
 
   revalidatePath(`/nebenkostenabrechnungen/${id}`);
 }
 
-// Manuelles Markieren für Fälle außerhalb des Kontoauszug-Imports (z.B. Barzahlung, oder eine
-// Buchung aus einem bereits vor diesem Feature importierten Monat). Default-Betrag = saldo
-// (volle, unveränderte Begleichung), abweichender Betrag kann per Formularfeld überschrieben werden.
-export async function markiereBeglichen(formData: FormData) {
+// Manuelle Erfassung für Fälle außerhalb des Kontoauszug-Imports (z.B. Barzahlung, oder eine
+// Buchung aus einem bereits vor diesem Feature importierten Monat) — legt wie der Import eine
+// NebenkostenausgleichZahlung an, statt ein Feld auf der Position zu setzen. Betrag wird in
+// derselben Vorzeichenlogik wie saldo entgegengenommen (positiv = ausgezahltes Guthaben, negativ =
+// eingezogene Nachzahlung), intern aber im rohen Bank-Vorzeichen gespeichert wie beim Import.
+export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormData) {
   await requireEditor();
-  const positionId = formData.get("positionId");
+  const mietvertragId = formData.get("mietvertragId");
+  const jahr = formData.get("jahr");
   const datum = formData.get("datum");
   const betragRaw = formData.get("betrag");
-  if (typeof positionId !== "string" || !positionId || typeof datum !== "string" || !datum) {
+  if (
+    typeof mietvertragId !== "string" ||
+    !mietvertragId ||
+    typeof jahr !== "string" ||
+    !jahr ||
+    typeof datum !== "string" ||
+    !datum
+  ) {
     throw new Error("Ungültige Eingabe.");
   }
-
-  const position = await prisma.nebenkostenabrechnungPosition.findUniqueOrThrow({ where: { id: positionId } });
-  const betrag =
-    typeof betragRaw === "string" && betragRaw.trim() !== "" ? Number(betragRaw) : Number(position.saldo);
+  const betrag = typeof betragRaw === "string" ? Number(betragRaw.replace(",", ".")) : NaN;
   if (!Number.isFinite(betrag)) throw new Error("Ungültiger Betrag.");
 
-  await prisma.nebenkostenabrechnungPosition.update({
-    where: { id: positionId },
-    data: { beglichenAm: new Date(datum), beglichenBetrag: betrag },
+  await prisma.nebenkostenausgleichZahlung.create({
+    data: {
+      mietvertragId,
+      jahr: Number(jahr),
+      datum: new Date(datum),
+      betrag: -betrag,
+      verwendungszweck: "Manuell erfasst",
+    },
   });
-  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
-}
 
-// Zurücksetzen, falls versehentlich markiert.
-export async function entferneBeglichen(positionId: string) {
-  await requireEditor();
-  const position = await prisma.nebenkostenabrechnungPosition.update({
-    where: { id: positionId },
-    data: { beglichenAm: null, beglichenBetrag: null },
-  });
-  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
+  const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr: Number(jahr) }, select: { id: true } });
+  if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
 
 // Speichert die von Techem (o.ä.) schon fertig pro Mieter berechneten Beträge für eine

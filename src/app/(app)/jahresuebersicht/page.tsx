@@ -7,15 +7,11 @@ function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-function formatDate(d: Date) {
-  return new Intl.DateTimeFormat("de-DE").format(d);
-}
-
 async function ladeJahresuebersicht(jahr: number) {
   const jahresanfang = new Date(jahr, 0, 1);
   const jahresende = new Date(jahr + 1, 0, 1);
 
-  const [zahlungen, kostenpositionen, begleichungen, sonstigeBuchungen] = await Promise.all([
+  const [zahlungen, kostenpositionen, nebenkostenausgleichZahlungen] = await Promise.all([
     prisma.zahlung.findMany({
       where: { datum: { gte: jahresanfang, lt: jahresende } },
       select: { betrag: true },
@@ -25,16 +21,12 @@ async function ladeJahresuebersicht(jahr: number) {
       include: { kostenart: true },
     }),
     // Auszahlungen/Einzüge aus der Nebenkostenabrechnung (Guthaben-Auszahlungen, Nachzahlungen)
-    // fließen nie als Zahlung/Kostenposition ein — werden separat auf der Position selbst
-    // festgehalten (siehe kontoauszug/import/actions.ts: commitNebenkostenausgleich). Für eine
-    // vollständige Einnahmen/Ausgaben-Übersicht müssen sie hier zusätzlich berücksichtigt werden.
-    prisma.nebenkostenabrechnungPosition.findMany({
-      where: { beglichenAm: { gte: jahresanfang, lt: jahresende } },
-      select: { beglichenBetrag: true },
-    }),
+    // fließen nie als Zahlung/Kostenposition ein — werden direkt aus dem Nebenkostenausgleich-
+    // Archiv gezählt (nach tatsächlichem Zahlungsdatum, nicht Abrechnungsjahr), das seit dem
+    // vereinfachten Import die einzige Quelle für jede Nebenkostenausgleich-Buchung ist.
     prisma.nebenkostenausgleichZahlung.findMany({
       where: { datum: { gte: jahresanfang, lt: jahresende } },
-      orderBy: { datum: "asc" },
+      select: { betrag: true },
     }),
   ]);
 
@@ -58,8 +50,8 @@ async function ladeJahresuebersicht(jahr: number) {
   // für den Eigentümer), negativ = eingezogene Nachzahlung (Einnahme).
   let nachzahlungenEingezogen = 0;
   let guthabenAusgezahlt = 0;
-  for (const b of begleichungen) {
-    const betrag = Number(b.beglichenBetrag);
+  for (const z of nebenkostenausgleichZahlungen) {
+    const betrag = -Number(z.betrag);
     if (betrag > 0) guthabenAusgezahlt += betrag;
     else nachzahlungenEingezogen += -betrag;
   }
@@ -77,13 +69,6 @@ async function ladeJahresuebersicht(jahr: number) {
     einnahmen,
     ausgaben,
     ergebnis,
-    sonstigeBuchungen: sonstigeBuchungen.map((s) => ({
-      id: s.id,
-      datum: s.datum,
-      betrag: Number(s.betrag),
-      empfaenger: s.empfaenger,
-      verwendungszweck: s.verwendungszweck,
-    })),
   };
 }
 
@@ -97,11 +82,25 @@ async function ladeMieterZeilen(jahr: number) {
         mieter: true,
         zahlungen: { select: { datum: true, betrag: true } },
         abrechnungspositionen: {
-          select: { saldo: true, beglichenBetrag: true },
+          select: { saldo: true, abrechnung: { select: { jahr: true } } },
         },
       },
     }),
   ]);
+
+  // Tatsächlich gezahlte/erhaltene Summe je Mietvertrag+Abrechnungsjahr aus dem Nebenkostenausgleich-
+  // Archiv (dieselbe Quelle wie die "Rückzahlung/Gutschrift"-Spalte auf der Abrechnungs-
+  // Detailseite) — ersetzt das frühere, direkt auf der Position gepflegte beglichenBetrag.
+  const nebenkostenausgleichZahlungen = await prisma.nebenkostenausgleichZahlung.findMany({
+    where: { mietvertragId: { in: vertraegeRaw.map((v) => v.id) } },
+    select: { mietvertragId: true, jahr: true, betrag: true },
+  });
+  const zahlungSummenMap = new Map<string, number>();
+  for (const z of nebenkostenausgleichZahlungen) {
+    if (!z.mietvertragId || z.jahr === null) continue;
+    const key = `${z.mietvertragId}|${z.jahr}`;
+    zahlungSummenMap.set(key, (zahlungSummenMap.get(key) ?? 0) - Number(z.betrag));
+  }
 
   const vertraege: MietvertragFuerJahresbericht[] = vertraegeRaw.map((v) => ({
     id: v.id,
@@ -116,7 +115,7 @@ async function ladeMieterZeilen(jahr: number) {
     zahlungen: v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
     nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
       saldo: Number(p.saldo),
-      beglichenBetrag: p.beglichenBetrag ? Number(p.beglichenBetrag) : null,
+      zahlungSumme: zahlungSummenMap.get(`${v.id}|${p.abrechnung.jahr}`) ?? 0,
     })),
   }));
 
@@ -334,27 +333,6 @@ export default async function JahresuebersichtPage({
         </div>
       </div>
 
-      {daten.sonstigeBuchungen.length > 0 && (
-        <div className="rounded-lg border border-amber-900 bg-amber-950/30 p-4">
-          <p className="mb-2 text-sm font-medium text-amber-400">
-            {daten.sonstigeBuchungen.length} Nebenkostenausgleich-Zahlung(en) in {jahr} — nicht in
-            der Berechnung oben enthalten, bitte manuell prüfen
-          </p>
-          <ul className="space-y-1 text-sm text-neutral-300">
-            {daten.sonstigeBuchungen.map((s) => (
-              <li key={s.id}>
-                {formatDate(s.datum)} · {formatEuro(s.betrag)} · {s.empfaenger ?? s.verwendungszweck ?? "–"}
-              </li>
-            ))}
-          </ul>
-          <Link
-            href="/nebenkostenausgleich"
-            className="mt-2 inline-block text-sm text-amber-400 hover:underline"
-          >
-            Zu Nebenkostenausgleich →
-          </Link>
-        </div>
-      )}
     </div>
   );
 }
