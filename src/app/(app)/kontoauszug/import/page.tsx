@@ -39,6 +39,7 @@ type ZahlungHinweisKategorie =
   | "fehler"
   | "eigentuemer"
   | "kaution"
+  | "nebenkostenausgleich"
   | "kleinreparatur"
   | "pruefen"
   | "mehrdeutig"
@@ -58,6 +59,7 @@ function ermittleZahlungHinweis(
     | "errors"
     | "eigentuemerBuchung"
     | "kaution"
+    | "nebenkostenausgleich"
     | "kleinreparatur"
     | "ignorieren"
     | "rueckbuchung"
@@ -68,6 +70,10 @@ function ermittleZahlungHinweis(
   if (r.errors.length > 0) return "fehler";
   if (r.eigentuemerBuchung) return "eigentuemer";
   if (r.kaution) return "kaution";
+  // Eigene Kategorie statt generisch unter "Bitte prüfen" (r.ignorieren deckt beide ab) — sonst
+  // ist für den Nutzer in der Zahlungen-Sektion nicht erkennbar, dass diese Zeile eigentlich in
+  // den Nebenkostenausgleich-Abschnitt gehört, nicht hierher.
+  if (r.nebenkostenausgleich) return "nebenkostenausgleich";
   if (r.kleinreparatur) return "kleinreparatur";
   if (r.ignorieren) return "pruefen";
   // Eine Rücklastschrift mit bereits eindeutig ermitteltem Mietvertrag (z.B. über die
@@ -102,6 +108,7 @@ const ZAHLUNG_HINWEIS_LABELS: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   fehler: "Fehler",
   eigentuemer: "Eigentümer-Buchung",
   kaution: "Kaution",
+  nebenkostenausgleich: "Nebenkostenausgleich",
   kleinreparatur: "Kleinreparatur-Erstattung",
   pruefen: "Bitte prüfen",
   mehrdeutig: "Mehrdeutig",
@@ -116,6 +123,7 @@ const ZAHLUNG_HINWEIS_FARBEN: Record<ZahlungHinweisKategorie | ZahlungHinweisTag
   fehler: "text-red-400",
   eigentuemer: "text-neutral-500",
   kaution: "text-blue-400",
+  nebenkostenausgleich: "text-purple-400",
   kleinreparatur: "text-blue-400",
   pruefen: "text-neutral-500",
   mehrdeutig: "text-amber-400",
@@ -143,6 +151,7 @@ const ZAHLUNG_HINWEIS_OPTIONEN: { value: ZahlungHinweisFilter; label: string }[]
   },
   { value: "eigentuemer", label: ZAHLUNG_HINWEIS_LABELS.eigentuemer },
   { value: "kaution", label: ZAHLUNG_HINWEIS_LABELS.kaution },
+  { value: "nebenkostenausgleich", label: ZAHLUNG_HINWEIS_LABELS.nebenkostenausgleich },
   { value: "kleinreparatur", label: ZAHLUNG_HINWEIS_LABELS.kleinreparatur },
   { value: "fehler", label: ZAHLUNG_HINWEIS_LABELS.fehler },
 ];
