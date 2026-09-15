@@ -148,14 +148,16 @@ export const WASCHGELD_PATTERN = /waschgeld/i;
 
 // Rückzahlung/Nachzahlung aus der jährlichen Nebenkostenabrechnung — im Verwendungszweck bisher
 // mit "BK-Abr." (Bindestrich) oder "BK Abr" (Leerzeichen, z.B. "Nachzahlung BK Abr 2022 WHG 01"),
-// ausgeschrieben "Nebenkosten-/Betriebskostenabrechnung", oder (z.B. bei einer Ratenzahlung oder
-// einem frei formulierten Klärungs-Verwendungszweck eines Mieters) nur "BK
-// Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt. Weder Miete noch
-// Kosten noch Kaution: gehört gegen die passende offene NebenkostenabrechnungPosition abgeglichen
-// (siehe kontoauszug/import), nicht in Zahlung/Kostenposition — sonst verfälscht der Betrag
-// dauerhaft die Offene-Posten-Berechnung, die die tatsächliche Abrechnung nie einbezieht.
+// ausgeschrieben "Nebenkosten-/Betriebskostenabrechnung" (auch mit Tippfehlern des überweisenden
+// Sachbearbeiters, z.B. "Beriebskostenarechnung" — deshalb die verkürzten, tippfehlertoleranten
+// Fragmente "enkosten…rechnung"/"riebskosten…rechnung" statt der vollen Wörter), oder (z.B. bei
+// einer Ratenzahlung oder einem frei formulierten Klärungs-Verwendungszweck eines Mieters) nur
+// "BK Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt. Weder Miete
+// noch Kosten noch Kaution: gehört gegen die passende offene NebenkostenabrechnungPosition
+// abgeglichen (siehe kontoauszug/import), nicht in Zahlung/Kostenposition — sonst verfälscht der
+// Betrag dauerhaft die Offene-Posten-Berechnung, die die tatsächliche Abrechnung nie einbezieht.
 export const NEBENKOSTENAUSGLEICH_PATTERN =
-  /bk[\s-]*abr|bk\s*nachzahlung|nebenkostenabrechnung|betriebskostenabrechnung|betriebskosten\s*nachzahlung/i;
+  /bk[\s-]*abr|bk\s*nachzahlung|enkosten[\w\s]{0,3}rechnung|riebskosten[\w\s]{0,3}(rechnung|nachzahlung)/i;
 
 // Eine Kleinreparatur, die laut Mietvertrag vom Mieter direkt getragen wird: der Vermieter zahlt
 // zunächst die Handwerkerrechnung (normale ausgehende Kostenposition unter "Reparaturen"), der
