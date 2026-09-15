@@ -260,12 +260,12 @@ export default async function JahresuebersichtPage({
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
         <p className="mb-3 text-sm text-neutral-400">
-          Saldo neu = Saldo alt − Soll + Miete. Negativer Saldo = Rückstand, positiver Saldo =
-          Guthaben/Vorauszahlung. &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo; zeigt den
-          offenen Saldo der {jahr - 1}er-Abrechnung (eine Nebenkostenabrechnung wird
-          typischerweise erst im Folgejahr beglichen, gehört also inhaltlich in diesen
-          Jahresbericht): positiv = noch auszuzahlendes Guthaben, negativ = noch einzuziehende
-          Nachzahlung.
+          Saldo neu = Saldo alt − Soll + Miete + Nebenkostenabrechnung offen (Vorjahr). Negativer
+          Saldo = Rückstand, positiver Saldo = Guthaben/Vorauszahlung. &bdquo;Nebenkostenabrechnung
+          offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
+          Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
+          in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
+          noch einzuziehende Nachzahlung.
         </p>
         <div className="overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">

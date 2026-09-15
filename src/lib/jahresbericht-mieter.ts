@@ -58,9 +58,11 @@ function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr:
 /**
  * Pro-Mietvertrag-Aufschlüsselung für den Jahresbericht: Saldo alt (1.1.), die Bewegungen des
  * Jahres (Soll, tatsächlich gezahlte Miete) und Saldo neu (31.12. bzw. `buchhaltungBis`, falls
- * das Jahr noch nicht vollständig erfasst ist) — rechnet sich lückenlos zusammen: saldoNeu =
- * saldoAlt - soll + miete. Daneben, informativ und unabhängig von dieser Rechnung, der aktuelle
- * offene Nebenkostenabrechnung-Saldo (siehe nebenkostenabrechnungOffenBetrag).
+ * das Jahr noch nicht vollständig erfasst ist) — Saldo neu = Saldo alt - Soll + Miete +
+ * Nebenkostenabrechnung offen (Vorjahr). Der offene Vorjahres-NK-Saldo (siehe
+ * nebenkostenabrechnungOffenBetrag) fließt bewusst nur in Saldo neu ein, nicht in Saldo alt — die
+ * Vorjahresabrechnung entsteht/wird beglichen typischerweise erst im Laufe des Berichtsjahres,
+ * war zu dessen Beginn also noch kein Bestandteil des Saldos.
  *
  * Nur Mietverträge, die für das Jahr oder den offenen Nebenkostenabrechnung-Saldo tatsächlich
  * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf.
@@ -84,12 +86,12 @@ export function berechneMieterJahresbericht(
 
   for (const v of vertraege) {
     const saldoAlt = saldoZuStichtag(v, saldoAltBis, buchhaltungAb);
-    const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb);
     const soll = berechneSoll(v, saldoNeuBis, buchhaltungAb) - berechneSoll(v, saldoAltBis, buchhaltungAb);
     const miete = v.zahlungen
       .filter((z) => z.datum >= jahresanfang && z.datum < jahresendeExklusiv && z.datum <= saldoNeuBis)
       .reduce((sum, z) => sum + z.betrag, 0);
     const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v, jahr);
+    const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0);
 
     if (
       saldoAlt === 0 &&
