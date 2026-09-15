@@ -145,13 +145,19 @@ function findeMietvertrag(
       if (textEnthaeltWort(text, k.einheitBezeichnung.replace(/^HS \d+ WHG \d+ - /, ""))) {
         score += 1;
       }
-      return { id: k.id, score };
+      return { id: k.id, score, getroffeneNamensteile };
     });
 
-  const maxScore = Math.max(0, ...scored.map((s) => s.score));
+  // Ein exakter Betragstreffer allein (score 3) darf nie für sich genommen reichen — runde,
+  // gängige Mietbeträge (z.B. 420€) teilen sich leicht mehrere, komplett unabhängige Mieter,
+  // siehe echter Vorfall: eine fremde Zahlung wurde allein wegen exakt übereinstimmendem Betrag
+  // einem Mieter zugeordnet, dessen Name im Buchungstext gar nicht vorkam. Der Betrag dient nur
+  // als Verstärker/Tiebreaker zusätzlich zu mindestens einem echten Namenstreffer.
+  const infrage = scored.filter((s) => s.getroffeneNamensteile > 0);
+  const maxScore = Math.max(0, ...infrage.map((s) => s.score));
   if (maxScore < 3) return { id: null, mehrdeutig: false };
 
-  const beste = scored.filter((s) => s.score === maxScore);
+  const beste = infrage.filter((s) => s.score === maxScore);
   if (beste.length > 1) return { id: null, mehrdeutig: true };
 
   return { id: beste[0].id, mehrdeutig: false };
