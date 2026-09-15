@@ -1815,15 +1815,23 @@ type NebenkostenausgleichEditRow = ParsedZahlungRow & {
 };
 
 // Sucht eine vierstellige Jahreszahl im Buchungstext (z.B. "BK-Abr. 2024", "Betriebskostenabrechnung
-// 2023") als Vorschlag fürs Abrechnungsjahr — findet sich keine, wird das Vorjahr des
-// Buchungsdatums vorgeschlagen (eine Nebenkostenabrechnung wird typischerweise fürs Vorjahr
-// beglichen). Rein ein Vorschlag, im Feld frei änderbar/löschbar.
+// 2023") als Vorschlag fürs Abrechnungsjahr — findet sich keine (oder ist der Treffer zeitlich zu
+// weit vom Buchungsdatum entfernt, um wirklich das Abrechnungsjahr zu sein — z.B. "2000.2701" als
+// Kundennummer im Text, fälschlich als Jahr 2000 erkannt), wird das Vorjahr des Buchungsdatums
+// vorgeschlagen (eine Nebenkostenabrechnung wird typischerweise fürs Vorjahr beglichen). Rein ein
+// Vorschlag, im Feld frei änderbar/löschbar.
 function ermittleJahrVorschlag(verwendungszweck: string, buchungsdatum: string | null): string {
+  const buchungsjahr = buchungsdatum ? Number(buchungsdatum.slice(0, 4)) : NaN;
+  const vorjahrFallback = Number.isFinite(buchungsjahr) ? String(buchungsjahr - 1) : "";
+
   const treffer = /\b(19|20)\d{2}\b/.exec(verwendungszweck);
-  if (treffer) return treffer[0];
-  if (!buchungsdatum) return "";
-  const buchungsjahr = Number(buchungsdatum.slice(0, 4));
-  return Number.isFinite(buchungsjahr) ? String(buchungsjahr - 1) : "";
+  if (treffer) {
+    const gefundenesJahr = Number(treffer[0]);
+    if (!Number.isFinite(buchungsjahr) || (gefundenesJahr >= buchungsjahr - 3 && gefundenesJahr <= buchungsjahr)) {
+      return treffer[0];
+    }
+  }
+  return vorjahrFallback;
 }
 
 // Gleiches Prinzip wie bei Kaution/Mietweiterleitungen oben, mit einer Ausnahme: "erkannt" wird
