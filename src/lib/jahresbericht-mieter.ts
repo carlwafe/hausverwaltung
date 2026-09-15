@@ -6,11 +6,12 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   einheitBezeichnung: string;
   mieterNamen: string;
   zahlungen: { datum: Date; betrag: number }[];
-  // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Abrechnungsjahr —
-  // für "Nebenkostenabrechnung offen" wird der aktuelle Gesamtstand über alle Jahre gebraucht,
-  // nicht nur die Bewegung des Berichtsjahres. zahlungSumme = tatsächlich gezahlte/erhaltene
-  // Summe für Mietvertrag+Jahr aus dem Nebenkostenausgleich-Archiv (0 = noch nichts erfasst).
-  nebenkostenPositionen: { saldo: number; zahlungSumme: number }[];
+  // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Berichtsjahr — für
+  // "Nebenkostenabrechnung offen (Vorjahr)" wird gezielt die Position des Vorjahres der jeweiligen
+  // Abrechnung herausgesucht (siehe nebenkostenabrechnungOffenBetrag), nicht die Bewegung des
+  // Berichtsjahres selbst. zahlungSumme = tatsächlich gezahlte/erhaltene Summe für
+  // Mietvertrag+Jahr aus dem Nebenkostenausgleich-Archiv (0 = noch nichts erfasst).
+  nebenkostenPositionen: { jahr: number; saldo: number; zahlungSumme: number }[];
 };
 
 export type MieterJahresberichtZeile = {
@@ -21,9 +22,9 @@ export type MieterJahresberichtZeile = {
   soll: number;
   miete: number;
   saldoNeu: number;
-  // null = keine einzige Nebenkostenabrechnung-Position für diesen Mietvertrag vorhanden
-  // (unterscheidet sich in der Anzeige bewusst nicht von "0" — beides zeigt "–", da ein
-  // bestätigter Nullsaldo von "nie erfasst" ohnehin nicht unterscheidbar wäre).
+  // null = keine Nebenkostenabrechnung-Position fürs Vorjahr vorhanden (unterscheidet sich in der
+  // Anzeige bewusst nicht von "0" — beides zeigt "–", da ein bestätigter Nullsaldo von "nie
+  // erfasst" ohnehin nicht unterscheidbar wäre).
   nebenkostenabrechnungOffen: number | null;
 };
 
@@ -40,10 +41,18 @@ function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltung
   return ist - soll + v.saldovortrag;
 }
 
-/** positiv = noch offenes Guthaben (Vermieter schuldet Mieter), negativ = noch offene Nachzahlung. */
-function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht): number | null {
-  if (v.nebenkostenPositionen.length === 0) return null;
-  return v.nebenkostenPositionen.reduce((sum, p) => sum + (p.saldo - p.zahlungSumme), 0);
+/**
+ * positiv = noch offenes Guthaben (Vermieter schuldet Mieter), negativ = noch offene Nachzahlung —
+ * bewusst nur für das Vorjahr des Berichtsjahres (z.B. im Jahresbericht 2025 nur die
+ * 2024er-Abrechnung): eine Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen,
+ * gehört inhaltlich also in den Jahresbericht des Jahres, in dem die Zahlung tatsächlich erwartet
+ * wird. Ältere, noch offene Jahre fließen hier bewusst nicht mehr mit ein (die vollständige
+ * Historie bleibt über /nebenkostenabrechnungen einsehbar).
+ */
+function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr: number): number | null {
+  const vorjahresPosition = v.nebenkostenPositionen.find((p) => p.jahr === jahr - 1);
+  if (!vorjahresPosition) return null;
+  return vorjahresPosition.saldo - vorjahresPosition.zahlungSumme;
 }
 
 /**
@@ -80,7 +89,7 @@ export function berechneMieterJahresbericht(
     const miete = v.zahlungen
       .filter((z) => z.datum >= jahresanfang && z.datum < jahresendeExklusiv && z.datum <= saldoNeuBis)
       .reduce((sum, z) => sum + z.betrag, 0);
-    const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v);
+    const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v, jahr);
 
     if (
       saldoAlt === 0 &&

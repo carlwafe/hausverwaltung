@@ -114,6 +114,7 @@ async function ladeMieterZeilen(jahr: number) {
     mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
     zahlungen: v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
     nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
+      jahr: p.abrechnung.jahr,
       saldo: Number(p.saldo),
       zahlungSumme: zahlungSummenMap.get(`${v.id}|${p.abrechnung.jahr}`) ?? 0,
     })),
@@ -260,9 +261,11 @@ export default async function JahresuebersichtPage({
         <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
         <p className="mb-3 text-sm text-neutral-400">
           Saldo neu = Saldo alt − Soll + Miete. Negativer Saldo = Rückstand, positiver Saldo =
-          Guthaben/Vorauszahlung. &bdquo;Nebenkostenabrechnung offen&ldquo; ist ein unabhängiger,
-          aktueller Schnappschuss (nicht auf {jahr} beschränkt): positiv = noch auszuzahlendes
-          Guthaben, negativ = noch einzuziehende Nachzahlung.
+          Guthaben/Vorauszahlung. &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo; zeigt den
+          offenen Saldo der {jahr - 1}er-Abrechnung (eine Nebenkostenabrechnung wird
+          typischerweise erst im Folgejahr beglichen, gehört also inhaltlich in diesen
+          Jahresbericht): positiv = noch auszuzahlendes Guthaben, negativ = noch einzuziehende
+          Nachzahlung.
         </p>
         <div className="overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
@@ -272,7 +275,7 @@ export default async function JahresuebersichtPage({
                 <th className="px-4 py-2 text-right">Saldo alt</th>
                 <th className="px-4 py-2 text-right">Soll</th>
                 <th className="px-4 py-2 text-right">Miete</th>
-                <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen</th>
+                <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen (Vorjahr)</th>
                 <th className="px-4 py-2 text-right">Saldo neu</th>
               </tr>
             </thead>
