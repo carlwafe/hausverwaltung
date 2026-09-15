@@ -72,6 +72,201 @@ function datumBetragZweckSchluessel(datum: Date | null, betrag: number, verwendu
   return `${datum ? datum.toISOString().slice(0, 10) : ""}|${betrag.toFixed(2)}|${(verwendungszweck ?? "").trim().toLowerCase()}`;
 }
 
+// Reine Set-Aufbau-Logik (kein DB-Zugriff) für die sieben "bereits importiert"-Listen — von
+// previewImport beim ersten Laden UND von ladeBestehendeImportSets für den Refresh nach jedem
+// Commit in einem beliebigen Abschnitt genutzt, damit beide garantiert denselben Dedup-Schlüssel
+// berechnen und nicht auseinanderlaufen können.
+export type BestehendeImportSets = {
+  bestehendeZahlungen: string[];
+  bestehendeZahlungenDatumBetrag: string[];
+  bestehendeKosten: string[];
+  bestehendeMietweiterleitungen: string[];
+  bestehendeKautionsbuchungen: string[];
+  offeneNebenkostenPositionen: { id: string; label: string; mietvertragId: string | null }[];
+  bestehendeNebenkostenausgleich: string[];
+};
+
+function berechneBestehendeImportSets({
+  vertraegeMitZahlungen,
+  bestehendeKostenpositionen,
+  mietweiterleitungenRaw,
+  kautionsbuchungenRaw,
+  offenePositionenRaw,
+  beglichenePositionenRaw,
+  sonstigeZahlungenRaw,
+}: {
+  vertraegeMitZahlungen: {
+    id: string;
+    zahlungen: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
+  }[];
+  bestehendeKostenpositionen: {
+    empfaenger: string | null;
+    datum: Date | null;
+    betrag: unknown;
+    beschreibung: string | null;
+    aufteilungGruppeId: string | null;
+  }[];
+  mietweiterleitungenRaw: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
+  kautionsbuchungenRaw: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
+  offenePositionenRaw: {
+    id: string;
+    mietvertragId: string | null;
+    saldo: unknown;
+    abrechnung: { jahr: number };
+    einheit: { bezeichnung: string };
+    mietvertrag: { mieter: { vorname: string; nachname: string }[] } | null;
+  }[];
+  beglichenePositionenRaw: { beglichenAm: Date | null; beglichenBetrag: unknown }[];
+  sonstigeZahlungenRaw: { datum: Date; betrag: unknown }[];
+}): BestehendeImportSets {
+  // Verwendungszweck gehört mit in den Schlüssel, nicht nur Mietvertrag+Datum+Betrag: mehrere
+  // Mieter zahlen oft am selben Tag denselben (Kaltmiete-)Betrag, und eine "mehrdeutig"-Zeile
+  // ohne automatisch vorgeschlagenen Mietvertrag lässt sich versehentlich einem falschen, aber
+  // zufällig genau an diesem Tag mit diesem Betrag bereits zahlenden Mietvertrag zuordnen — ohne
+  // Verwendungszweck im Schlüssel würde das fälschlich als "bereits importiert" gemeldet, obwohl
+  // die eigentlich gemeinte Buchung noch gar nicht importiert wurde.
+  const bestehendeZahlungen = new Set(
+    vertraegeMitZahlungen.flatMap((v) =>
+      v.zahlungen.map(
+        (z) =>
+          `${v.id}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
+      ),
+    ),
+  );
+  // Rückfall für Zeilen ohne gewählten Mietvertrag (z.B. "mehrdeutig") sowie für den "bereits als
+  // Zahlung importiert"-Hinweis im Kosten-Import — Betrag als Betragshöhe ohne Vorzeichen, siehe
+  // ausführlicher Kommentar dazu in previewImport.
+  const bestehendeZahlungenDatumBetrag = new Set(
+    vertraegeMitZahlungen.flatMap((v) =>
+      v.zahlungen.map(
+        (z) =>
+          `${z.datum.toISOString().slice(0, 10)}|${Math.abs(Number(z.betrag)).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
+      ),
+    ),
+  );
+
+  // Aufgeteilte Positionen (siehe kosten/actions.ts teileKostenpositionAuf) einzeln zu betrachten
+  // würde eine erneut importierte Original-Buchung nie als "bereits importiert" erkennen — keiner
+  // der Teilbeträge entspricht dem ursprünglich importierten Gesamtbetrag. Für den Dedup-Schlüssel
+  // werden Positionen derselben Gruppe deshalb zu ihrem Summenbetrag zusammengefasst.
+  const aufteilungSummen = new Map<string, number>();
+  for (const k of bestehendeKostenpositionen) {
+    if (!k.aufteilungGruppeId) continue;
+    aufteilungSummen.set(
+      k.aufteilungGruppeId,
+      (aufteilungSummen.get(k.aufteilungGruppeId) ?? 0) + Number(k.betrag),
+    );
+  }
+  const bestehendeKosten = new Set(
+    bestehendeKostenpositionen
+      .filter((k) => k.datum)
+      .map((k) =>
+        kostenDedupSchluessel(
+          k.empfaenger,
+          k.datum,
+          k.aufteilungGruppeId ? aufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
+          k.beschreibung,
+        ),
+      ),
+  );
+
+  const bestehendeMietweiterleitungen = new Set(
+    mietweiterleitungenRaw.map((m) => datumBetragZweckSchluessel(m.datum, Number(m.betrag), m.verwendungszweck)),
+  );
+  const bestehendeKautionsbuchungen = new Set(
+    kautionsbuchungenRaw.map((k) => datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck)),
+  );
+
+  // Kandidaten für den Nebenkostenausgleich-Import: nur noch nicht beglichene Positionen (siehe
+  // where-Filter an der Aufrufstelle) — eine bereits beglichene Position taucht damit von selbst
+  // nicht mehr als Ziel auf, ohne eigenen Dedup-Schlüssel. Label + Vorzeichen der Betragsangabe
+  // folgen derselben Konvention wie saldo (positiv = Guthaben, negativ = Nachzahlung).
+  const offeneNebenkostenPositionen = offenePositionenRaw.map((p) => {
+    const mieterNamen = p.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? "unbekannt";
+    const saldo = Number(p.saldo);
+    const art = saldo >= 0 ? "Guthaben" : "Nachzahlung";
+    const betragText = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(
+      Math.abs(saldo),
+    );
+    return {
+      id: p.id,
+      label: `${p.abrechnung.jahr} — ${mieterNamen} — ${p.einheit.bezeichnung} (${art} ${betragText})`,
+      mietvertragId: p.mietvertragId,
+    };
+  });
+
+  const bestehendeNebenkostenausgleich = new Set([
+    ...beglichenePositionenRaw
+      .filter((p) => p.beglichenAm !== null)
+      .map((p) => datumBetragSchluessel(p.beglichenAm, Number(p.beglichenBetrag))),
+    ...sonstigeZahlungenRaw.map((s) => datumBetragSchluessel(s.datum, Number(s.betrag))),
+  ]);
+
+  return {
+    bestehendeZahlungen: [...bestehendeZahlungen],
+    bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
+    bestehendeKosten: [...bestehendeKosten],
+    bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
+    bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
+    offeneNebenkostenPositionen,
+    bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
+  };
+}
+
+// Refresh-Endpunkt für den Client: nach jedem erfolgreichen Import in einem beliebigen Abschnitt
+// (Zahlungen, Kosten, Mietweiterleitungen, Kaution, Nebenkostenausgleich) direkt aufgerufen, um
+// die "bereits importiert"-Listen aller Abschnitte auf den aktuellen DB-Stand zu bringen — ohne
+// die Datei erneut hochzuladen. Eigenes, schlankeres Promise.all als previewImport (nur die für
+// die Dedup-Listen nötigen Felder, keine Kandidatenlisten/Historie fürs Zeilen-Matching).
+export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> {
+  await requireUser();
+
+  const [
+    vertraegeMitZahlungen,
+    bestehendeKostenpositionen,
+    mietweiterleitungenRaw,
+    kautionsbuchungenRaw,
+    offenePositionenRaw,
+    beglichenePositionenRaw,
+    sonstigeZahlungenRaw,
+  ] = await Promise.all([
+    prisma.mietvertrag.findMany({
+      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      select: { id: true, zahlungen: { select: { datum: true, betrag: true, verwendungszweck: true } } },
+    }),
+    prisma.kostenposition.findMany({
+      select: {
+        empfaenger: true,
+        datum: true,
+        betrag: true,
+        beschreibung: true,
+        aufteilungGruppeId: true,
+      },
+    }),
+    prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
+    prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
+    prisma.nebenkostenabrechnungPosition.findMany({
+      where: { beglichenAm: null },
+      include: { abrechnung: true, einheit: true, mietvertrag: { include: { mieter: true } } },
+    }),
+    prisma.nebenkostenabrechnungPosition.findMany({
+      where: { beglichenAm: { not: null } },
+      select: { beglichenAm: true, beglichenBetrag: true },
+    }),
+    prisma.nebenkostenausgleichZahlung.findMany({ select: { datum: true, betrag: true } }),
+  ]);
+
+  return berechneBestehendeImportSets({
+    vertraegeMitZahlungen,
+    bestehendeKostenpositionen,
+    mietweiterleitungenRaw,
+    kautionsbuchungenRaw,
+    offenePositionenRaw,
+    beglichenePositionenRaw,
+    sonstigeZahlungenRaw,
+  });
+}
+
 
 // Ein ImportBatch kann jetzt Ergebnisse von zwei unabhängigen Importen (Zahlungen und Kosten)
 // aus derselben Datei sammeln, statt dass der zweite Commit das Ergebnis des ersten überschreibt.
@@ -222,43 +417,6 @@ export async function previewImport(
       const [hausB, whgB] = einheitSortSchluessel(b.einheitBezeichnung);
       return hausA - hausB || whgA - whgB || a.einheitBezeichnung.localeCompare(b.einheitBezeichnung);
     });
-    // Verwendungszweck gehört mit in den Schlüssel, nicht nur Mietvertrag+Datum+Betrag: mehrere
-    // Mieter zahlen oft am selben Tag denselben (Kaltmiete-)Betrag, und eine "mehrdeutig"-Zeile
-    // ohne automatisch vorgeschlagenen Mietvertrag lässt sich versehentlich einem falschen,
-    // aber zufällig genau an diesem Tag mit diesem Betrag bereits zahlenden Mietvertrag zuordnen
-    // — ohne Verwendungszweck im Schlüssel würde das fälschlich als "bereits importiert" gemeldet,
-    // obwohl die eigentlich gemeinte Buchung noch gar nicht importiert wurde.
-    const bestehendeZahlungen = new Set(
-      vertraege.flatMap((v) =>
-        v.zahlungen.map(
-          (z) =>
-            `${v.id}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
-        ),
-      ),
-    );
-    // Für den "bereits als Zahlung importiert"-Hinweis im Kosten-Import, und als Rückfall in der
-    // Zahlungen-Sektion selbst für Zeilen ohne gewählten Mietvertrag (z.B. "mehrdeutig"), wo der
-    // präzise mietvertragsgebundene Schlüssel (bestehendeZahlungen oben) gar nicht erst gebildet
-    // werden kann: Zahlung hat (anders als Kostenposition.empfaenger) keine eigene
-    // Empfänger-Spalte, nur Verwendungszweck (Freitext) und rohdaten (JSON der Original-CSV-Zeile
-    // mit uneinheitlichen Spaltennamen je nach Export) — beide ungeeignet für einen
-    // zuverlässigen Namensabgleich. Der Schlüssel besteht deshalb aus Datum+Betrag+Verwendungszweck,
-    // ohne Namen — Verwendungszweck ist trotzdem Pflicht im Schlüssel: nur Datum+Betrag allein
-    // matcht sonst jede zufällig gleich hohe Zahlung eines ANDEREN Mietvertrags am selben Tag
-    // (z.B. dieselbe Kaltmiete in mehreren Wohnungen) und meldet eine tatsächlich noch gar nicht
-    // importierte Buchung fälschlich als bereits vorhanden. Betrag als Betragshöhe ohne
-    // Vorzeichen, da Zahlung das Rohvorzeichen behält (positiv = normale Miete, negativ =
-    // Rücklastschrift-Korrektur), Kosten eingehende Buchungen aber umgekehrt als negativ
-    // speichert (siehe kosten-import.ts) — ein direkter Vorzeichenvergleich würde hier nie
-    // matchen.
-    const bestehendeZahlungenDatumBetrag = new Set(
-      vertraege.flatMap((v) =>
-        v.zahlungen.map(
-          (z) =>
-            `${z.datum.toISOString().slice(0, 10)}|${Math.abs(Number(z.betrag)).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
-        ),
-      ),
-    );
     // Für die Kleinreparatur-Erkennung (siehe Kommentar in zahlungen-import.ts/kosten-import.ts):
     // die Id der Kostenart "Reparaturen" sowie alle bereits dort erfassten Beträge, auf den Cent
     // gerundet.
@@ -332,82 +490,26 @@ export async function previewImport(
       bekannteWarmmieten,
       einheitKandidaten,
     );
-    // Aufgeteilte Positionen (siehe kosten/actions.ts teileKostenpositionAuf) einzeln zu betrachten
-    // würde eine erneut importierte Original-Buchung nie als "bereits importiert" erkennen —
-    // keiner der Teilbeträge entspricht dem ursprünglich importierten Gesamtbetrag. Für den
-    // Dedup-Schlüssel werden Positionen derselben Gruppe deshalb zu ihrem Summenbetrag
-    // zusammengefasst, bevor der Schlüssel gebildet wird.
-    const aufteilungSummen = new Map<string, number>();
-    for (const k of bestehendeKostenpositionen) {
-      if (!k.aufteilungGruppeId) continue;
-      aufteilungSummen.set(
-        k.aufteilungGruppeId,
-        (aufteilungSummen.get(k.aufteilungGruppeId) ?? 0) + Number(k.betrag),
-      );
-    }
-    const bestehendeKosten = new Set(
-      bestehendeKostenpositionen
-        .filter((k) => k.datum)
-        .map((k) =>
-          kostenDedupSchluessel(
-            k.empfaenger,
-            k.datum,
-            k.aufteilungGruppeId ? aufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
-            k.beschreibung,
-          ),
-        ),
-    );
-    const bestehendeMietweiterleitungen = new Set(
-      bestehendeMietweiterleitungenRaw.map((m) =>
-        datumBetragZweckSchluessel(m.datum, Number(m.betrag), m.verwendungszweck),
-      ),
-    );
-    const bestehendeKautionsbuchungen = new Set(
-      bestehendeKautionsbuchungenRaw.map((k) =>
-        datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck),
-      ),
-    );
-    // Kandidaten für den Nebenkostenausgleich-Import: nur noch nicht beglichene Positionen (siehe
-    // where-Filter oben) — eine bereits beglichene Position taucht damit von selbst nicht mehr
-    // als Ziel auf, ohne eigenen Dedup-Schlüssel. Label + Vorzeichen der Betragsangabe folgen
-    // derselben Konvention wie saldo (positiv = Guthaben, negativ = Nachzahlung).
-    const offeneNebenkostenPositionen = offeneNebenkostenPositionenRaw.map((p) => {
-      const mieterNamen =
-        p.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? "unbekannt";
-      const saldo = Number(p.saldo);
-      const art = saldo >= 0 ? "Guthaben" : "Nachzahlung";
-      const betragText = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(
-        Math.abs(saldo),
-      );
-      return {
-        id: p.id,
-        label: `${p.abrechnung.jahr} — ${mieterNamen} — ${p.einheit.bezeichnung} (${art} ${betragText})`,
-        mietvertragId: p.mietvertragId,
-      };
+    const bestehendeSets = berechneBestehendeImportSets({
+      vertraegeMitZahlungen: vertraege,
+      bestehendeKostenpositionen,
+      mietweiterleitungenRaw: bestehendeMietweiterleitungenRaw,
+      kautionsbuchungenRaw: bestehendeKautionsbuchungenRaw,
+      offenePositionenRaw: offeneNebenkostenPositionenRaw,
+      beglichenePositionenRaw: beglicheneNebenkostenPositionenRaw,
+      sonstigeZahlungenRaw: bestehendeSonstigenBuchungenRaw,
     });
-    const bestehendeNebenkostenausgleich = new Set([
-      ...beglicheneNebenkostenPositionenRaw
-        .filter((p) => p.beglichenAm !== null)
-        .map((p) => datumBetragSchluessel(p.beglichenAm, Number(p.beglichenBetrag))),
-      ...bestehendeSonstigenBuchungenRaw.map((s) => datumBetragSchluessel(s.datum, Number(s.betrag))),
-    ]);
 
     return {
       zahlungenRows,
       mietvertragKandidaten: mietvertragKandidaten.map((k) => ({ id: k.id, label: k.label })),
-      bestehendeZahlungen: [...bestehendeZahlungen],
       kostenRows,
       kostenarten,
       gebaeude,
       einheiten,
-      bestehendeKosten: [...bestehendeKosten],
-      bestehendeZahlungenDatumBetrag: [...bestehendeZahlungenDatumBetrag],
-      bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
-      bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
-      offeneNebenkostenPositionen,
-      bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
       fileName: file.name,
       importBatchId: importBatch.id,
+      ...bestehendeSets,
     };
   } catch (err) {
     return {

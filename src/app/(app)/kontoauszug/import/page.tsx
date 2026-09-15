@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useActionState, useState } from "react";
+import { Fragment, useActionState, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   previewImport,
@@ -9,6 +9,8 @@ import {
   commitMietweiterleitungen,
   commitKautionsbuchungen,
   commitNebenkostenausgleich,
+  ladeBestehendeImportSets,
+  type BestehendeImportSets,
 } from "./actions";
 import type { ParsedZahlungRow } from "@/lib/import/zahlungen-import";
 import type { ParsedKostenRow } from "@/lib/import/kosten-import";
@@ -264,6 +266,7 @@ function ZahlungenSektion({
   bestehendeKostenListe,
   bestehendeNebenkostenausgleichListe,
   importBatchId,
+  onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
@@ -272,8 +275,13 @@ function ZahlungenSektion({
   bestehendeKostenListe: string[];
   bestehendeNebenkostenausgleichListe: string[];
   importBatchId: string;
+  /** Nach jedem erfolgreichen Import aufgerufen, damit alle Abschnitte ihre "bereits
+   * importiert"-Listen neu laden — z.B. verschwindet eine gerade importierte Zahlung dadurch
+   * sofort auch aus dem Kosten-Abschnitt, ohne die Datei erneut hochzuladen. */
+  onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitZahlungen, null);
+  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeZahlungenDatumBetrag = new Set(bestehendeZahlungenDatumBetragListe);
   const bestehendeKosten = new Set(bestehendeKostenListe);
@@ -363,20 +371,36 @@ function ZahlungenSektion({
     rohdaten: r.rohdaten,
   }));
 
-  if (commitMessage) {
-    return (
-      <div>
-        <h2 className="mb-2 text-lg font-medium text-white">Zahlungen</h2>
-        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
-        <Link href="/zahlungen" className="text-sm underline">
-          Zu den Zahlungen
-        </Link>
-      </div>
+  // Seiteneffekt (andere Abschnitte über die neuen "bereits importiert"-Daten informieren) —
+  // deshalb im Effekt, aber ohne setState darin (siehe react-hooks/set-state-in-effect).
+  useEffect(() => {
+    if (commitMessage) onCommitted();
+  }, [commitMessage, onCommitted]);
+
+  // Die gerade importierten Zeilen in dieser Sektion selbst abwählen — dasselbe Prinzip wie
+  // handleSkipDuplicatesChange oben, hier automatisch statt nur beim manuellen Umschalten. Als
+  // Zustandsanpassung direkt beim Rendern statt in einem Effekt (React-empfohlenes Muster für
+  // "Zustand anpassen, wenn sich ein Wert geändert hat"), mit verarbeiteteMeldung als Wächter
+  // gegen eine Endlosschleife. Die Sektion bleibt danach voll bedienbar für eine weitere
+  // Import-Runde, statt durch eine statische Erfolgsmeldung ersetzt zu werden.
+  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
+    setVerarbeiteteMeldung(commitMessage);
+    setEditRows((rs) =>
+      rs.map((r) =>
+        istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlterMietvertragId
+          ? { ...r, ausgewaehlt: false }
+          : r,
+      ),
     );
   }
 
   return (
     <div>
+      {commitMessage && (
+        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
+          {commitMessage}
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-medium text-white">
           Zahlungen ({editRows.length} eingehende Buchung{editRows.length === 1 ? "" : "en"})
@@ -827,6 +851,7 @@ function KostenSektion({
   bestehendeKautionListe,
   bestehendeNebenkostenausgleichListe,
   importBatchId,
+  onCommitted,
 }: {
   rows: ParsedKostenRow[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean }[];
@@ -844,8 +869,10 @@ function KostenSektion({
   bestehendeKautionListe: string[];
   bestehendeNebenkostenausgleichListe: string[];
   importBatchId: string;
+  onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKosten, null);
+  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehendeKosten = new Set(bestehendeKostenListe);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeKaution = new Set(bestehendeKautionListe);
@@ -916,20 +943,28 @@ function KostenSektion({
     rohdaten: r.rohdaten,
   }));
 
-  if (commitMessage) {
-    return (
-      <div>
-        <h2 className="mb-2 text-lg font-medium text-white">Kosten</h2>
-        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
-        <Link href="/kosten" className="text-sm underline">
-          Zu den Kosten
-        </Link>
-      </div>
+  useEffect(() => {
+    if (commitMessage) onCommitted();
+  }, [commitMessage, onCommitted]);
+
+  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
+    setVerarbeiteteMeldung(commitMessage);
+    setEditRows((rs) =>
+      rs.map((r) =>
+        istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlteKostenartId
+          ? { ...r, ausgewaehlt: false }
+          : r,
+      ),
     );
   }
 
   return (
     <div>
+      {commitMessage && (
+        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
+          {commitMessage}
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-medium text-white">
           Kosten ({editRows.length} ausgehende Buchung{editRows.length === 1 ? "" : "en"})
@@ -1212,12 +1247,15 @@ function MietweiterleitungenSektion({
   rows,
   bestehendeListe,
   importBatchId,
+  onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   bestehendeListe: string[];
   importBatchId: string;
+  onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitMietweiterleitungen, null);
+  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<MietweiterleitungEditRow[]>(() =>
     rows.map((r) => toMietweiterleitungEditRow(r, bestehend)),
@@ -1253,15 +1291,14 @@ function MietweiterleitungenSektion({
     rohdaten: r.rohdaten,
   }));
 
-  if (commitMessage) {
-    return (
-      <div>
-        <h2 className="mb-2 text-lg font-medium text-white">Mietweiterleitungen</h2>
-        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
-        <Link href="/mietweiterleitungen" className="text-sm underline">
-          Zu den Mietweiterleitungen
-        </Link>
-      </div>
+  useEffect(() => {
+    if (commitMessage) onCommitted();
+  }, [commitMessage, onCommitted]);
+
+  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
+    setVerarbeiteteMeldung(commitMessage);
+    setEditRows((rs) =>
+      rs.map((r) => (istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
     );
   }
 
@@ -1269,6 +1306,11 @@ function MietweiterleitungenSektion({
 
   return (
     <div>
+      {commitMessage && (
+        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
+          {commitMessage}
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-medium text-white">
           Mietweiterleitungen ({editRows.length} Buchung{editRows.length === 1 ? "" : "en"})
@@ -1470,13 +1512,16 @@ function KautionSektion({
   kandidaten,
   bestehendeListe,
   importBatchId,
+  onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
   bestehendeListe: string[];
   importBatchId: string;
+  onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKautionsbuchungen, null);
+  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<KautionEditRow[]>(() =>
     rows.map((r) => toKautionEditRow(r, bestehend)),
@@ -1514,15 +1559,14 @@ function KautionSektion({
     kategorie: r.kategorie,
   }));
 
-  if (commitMessage) {
-    return (
-      <div>
-        <h2 className="mb-2 text-lg font-medium text-white">Kaution</h2>
-        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
-        <Link href="/kautionen" className="text-sm underline">
-          Zu den Kautionen
-        </Link>
-      </div>
+  useEffect(() => {
+    if (commitMessage) onCommitted();
+  }, [commitMessage, onCommitted]);
+
+  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
+    setVerarbeiteteMeldung(commitMessage);
+    setEditRows((rs) =>
+      rs.map((r) => (istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
     );
   }
 
@@ -1530,6 +1574,11 @@ function KautionSektion({
 
   return (
     <div>
+      {commitMessage && (
+        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
+          {commitMessage}
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-medium text-white">
           Kaution ({editRows.length} Buchung{editRows.length === 1 ? "" : "en"})
@@ -1798,6 +1847,7 @@ function NebenkostenausgleichSektion({
   kandidaten,
   bestehendeListe,
   importBatchId,
+  onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   positionen: NebenkostenPositionKandidat[];
@@ -1806,8 +1856,10 @@ function NebenkostenausgleichSektion({
   kandidaten: { id: string; label: string }[];
   bestehendeListe: string[];
   importBatchId: string;
+  onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitNebenkostenausgleich, null);
+  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<NebenkostenausgleichEditRow[]>(() =>
     rows.map((r) => toNebenkostenausgleichEditRow(r, positionen, bestehend)),
@@ -1867,15 +1919,18 @@ function NebenkostenausgleichSektion({
     rohdaten: r.rohdaten,
   }));
 
-  if (commitMessage) {
-    return (
-      <div>
-        <h2 className="mb-2 text-lg font-medium text-white">Nebenkostenabrechnung-Ausgleich</h2>
-        <p className="mb-2 text-sm text-green-400">{commitMessage}</p>
-        <Link href="/nebenkostenabrechnungen" className="text-sm underline">
-          Zu den Nebenkostenabrechnungen
-        </Link>
-      </div>
+  useEffect(() => {
+    if (commitMessage) onCommitted();
+  }, [commitMessage, onCommitted]);
+
+  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
+    setVerarbeiteteMeldung(commitMessage);
+    setEditRows((rs) =>
+      rs.map((r) =>
+        pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag) && r.errors.length === 0
+          ? { ...r, ausgewaehlt: false }
+          : r,
+      ),
     );
   }
 
@@ -1883,6 +1938,11 @@ function NebenkostenausgleichSektion({
 
   return (
     <div>
+      {commitMessage && (
+        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
+          {commitMessage}
+        </div>
+      )}
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-medium text-white">
           Nebenkostenabrechnung-Ausgleich ({editRows.length} Buchung{editRows.length === 1 ? "" : "en"})
@@ -2056,8 +2116,29 @@ function NebenkostenausgleichSektion({
 export default function KontoauszugImportPage() {
   const [preview, previewAction, previewPending] = useActionState(previewImport, null);
   const [fileName, setFileName] = useState<string | null>(null);
+  // Startet leer und wird nach jedem Commit in einem beliebigen Abschnitt per
+  // ladeBestehendeImportSets() neu geladen — dadurch verschwindet z.B. eine gerade als Kosten
+  // importierte Buchung sofort auch aus "Zahlungen, bitte prüfen", ohne die Datei erneut
+  // hochzuladen. Solange noch kein Refresh gelaufen ist, wird unten auf preview.bestehendeXxx
+  // zurückgegriffen (die ursprünglich beim Hochladen berechneten Listen).
+  const [refreshedSets, setRefreshedSets] = useState<BestehendeImportSets | null>(null);
+  const refreshBestehendeSets = useCallback(async () => {
+    setRefreshedSets(await ladeBestehendeImportSets());
+  }, []);
 
   const hasPreview = preview !== null && !("error" in preview);
+  const bestehendeSets: BestehendeImportSets | null =
+    hasPreview
+      ? (refreshedSets ?? {
+          bestehendeZahlungen: preview.bestehendeZahlungen,
+          bestehendeZahlungenDatumBetrag: preview.bestehendeZahlungenDatumBetrag,
+          bestehendeKosten: preview.bestehendeKosten,
+          bestehendeMietweiterleitungen: preview.bestehendeMietweiterleitungen,
+          bestehendeKautionsbuchungen: preview.bestehendeKautionsbuchungen,
+          offeneNebenkostenPositionen: preview.offeneNebenkostenPositionen,
+          bestehendeNebenkostenausgleich: preview.bestehendeNebenkostenausgleich,
+        })
+      : null;
 
   return (
     <div>
@@ -2109,7 +2190,7 @@ export default function KontoauszugImportPage() {
 
       {preview && "error" in preview && <p className="mb-4 text-sm text-red-400">{preview.error}</p>}
 
-      {hasPreview && (
+      {hasPreview && bestehendeSets && (
         <div className="space-y-10">
           <button
             type="button"
@@ -2123,11 +2204,12 @@ export default function KontoauszugImportPage() {
             key={`zahlungen-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
-            bestehendeZahlungenListe={preview.bestehendeZahlungen}
-            bestehendeZahlungenDatumBetragListe={preview.bestehendeZahlungenDatumBetrag}
-            bestehendeKostenListe={preview.bestehendeKosten}
-            bestehendeNebenkostenausgleichListe={preview.bestehendeNebenkostenausgleich}
+            bestehendeZahlungenListe={bestehendeSets.bestehendeZahlungen}
+            bestehendeZahlungenDatumBetragListe={bestehendeSets.bestehendeZahlungenDatumBetrag}
+            bestehendeKostenListe={bestehendeSets.bestehendeKosten}
+            bestehendeNebenkostenausgleichListe={bestehendeSets.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
+            onCommitted={refreshBestehendeSets}
           />
 
           <KostenSektion
@@ -2136,35 +2218,39 @@ export default function KontoauszugImportPage() {
             kostenarten={preview.kostenarten}
             gebaeude={preview.gebaeude}
             einheiten={preview.einheiten}
-            bestehendeKostenListe={preview.bestehendeKosten}
-            bestehendeZahlungenListe={preview.bestehendeZahlungenDatumBetrag}
-            bestehendeKautionListe={preview.bestehendeKautionsbuchungen}
-            bestehendeNebenkostenausgleichListe={preview.bestehendeNebenkostenausgleich}
+            bestehendeKostenListe={bestehendeSets.bestehendeKosten}
+            bestehendeZahlungenListe={bestehendeSets.bestehendeZahlungenDatumBetrag}
+            bestehendeKautionListe={bestehendeSets.bestehendeKautionsbuchungen}
+            bestehendeNebenkostenausgleichListe={bestehendeSets.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
+            onCommitted={refreshBestehendeSets}
           />
 
           <MietweiterleitungenSektion
             key={`mietweiterleitungen-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
-            bestehendeListe={preview.bestehendeMietweiterleitungen}
+            bestehendeListe={bestehendeSets.bestehendeMietweiterleitungen}
             importBatchId={preview.importBatchId}
+            onCommitted={refreshBestehendeSets}
           />
 
           <KautionSektion
             key={`kaution-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
-            bestehendeListe={preview.bestehendeKautionsbuchungen}
+            bestehendeListe={bestehendeSets.bestehendeKautionsbuchungen}
             importBatchId={preview.importBatchId}
+            onCommitted={refreshBestehendeSets}
           />
 
           <NebenkostenausgleichSektion
             key={`nebenkostenausgleich-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
-            positionen={preview.offeneNebenkostenPositionen}
+            positionen={bestehendeSets.offeneNebenkostenPositionen}
             kandidaten={preview.mietvertragKandidaten}
-            bestehendeListe={preview.bestehendeNebenkostenausgleich}
+            bestehendeListe={bestehendeSets.bestehendeNebenkostenausgleich}
             importBatchId={preview.importBatchId}
+            onCommitted={refreshBestehendeSets}
           />
         </div>
       )}
