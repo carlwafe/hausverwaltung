@@ -47,6 +47,7 @@ const columns: Column<VertragRow>[] = [
       return haus * 100000 + whg;
     },
     searchValue: (v) => v.einheitBezeichnung,
+    className: "whitespace-nowrap",
     render: (v) => (
       <Link href={`/mietvertraege/${v.id}`} className="font-medium hover:underline">
         {v.einheitBezeichnung}
@@ -58,6 +59,7 @@ const columns: Column<VertragRow>[] = [
     label: "Mieter",
     sortValue: (v) => v.mieterNamen,
     searchValue: (v) => v.mieterNamen,
+    className: "max-w-[160px] truncate",
     render: (v) => v.mieterNamen,
   },
   {
