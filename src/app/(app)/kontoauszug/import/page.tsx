@@ -291,7 +291,6 @@ function ZahlungenSektion({
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitZahlungen, null);
-  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeZahlungenDatumBetrag = new Set(bestehendeZahlungenDatumBetragListe);
   const bestehendeKosten = new Set(bestehendeKostenListe);
@@ -405,14 +404,23 @@ function ZahlungenSektion({
   // Die gerade importierten Zeilen in dieser Sektion selbst abwählen — dasselbe Prinzip wie
   // handleSkipDuplicatesChange oben, hier automatisch statt nur beim manuellen Umschalten. Als
   // Zustandsanpassung direkt beim Rendern statt in einem Effekt (React-empfohlenes Muster für
-  // "Zustand anpassen, wenn sich ein Wert geändert hat"), mit verarbeiteteMeldung als Wächter
-  // gegen eine Endlosschleife. Die Sektion bleibt danach voll bedienbar für eine weitere
-  // Import-Runde, statt durch eine statische Erfolgsmeldung ersetzt zu werden.
-  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
-    setVerarbeiteteMeldung(commitMessage);
+  // "Zustand anpassen, wenn sich ein Wert geändert hat"). Bewusst NICHT einmalig beim
+  // commitMessage-Wechsel ausgelöst (wie früher) — bestehendeZahlungen (und damit
+  // istBereitsImportiert) ist zu diesem Zeitpunkt noch der alte Stand von vor dem asynchronen
+  // Refresh in onCommitted (siehe Effekt oben); ein einmaliger Abgleich hätte die gerade
+  // importierten Zeilen dadurch fälschlich weiter ausgewählt gelassen, obwohl sie unter "Vorschlag
+  // übernommen" (das bestehendeZahlungen bei jedem Render frisch nutzt) schon nicht mehr auftauchten.
+  // Stattdessen bei jedem Render neu geprüft und nur bei Bedarf angepasst — terminiert von selbst,
+  // sobald keine ausgewählte Zeile mehr als bereits importiert erkannt wird. Die Sektion bleibt
+  // danach voll bedienbar für eine weitere Import-Runde, statt durch eine statische Erfolgsmeldung
+  // ersetzt zu werden.
+  const nochAbzuwaehlen = editRows.some(
+    (r) => r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlterMietvertragId,
+  );
+  if (nochAbzuwaehlen) {
     setEditRows((rs) =>
       rs.map((r) =>
-        istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlterMietvertragId
+        r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlterMietvertragId
           ? { ...r, ausgewaehlt: false }
           : r,
       ),
@@ -897,7 +905,6 @@ function KostenSektion({
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKosten, null);
-  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehendeKosten = new Set(bestehendeKostenListe);
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeKaution = new Set(bestehendeKautionListe);
@@ -989,11 +996,16 @@ function KostenSektion({
     if (commitMessage) onCommitted();
   }, [commitMessage, onCommitted]);
 
-  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
-    setVerarbeiteteMeldung(commitMessage);
+  // Siehe ausführlichen Kommentar in ZahlungenSektion: bewusst kein einmaliger Abgleich beim
+  // commitMessage-Wechsel (bestehendeKosten ist da noch der Stand von vor dem asynchronen Refresh),
+  // sondern bei jedem Render neu geprüft und nur bei Bedarf angepasst.
+  const nochAbzuwaehlen = editRows.some(
+    (r) => r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlteKostenartId,
+  );
+  if (nochAbzuwaehlen) {
     setEditRows((rs) =>
       rs.map((r) =>
-        istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlteKostenartId
+        r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 && r.gewaehlteKostenartId
           ? { ...r, ausgewaehlt: false }
           : r,
       ),
@@ -1297,7 +1309,6 @@ function MietweiterleitungenSektion({
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitMietweiterleitungen, null);
-  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<MietweiterleitungEditRow[]>(() =>
     rows.map((r) => toMietweiterleitungEditRow(r, bestehend)),
@@ -1352,10 +1363,12 @@ function MietweiterleitungenSektion({
     if (commitMessage) onCommitted();
   }, [commitMessage, onCommitted]);
 
-  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
-    setVerarbeiteteMeldung(commitMessage);
+  // Siehe ausführlichen Kommentar in ZahlungenSektion: bewusst kein einmaliger Abgleich beim
+  // commitMessage-Wechsel, sondern bei jedem Render neu geprüft und nur bei Bedarf angepasst.
+  const nochAbzuwaehlen = editRows.some((r) => r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0);
+  if (nochAbzuwaehlen) {
     setEditRows((rs) =>
-      rs.map((r) => (istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
+      rs.map((r) => (r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
     );
   }
 
@@ -1578,7 +1591,6 @@ function KautionSektion({
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKautionsbuchungen, null);
-  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<KautionEditRow[]>(() =>
     rows.map((r) => toKautionEditRow(r, bestehend)),
@@ -1635,10 +1647,12 @@ function KautionSektion({
     if (commitMessage) onCommitted();
   }, [commitMessage, onCommitted]);
 
-  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
-    setVerarbeiteteMeldung(commitMessage);
+  // Siehe ausführlichen Kommentar in ZahlungenSektion: bewusst kein einmaliger Abgleich beim
+  // commitMessage-Wechsel, sondern bei jedem Render neu geprüft und nur bei Bedarf angepasst.
+  const nochAbzuwaehlen = editRows.some((r) => r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0);
+  if (nochAbzuwaehlen) {
     setEditRows((rs) =>
-      rs.map((r) => (istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
+      rs.map((r) => (r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
     );
   }
 
@@ -1915,7 +1929,6 @@ function NebenkostenausgleichSektion({
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitNebenkostenausgleich, null);
-  const [verarbeiteteMeldung, setVerarbeiteteMeldung] = useState<string | null>(null);
   const bestehend = new Set(bestehendeListe);
   const [editRows, setEditRows] = useState<NebenkostenausgleichEditRow[]>(() =>
     rows.map((r) => toNebenkostenausgleichEditRow(r, bestehend)),
@@ -1978,11 +1991,15 @@ function NebenkostenausgleichSektion({
     if (commitMessage) onCommitted();
   }, [commitMessage, onCommitted]);
 
-  if (commitMessage && commitMessage !== verarbeiteteMeldung) {
-    setVerarbeiteteMeldung(commitMessage);
+  // Siehe ausführlichen Kommentar in ZahlungenSektion: bewusst kein einmaliger Abgleich beim
+  // commitMessage-Wechsel, sondern bei jedem Render neu geprüft und nur bei Bedarf angepasst.
+  const nochAbzuwaehlen = editRows.some(
+    (r) => r.ausgewaehlt && pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag) && r.errors.length === 0,
+  );
+  if (nochAbzuwaehlen) {
     setEditRows((rs) =>
       rs.map((r) =>
-        pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag) && r.errors.length === 0
+        r.ausgewaehlt && pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag) && r.errors.length === 0
           ? { ...r, ausgewaehlt: false }
           : r,
       ),

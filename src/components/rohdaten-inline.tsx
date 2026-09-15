@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+
 export function RohdatenToggleButton({
   expanded,
   onClick,
@@ -7,10 +9,34 @@ export function RohdatenToggleButton({
   expanded: boolean;
   onClick: () => void;
 }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Das Ein-/Ausblenden fügt direkt unter der Zeile eine zusätzliche Tabellenzeile ein/entfernt
+  // sie — dadurch verschieben sich alle darunterliegenden Zeilen vertikal, was in einer langen
+  // Liste (viele sichtbare Zeilen, z.B. frisch importiert unter "Vorschlag übernommen") zu einem
+  // sichtbaren Sprung der Seite führt, weil der Browser die Scroll-Position nicht automatisch an
+  // diese Verschiebung anpasst (in Safari besonders auffällig). Fix unabhängig vom genauen
+  // Auslöser: die Bildschirmposition dieses Buttons vor dem Klick merken, nach dem Re-Render
+  // (nächster Frame) erneut messen und die Differenz per scrollBy ausgleichen — der Button (und
+  // damit der sichtbare Ausschnitt) bleibt dadurch exakt an derselben Stelle stehen.
+  function handleClick() {
+    const el = buttonRef.current;
+    const vorher = el?.getBoundingClientRect().top ?? null;
+    onClick();
+    if (vorher === null) return;
+    requestAnimationFrame(() => {
+      const nachher = el?.getBoundingClientRect().top;
+      if (nachher === undefined) return;
+      const delta = nachher - vorher;
+      if (delta !== 0) window.scrollBy(0, delta);
+    });
+  }
+
   return (
     <button
+      ref={buttonRef}
       type="button"
-      onClick={onClick}
+      onClick={handleClick}
       onMouseDown={(e) => e.preventDefault()}
       className="text-xs text-neutral-400 underline hover:text-white"
     >
