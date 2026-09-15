@@ -91,7 +91,12 @@ function berechneBestehendeImportSets({
 }: {
   vertraegeMitZahlungen: {
     id: string;
-    zahlungen: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
+    zahlungen: {
+      datum: Date;
+      betrag: unknown;
+      verwendungszweck: string | null;
+      aufteilungGruppeId: string | null;
+    }[];
   }[];
   bestehendeKostenpositionen: {
     empfaenger: string | null;
@@ -110,12 +115,30 @@ function berechneBestehendeImportSets({
   // zufällig genau an diesem Tag mit diesem Betrag bereits zahlenden Mietvertrag zuordnen — ohne
   // Verwendungszweck im Schlüssel würde das fälschlich als "bereits importiert" gemeldet, obwohl
   // die eigentlich gemeinte Buchung noch gar nicht importiert wurde.
+  // Aufgeteilte Zahlungen (siehe zahlungen/actions.ts teileZahlungAuf, z.B. eine Sammelüberweisung
+  // für Wohnung+Garage in einer Summe) einzeln zu betrachten würde eine erneut importierte
+  // Original-Buchung nie als "bereits importiert" erkennen — keiner der Teilbeträge entspricht dem
+  // ursprünglich importierten Gesamtbetrag. Analog zu aufteilungSummen bei Kostenpositionen unten:
+  // pro aufteilungGruppeId wird der Summenbetrag gebildet; für den Dedup-Schlüssel wird dieser
+  // Summenbetrag statt des einzelnen Teilbetrags verwendet, für jeden an der Aufteilung beteiligten
+  // Mietvertrag einzeln (die erneut eingelesene Original-Zeile kennt die Aufteilung ja noch nicht,
+  // sondern nur den vollen Betrag plus den beim Import ausgewählten einzelnen Mietvertrag).
+  const zahlungAufteilungSummen = new Map<string, number>();
+  for (const v of vertraegeMitZahlungen) {
+    for (const z of v.zahlungen) {
+      if (!z.aufteilungGruppeId) continue;
+      zahlungAufteilungSummen.set(
+        z.aufteilungGruppeId,
+        (zahlungAufteilungSummen.get(z.aufteilungGruppeId) ?? 0) + Number(z.betrag),
+      );
+    }
+  }
   const bestehendeZahlungen = new Set(
     vertraegeMitZahlungen.flatMap((v) =>
-      v.zahlungen.map(
-        (z) =>
-          `${v.id}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
-      ),
+      v.zahlungen.map((z) => {
+        const betrag = z.aufteilungGruppeId ? zahlungAufteilungSummen.get(z.aufteilungGruppeId)! : Number(z.betrag);
+        return `${v.id}|${z.datum.toISOString().slice(0, 10)}|${betrag.toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`;
+      }),
     ),
   );
   // Rückfall für Zeilen ohne gewählten Mietvertrag (z.B. "mehrdeutig") sowie für den "bereits als
@@ -123,10 +146,10 @@ function berechneBestehendeImportSets({
   // ausführlicher Kommentar dazu in previewImport.
   const bestehendeZahlungenDatumBetrag = new Set(
     vertraegeMitZahlungen.flatMap((v) =>
-      v.zahlungen.map(
-        (z) =>
-          `${z.datum.toISOString().slice(0, 10)}|${Math.abs(Number(z.betrag)).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
-      ),
+      v.zahlungen.map((z) => {
+        const betrag = z.aufteilungGruppeId ? zahlungAufteilungSummen.get(z.aufteilungGruppeId)! : Number(z.betrag);
+        return `${z.datum.toISOString().slice(0, 10)}|${Math.abs(betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`;
+      }),
     ),
   );
 
@@ -188,7 +211,10 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
     await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
-        select: { id: true, zahlungen: { select: { datum: true, betrag: true, verwendungszweck: true } } },
+        select: {
+          id: true,
+          zahlungen: { select: { datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true } },
+        },
       }),
       prisma.kostenposition.findMany({
         select: {
