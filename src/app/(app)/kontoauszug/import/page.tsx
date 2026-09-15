@@ -1881,9 +1881,19 @@ function ermittleVorgeschlagenePosition(
   r: Pick<ParsedZahlungRow, "vorgeschlagenerMietvertragId" | "nebenkostenausgleich">,
   positionen: NebenkostenPositionKandidat[],
 ): string {
-  if (!r.nebenkostenausgleich || !r.vorgeschlagenerMietvertragId) return "";
-  const treffer = positionen.filter((p) => p.mietvertragId === r.vorgeschlagenerMietvertragId);
-  return treffer.length === 1 ? treffer[0].id : "";
+  if (!r.nebenkostenausgleich) return "";
+  const treffer = r.vorgeschlagenerMietvertragId
+    ? positionen.filter((p) => p.mietvertragId === r.vorgeschlagenerMietvertragId)
+    : [];
+  if (treffer.length === 1) return treffer[0].id;
+  // Mehrdeutig (mehrere offene Positionen für denselben Mietvertrag) — lieber manuell im
+  // Auswahlfeld wählen lassen statt zu raten, welche gemeint ist.
+  if (treffer.length > 1) return "";
+  // Keine passende offene Position gefunden (z.B. weil für dieses Jahr noch keine Abrechnung
+  // existiert) — Vorauswahl fällt auf "archivieren", damit das Mietvertrag-/Jahr-Feld für die
+  // spätere automatische Verknüpfung direkt sichtbar und ausfüllbar ist, statt dass man erst im
+  // Auswahlfeld den Sonderfall "Keine offene Position" entdecken muss.
+  return SONSTIGE_SENTINEL;
 }
 
 function toNebenkostenausgleichEditRow(
