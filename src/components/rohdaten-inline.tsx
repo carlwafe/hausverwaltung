@@ -11,6 +11,7 @@ export function RohdatenToggleButton({
     <button
       type="button"
       onClick={onClick}
+      onMouseDown={(e) => e.preventDefault()}
       className="text-xs text-neutral-400 underline hover:text-white"
     >
       {expanded ? "Rohdaten ausblenden" : "Rohdaten"}
