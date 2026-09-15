@@ -191,13 +191,23 @@ export function ermittleMandatsref(verwendungszweck: string): string | null {
 // stabile Mandatsreferenz. Die Spalte hat Vorrang, weil sie exakt und nicht auf einen bestimmten
 // Textbaustein angewiesen ist; der Text-Fallback deckt weiterhin Absender wie Techem ab, die gar
 // keine eigene Spalte liefern.
+//
+// Bei Techem enthält die Spalte trotzdem manchmal einen Wert — allerdings eine durch
+// Zahlenformatierung (vermutlich in der Bank-eigenen Exportkette) kaputte, für ALLE
+// Techem-Buchungen identische wissenschaftliche Notation wie "1,00E+12" statt der echten,
+// pro Buchung unterschiedlichen Referenz. Ein solcher Wert ist nie eine echte Mandatsreferenz
+// (die besteht aus Ziffern/Buchstaben ohne "E+") — wird deshalb verworfen, sodass der
+// Text-Fallback greift und die tatsächliche, im Verwendungszweck stehende Referenz gefunden wird.
+const WISSENSCHAFTLICHE_NOTATION_PATTERN = /^\d+([.,]\d+)?e[+-]?\d+$/i;
+
 export function ermittleMandatsrefAusZeile(
   row: Record<string, string>,
   mandatsrefCol: string | undefined,
   verwendungszweck: string,
 ): string | null {
   const ausSpalte = mandatsrefCol ? (row[mandatsrefCol] ?? "").trim() : "";
-  return ausSpalte || ermittleMandatsref(verwendungszweck);
+  if (ausSpalte && !WISSENSCHAFTLICHE_NOTATION_PATTERN.test(ausSpalte)) return ausSpalte;
+  return ermittleMandatsref(verwendungszweck);
 }
 
 export function textEnthaeltWort(haystack: string, wort: string): boolean {
