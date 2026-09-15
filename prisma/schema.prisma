@@ -238,6 +238,7 @@ model Mietvertrag {
   abrechnungspositionen         NebenkostenabrechnungPosition[]
   nebenkostenausgleichZahlungen NebenkostenausgleichZahlung[]
   vorverteilteKostenanteile     VorverteilterKostenanteil[]
+  jahresberichtVerifikationen   JahresberichtVerifikation[]
 
   @@map("mietvertraege")
 }
@@ -358,6 +359,24 @@ model VorverteilterKostenanteil {
 
   @@unique([mietvertragId, kostenartId, jahr])
   @@map("vorverteilte_kostenanteile")
+}
+
+// Manuelle Markierung auf der Jahresübersicht: der Nutzer hat "Saldo neu" für diesen
+// Mietvertrag/dieses Jahr mit dem vorhandenen (externen, vom früheren Verwalter erstellten)
+// Jahresbericht abgeglichen und für übereinstimmend befunden. Reine Existenz der Zeile = markiert
+// (kein Boolean-Feld nötig) — bleibt bestehen, bis der Nutzer sie explizit wieder entfernt, auch
+// wenn sich die Berechnung durch spätere Datenänderungen ändert (bewusst keine automatische
+// Entfernung, da sonst jede Nachimport-Korrektur eine bereits geprüfte Markierung stillschweigend
+// löschen würde).
+model JahresberichtVerifikation {
+  id            String      @id @default(cuid())
+  mietvertrag   Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId String
+  jahr          Int
+  erstelltAm    DateTime    @default(now())
+
+  @@unique([mietvertragId, jahr])
+  @@map("jahresbericht_verifikationen")
 }
 
 model Kostenposition {

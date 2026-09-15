@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
+import { VerifikationsStern } from "./verifikations-stern";
 import { berechneMieterJahresbericht, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
 
 function formatEuro(value: number) {
@@ -136,7 +137,12 @@ export default async function JahresuebersichtPage({
   const { jahr: jahrParam } = await searchParams;
   const jahr = Number(jahrParam) || new Date().getFullYear();
 
-  const [daten, mieterZeilen] = await Promise.all([ladeJahresuebersicht(jahr), ladeMieterZeilen(jahr)]);
+  const [daten, mieterZeilen, verifikationen] = await Promise.all([
+    ladeJahresuebersicht(jahr),
+    ladeMieterZeilen(jahr),
+    prisma.jahresberichtVerifikation.findMany({ where: { jahr }, select: { mietvertragId: true } }),
+  ]);
+  const verifizierteIds = new Set(verifikationen.map((v) => v.mietvertragId));
 
   return (
     <div>
@@ -277,6 +283,9 @@ export default async function JahresuebersichtPage({
                 <th className="px-4 py-2 text-right">Miete</th>
                 <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen (Vorjahr)</th>
                 <th className="px-4 py-2 text-right">Saldo neu</th>
+                <th className="px-4 py-2 text-center" title="Stimmt mit dem vorhandenen Jahresbericht des früheren Verwalters überein">
+                  ✓
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -300,11 +309,18 @@ export default async function JahresuebersichtPage({
                   >
                     {formatEuro(z.saldoNeu)}
                   </td>
+                  <td className="px-4 py-2 text-center">
+                    <VerifikationsStern
+                      mietvertragId={z.mietvertragId}
+                      jahr={jahr}
+                      verifiziert={verifizierteIds.has(z.mietvertragId)}
+                    />
+                  </td>
                 </tr>
               ))}
               {mieterZeilen.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-4 text-center text-neutral-500">
+                  <td colSpan={7} className="px-4 py-4 text-center text-neutral-500">
                     Keine Mietverträge mit Bewegung in {jahr}.
                   </td>
                 </tr>
