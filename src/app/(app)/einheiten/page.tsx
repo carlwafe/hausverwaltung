@@ -47,6 +47,12 @@ export default async function EinheitenPage() {
         </div>
         <div className="flex gap-2">
           <Link
+            href="/einheiten/zeitachse"
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            Zeitachse anzeigen
+          </Link>
+          <Link
             href="/einheiten/import"
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
           >
