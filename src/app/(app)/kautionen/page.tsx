@@ -38,13 +38,18 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   // Betrag) summieren sich hier automatisch.
   const summenProMietvertrag = new Map<
     string,
-    { einzahlung: number; aufgeloest: number; ausgezahlt: number }
+    { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number }
   >();
   for (const b of buchungen) {
     const key = b.mietvertragId!;
-    const eintrag = summenProMietvertrag.get(key) ?? { einzahlung: 0, aufgeloest: 0, ausgezahlt: 0 };
+    const eintrag = summenProMietvertrag.get(key) ?? { einzahlung: 0, anlage: 0, aufgeloest: 0, ausgezahlt: 0 };
     const betrag = Number(b.betrag);
     if (b.kategorie === "EINZAHLUNG_MIETER") eintrag.einzahlung += betrag;
+    // Interne Überweisung Geschäfts- -> Kautionskonto — setzt eigentlich eine bereits erfolgte
+    // Einzahlung des Mieters voraus. Wird unten als Fallback-Betrag für einen fehlenden
+    // Kaution-Stammdatensatz genutzt und liefert außerdem das Signal für die "keine Einzahlung
+    // gefunden"-Warnung (siehe warnungFuer).
+    else if (b.kategorie === "ANLAGE") eintrag.anlage += Math.abs(betrag);
     // Auflösung/Auszahlung kommen aus dem Kontoauszug mit ihrem tatsächlichen Vorzeichen
     // (Auflösung eingehend = positiv, Auszahlung ausgehend = negativ) — hier auf positive
     // Beträge normalisiert, damit "Einbehalten" als einfache Differenz berechnet werden kann.
@@ -57,40 +62,94 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     summenProMietvertrag.set(key, eintrag);
   }
 
-  return kautionen
-    .map((k) => {
-      const summen = summenProMietvertrag.get(k.mietvertragId);
-      const betrag = Number(k.betrag);
-      const einzahlungSumme = summen && summen.einzahlung > 0 ? summen.einzahlung : null;
-      const aufgeloest = summen?.aufgeloest ?? 0;
-      const ausgezahlt = summen?.ausgezahlt ?? 0;
-      // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
-      // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
-      const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt) * 100) / 100 : null;
-      const status: KautionRow["status"] =
-        aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+  // Warnt, wenn für einen Mietvertrag zwar eine Kautionsbewegung (Anlage/Auflösung/Auszahlung)
+  // vorliegt, aber nie eine "Einzahlung Mieter"-Buchung erfasst wurde — typischerweise, weil die
+  // tatsächliche Einzahlung fälschlich als normale Zahlung statt als Kautionsbuchung importiert
+  // wurde. Ohne diese Warnung fällt so ein Fall sonst nur auf, wenn man gezielt danach sucht.
+  function warnungFuer(summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number } | undefined): string | null {
+    if (!summen || summen.einzahlung > 0) return null;
+    if (summen.anlage === 0 && summen.aufgeloest === 0 && summen.ausgezahlt === 0) return null;
+    return "Keine Einzahlung des Mieters in den Kautionsbuchungen gefunden — vermutlich wurde die tatsächliche Einzahlung fälschlich als normale Zahlung importiert.";
+  }
 
-      return {
-        id: k.id,
-        mietvertragId: k.mietvertragId,
-        einheitBezeichnung: k.mietvertrag.einheit.bezeichnung,
-        mieterNamen: k.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-        betrag,
-        betragAbweichung: einzahlungSumme !== null && Math.abs(einzahlungSumme - betrag) > TOLERANZ,
-        einzahlungSumme,
-        anlageform: k.anlageform,
-        zinssatz: k.zinssatz ? Number(k.zinssatz) : null,
-        aufgeloest,
-        ausgezahlt,
-        einbehalten,
-        status,
-      };
-    })
-    .sort(
-      (a, b) =>
-        STATUS_SORT[a.status] - STATUS_SORT[b.status] ||
-        vergleicheEinheitBezeichnung(a.einheitBezeichnung, b.einheitBezeichnung),
-    );
+  const kautionZeilen = kautionen.map((k) => {
+    const summen = summenProMietvertrag.get(k.mietvertragId);
+    const betrag = Number(k.betrag);
+    const einzahlungSumme = summen && summen.einzahlung > 0 ? summen.einzahlung : null;
+    const aufgeloest = summen?.aufgeloest ?? 0;
+    const ausgezahlt = summen?.ausgezahlt ?? 0;
+    // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
+    // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
+    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt) * 100) / 100 : null;
+    const status: KautionRow["status"] =
+      aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+
+    return {
+      id: k.id,
+      mietvertragId: k.mietvertragId,
+      einheitBezeichnung: k.mietvertrag.einheit.bezeichnung,
+      mieterNamen: k.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      betrag,
+      betragAbweichung: einzahlungSumme !== null && Math.abs(einzahlungSumme - betrag) > TOLERANZ,
+      einzahlungSumme,
+      anlageform: k.anlageform as string | null,
+      zinssatz: k.zinssatz ? Number(k.zinssatz) : null,
+      aufgeloest,
+      ausgezahlt,
+      einbehalten,
+      status,
+      warnung: warnungFuer(summen),
+    };
+  });
+
+  // Mietverträge mit Kautionsbuchungen, aber ganz ohne eigenen Kaution-Stammdatensatz (z.B. weil
+  // "+ Kaution erfassen" nie ausgeführt wurde) — würden sonst in dieser Tabelle komplett fehlen,
+  // obwohl echte Kautionsbuchungen (z.B. eine Anlage) für sie existieren.
+  const bekannteMietvertragIds = new Set(kautionen.map((k) => k.mietvertragId));
+  const verwaisteMietvertragIds = [...summenProMietvertrag.keys()].filter((id) => !bekannteMietvertragIds.has(id));
+  const verwaisteVertraege = verwaisteMietvertragIds.length
+    ? await prisma.mietvertrag.findMany({
+        where: { id: { in: verwaisteMietvertragIds } },
+        include: { einheit: true, mieter: true },
+      })
+    : [];
+
+  const virtuelleZeilen = verwaisteVertraege.map((v) => {
+    const summen = summenProMietvertrag.get(v.id)!;
+    const aufgeloest = summen.aufgeloest;
+    const ausgezahlt = summen.ausgezahlt;
+    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt) * 100) / 100 : null;
+    const status: KautionRow["status"] =
+      aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+
+    return {
+      id: `verwaist-${v.id}`,
+      mietvertragId: v.id,
+      einheitBezeichnung: v.einheit.bezeichnung,
+      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      // Kein Kaution-Stammdatensatz vorhanden — die Anlage-Buchung (interne Überweisung
+      // Geschäfts- -> Kautionskonto) ist der verlässlichste Hinweis auf den eigentlich gemeinten
+      // Betrag, sonst 0.
+      betrag: summen.anlage,
+      betragAbweichung: false,
+      einzahlungSumme: summen.einzahlung > 0 ? summen.einzahlung : null,
+      anlageform: null,
+      zinssatz: null,
+      aufgeloest,
+      ausgezahlt,
+      einbehalten,
+      status,
+      warnung:
+        warnungFuer(summen) ??
+        "Kein Kaution-Stammdatensatz angelegt — aber Kautionsbuchungen für diesen Mietvertrag vorhanden.",
+    };
+  });
+
+  return [...kautionZeilen, ...virtuelleZeilen].sort(
+    (a, b) =>
+      STATUS_SORT[a.status] - STATUS_SORT[b.status] ||
+      vergleicheEinheitBezeichnung(a.einheitBezeichnung, b.einheitBezeichnung),
+  );
 }
 
 async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
@@ -164,7 +223,11 @@ export default async function KautionenPage() {
   // tatsächlich einbehaltene Rest, nicht mehr der ursprüngliche Gesamtbetrag.
   const summeOffen = offen.reduce((s, k) => s + (k.einbehalten ?? k.betrag), 0);
 
+  // Zeilen ohne eigenen Kaution-Stammdatensatz (anlageform === null, siehe warnungFuer) haben
+  // keine echte Anlageform und fließen hier bewusst nicht mit ein — sie stehen ohnehin schon per
+  // Warnsymbol sichtbar in der Tabelle.
   const summeJeAnlageform = offen.reduce<Record<string, number>>((acc, k) => {
+    if (!k.anlageform) return acc;
     acc[k.anlageform] = (acc[k.anlageform] ?? 0) + (k.einbehalten ?? k.betrag);
     return acc;
   }, {});

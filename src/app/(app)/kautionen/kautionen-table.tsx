@@ -36,7 +36,9 @@ export type KautionRow = {
   // (einzahlungSumme) von betrag abweicht.
   betragAbweichung: boolean;
   einzahlungSumme: number | null;
-  anlageform: string;
+  // null = kein eigener Kaution-Stammdatensatz vorhanden (siehe warnung) — betrifft nur einen
+  // synthetisch aus Kautionsbuchungen gebildeten Zeileneintrag.
+  anlageform: string | null;
   zinssatz: number | null;
   // Summe der "Auflösung"- bzw. "Auszahlung Mieter"-Kautionsbuchungen dieses Mietvertrags (0,
   // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist.
@@ -44,6 +46,9 @@ export type KautionRow = {
   ausgezahlt: number;
   einbehalten: number | null;
   status: keyof typeof STATUS_LABEL;
+  // z.B. "keine Einzahlung Mieter gefunden" oder "kein Kaution-Stammdatensatz angelegt" — siehe
+  // warnungFuer in page.tsx. null = nichts Auffälliges.
+  warnung: string | null;
 };
 
 const columns: Column<KautionRow>[] = [
@@ -53,9 +58,16 @@ const columns: Column<KautionRow>[] = [
     sortValue: (r) => r.einheitBezeichnung,
     searchValue: (r) => r.einheitBezeichnung,
     render: (r) => (
-      <Link href={`/mietvertraege/${r.mietvertragId}`} className="font-medium hover:underline">
-        {r.einheitBezeichnung}
-      </Link>
+      <span className="inline-flex items-center gap-1">
+        <Link href={`/mietvertraege/${r.mietvertragId}`} className="font-medium hover:underline">
+          {r.einheitBezeichnung}
+        </Link>
+        {r.warnung && (
+          <span title={r.warnung} className="text-amber-400">
+            ⚠
+          </span>
+        )}
+      </span>
     ),
   },
   {
@@ -86,9 +98,9 @@ const columns: Column<KautionRow>[] = [
   {
     key: "anlageform",
     label: "Anlageform",
-    sortValue: (r) => ANLAGEFORM_LABEL[r.anlageform],
-    searchValue: (r) => ANLAGEFORM_LABEL[r.anlageform],
-    render: (r) => ANLAGEFORM_LABEL[r.anlageform],
+    sortValue: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] : ""),
+    searchValue: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] : ""),
+    render: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] : "–"),
   },
   {
     key: "zinssatz",
