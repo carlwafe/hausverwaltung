@@ -1289,29 +1289,43 @@ function pruefeMietweiterleitungDuplikat(
   return bestehend.has(`${datum}|${betrag.toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
-function toMietweiterleitungEditRow(r: ParsedZahlungRow, bestehend: Set<string>): MietweiterleitungEditRow {
+function toMietweiterleitungEditRow(
+  r: ParsedZahlungRow,
+  bestehend: Set<string>,
+  bestehendeKosten: Set<string>,
+): MietweiterleitungEditRow {
   const duplikat = pruefeMietweiterleitungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  // Eine Buchung, die schon als Kostenposition importiert ist (z.B. Waschgeld-Einnahmen, die als
+  // Gutschrift unter einer Kostenart statt als eigene Mietweiterleitung erfasst wurden), soll hier
+  // nicht erneut vorgeschlagen werden — sonst würde sie doppelt gezählt.
+  const bereitsAlsKostenImportiert = pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag, r.verwendungszweck);
   // Nur automatisch erkannte Buchungen sind initial angehakt — "weitere Buchung"-Zeilen (der
   // ganz überwiegende Rest, z.B. normale Mieten) sollen nicht versehentlich mitimportiert
   // werden, nur weil sie über den Filter sichtbar gemacht wurden.
-  return { ...r, ausgewaehlt: r.errors.length === 0 && r.eigentuemerBuchung && !duplikat };
+  return {
+    ...r,
+    ausgewaehlt: r.errors.length === 0 && r.eigentuemerBuchung && !duplikat && !bereitsAlsKostenImportiert,
+  };
 }
 
 function MietweiterleitungenSektion({
   rows,
   bestehendeListe,
+  bestehendeKostenListe,
   importBatchId,
   onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   bestehendeListe: string[];
+  bestehendeKostenListe: string[];
   importBatchId: string;
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitMietweiterleitungen, null);
   const bestehend = new Set(bestehendeListe);
+  const bestehendeKosten = new Set(bestehendeKostenListe);
   const [editRows, setEditRows] = useState<MietweiterleitungEditRow[]>(() =>
-    rows.map((r) => toMietweiterleitungEditRow(r, bestehend)),
+    rows.map((r) => toMietweiterleitungEditRow(r, bestehend, bestehendeKosten)),
   );
   const [hinweisFilter, setHinweisFilter] = useState<MietweiterleitungHinweisFilter>("erkannt");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -1322,6 +1336,10 @@ function MietweiterleitungenSektion({
 
   function istBereitsImportiert(r: MietweiterleitungEditRow): boolean {
     return pruefeMietweiterleitungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  }
+
+  function istBereitsAlsKostenImportiert(r: MietweiterleitungEditRow): boolean {
+    return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag, r.verwendungszweck);
   }
 
   const gefilterteRows = editRows.filter((r) => matchesMietweiterleitungHinweisFilter(r, hinweisFilter));
@@ -1365,10 +1383,18 @@ function MietweiterleitungenSektion({
 
   // Siehe ausführlichen Kommentar in ZahlungenSektion: bewusst kein einmaliger Abgleich beim
   // commitMessage-Wechsel, sondern bei jedem Render neu geprüft und nur bei Bedarf angepasst.
-  const nochAbzuwaehlen = editRows.some((r) => r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0);
+  // Zusätzlich zum eigenen Duplikat-Schlüssel auch gegen bereits als Kosten importierte Zeilen
+  // geprüft (siehe toMietweiterleitungEditRow).
+  const nochAbzuwaehlen = editRows.some(
+    (r) => r.ausgewaehlt && (istBereitsImportiert(r) || istBereitsAlsKostenImportiert(r)) && r.errors.length === 0,
+  );
   if (nochAbzuwaehlen) {
     setEditRows((rs) =>
-      rs.map((r) => (r.ausgewaehlt && istBereitsImportiert(r) && r.errors.length === 0 ? { ...r, ausgewaehlt: false } : r)),
+      rs.map((r) =>
+        r.ausgewaehlt && (istBereitsImportiert(r) || istBereitsAlsKostenImportiert(r)) && r.errors.length === 0
+          ? { ...r, ausgewaehlt: false }
+          : r,
+      ),
     );
   }
 
@@ -1425,6 +1451,7 @@ function MietweiterleitungenSektion({
           <tbody>
             {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
+              const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleMietweiterleitungHinweis(r);
               return (
@@ -1461,6 +1488,9 @@ function MietweiterleitungenSektion({
                       )}
                       {r.errors.length === 0 && bereitsImportiert && (
                         <span className="ml-1 text-amber-400">bereits importiert</span>
+                      )}
+                      {r.errors.length === 0 && !bereitsImportiert && bereitsAlsKostenImportiert && (
+                        <span className="ml-1 text-amber-400">bereits importiert (als Kosten)</span>
                       )}
                     </td>
                     <td className="px-3 py-1.5">
@@ -2284,6 +2314,7 @@ export default function KontoauszugImportPage() {
             key={`mietweiterleitungen-${preview.importBatchId}`}
             rows={preview.zahlungenRows}
             bestehendeListe={bestehendeSets.bestehendeMietweiterleitungen}
+            bestehendeKostenListe={bestehendeSets.bestehendeKosten}
             importBatchId={preview.importBatchId}
             onCommitted={refreshBestehendeSets}
           />
