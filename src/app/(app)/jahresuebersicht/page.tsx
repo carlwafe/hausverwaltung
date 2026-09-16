@@ -85,6 +85,7 @@ async function ladeMieterZeilen(jahr: number) {
         abrechnungspositionen: {
           select: { saldo: true, abrechnung: { select: { jahr: true } } },
         },
+        mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
       },
     }),
   ]);
@@ -111,6 +112,11 @@ async function ladeMieterZeilen(jahr: number) {
     nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
     mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
     saldovortrag: Number(v.saldovortrag),
+    mieterhoehungen: v.mieterhoehungen.map((m) => ({
+      gueltigAb: m.gueltigAb,
+      kaltmiete: Number(m.kaltmiete),
+      nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+    })),
     einheitBezeichnung: v.einheit.bezeichnung,
     mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
     zahlungen: v.zahlungen.map((z) => ({

@@ -50,6 +50,9 @@ export type MietvertragFuerAbrechnung = {
   beginn: Date | null; // null = unbekannt, wird wie ein beliebig weit zurückliegendes Datum behandelt
   ende: Date | null;
   nebenkostenVorauszahlung: number;
+  // Historie von Mieterhöhungen, siehe MietvertragFuerSollIst.mieterhoehungen in soll-ist.ts —
+  // leeres Array = unverändert wie bisher (Basiswert gilt die ganze Laufzeit).
+  mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
 };
 
 // Ein erfasster Ablesewert (z.B. Zählerstand-Differenz) für eine Einheit, Kostenart und Jahr —
@@ -402,7 +405,7 @@ export function berechneNebenkostenabrechnung(
       const vorverteilterAnteil = vorverteilteEintraege.reduce((s, v) => s + v.betrag, 0);
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
-      const vorauszahlungGesamt = round2(mv.nebenkostenVorauszahlung * 12 * zeitanteil);
+      const vorauszahlungGesamt = round2(vorauszahlungFuerZeitraum(mv, von, bis, tageGesamt));
 
       // Vollständige Belegkette für diese Position: pro Kostenart der Jahresgesamtbetrag ihres
       // Kostenkreises, die Verteilungsbasis und der daraus resultierende, zeitanteilig auf diesen
@@ -444,4 +447,59 @@ export function berechneNebenkostenabrechnung(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Der erste Tag des Kalendermonats von `datum` — Mieterhöhungen gelten "ab diesem Monat", der
+ * konkrete Tag im gespeicherten gueltigAb-Wert ist irrelevant (siehe Schema-Kommentar). */
+function ersterTagDesMonats(datum: Date): Date {
+  return new Date(datum.getFullYear(), datum.getMonth(), 1);
+}
+
+/** Die zu `datum` passende NK-Vorauszahlung: die letzte Mieterhöhung, deren (auf Monatsanfang
+ * normiertes) gueltigAb kleiner-gleich `datum` ist, sonst der Basiswert des Mietvertrags. */
+function nkVorauszahlungFuerDatum(
+  mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "mieterhoehungen">,
+  datum: Date,
+): number {
+  let aktuell = mv.nebenkostenVorauszahlung;
+  let bestesGueltigAb: Date | null = null;
+  for (const mh of mv.mieterhoehungen ?? []) {
+    const gueltigAb = ersterTagDesMonats(mh.gueltigAb);
+    if (gueltigAb <= datum && (!bestesGueltigAb || gueltigAb > bestesGueltigAb)) {
+      bestesGueltigAb = gueltigAb;
+      aktuell = mh.nebenkostenVorauszahlung;
+    }
+  }
+  return aktuell;
+}
+
+/**
+ * Segment-Summe der NK-Vorauszahlung über [von, bis]: der Zeitraum wird an jedem (auf
+ * Monatsanfang normierten) gueltigAb einer Mieterhöhung, das in (von, bis] fällt, in
+ * Teilabschnitte zerlegt — pro Abschnitt gilt die zu dessen Start passende NK-Vorauszahlung, mit
+ * derselben Tagesanteil-Formel wie bisher. Ohne Mieterhöhung im Zeitraum ergibt das exakt einen
+ * Abschnitt über den vollen Zeitraum — reine Verallgemeinerung, kein Verhaltensunterschied im
+ * Normalfall.
+ */
+function vorauszahlungFuerZeitraum(
+  mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "mieterhoehungen">,
+  von: Date,
+  bis: Date,
+  tageGesamt: number,
+): number {
+  const breakpoints = [...new Set((mv.mieterhoehungen ?? []).map((mh) => ersterTagDesMonats(mh.gueltigAb).getTime()))]
+    .map((t) => new Date(t))
+    .filter((d) => d > von && d <= bis)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  const grenzen = [von, ...breakpoints, new Date(bis.getTime() + MS_PRO_TAG)];
+  let summe = 0;
+  for (let i = 0; i < grenzen.length - 1; i++) {
+    const segStart = grenzen[i];
+    const segEnde = new Date(grenzen[i + 1].getTime() - MS_PRO_TAG);
+    const rate = nkVorauszahlungFuerDatum(mv, segStart);
+    const tage = tageZwischen(segStart, segEnde);
+    summe += ((rate * 12) / tageGesamt) * tage;
+  }
+  return summe;
 }

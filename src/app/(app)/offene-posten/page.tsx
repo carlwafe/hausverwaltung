@@ -20,6 +20,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
       einheit: true,
       mieter: true,
       zahlungen: true,
+      mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
     },
   });
 
@@ -32,6 +33,11 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
           kaltmiete: Number(v.kaltmiete),
           nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
           mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
+          mieterhoehungen: v.mieterhoehungen.map((m) => ({
+            gueltigAb: m.gueltigAb,
+            kaltmiete: Number(m.kaltmiete),
+            nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+          })),
         },
         bis,
         buchhaltungAb,

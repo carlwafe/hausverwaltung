@@ -8,7 +8,42 @@ export type MietvertragFuerSollIst = {
   kaltmiete: number;
   nebenkostenVorauszahlung: number;
   mehrwertsteuer?: number;
+  // Historie von Mieterhöhungen, aufsteigend oder unsortiert — leeres Array = unverändert wie
+  // bisher (Basiswerte gelten die ganze Laufzeit). Siehe ermittleMieteFuerMonat.
+  mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
 };
+
+/**
+ * Ermittelt die für einen bestimmten Monat gültige Kaltmiete/NK-Vorauszahlung: die letzte
+ * Mieterhöhung, deren gueltigAb-Monat kleiner-gleich dem gefragten Monat ist — gibt es keine
+ * (noch keine Mieterhöhung erreicht bzw. keine vorhanden), gelten die Basiswerte des
+ * Mietvertrags.
+ */
+export function ermittleMieteFuerMonat(
+  vertrag: Pick<MietvertragFuerSollIst, "kaltmiete" | "nebenkostenVorauszahlung" | "mieterhoehungen">,
+  jahr: number,
+  monat: number,
+): { kaltmiete: number; nebenkostenVorauszahlung: number } {
+  const zielIndex = jahr * 12 + monat;
+  let aktuell = { kaltmiete: vertrag.kaltmiete, nebenkostenVorauszahlung: vertrag.nebenkostenVorauszahlung };
+  let bestesGueltigAbIndex = -Infinity;
+  for (const mh of vertrag.mieterhoehungen ?? []) {
+    const gueltigAbIndex = mh.gueltigAb.getFullYear() * 12 + (mh.gueltigAb.getMonth() + 1);
+    if (gueltigAbIndex <= zielIndex && gueltigAbIndex > bestesGueltigAbIndex) {
+      bestesGueltigAbIndex = gueltigAbIndex;
+      aktuell = { kaltmiete: mh.kaltmiete, nebenkostenVorauszahlung: mh.nebenkostenVorauszahlung };
+    }
+  }
+  return aktuell;
+}
+
+/** Wie ermittleMieteFuerMonat, aber für einen einzelnen Stichtag statt eine Monatsreihe. */
+export function ermittleAktuelleMiete(
+  vertrag: Pick<MietvertragFuerSollIst, "kaltmiete" | "nebenkostenVorauszahlung" | "mieterhoehungen">,
+  stichtag: Date = new Date(),
+): { kaltmiete: number; nebenkostenVorauszahlung: number } {
+  return ermittleMieteFuerMonat(vertrag, stichtag.getFullYear(), stichtag.getMonth() + 1);
+}
 
 export type SollZeile = {
   jahr: number;
@@ -55,8 +90,6 @@ export function sollAufschluesselung(
         ? buchhaltungAb
         : vertrag.beginn;
   if (!start) return [];
-  const betragProMonat =
-    vertrag.kaltmiete + vertrag.nebenkostenVorauszahlung + (vertrag.mehrwertsteuer ?? 0);
 
   const anzahlMonate = monateInklusive(
     start.getFullYear(),
@@ -71,11 +104,12 @@ export function sollAufschluesselung(
   let monat = start.getMonth() + 1; // 1-basiert
 
   for (let i = 0; i < anzahlMonate; i++) {
+    const { kaltmiete, nebenkostenVorauszahlung } = ermittleMieteFuerMonat(vertrag, jahr, monat);
     zeilen.push({
       jahr,
       monat,
       faelligAm: dritterWerktagDesMonats(jahr, monat - 1),
-      betrag: betragProMonat,
+      betrag: kaltmiete + nebenkostenVorauszahlung + (vertrag.mehrwertsteuer ?? 0),
     });
     monat++;
     if (monat > 12) {

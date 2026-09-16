@@ -180,3 +180,52 @@ export async function deleteMietvertrag(id: string) {
   revalidatePath("/");
   redirect("/mietvertraege");
 }
+
+function revalidateNachMieterhoehung(mietvertragId: string) {
+  revalidatePath(`/mietvertraege/${mietvertragId}`);
+  revalidatePath("/mietvertraege");
+  revalidatePath("/offene-posten");
+  revalidatePath("/");
+  revalidatePath("/jahresuebersicht");
+}
+
+const mieterhoehungSchema = z.object({
+  gueltigAb: z.coerce.date({ error: "Gültig ab ist erforderlich" }),
+  kaltmiete: z.coerce.number().min(0, "Kaltmiete darf nicht negativ sein"),
+  nebenkostenVorauszahlung: z.coerce.number().min(0, "NK-Vorauszahlung darf nicht negativ sein"),
+  notizen: z.string().optional(),
+});
+
+export async function erfasseMieterhoehung(mietvertragId: string, formData: FormData) {
+  await requireEditor();
+
+  const parsed = mieterhoehungSchema.safeParse({
+    gueltigAb: formData.get("gueltigAb"),
+    kaltmiete: formData.get("kaltmiete"),
+    nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
+    notizen: formData.get("notizen") || undefined,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+  }
+
+  const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
+    where: { id: mietvertragId },
+    select: { beginn: true },
+  });
+  if (vertrag.beginn && parsed.data.gueltigAb < vertrag.beginn) {
+    throw new Error("Gültig ab darf nicht vor dem Mietbeginn liegen");
+  }
+
+  await prisma.mieterhoehung.create({
+    data: { mietvertragId, ...parsed.data },
+  });
+
+  revalidateNachMieterhoehung(mietvertragId);
+}
+
+export async function loescheMieterhoehung(id: string) {
+  await requireEditor();
+  const mieterhoehung = await prisma.mieterhoehung.delete({ where: { id } });
+  revalidateNachMieterhoehung(mieterhoehung.mietvertragId);
+}

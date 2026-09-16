@@ -2,23 +2,39 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { MietvertraegeTable, type VertragRow } from "./mietvertraege-table";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
+import { ermittleAktuelleMiete } from "@/lib/soll-ist";
 
 async function ladeVertraege(): Promise<VertragRow[]> {
   const vertraege = await prisma.mietvertrag.findMany({
-    include: { einheit: true, mieter: true },
+    include: {
+      einheit: true,
+      mieter: true,
+      mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+    },
   });
 
   return vertraege
-    .map((v) => ({
-      id: v.id,
-      einheitBezeichnung: v.einheit.bezeichnung,
-      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-      beginn: v.beginn ? v.beginn.toISOString() : null,
-      ende: v.ende ? v.ende.toISOString() : null,
-      kaltmiete: Number(v.kaltmiete),
-      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-      status: v.status,
-    }))
+    .map((v) => {
+      const aktuelleMiete = ermittleAktuelleMiete({
+        kaltmiete: Number(v.kaltmiete),
+        nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+        mieterhoehungen: v.mieterhoehungen.map((m) => ({
+          gueltigAb: m.gueltigAb,
+          kaltmiete: Number(m.kaltmiete),
+          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+        })),
+      });
+      return {
+        id: v.id,
+        einheitBezeichnung: v.einheit.bezeichnung,
+        mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+        beginn: v.beginn ? v.beginn.toISOString() : null,
+        ende: v.ende ? v.ende.toISOString() : null,
+        kaltmiete: aktuelleMiete.kaltmiete,
+        nebenkostenVorauszahlung: aktuelleMiete.nebenkostenVorauszahlung,
+        status: v.status,
+      };
+    })
     .sort((a, b) => vergleicheEinheitBezeichnung(a.einheitBezeichnung, b.einheitBezeichnung));
 }
 

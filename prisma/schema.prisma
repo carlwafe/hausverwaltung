@@ -239,8 +239,29 @@ model Mietvertrag {
   nebenkostenausgleichZahlungen NebenkostenausgleichZahlung[]
   vorverteilteKostenanteile     VorverteilterKostenanteil[]
   jahresberichtVerifikationen   JahresberichtVerifikation[]
+  mieterhoehungen               Mieterhoehung[]
 
   @@map("mietvertraege")
+}
+
+// Eine Mieterhöhung ab einem bestimmten Monat — der Mietvertrag selbst behält seine kaltmiete/
+// nebenkostenVorauszahlung als Basiswert (ab Mietbeginn bzw. Buchhaltungs-Stichtag), jede
+// Mieterhoehung überschreibt diesen Wert ab ihrem gueltigAb-Monat, bis zur nächsten (falls
+// vorhanden) — siehe ermittleMieteFuerMonat/ermittleAktuelleMiete in src/lib/soll-ist.ts.
+model Mieterhoehung {
+  id                       String      @id @default(cuid())
+  mietvertrag              Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId            String
+  // Ab diesem Monat gilt die neue Miete (Tag wird ignoriert, es zählt der Kalendermonat — wie bei
+  // sollAufschluesselung, wo ein angebrochener Monat schon ab seinem 1. Tag voll zählt).
+  gueltigAb                DateTime
+  kaltmiete                Decimal     @db.Decimal(10, 2)
+  nebenkostenVorauszahlung Decimal     @db.Decimal(10, 2)
+  notizen                  String?
+  createdAt                DateTime    @default(now())
+
+  @@unique([mietvertragId, gueltigAb])
+  @@map("mieterhoehungen")
 }
 
 model Kaution {

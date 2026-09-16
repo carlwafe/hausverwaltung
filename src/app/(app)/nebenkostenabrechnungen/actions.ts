@@ -30,7 +30,9 @@ export async function ladeBerechnungsdaten(jahr: number) {
         },
       }),
       prisma.einheit.findMany({ include: { gebaeude: { include: { kostengruppen: { select: { id: true } } } } } }),
-      prisma.mietvertrag.findMany(),
+      prisma.mietvertrag.findMany({
+        include: { mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } } },
+      }),
       prisma.verbrauchswert.findMany({ where: { jahr } }),
       prisma.vorverteilterKostenanteil.findMany({ where: { jahr }, include: { kostenart: true } }),
     ]);
@@ -62,6 +64,11 @@ export async function ladeBerechnungsdaten(jahr: number) {
     beginn: m.beginn,
     ende: m.ende,
     nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+    mieterhoehungen: m.mieterhoehungen.map((mh) => ({
+      gueltigAb: mh.gueltigAb,
+      kaltmiete: Number(mh.kaltmiete),
+      nebenkostenVorauszahlung: Number(mh.nebenkostenVorauszahlung),
+    })),
   }));
   const verbrauchswerte: VerbrauchswertFuerAbrechnung[] = verbrauchswerteRaw.map((v) => ({
     einheitId: v.einheitId,

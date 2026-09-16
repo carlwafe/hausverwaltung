@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { berechneSoll, berechneIst } from "@/lib/soll-ist";
+import { berechneSoll, berechneIst, ermittleAktuelleMiete } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -14,7 +14,12 @@ export default async function DashboardPage() {
       prisma.einheit.count(),
       prisma.mietvertrag.findMany({
         where: { status: "AKTIV" },
-        select: { einheitId: true, kaltmiete: true, nebenkostenVorauszahlung: true },
+        select: {
+          einheitId: true,
+          kaltmiete: true,
+          nebenkostenVorauszahlung: true,
+          mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+        },
       }),
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
@@ -26,6 +31,7 @@ export default async function DashboardPage() {
           mehrwertsteuer: true,
           saldovortrag: true,
           zahlungen: { select: { datum: true, betrag: true } },
+          mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
         },
       }),
       prisma.kaution.findMany({ where: { status: "AKTIV" }, select: { betrag: true } }),
@@ -35,11 +41,19 @@ export default async function DashboardPage() {
 
   const belegteEinheiten = new Set(aktiveVertraege.map((v) => v.einheitId)).size;
   const leerstand = einheitenCount - belegteEinheiten;
-  const sollKaltmiete = aktiveVertraege.reduce((sum, v) => sum + Number(v.kaltmiete), 0);
-  const sollNebenkosten = aktiveVertraege.reduce(
-    (sum, v) => sum + Number(v.nebenkostenVorauszahlung),
-    0,
+  const aktuelleMieten = aktiveVertraege.map((v) =>
+    ermittleAktuelleMiete({
+      kaltmiete: Number(v.kaltmiete),
+      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+      mieterhoehungen: v.mieterhoehungen.map((m) => ({
+        gueltigAb: m.gueltigAb,
+        kaltmiete: Number(m.kaltmiete),
+        nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+      })),
+    }),
   );
+  const sollKaltmiete = aktuelleMieten.reduce((sum, m) => sum + m.kaltmiete, 0);
+  const sollNebenkosten = aktuelleMieten.reduce((sum, m) => sum + m.nebenkostenVorauszahlung, 0);
 
   const buchhaltungAb = objekt?.buchhaltungAb ?? null;
   const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
@@ -50,6 +64,11 @@ export default async function DashboardPage() {
         kaltmiete: Number(v.kaltmiete),
         nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
         mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
+        mieterhoehungen: v.mieterhoehungen.map((m) => ({
+          gueltigAb: m.gueltigAb,
+          kaltmiete: Number(m.kaltmiete),
+          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+        })),
       },
       new Date(),
       buchhaltungAb,
