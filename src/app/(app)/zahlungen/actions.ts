@@ -9,7 +9,13 @@ import { requireEditor } from "@/lib/session";
 const zahlungSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
   datum: z.coerce.date({ error: "Datum ist erforderlich" }),
-  betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+  // Nicht auf positiv beschränkt: eine Zahlung kann auch eine Erstattung/Korrektur sein (z.B. eine
+  // Rücküberweisung einer Überzahlung), die als negativer Betrag geführt wird — mit .positive()
+  // ließ sich eine solche, z.B. per Kontoauszug-Import bereits negativ erfasste Zahlung im
+  // Bearbeiten-Formular nie wieder speichern (auch nicht bei einer reinen Verwendungszweck-
+  // Änderung ohne Betragsänderung), weil der unveränderte Bestandswert die Validierung erneut
+  // durchläuft und daran scheitert.
+  betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
   periodeMonat: z.coerce.number().int().min(1).max(12),
   periodeJahr: z.coerce.number().int().min(2000).max(2100),
   verwendungszweck: z.string().optional(),
