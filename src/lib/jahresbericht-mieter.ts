@@ -1,11 +1,15 @@
-import { berechneSoll, berechneIst, type MietvertragFuerSollIst } from "./soll-ist";
+import { berechneSoll, type MietvertragFuerSollIst } from "./soll-ist";
 
 export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   id: string;
   saldovortrag: number;
   einheitBezeichnung: string;
   mieterNamen: string;
-  zahlungen: { datum: Date; betrag: number }[];
+  // periodeMonat/periodeJahr statt Buchungsdatum: der Jahresbericht rechnet bewusst danach, für
+  // welchen Zeitraum eine Zahlung gedacht ist, nicht danach, wann sie auf dem Konto einging (siehe
+  // saldoZuStichtag) — eine Miete, die z.B. Ende Dezember schon für den Januar des Folgejahres
+  // überwiesen wird, soll den Saldo des laufenden Jahres nicht künstlich ins Plus ziehen.
+  zahlungen: { periodeMonat: number; periodeJahr: number; betrag: number }[];
   // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Berichtsjahr — für
   // "Nebenkostenabrechnung offen (Vorjahr)" wird gezielt die Position des Vorjahres der jeweiligen
   // Abrechnung herausgesucht (siehe nebenkostenabrechnungOffenBetrag), nicht die Bewegung des
@@ -28,6 +32,32 @@ export type MieterJahresberichtZeile = {
   nebenkostenabrechnungOffen: number | null;
 };
 
+/** Jahr+Monat als einzelne, vergleichbare Zahl (z.B. 2025-03 -> 2025*12+3). */
+function periodeVon(datum: Date): number {
+  return datum.getFullYear() * 12 + (datum.getMonth() + 1);
+}
+
+/**
+ * Summe der Zahlungen, deren zugeordnete Periode (periodeJahr/periodeMonat) im Bereich
+ * [vonPeriode, bisPeriode] liegt — das Gegenstück zu berechneIst (soll-ist.ts), das stattdessen
+ * nach dem tatsächlichen Buchungsdatum filtert. Andere Seiten (Offene Posten, Dashboard,
+ * Mietvertrag-Detail) verwenden bewusst weiter das Buchungsdatum, da dort der tatsächliche
+ * Kontostand zählt — nur der Jahresbericht bildet hier absichtlich ab, wofür eine Zahlung gedacht
+ * war, nicht wann sie einging.
+ */
+function istNachZuordnung(
+  zahlungen: MietvertragFuerJahresbericht["zahlungen"],
+  vonPeriode: number,
+  bisPeriode: number,
+): number {
+  return zahlungen
+    .filter((z) => {
+      const periode = z.periodeJahr * 12 + z.periodeMonat;
+      return periode >= vonPeriode && periode <= bisPeriode;
+    })
+    .reduce((sum, z) => sum + z.betrag, 0);
+}
+
 /**
  * Saldo (wie bei Offene Posten: ist - soll + saldovortrag) zu einem beliebigen Stichtag —
  * dieselbe Formel, nur zweimal aufgerufen (Jahresanfang/-ende) statt einmal, um die
@@ -37,7 +67,7 @@ export type MieterJahresberichtZeile = {
  */
 function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltungAb: Date | null): number {
   const soll = berechneSoll(v, bis, buchhaltungAb);
-  const ist = berechneIst(v.zahlungen, buchhaltungAb, bis);
+  const ist = istNachZuordnung(v.zahlungen, buchhaltungAb ? periodeVon(buchhaltungAb) : -Infinity, periodeVon(bis));
   return ist - soll + v.saldovortrag;
 }
 
@@ -64,6 +94,11 @@ function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr:
  * Vorjahresabrechnung entsteht/wird beglichen typischerweise erst im Laufe des Berichtsjahres,
  * war zu dessen Beginn also noch kein Bestandteil des Saldos.
  *
+ * "Miete" sowie das Ist in Saldo alt/neu zählen nach der zugeordneten Periode (periodeMonat/
+ * periodeJahr), nicht nach dem tatsächlichen Buchungsdatum (siehe istNachZuordnung) — eine Ende
+ * Dezember bereits für den Januar des Folgejahres eingegangene Miete zählt so korrekt zum
+ * Folgejahr statt das laufende Jahr künstlich ins Plus zu ziehen.
+ *
  * Nur Mietverträge, die für das Jahr oder den offenen Nebenkostenabrechnung-Saldo tatsächlich
  * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf.
  */
@@ -79,8 +114,7 @@ export function berechneMieterJahresbericht(
     buchhaltungBisGlobal && buchhaltungBisGlobal < saldoNeuBisKandidat
       ? buchhaltungBisGlobal
       : saldoNeuBisKandidat;
-  const jahresanfang = new Date(jahr, 0, 1);
-  const jahresendeExklusiv = new Date(jahr + 1, 0, 1);
+  const saldoNeuBisPeriode = periodeVon(saldoNeuBis);
 
   const zeilen: MieterJahresberichtZeile[] = [];
 
@@ -88,7 +122,7 @@ export function berechneMieterJahresbericht(
     const saldoAlt = saldoZuStichtag(v, saldoAltBis, buchhaltungAb);
     const soll = berechneSoll(v, saldoNeuBis, buchhaltungAb) - berechneSoll(v, saldoAltBis, buchhaltungAb);
     const miete = v.zahlungen
-      .filter((z) => z.datum >= jahresanfang && z.datum < jahresendeExklusiv && z.datum <= saldoNeuBis)
+      .filter((z) => z.periodeJahr === jahr && z.periodeJahr * 12 + z.periodeMonat <= saldoNeuBisPeriode)
       .reduce((sum, z) => sum + z.betrag, 0);
     const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v, jahr);
     const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0);

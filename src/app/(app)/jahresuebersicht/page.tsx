@@ -81,7 +81,7 @@ async function ladeMieterZeilen(jahr: number) {
       include: {
         einheit: true,
         mieter: true,
-        zahlungen: { select: { datum: true, betrag: true } },
+        zahlungen: { select: { periodeMonat: true, periodeJahr: true, betrag: true } },
         abrechnungspositionen: {
           select: { saldo: true, abrechnung: { select: { jahr: true } } },
         },
@@ -113,7 +113,11 @@ async function ladeMieterZeilen(jahr: number) {
     saldovortrag: Number(v.saldovortrag),
     einheitBezeichnung: v.einheit.bezeichnung,
     mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-    zahlungen: v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+    zahlungen: v.zahlungen.map((z) => ({
+      periodeMonat: z.periodeMonat,
+      periodeJahr: z.periodeJahr,
+      betrag: Number(z.betrag),
+    })),
     nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
       jahr: p.abrechnung.jahr,
       saldo: Number(p.saldo),
@@ -272,6 +276,15 @@ export default async function JahresuebersichtPage({
           Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
           in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
           noch einzuziehende Nachzahlung.
+        </p>
+        <p className="mb-3 text-sm text-neutral-400">
+          Miete sowie Saldo alt/neu zählen nach der{" "}
+          <Link href="/zahlungen" className="underline hover:text-white">
+            zugeordneten Periode
+          </Link>{" "}
+          einer Zahlung, nicht nach ihrem tatsächlichen Buchungsdatum — eine z.B. Ende Dezember
+          schon für Januar überwiesene Miete zählt so korrekt zum Folgejahr, statt das laufende
+          Jahr künstlich ins Plus zu ziehen.
         </p>
         <div className="overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
