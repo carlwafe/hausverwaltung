@@ -104,7 +104,10 @@ export async function deleteZahlungen(ids: string[]) {
 
 const aufteilungTeilSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
-  betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+  // Nicht auf positiv beschränkt: siehe gleicher Kommentar bei zahlungSchema oben — auch eine
+  // negative Zahlung (z.B. eine Erstattung) kann aufgeteilt werden, ihre Teile sind dann ebenfalls
+  // negativ.
+  betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
   periodeMonat: z.coerce.number().int().min(1).max(12),
   periodeJahr: z.coerce.number().int().min(2000).max(2100),
   verwendungszweck: z.string().optional(),
