@@ -10,6 +10,7 @@ type NavLink = { href: string; label: string };
 const STAMMDATEN: NavLink[] = [
   { href: "/mieter", label: "Mieter" },
   { href: "/mietvertraege", label: "Mietverträge" },
+  { href: "/mietvertraege/vorschlaege", label: "Mieterhöhungen-Vorschläge" },
   { href: "/einheiten", label: "Einheiten" },
   { href: "/einheiten/zeitachse", label: "Zeitachse" },
   { href: "/gebaeude", label: "Gebäude" },
