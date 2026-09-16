@@ -4,7 +4,11 @@ import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
   const zahlungen = await prisma.zahlung.findMany({
-    orderBy: { datum: "desc" },
+    // Bei gleichem Datum (z.B. zwei durch Aufteilung entstandene Zahlungen, siehe
+    // aufteilungGruppeId) sonst unbestimmte Reihenfolge — zusätzlich nach Periode absteigend
+    // sortiert, damit z.B. "Nov 2025, Okt 2025" statt eines zufällig wirkenden "Okt 2025,
+    // Nov 2025, Okt 2025" erscheint.
+    orderBy: [{ datum: "desc" }, { periodeJahr: "desc" }, { periodeMonat: "desc" }],
     include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true },
   });
 
