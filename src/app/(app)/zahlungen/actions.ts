@@ -102,23 +102,38 @@ export async function deleteZahlungen(ids: string[]) {
   revalidatePath("/");
 }
 
-const aufteilungTeilSchema = z.object({
-  mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
-  // Nicht auf positiv beschränkt: siehe gleicher Kommentar bei zahlungSchema oben — auch eine
-  // negative Zahlung (z.B. eine Erstattung) kann aufgeteilt werden, ihre Teile sind dann ebenfalls
-  // negativ.
-  betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
-  periodeMonat: z.coerce.number().int().min(1).max(12),
-  periodeJahr: z.coerce.number().int().min(2000).max(2100),
-  verwendungszweck: z.string().optional(),
-});
+const aufteilungTeilSchema = z.discriminatedUnion("typ", [
+  z.object({
+    typ: z.literal("miete"),
+    mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
+    // Nicht auf positiv beschränkt: siehe gleicher Kommentar bei zahlungSchema oben — auch eine
+    // negative Zahlung (z.B. eine Erstattung) kann aufgeteilt werden, ihre Teile sind dann
+    // ebenfalls negativ.
+    betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
+    periodeMonat: z.coerce.number().int().min(1).max(12),
+    periodeJahr: z.coerce.number().int().min(2000).max(2100),
+    verwendungszweck: z.string().optional(),
+  }),
+  z.object({
+    typ: z.literal("kosten"),
+    kostenartId: z.string().min(1, "Kostenart ist erforderlich"),
+    // Positiv wie beim Kosten-eigenen Aufteilen-Schema (teileKostenpositionAuf): der Nutzer gibt
+    // den Betrag ein, der vom Zahlungseingang in diese Kostenart umgeleitet wird — das Vorzeichen
+    // als Gutschrift (negativ) wird erst beim Anlegen der Kostenposition gesetzt, siehe unten.
+    betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+    beschreibung: z.string().optional(),
+  }),
+]);
 
 /**
  * Teilt eine als eine Buchung importierte/erfasste Zahlung (z.B. eine Überweisung, die Miete für
- * Wohnung und Garage in einer Summe zahlt) in mehrere Zahlungen mit je eigenem Mietvertrag/
- * Betrag/Periode auf. Die ursprüngliche Zahlung wird durch die neuen ersetzt statt daneben zu
- * bestehen — dadurch bleiben Soll/Ist und offene Posten automatisch korrekt. Analog zu
- * teileKostenpositionAuf in kosten/actions.ts.
+ * Wohnung und Garage in einer Summe zahlt, oder eine Zahlung die teilweise eine Kostenerstattung
+ * wie eine Mahngebühr ist) in mehrere Mietzahlungen und/oder Kostenpositionen auf. Die
+ * ursprüngliche Zahlung wird durch die neuen ersetzt statt daneben zu bestehen — dadurch bleiben
+ * Soll/Ist und offene Posten automatisch korrekt. Ein Kosten-Teil wird als negative Kostenposition
+ * (Gutschrift) gebucht, exakt wie eine Kleinreparatur-Erstattung beim Kontoauszug-Import (siehe
+ * mapKostenRows in src/lib/import/kosten-import.ts). Analog zu teileKostenpositionAuf in
+ * kosten/actions.ts.
  */
 export async function teileZahlungAuf(
   id: string,
@@ -137,7 +152,7 @@ export async function teileZahlungAuf(
     return "Aufteilung konnte nicht gelesen werden.";
   }
 
-  const parsed = z.array(aufteilungTeilSchema).min(2, "Mindestens zwei Zahlungen nötig").safeParse(teileRoh);
+  const parsed = z.array(aufteilungTeilSchema).min(1, "Mindestens ein Teil nötig").safeParse(teileRoh);
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
@@ -152,10 +167,12 @@ export async function teileZahlungAuf(
   }
 
   const gruppeId = original.aufteilungGruppeId ?? original.id;
-  const betroffeneMietvertraege = new Set([original.mietvertragId, ...teile.map((t) => t.mietvertragId)]);
+  const mieteTeile = teile.filter((t) => t.typ === "miete");
+  const kostenTeile = teile.filter((t) => t.typ === "kosten");
+  const betroffeneMietvertraege = new Set([original.mietvertragId, ...mieteTeile.map((t) => t.mietvertragId)]);
 
   await prisma.$transaction(async (tx) => {
-    for (const teil of teile) {
+    for (const teil of mieteTeile) {
       await tx.zahlung.create({
         data: {
           mietvertragId: teil.mietvertragId,
@@ -170,11 +187,26 @@ export async function teileZahlungAuf(
         },
       });
     }
+    for (const teil of kostenTeile) {
+      await tx.kostenposition.create({
+        data: {
+          kostenartId: teil.kostenartId,
+          betrag: -teil.betrag,
+          beschreibung: teil.beschreibung || original.verwendungszweck,
+          jahr: original.datum.getFullYear(),
+          datum: original.datum,
+          rohdaten: original.rohdaten ?? undefined,
+          importBatchId: original.importBatchId,
+          aufteilungGruppeId: gruppeId,
+        },
+      });
+    }
     await tx.zahlung.delete({ where: { id } });
   });
 
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
+  if (kostenTeile.length > 0) revalidatePath("/kosten");
   for (const mietvertragId of betroffeneMietvertraege) revalidatePath(`/mietvertraege/${mietvertragId}`);
   redirect("/zahlungen");
 }

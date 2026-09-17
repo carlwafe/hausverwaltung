@@ -13,7 +13,7 @@ function formatEuro(value: number) {
 
 export default async function ZahlungDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [zahlung, vertraege] = await Promise.all([
+  const [zahlung, vertraege, kostenarten] = await Promise.all([
     prisma.zahlung.findUnique({
       where: { id },
       include: { mietvertrag: { include: { einheit: true, mieter: true } } },
@@ -22,17 +22,22 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
       where: { status: { in: ["AKTIV", "BEENDET"] } },
       include: { einheit: true, mieter: true },
     }),
+    prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
   ]);
   if (!zahlung) notFound();
   vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
 
-  const aufteilungGeschwister = zahlung.aufteilungGruppeId
-    ? await prisma.zahlung.findMany({
-        where: { aufteilungGruppeId: zahlung.aufteilungGruppeId },
-        include: { mietvertrag: { include: { einheit: true, mieter: true } } },
-        orderBy: { createdAt: "asc" },
-      })
-    : [];
+  const aufteilungGruppeId = zahlung.aufteilungGruppeId;
+  const aufteilungGeschwister = await prisma.zahlung.findMany({
+    where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__" },
+    include: { mietvertrag: { include: { einheit: true, mieter: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  const aufteilungKosten = await prisma.kostenposition.findMany({
+    where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__" },
+    include: { kostenart: true },
+    orderBy: { createdAt: "asc" },
+  });
 
   const mietvertraegeOptionen = vertraege.map((v) => ({
     id: v.id,
@@ -64,11 +69,15 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
       {aufteilungGeschwister.length > 0 ? (
         <div className="mt-4 rounded-lg border border-neutral-800 p-4">
           <p className="mb-1 text-sm font-medium text-white">
-            Teil einer Aufteilung ({aufteilungGeschwister.length} Zahlungen, ursprünglich{" "}
-            {formatEuro(aufteilungGeschwister.reduce((s, z) => s + Number(z.betrag), 0))})
+            Teil einer Aufteilung ({aufteilungGeschwister.length} Zahlung
+            {aufteilungGeschwister.length === 1 ? "" : "en"}
+            {aufteilungKosten.length > 0 &&
+              ` + ${aufteilungKosten.length} Kostenposition${aufteilungKosten.length === 1 ? "" : "en"}`}
+            )
           </p>
           <p className="mb-3 text-xs text-neutral-500">
-            Entstanden aus einer einzelnen Zahlung, die auf mehrere Mietverträge aufgeteilt wurde.
+            Entstanden aus einer einzelnen Zahlung, die aufgeteilt wurde — z.B. auf mehrere
+            Mietverträge oder in Miete + eine Kostenerstattung.
           </p>
           <ul className="mb-3 space-y-1 text-sm">
             {aufteilungGeschwister.map((z) => {
@@ -88,10 +97,18 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
                 </li>
               );
             })}
+            {aufteilungKosten.map((k) => (
+              <li key={k.id} className="flex items-center justify-between">
+                <Link href={`/kosten/${k.id}`} className="text-white hover:underline">
+                  Kosten: {k.kostenart.name}
+                </Link>
+                <span className="text-neutral-300">{formatEuro(Number(k.betrag))}</span>
+              </li>
+            ))}
           </ul>
           <DeleteButton
             action={hebeZahlungAufteilungAuf.bind(null, id)}
-            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Zahlungen werden zu einer Zahlung unter "${zahlung.mietvertrag.einheit.bezeichnung}" zusammengeführt.`}
+            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Zahlungen werden zu einer Zahlung unter "${zahlung.mietvertrag.einheit.bezeichnung}" zusammengeführt.${aufteilungKosten.length > 0 ? " Die abgespaltenen Kostenpositionen bleiben davon unberührt bestehen." : ""}`}
             label="Aufteilung rückgängig machen"
           />
         </div>
@@ -103,6 +120,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           periodeMonat={zahlung.periodeMonat}
           periodeJahr={zahlung.periodeJahr}
           mietvertraege={mietvertraegeOptionen}
+          kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
         />
       )}
     </div>
