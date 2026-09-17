@@ -41,6 +41,7 @@ export type PreviewResult =
       bestehendeMietweiterleitungen: string[];
       bestehendeKautionsbuchungen: string[];
       bestehendeNebenkostenausgleich: string[];
+      bestehendeNichtZugeordnet: string[];
       fileName: string;
       importBatchId: string;
     }
@@ -80,6 +81,7 @@ export type BestehendeImportSets = {
   bestehendeMietweiterleitungen: string[];
   bestehendeKautionsbuchungen: string[];
   bestehendeNebenkostenausgleich: string[];
+  bestehendeNichtZugeordnet: string[];
 };
 
 function berechneBestehendeImportSets({
@@ -88,6 +90,7 @@ function berechneBestehendeImportSets({
   mietweiterleitungenRaw,
   kautionsbuchungenRaw,
   sonstigeZahlungenRaw,
+  nichtZugeordneteBuchungenRaw,
 }: {
   vertraegeMitZahlungen: {
     id: string;
@@ -108,6 +111,7 @@ function berechneBestehendeImportSets({
   mietweiterleitungenRaw: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
   kautionsbuchungenRaw: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
   sonstigeZahlungenRaw: { datum: Date; betrag: unknown }[];
+  nichtZugeordneteBuchungenRaw: { datum: Date; betrag: unknown }[];
 }): BestehendeImportSets {
   // Verwendungszweck gehört mit in den Schlüssel, nicht nur Mietvertrag+Datum+Betrag: mehrere
   // Mieter zahlen oft am selben Tag denselben (Kaltmiete-)Betrag, und eine "mehrdeutig"-Zeile
@@ -188,6 +192,9 @@ function berechneBestehendeImportSets({
   const bestehendeNebenkostenausgleich = new Set(
     sonstigeZahlungenRaw.map((s) => datumBetragSchluessel(s.datum, Number(s.betrag))),
   );
+  const bestehendeNichtZugeordnet = new Set(
+    nichtZugeordneteBuchungenRaw.map((n) => datumBetragSchluessel(n.datum, Number(n.betrag))),
+  );
 
   return {
     bestehendeZahlungen: [...bestehendeZahlungen],
@@ -196,6 +203,7 @@ function berechneBestehendeImportSets({
     bestehendeMietweiterleitungen: [...bestehendeMietweiterleitungen],
     bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
     bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
+    bestehendeNichtZugeordnet: [...bestehendeNichtZugeordnet],
   };
 }
 
@@ -207,8 +215,14 @@ function berechneBestehendeImportSets({
 export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> {
   await requireUser();
 
-  const [vertraegeMitZahlungen, bestehendeKostenpositionen, mietweiterleitungenRaw, kautionsbuchungenRaw, sonstigeZahlungenRaw] =
-    await Promise.all([
+  const [
+    vertraegeMitZahlungen,
+    bestehendeKostenpositionen,
+    mietweiterleitungenRaw,
+    kautionsbuchungenRaw,
+    sonstigeZahlungenRaw,
+    nichtZugeordneteBuchungenRaw,
+  ] = await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
         select: {
@@ -228,6 +242,7 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.nebenkostenausgleichZahlung.findMany({ select: { datum: true, betrag: true } }),
+      prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
     ]);
 
   return berechneBestehendeImportSets({
@@ -236,6 +251,7 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
     mietweiterleitungenRaw,
     kautionsbuchungenRaw,
     sonstigeZahlungenRaw,
+    nichtZugeordneteBuchungenRaw,
   });
 }
 
@@ -296,6 +312,7 @@ export async function previewImport(
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
       bestehendeSonstigenBuchungenRaw,
+      bestehendeNichtZugeordnetenBuchungenRaw,
     ] = await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
@@ -335,6 +352,7 @@ export async function previewImport(
       prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
       prisma.nebenkostenausgleichZahlung.findMany({ select: { datum: true, betrag: true } }),
+      prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
     ]);
 
     // Ein Mieter kann selbst einmal als Kostenposition-Empfänger auftauchen (z.B. eine
@@ -458,6 +476,7 @@ export async function previewImport(
       mietweiterleitungenRaw: bestehendeMietweiterleitungenRaw,
       kautionsbuchungenRaw: bestehendeKautionsbuchungenRaw,
       sonstigeZahlungenRaw: bestehendeSonstigenBuchungenRaw,
+      nichtZugeordneteBuchungenRaw: bestehendeNichtZugeordnetenBuchungenRaw,
     });
 
     return {
@@ -879,4 +898,40 @@ export async function commitNebenkostenausgleich(
   return `${neu.length} Buchung(en) archiviert.${
     uebersprungen > 0 ? ` ${uebersprungen} bereits vorhanden, übersprungen.` : ""
   }`;
+}
+
+// Eine Buchung, die der Nutzer in keiner der 5 Import-Sektionen sofort klar zuordnen kann,
+// explizit als "nicht kategorisiert" parken statt sie beim Verlassen des Import-Wizards
+// unwiederbringlich zu verlieren — siehe NichtZugeordneteBuchung. Bewusst kein Dedup-Check: die
+// Anzeige oben auf /kosten filtert nichts weg, Mehrfach-Parken derselben Buchung ist harmlos und
+// wird durch die "bereits gemerkt"-Markierung (bestehendeNichtZugeordnet) im Normalfall ohnehin
+// verhindert.
+export async function parkeAlsNichtKategorisiert(
+  buchung: {
+    datum: string;
+    betrag: number;
+    empfaenger: string | null;
+    verwendungszweck: string | null;
+    rohdaten: Record<string, string> | null;
+    importBatchId: string;
+  },
+  quelle: string,
+): Promise<string | null> {
+  await requireEditor();
+
+  await prisma.nichtZugeordneteBuchung.create({
+    data: {
+      datum: new Date(buchung.datum),
+      betrag: buchung.betrag,
+      empfaenger: buchung.empfaenger || null,
+      verwendungszweck: buchung.verwendungszweck || null,
+      rohdaten: buchung.rohdaten ?? undefined,
+      importBatchId: buchung.importBatchId || undefined,
+      quelle,
+    },
+  });
+
+  revalidatePath("/kosten");
+
+  return "Als nicht kategorisiert gemerkt.";
 }

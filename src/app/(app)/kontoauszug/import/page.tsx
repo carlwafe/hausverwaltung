@@ -20,6 +20,7 @@ import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { gruppiereGebaeude, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { datumBetragSchluessel } from "@/lib/import/bank-csv";
+import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -275,6 +276,7 @@ function ZahlungenSektion({
   bestehendeZahlungenDatumBetragListe,
   bestehendeKostenListe,
   bestehendeNebenkostenausgleichListe,
+  bestehendeNichtZugeordnetListe,
   importBatchId,
   onCommitted,
 }: {
@@ -284,6 +286,7 @@ function ZahlungenSektion({
   bestehendeZahlungenDatumBetragListe: string[];
   bestehendeKostenListe: string[];
   bestehendeNebenkostenausgleichListe: string[];
+  bestehendeNichtZugeordnetListe: string[];
   importBatchId: string;
   /** Nach jedem erfolgreichen Import aufgerufen, damit alle Abschnitte ihre "bereits
    * importiert"-Listen neu laden — z.B. verschwindet eine gerade importierte Zahlung dadurch
@@ -295,6 +298,7 @@ function ZahlungenSektion({
   const bestehendeZahlungenDatumBetrag = new Set(bestehendeZahlungenDatumBetragListe);
   const bestehendeKosten = new Set(bestehendeKostenListe);
   const bestehendeNebenkostenausgleich = new Set(bestehendeNebenkostenausgleichListe);
+  const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [editRows, setEditRows] = useState<ZahlungEditRow[]>(() =>
     rows.map((r) => toZahlungEditRow(r, bestehendeZahlungen, bestehendeNebenkostenausgleich, skipDuplicates)),
@@ -332,6 +336,10 @@ function ZahlungenSektion({
   // toZahlungEditRow oben für die gleiche Überlegung bei der Auto-Auswahl.
   function istBereitsAlsNebenkostenausgleichImportiert(r: ZahlungEditRow): boolean {
     return pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
+  }
+
+  function istBereitsAlsNichtKategorisiertGemerkt(r: ZahlungEditRow): boolean {
+    return pruefeAlsNichtKategorisiertGemerkt(bestehendeNichtZugeordnet, r.datum, r.betrag);
   }
 
   function handleSkipDuplicatesChange(checked: boolean) {
@@ -488,6 +496,7 @@ function ZahlungenSektion({
               <th className="px-3 py-2">Periode</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
+              <th className="px-3 py-2">Aktion</th>
             </tr>
           </thead>
           <tbody>
@@ -495,6 +504,7 @@ function ZahlungenSektion({
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
               const bereitsAlsNebenkostenausgleichImportiert = istBereitsAlsNebenkostenausgleichImportiert(r);
+              const bereitsAlsNichtKategorisiertGemerkt = istBereitsAlsNichtKategorisiertGemerkt(r);
               const kannAuswaehlen =
                 r.errors.length === 0 && !r.kaution && !r.kleinreparatur && Boolean(r.gewaehlterMietvertragId);
               const expanded = expandedRow === r.rowNumber;
@@ -597,14 +607,27 @@ function ZahlungenSektion({
                         onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      <NichtKategorisiertButton
+                        datum={r.datum}
+                        betrag={r.betrag}
+                        empfaenger={r.name}
+                        verwendungszweck={r.verwendungszweck}
+                        rohdaten={r.rohdaten}
+                        importBatchId={importBatchId}
+                        quelle="Zahlungen"
+                        bereitsGemerkt={bereitsAlsNichtKategorisiertGemerkt}
+                        onParked={onCommitted}
+                      />
+                    </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={8} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={9} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
@@ -799,6 +822,20 @@ function pruefeAlsZahlungImportiert(
   return bestehendeZahlungen.has(`${datum}|${Math.abs(betrag).toFixed(2)}|${verwendungszweck.trim().toLowerCase()}`);
 }
 
+// Prüft, ob eine Buchung bereits als "nicht kategorisiert" geparkt wurde (siehe
+// NichtKategorisiertButton/parkeAlsNichtKategorisiert) — gleicher Schlüssel wie
+// pruefeNebenkostenausgleichDuplikat unten (datumBetragSchluessel, Datum+Betragshöhe ohne
+// Verwendungszweck), in allen 5 Sektionen identisch genutzt, um die Zeile nach dem Parken sofort
+// als "Bereits gemerkt" statt erneut als parkbar anzuzeigen.
+function pruefeAlsNichtKategorisiertGemerkt(
+  bestehendeNichtZugeordnet: Set<string>,
+  datum: string | null,
+  betrag: number | null,
+): boolean {
+  if (!datum || betrag === null) return false;
+  return bestehendeNichtZugeordnet.has(datumBetragSchluessel(new Date(datum), betrag));
+}
+
 // Gleicher Schlüssel wie datumBetragZweckSchluessel in actions.ts (Datum|Betrag|Verwendungszweck,
 // ohne Empfänger). Vorzeichen umgedreht statt Betrag genommen — Kostenposition.betrag ist hier
 // der negierte Rohbetrag (siehe pruefeAlsKostenImportiert oben), KautionBuchung.betrag behält
@@ -883,6 +920,7 @@ function KostenSektion({
   bestehendeZahlungenListe,
   bestehendeKautionListe,
   bestehendeNebenkostenausgleichListe,
+  bestehendeNichtZugeordnetListe,
   importBatchId,
   onCommitted,
 }: {
@@ -901,6 +939,7 @@ function KostenSektion({
   bestehendeZahlungenListe: string[];
   bestehendeKautionListe: string[];
   bestehendeNebenkostenausgleichListe: string[];
+  bestehendeNichtZugeordnetListe: string[];
   importBatchId: string;
   onCommitted: () => void;
 }) {
@@ -909,6 +948,7 @@ function KostenSektion({
   const bestehendeZahlungen = new Set(bestehendeZahlungenListe);
   const bestehendeKaution = new Set(bestehendeKautionListe);
   const bestehendeNebenkostenausgleich = new Set(bestehendeNebenkostenausgleichListe);
+  const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [editRows, setEditRows] = useState<KostenEditRow[]>(() =>
     rows.map((r) => toKostenEditRow(r, bestehendeKosten, bestehendeNebenkostenausgleich)),
   );
@@ -937,6 +977,10 @@ function KostenSektion({
   // toKostenEditRow oben für dieselbe Überlegung bei der Auto-Auswahl.
   function istBereitsAlsNebenkostenausgleichImportiert(r: KostenEditRow): boolean {
     return pruefeNebenkostenausgleichDuplikat(bestehendeNebenkostenausgleich, r.datum, r.betrag);
+  }
+
+  function istBereitsAlsNichtKategorisiertGemerkt(r: KostenEditRow): boolean {
+    return pruefeAlsNichtKategorisiertGemerkt(bestehendeNichtZugeordnet, r.datum, r.betrag);
   }
 
   const gefilterteRows = editRows.filter((r) =>
@@ -1060,6 +1104,7 @@ function KostenSektion({
               <SortableTh label="Jahr" spalteKey="jahr" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
+              <th className="px-3 py-2">Aktion</th>
             </tr>
           </thead>
           <tbody>
@@ -1068,6 +1113,7 @@ function KostenSektion({
               const bereitsAlsZahlungImportiert = istBereitsAlsZahlungImportiert(r);
               const bereitsAlsKautionImportiert = istBereitsAlsKautionImportiert(r);
               const bereitsAlsNebenkostenausgleichImportiert = istBereitsAlsNebenkostenausgleichImportiert(r);
+              const bereitsAlsNichtKategorisiertGemerkt = istBereitsAlsNichtKategorisiertGemerkt(r);
               const kannAuswaehlen = r.errors.length === 0 && Boolean(r.gewaehlteKostenartId);
               const expanded = expandedRow === r.rowNumber;
               return (
@@ -1202,14 +1248,27 @@ function KostenSektion({
                         onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      <NichtKategorisiertButton
+                        datum={r.datum}
+                        betrag={r.betrag}
+                        empfaenger={r.empfaenger}
+                        verwendungszweck={r.verwendungszweck}
+                        rohdaten={r.rohdaten}
+                        importBatchId={importBatchId}
+                        quelle="Kosten"
+                        bereitsGemerkt={bereitsAlsNichtKategorisiertGemerkt}
+                        onParked={onCommitted}
+                      />
+                    </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={9} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={10} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={10} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
@@ -1312,18 +1371,21 @@ function MietweiterleitungenSektion({
   rows,
   bestehendeListe,
   bestehendeKostenListe,
+  bestehendeNichtZugeordnetListe,
   importBatchId,
   onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   bestehendeListe: string[];
   bestehendeKostenListe: string[];
+  bestehendeNichtZugeordnetListe: string[];
   importBatchId: string;
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitMietweiterleitungen, null);
   const bestehend = new Set(bestehendeListe);
   const bestehendeKosten = new Set(bestehendeKostenListe);
+  const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [editRows, setEditRows] = useState<MietweiterleitungEditRow[]>(() =>
     rows.map((r) => toMietweiterleitungEditRow(r, bestehend, bestehendeKosten)),
   );
@@ -1340,6 +1402,10 @@ function MietweiterleitungenSektion({
 
   function istBereitsAlsKostenImportiert(r: MietweiterleitungEditRow): boolean {
     return pruefeAlsKostenImportiert(bestehendeKosten, r.name, r.datum, r.betrag, r.verwendungszweck);
+  }
+
+  function istBereitsAlsNichtKategorisiertGemerkt(r: MietweiterleitungEditRow): boolean {
+    return pruefeAlsNichtKategorisiertGemerkt(bestehendeNichtZugeordnet, r.datum, r.betrag);
   }
 
   const gefilterteRows = editRows.filter((r) => matchesMietweiterleitungHinweisFilter(r, hinweisFilter));
@@ -1446,12 +1512,14 @@ function MietweiterleitungenSektion({
               <SortableTh label="Verwendungszweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
+              <th className="px-3 py-2">Aktion</th>
             </tr>
           </thead>
           <tbody>
             {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
               const bereitsAlsKostenImportiert = istBereitsAlsKostenImportiert(r);
+              const bereitsAlsNichtKategorisiertGemerkt = istBereitsAlsNichtKategorisiertGemerkt(r);
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleMietweiterleitungHinweis(r);
               return (
@@ -1499,14 +1567,27 @@ function MietweiterleitungenSektion({
                         onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      <NichtKategorisiertButton
+                        datum={r.datum}
+                        betrag={r.betrag}
+                        empfaenger={r.name}
+                        verwendungszweck={r.verwendungszweck}
+                        rohdaten={r.rohdaten}
+                        importBatchId={importBatchId}
+                        quelle="Mietweiterleitungen"
+                        bereitsGemerkt={bereitsAlsNichtKategorisiertGemerkt}
+                        onParked={onCommitted}
+                      />
+                    </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={6} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
@@ -1611,17 +1692,20 @@ function KautionSektion({
   rows,
   kandidaten,
   bestehendeListe,
+  bestehendeNichtZugeordnetListe,
   importBatchId,
   onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
   bestehendeListe: string[];
+  bestehendeNichtZugeordnetListe: string[];
   importBatchId: string;
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitKautionsbuchungen, null);
   const bestehend = new Set(bestehendeListe);
+  const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [editRows, setEditRows] = useState<KautionEditRow[]>(() =>
     rows.map((r) => toKautionEditRow(r, bestehend)),
   );
@@ -1634,6 +1718,10 @@ function KautionSektion({
 
   function istBereitsImportiert(r: KautionEditRow): boolean {
     return pruefeKautionsbuchungDuplikat(bestehend, r.datum, r.betrag, r.verwendungszweck);
+  }
+
+  function istBereitsAlsNichtKategorisiertGemerkt(r: KautionEditRow): boolean {
+    return pruefeAlsNichtKategorisiertGemerkt(bestehendeNichtZugeordnet, r.datum, r.betrag);
   }
 
   const gefilterteRows = editRows.filter((r) => matchesKautionHinweisFilter(r, istBereitsImportiert(r), hinweisFilter));
@@ -1736,11 +1824,13 @@ function KautionSektion({
               <th className="px-3 py-2">Kategorie</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
+              <th className="px-3 py-2">Aktion</th>
             </tr>
           </thead>
           <tbody>
             {sortierteRows.map((r) => {
               const bereitsImportiert = istBereitsImportiert(r);
+              const bereitsAlsNichtKategorisiertGemerkt = istBereitsAlsNichtKategorisiertGemerkt(r);
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleKautionHinweis(r);
               return (
@@ -1816,14 +1906,27 @@ function KautionSektion({
                         onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      <NichtKategorisiertButton
+                        datum={r.datum}
+                        betrag={r.betrag}
+                        empfaenger={r.name}
+                        verwendungszweck={r.verwendungszweck}
+                        rohdaten={r.rohdaten}
+                        importBatchId={importBatchId}
+                        quelle="Kaution"
+                        bereitsGemerkt={bereitsAlsNichtKategorisiertGemerkt}
+                        onParked={onCommitted}
+                      />
+                    </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={8} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={9} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
@@ -1949,17 +2052,20 @@ function NebenkostenausgleichSektion({
   rows,
   kandidaten,
   bestehendeListe,
+  bestehendeNichtZugeordnetListe,
   importBatchId,
   onCommitted,
 }: {
   rows: ParsedZahlungRow[];
   kandidaten: { id: string; label: string }[];
   bestehendeListe: string[];
+  bestehendeNichtZugeordnetListe: string[];
   importBatchId: string;
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitNebenkostenausgleich, null);
   const bestehend = new Set(bestehendeListe);
+  const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [editRows, setEditRows] = useState<NebenkostenausgleichEditRow[]>(() =>
     rows.map((r) => toNebenkostenausgleichEditRow(r, bestehend)),
   );
@@ -2089,6 +2195,7 @@ function NebenkostenausgleichSektion({
               <th className="px-3 py-2">Jahr</th>
               <th className="px-3 py-2">Hinweis</th>
               <th className="px-3 py-2">Rohdaten</th>
+              <th className="px-3 py-2">Aktion</th>
             </tr>
           </thead>
           <tbody>
@@ -2096,6 +2203,11 @@ function NebenkostenausgleichSektion({
               const expanded = expandedRow === r.rowNumber;
               const kategorie = ermittleNebenkostenausgleichHinweis(r);
               const duplikat = pruefeNebenkostenausgleichDuplikat(bestehend, r.datum, r.betrag);
+              const bereitsAlsNichtKategorisiertGemerkt = pruefeAlsNichtKategorisiertGemerkt(
+                bestehendeNichtZugeordnet,
+                r.datum,
+                r.betrag,
+              );
               return (
                 <Fragment key={r.rowNumber}>
                   <tr
@@ -2165,14 +2277,27 @@ function NebenkostenausgleichSektion({
                         onClick={() => setExpandedRow(expanded ? null : r.rowNumber)}
                       />
                     </td>
+                    <td className="px-3 py-1.5">
+                      <NichtKategorisiertButton
+                        datum={r.datum}
+                        betrag={r.betrag}
+                        empfaenger={r.name}
+                        verwendungszweck={r.verwendungszweck}
+                        rohdaten={r.rohdaten}
+                        importBatchId={importBatchId}
+                        quelle="Nebenkostenausgleich"
+                        bereitsGemerkt={bereitsAlsNichtKategorisiertGemerkt}
+                        onParked={onCommitted}
+                      />
+                    </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={8} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={9} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
@@ -2221,6 +2346,7 @@ export default function KontoauszugImportPage() {
           bestehendeMietweiterleitungen: preview.bestehendeMietweiterleitungen,
           bestehendeKautionsbuchungen: preview.bestehendeKautionsbuchungen,
           bestehendeNebenkostenausgleich: preview.bestehendeNebenkostenausgleich,
+          bestehendeNichtZugeordnet: preview.bestehendeNichtZugeordnet,
         })
       : null;
 
@@ -2292,6 +2418,7 @@ export default function KontoauszugImportPage() {
             bestehendeZahlungenDatumBetragListe={bestehendeSets.bestehendeZahlungenDatumBetrag}
             bestehendeKostenListe={bestehendeSets.bestehendeKosten}
             bestehendeNebenkostenausgleichListe={bestehendeSets.bestehendeNebenkostenausgleich}
+            bestehendeNichtZugeordnetListe={bestehendeSets.bestehendeNichtZugeordnet}
             importBatchId={preview.importBatchId}
             onCommitted={refreshBestehendeSets}
           />
@@ -2306,6 +2433,7 @@ export default function KontoauszugImportPage() {
             bestehendeZahlungenListe={bestehendeSets.bestehendeZahlungenDatumBetrag}
             bestehendeKautionListe={bestehendeSets.bestehendeKautionsbuchungen}
             bestehendeNebenkostenausgleichListe={bestehendeSets.bestehendeNebenkostenausgleich}
+            bestehendeNichtZugeordnetListe={bestehendeSets.bestehendeNichtZugeordnet}
             importBatchId={preview.importBatchId}
             onCommitted={refreshBestehendeSets}
           />
@@ -2315,6 +2443,7 @@ export default function KontoauszugImportPage() {
             rows={preview.zahlungenRows}
             bestehendeListe={bestehendeSets.bestehendeMietweiterleitungen}
             bestehendeKostenListe={bestehendeSets.bestehendeKosten}
+            bestehendeNichtZugeordnetListe={bestehendeSets.bestehendeNichtZugeordnet}
             importBatchId={preview.importBatchId}
             onCommitted={refreshBestehendeSets}
           />
@@ -2324,6 +2453,7 @@ export default function KontoauszugImportPage() {
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
             bestehendeListe={bestehendeSets.bestehendeKautionsbuchungen}
+            bestehendeNichtZugeordnetListe={bestehendeSets.bestehendeNichtZugeordnet}
             importBatchId={preview.importBatchId}
             onCommitted={refreshBestehendeSets}
           />
@@ -2333,6 +2463,7 @@ export default function KontoauszugImportPage() {
             rows={preview.zahlungenRows}
             kandidaten={preview.mietvertragKandidaten}
             bestehendeListe={bestehendeSets.bestehendeNebenkostenausgleich}
+            bestehendeNichtZugeordnetListe={bestehendeSets.bestehendeNichtZugeordnet}
             importBatchId={preview.importBatchId}
             onCommitted={refreshBestehendeSets}
           />

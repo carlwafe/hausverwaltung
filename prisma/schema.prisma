@@ -553,6 +553,7 @@ model ImportBatch {
   eigentuemerbuchungen          EigentuemerBuchung[]
   kautionsbuchungen             KautionBuchung[]
   nebenkostenausgleichZahlungen NebenkostenausgleichZahlung[]
+  nichtZugeordneteBuchungen     NichtZugeordneteBuchung[]
 
   @@map("import_batches")
 }
@@ -658,4 +659,28 @@ model NebenkostenausgleichZahlung {
   @@index([mietvertragId])
   @@index([mietvertragId, jahr])
   @@map("nebenkostenausgleich_zahlungen")
+}
+
+// Eine beim Kontoauszug-Import bewusst noch nicht zugeordnete Buchung — der Nutzer konnte sie in
+// keiner der 5 Import-Sektionen sofort klar zuordnen (kein passender Mietvertrag/keine passende
+// Kostenart erkennbar) und hat sie stattdessen explizit "als nicht kategorisiert importieren"
+// markiert, statt sie unwiederbringlich aus dem Import-Wizard verschwinden zu lassen. Erscheint
+// als eigene Übersicht oben auf /kosten; "Zuordnen" legt daraus eine echte Kostenposition an und
+// löscht diese Zeile wieder (siehe ordneNichtZugeordneteBuchungZu in kosten/actions.ts).
+model NichtZugeordneteBuchung {
+  id               String       @id @default(cuid())
+  datum            DateTime
+  betrag           Decimal      @db.Decimal(10, 2)
+  empfaenger       String?
+  verwendungszweck String?
+  // Sektion, in der der Nutzer beim Import "als nicht kategorisiert importieren" geklickt hat
+  // (z.B. "Zahlungen", "Kosten") — rein informativ für die Übersicht, keine erzwungene Zuordnung.
+  quelle           String?
+  rohdaten         Json?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId    String?
+  createdAt        DateTime     @default(now())
+
+  @@index([datum, betrag])
+  @@map("nicht_zugeordnete_buchungen")
 }

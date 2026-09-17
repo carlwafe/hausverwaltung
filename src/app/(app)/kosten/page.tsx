@@ -1,13 +1,28 @@
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { KostenTable } from "./kosten-table";
-import { ladeKosten } from "./kosten-liste";
+import { ladeKosten, ladeNichtZugeordneteBuchungen } from "./kosten-liste";
+import { NichtZugeordneteBuchungenTable } from "./nicht-zugeordnete-buchungen-table";
+import { ladeEinheitenFuerAuswahl } from "./einheiten-liste";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
 export default async function KostenPage() {
-  const kosten = await ladeKosten();
+  const [kosten, nichtZugeordneteBuchungen, kostenarten, gebaeude, einheiten] = await Promise.all([
+    ladeKosten(),
+    ladeNichtZugeordneteBuchungen(),
+    prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
+    prisma.gebaeude.findMany({
+      orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
+      include: {
+        haus: { select: { id: true } },
+        kostengruppen: { select: { id: true, bezeichnung: true } },
+      },
+    }),
+    ladeEinheitenFuerAuswahl(),
+  ]);
   const summe = kosten.reduce((s, k) => s + k.betrag, 0);
   const summeUmlagefaehig = kosten.filter((k) => k.umlagefaehig).reduce((s, k) => s + k.betrag, 0);
   const summeNichtUmlagefaehig = summe - summeUmlagefaehig;
@@ -40,6 +55,13 @@ export default async function KostenPage() {
           </Link>
         </div>
       </div>
+
+      <NichtZugeordneteBuchungenTable
+        rows={nichtZugeordneteBuchungen}
+        kostenarten={kostenarten}
+        gebaeude={gebaeude}
+        einheiten={einheiten}
+      />
 
       <div className="mb-6 grid grid-cols-3 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">

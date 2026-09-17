@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import type { KostenpositionRow } from "./kosten-table";
+import type { NichtZugeordneteBuchungRow } from "./nicht-zugeordnete-buchungen-table";
 
 // Die einzigen Kostenarten, die Reparaturen/Sanierungs-/Modernisierungsarbeiten abbilden (siehe
 // Kostenarten-Verwaltung) — genutzt, um auf den Einheit-/Haus-/Gebäude-/Objekt-Seiten gezielt nur
@@ -46,5 +47,27 @@ export async function ladeKosten(where: {
     importDateiname: k.importBatch?.dateiname ?? null,
     aufteilungGruppeId: k.aufteilungGruppeId,
     virtuelleKautionBuchungId: k.virtuelleKautionBuchungId,
+  }));
+}
+
+// Beim Kontoauszug-Import bewusst als "nicht kategorisiert" geparkte Buchungen (siehe
+// parkeAlsNichtKategorisiert in kontoauszug/import/actions.ts) — werden oben auf /kosten zur
+// späteren Zuordnung angezeigt, unabhängig vom regulären Kostenpositionen-Bestand.
+export async function ladeNichtZugeordneteBuchungen(): Promise<NichtZugeordneteBuchungRow[]> {
+  const buchungen = await prisma.nichtZugeordneteBuchung.findMany({
+    orderBy: { datum: "desc" },
+    include: { importBatch: true },
+  });
+
+  return buchungen.map((b) => ({
+    id: b.id,
+    datum: b.datum.toISOString(),
+    betrag: Number(b.betrag),
+    empfaenger: b.empfaenger,
+    verwendungszweck: b.verwendungszweck,
+    quelle: b.quelle,
+    rohdaten: (b.rohdaten as Record<string, string> | null) ?? null,
+    importBatchId: b.importBatchId,
+    importDateiname: b.importBatch?.dateiname ?? null,
   }));
 }

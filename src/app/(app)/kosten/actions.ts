@@ -272,3 +272,64 @@ export async function hebeAufteilungAuf(positionId: string) {
   revalidatePath("/kosten");
   redirect("/kosten");
 }
+
+const nichtZugeordneteBuchungZuordnenSchema = z.object({
+  kostenartId: z.string().min(1, "Kostenart ist erforderlich"),
+  gebaeudeAuswahl: z.string().optional(),
+  jahr: z.coerce.number().int().min(2000).max(2100),
+});
+
+// Löst eine geparkte NichtZugeordneteBuchung (siehe kontoauszug/import/actions.ts,
+// parkeAlsNichtKategorisiert) auf: legt daraus eine echte Kostenposition an — Datum/Betrag/
+// Empfänger/Rohdaten/importBatchId werden 1:1 von der geparkten Buchung übernommen, nur
+// Kostenart/Gebäude/Jahr kommen aus dem Formular — und löscht danach die Parkplatz-Zeile.
+export async function ordneNichtZugeordneteBuchungZu(
+  id: string,
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireEditor();
+
+  const parsed = nichtZugeordneteBuchungZuordnenSchema.safeParse({
+    kostenartId: formData.get("kostenartId"),
+    gebaeudeAuswahl: formData.get("gebaeudeAuswahl") || undefined,
+    jahr: formData.get("jahr"),
+  });
+  if (!parsed.success) {
+    return parsed.error.issues.map((i) => i.message).join(", ");
+  }
+  const { kostenartId, gebaeudeAuswahl, jahr } = parsed.data;
+  const { gebaeudeId, hausId, kostengruppeId, einheitId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
+
+  const buchung = await prisma.nichtZugeordneteBuchung.findUnique({ where: { id } });
+  if (!buchung) return "Diese Buchung wurde bereits zugeordnet oder gelöscht.";
+
+  await prisma.$transaction([
+    prisma.kostenposition.create({
+      data: {
+        kostenartId,
+        gebaeudeId,
+        hausId,
+        kostengruppeId,
+        einheitId,
+        jahr,
+        datum: buchung.datum,
+        betrag: buchung.betrag,
+        empfaenger: buchung.empfaenger,
+        beschreibung: buchung.verwendungszweck,
+        rohdaten: buchung.rohdaten ?? undefined,
+        importBatchId: buchung.importBatchId,
+      },
+    }),
+    prisma.nichtZugeordneteBuchung.delete({ where: { id } }),
+  ]);
+
+  revalidatePath("/kosten");
+  return null;
+}
+
+export async function loescheNichtZugeordneteBuchung(id: string) {
+  await requireEditor();
+  await prisma.nichtZugeordneteBuchung.delete({ where: { id } });
+  revalidatePath("/kosten");
+}
