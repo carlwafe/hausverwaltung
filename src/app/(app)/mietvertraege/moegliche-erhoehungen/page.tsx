@@ -29,7 +29,8 @@ type Zeile = {
 
 async function ladeZeilen(): Promise<Zeile[]> {
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: "AKTIV" },
+    // Nur Wohnungen: bei Garagen ist unklar, ob überhaupt eine Indexmiete-Klausel vereinbart ist.
+    where: { status: "AKTIV", einheit: { typ: "WOHNUNG" } },
     include: {
       einheit: true,
       mieter: true,
@@ -75,7 +76,8 @@ export default async function MoeglicheErhoehungenPage() {
           Laut Indexmiete-Klausel (§ 557b BGB) muss die Miete seit der letzten Anpassung
           mindestens ein Jahr unverändert geblieben sein. Ausgangspunkt ist die letzte erfasste
           Mieterhöhung — oder, falls noch keine erfolgt ist, der Mietbeginn. Nur aktive
-          Mietverträge mit bekanntem Mietbeginn werden gezeigt.
+          Wohnungs-Mietverträge mit bekanntem Mietbeginn werden gezeigt — Garagen sind
+          ausgenommen, da unklar ist, ob dort überhaupt eine Indexmiete vereinbart ist.
         </p>
       </div>
 
