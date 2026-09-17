@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { periodenSummenAusZahlungen, erkenneMietwechsel, type ErkannterWechsel } from "@/lib/mieterhoehung-erkennung";
 import { ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "@/lib/soll-ist";
-import { erfasseMieterhoehung } from "../actions";
+import { erfasseMieterhoehung, neuBerechnenVorschlaege } from "../actions";
 import { VerwerfenToggle } from "./verwerfen-toggle";
 
 function formatEuro(value: number) {
@@ -131,13 +131,23 @@ export default async function MieterhoehungenVorschlaegePage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Mieterhöhungen-Vorschläge</h1>
-        <p className="text-sm text-neutral-400">
-          Automatisch aus der Zahlungshistorie erkannte, stabile Betrags-Änderungen — die
-          Aufschlüsselung zwischen Kaltmiete und NK-Vorauszahlung ist nur ein Vorschlag und sollte
-          vor dem Übernehmen geprüft werden.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Mieterhöhungen-Vorschläge</h1>
+          <p className="text-sm text-neutral-400">
+            Automatisch aus der Zahlungshistorie erkannte, stabile Betrags-Änderungen — die
+            Aufschlüsselung zwischen Kaltmiete und NK-Vorauszahlung ist nur ein Vorschlag und sollte
+            vor dem Übernehmen geprüft werden.
+          </p>
+        </div>
+        <form action={neuBerechnenVorschlaege}>
+          <button
+            type="submit"
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            Neu berechnen
+          </button>
+        </form>
       </div>
 
       <div className="mb-8">

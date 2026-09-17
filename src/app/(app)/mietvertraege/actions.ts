@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, requireUser } from "@/lib/session";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -250,5 +250,14 @@ export async function toggleMieterhoehungVorschlagVerworfen(mietvertragId: strin
     await prisma.mieterhoehungVorschlagVerworfen.create({ data: { mietvertragId, abJahr, abMonat } });
   }
 
+  revalidatePath("/mietvertraege/vorschlaege");
+}
+
+// Die Vorschlagsseite berechnet bei jedem Aufruf ohnehin frisch aus der aktuellen Zahlungshistorie
+// (siehe mieterhoehung-erkennung.ts) — dieser Button erzwingt nur den Router-Refresh, falls die
+// Seite z.B. nach einem frischen Kontoauszug-Import schon länger offen war. Kein Editor-Recht
+// nötig, da nichts verändert wird.
+export async function neuBerechnenVorschlaege() {
+  await requireUser();
   revalidatePath("/mietvertraege/vorschlaege");
 }
