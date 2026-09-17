@@ -5,11 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
-import { toDateInputValue } from "@/lib/date-utils";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import {
   deleteAbrechnung,
-  erfasseNebenkostenausgleichZahlungManuell,
   ladeBerechnungsdaten,
   ladeNebenkostenausgleichSummen,
   neuBerechnen,
@@ -268,13 +266,18 @@ export default async function NebenkostenabrechnungDetailPage({
       </div>
 
       <p className="mb-3 text-sm text-neutral-400">
-        Die Spalte &quot;Rückzahlung/Gutschrift&quot; zeigt die Summe der tatsächlich importierten/
-        erfassten Nebenkostenausgleich-Zahlungen für Mietvertrag und Jahr — stimmt sie mit dem Saldo
-        überein, gilt die Position als beglichen. Einzelne Zahlungen lassen sich unter{" "}
+        <strong className="text-neutral-300">Saldo</strong> = Vorauszahlung − Kostenanteil (positiv
+        = Guthaben, negativ = Nachzahlung).{" "}
+        <strong className="text-neutral-300">Rückzahlung/Gutschrift</strong> zeigt die Summe der
+        tatsächlich importierten/erfassten Nebenkostenausgleich-Zahlungen für Mietvertrag und Jahr
+        — die echte Kontobewegung, unabhängig vom berechneten Saldo. Einzelne Zahlungen lassen sich
+        unter{" "}
         <Link href="/nebenkostenausgleich" className="underline hover:text-white">
           Nebenkostenausgleich
         </Link>{" "}
-        einsehen und korrigieren.
+        einsehen und korrigieren. <strong className="text-neutral-300">Saldo nach Gutschrift</strong>{" "}
+        = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
+        ist, falls einer offen ist; ist er 0, gilt die Position als erledigt.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-neutral-800">
@@ -289,6 +292,7 @@ export default async function NebenkostenabrechnungDetailPage({
               <th className="px-4 py-2 text-right">Vorauszahlung</th>
               <th className="px-4 py-2 text-right">Saldo</th>
               <th className="px-4 py-2">Rückzahlung/Gutschrift</th>
+              <th className="px-4 py-2">Saldo nach Gutschrift</th>
             </tr>
           </thead>
           <tbody>
@@ -330,67 +334,42 @@ export default async function NebenkostenabrechnungDetailPage({
                   {formatEuro(Number(p.saldo))}
                   {Number(p.saldo) >= 0 ? " (Guthaben)" : " (Nachzahlung)"}
                 </td>
-                <td className="px-4 py-2 text-neutral-300">
-                  {(() => {
-                    const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
-                    if (!eintrag) {
-                      if (!p.mietvertragId) return <span className="text-neutral-500">–</span>;
-                      return (
-                        <form
-                          action={erfasseNebenkostenausgleichZahlungManuell}
-                          className="flex flex-wrap items-center gap-1"
-                        >
-                          <input type="hidden" name="mietvertragId" value={p.mietvertragId} />
-                          <input type="hidden" name="jahr" value={abrechnung.jahr} />
-                          <input
-                            type="date"
-                            name="datum"
-                            required
-                            defaultValue={toDateInputValue(new Date())}
-                            className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            name="betrag"
-                            required
-                            placeholder={formatEuro(Number(p.saldo))}
-                            className="w-24 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
-                          />
-                          <button
-                            type="submit"
-                            className="rounded-md border border-neutral-700 px-2 py-1 text-xs text-white hover:bg-neutral-900"
-                          >
-                            Erfassen
-                          </button>
-                        </form>
-                      );
-                    }
-                    const stimmtUeberein = Math.abs(eintrag.summe - Number(p.saldo)) < 0.01;
-                    return (
-                      <div>
-                        <span className={stimmtUeberein ? "text-green-400" : "text-amber-400"}>
-                          {formatEuro(eintrag.summe)}
-                        </span>
-                        <span className="ml-1 text-xs text-neutral-500">
-                          ({formatDate(eintrag.juengstesDatum)})
-                        </span>
-                        {stimmtUeberein ? (
-                          <span className="ml-2 rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">
-                            beglichen
+                {(() => {
+                  const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
+                  const gutschriftSumme = eintrag?.summe ?? 0;
+                  const saldoNachGutschrift = Number(p.saldo) - gutschriftSumme;
+                  const erledigt = Math.abs(saldoNachGutschrift) < 0.01;
+                  return (
+                    <>
+                      <td className="px-4 py-2 text-neutral-300">
+                        {eintrag ? (
+                          <>
+                            <span className="text-white">{formatEuro(eintrag.summe)}</span>
+                            <span className="ml-1 text-xs text-neutral-500">
+                              ({formatDate(eintrag.juengstesDatum)})
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-neutral-500">–</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-neutral-300">
+                        {erledigt ? (
+                          <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">
+                            erledigt
                           </span>
                         ) : (
-                          <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400">
-                            weicht von Saldo ab
+                          <span className={Number(saldoNachGutschrift) >= 0 ? "text-green-400" : "text-red-400"}>
+                            {formatEuro(saldoNachGutschrift)}
                           </span>
                         )}
-                      </div>
-                    );
-                  })()}
-                </td>
+                      </td>
+                    </>
+                  );
+                })()}
               </tr>
               <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
-                <td colSpan={8} className="px-4 py-2">
+                <td colSpan={9} className="px-4 py-2">
                   <details className="text-xs">
                     <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
                       Kostenanteil-Aufschlüsselung {details.length > 0 ? `(${details.length})` : ""}
@@ -447,7 +426,7 @@ export default async function NebenkostenabrechnungDetailPage({
             })}
             {abrechnung.positionen.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-neutral-500">
                   Keine Positionen vorhanden.
                 </td>
               </tr>
