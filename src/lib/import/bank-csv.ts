@@ -155,16 +155,20 @@ export const WASCHGELD_PATTERN = /waschgeld/i;
 // Sachbearbeiters, z.B. "Beriebskostenarechnung" — deshalb die verkürzten, tippfehlertoleranten
 // Fragmente "enkosten…rechnung"/"riebskosten…rechnung" statt der vollen Wörter), oder (z.B. bei
 // einer Ratenzahlung oder einem frei formulierten Klärungs-Verwendungszweck eines Mieters) nur
-// "BK Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt. Bei einer
-// größeren Sammelüberweisung (viele Buchungen an einem Tag, gleiche Sammlerreferenz) taucht
-// mitunter nur noch "Abrechnugsergebnis" (Tippfehler, fehlendes "n") ohne jeden Betriebs-/
-// Nebenkosten-Hinweis auf — reicht als eigenständiger Trigger, da dieses Geschäft nur eine Art
-// Abrechnung kennt (die jährliche Nebenkostenabrechnung). Weder Miete noch Kosten noch Kaution:
-// gehört gegen die passende offene NebenkostenabrechnungPosition abgeglichen (siehe
-// kontoauszug/import), nicht in Zahlung/Kostenposition — sonst verfälscht der Betrag dauerhaft
-// die Offene-Posten-Berechnung, die die tatsächliche Abrechnung nie einbezieht.
+// "BK Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt. Die
+// Toleranzlücke zwischen Fragment und "rechnung"/"nachzahlung" erlaubt auch einen Bindestrich
+// (z.B. "Betriebskosten-abrechnung", wie es die Sparkasse in ganzen Sammelüberweisungen so
+// schreibt) — ohne \- dort würde jede so benannte Buchung diesen Trigger verfehlen und
+// stattdessen fälschlich als normale Kosten-Buchung vorgeschlagen. Bei einer größeren
+// Sammelüberweisung (viele Buchungen an einem Tag, gleiche Sammlerreferenz) taucht mitunter nur
+// noch "Abrechnugsergebnis" (Tippfehler, fehlendes "n") ohne jeden Betriebs-/Nebenkosten-Hinweis
+// auf — reicht als eigenständiger Trigger, da dieses Geschäft nur eine Art Abrechnung kennt (die
+// jährliche Nebenkostenabrechnung). Weder Miete noch Kosten noch Kaution: gehört gegen die
+// passende offene NebenkostenabrechnungPosition abgeglichen (siehe kontoauszug/import), nicht in
+// Zahlung/Kostenposition — sonst verfälscht der Betrag dauerhaft die Offene-Posten-Berechnung,
+// die die tatsächliche Abrechnung nie einbezieht.
 export const NEBENKOSTENAUSGLEICH_PATTERN =
-  /bk[\s-]*abr|bk\s*nachzahlung|enkosten[\w\s]{0,3}rechnung|riebskosten[\w\s]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
+  /bk[\s-]*abr|bk\s*nachzahlung|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
 
 // Eine Kleinreparatur, die laut Mietvertrag vom Mieter direkt getragen wird: der Vermieter zahlt
 // zunächst die Handwerkerrechnung (normale ausgehende Kostenposition unter "Reparaturen"), der
