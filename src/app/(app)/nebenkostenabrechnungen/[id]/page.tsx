@@ -11,7 +11,6 @@ import {
   deleteAbrechnung,
   ladeBerechnungsdaten,
   ladeNebenkostenausgleichSummen,
-  loeschePosition,
   neuBerechnen,
   setAbrechnungStatus,
 } from "../actions";
@@ -431,13 +430,6 @@ export default async function NebenkostenabrechnungDetailPage({
                       initialVorauszahlung={Number(p.vorauszahlungGesamt)}
                     />
                   )}
-                  <div className="mt-2">
-                    <DeleteButton
-                      action={loeschePosition.bind(null, p.id)}
-                      confirmText="Position wirklich löschen?"
-                      label="Position löschen"
-                    />
-                  </div>
                 </td>
               </tr>
               </Fragment>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { bearbeitePosition } from "./actions";
+import { DeleteButton } from "@/components/delete-button";
+import { bearbeitePosition, loeschePosition } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -102,6 +103,12 @@ export function PositionBearbeitenForm({
         >
           {pending ? "Speichere…" : "Speichern"}
         </button>
+        <DeleteButton
+          action={loeschePosition.bind(null, positionId)}
+          confirmText="Position wirklich löschen?"
+          label="Position löschen"
+          size="sm"
+        />
         {fehler && <p className="w-full text-red-400">{fehler}</p>}
       </form>
     </details>
