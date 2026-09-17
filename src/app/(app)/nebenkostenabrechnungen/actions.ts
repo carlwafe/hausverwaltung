@@ -154,12 +154,11 @@ export async function erstelleLeereAbrechnung(formData: FormData) {
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
 
-// Trägt eine einzelne Position von Hand ein, ohne dass kostenanteilGesamt/vorauszahlungGesamt
-// unabhängig korrekt sein müssen — für eine Abrechnung, deren zugrundeliegende Kostendaten zu
-// unvollständig sind, um die eigentliche Berechnung (berechneNebenkostenabrechnung) sinnvoll
-// laufen zu lassen. saldo ist hier die einzige verlässliche, direkt vom Nutzer eingegebene
-// Zahl — kostenanteilGesamt/vorauszahlungGesamt werden nur so gesetzt, dass ihre Differenz
-// rechnerisch zu saldo passt (0 bzw. -saldo), nicht weil sie echte Kostenanteile darstellen.
+// Trägt eine einzelne Position von Hand ein — für eine Abrechnung, deren zugrundeliegende
+// Kostendaten zu unvollständig sind, um die eigentliche Berechnung
+// (berechneNebenkostenabrechnung) sinnvoll laufen zu lassen. kostenanteilGesamt und
+// vorauszahlungGesamt werden direkt vom Nutzer eingegeben, saldo wird daraus berechnet
+// (vorauszahlungGesamt - kostenanteilGesamt), genau wie bei einer normal berechneten Position.
 export async function fuegePositionManuellHinzu(
   abrechnungId: string,
   _prev: string | null,
@@ -170,14 +169,18 @@ export async function fuegePositionManuellHinzu(
   const mietvertragId = formData.get("mietvertragId");
   const zeitraumVon = formData.get("zeitraumVon");
   const zeitraumBis = formData.get("zeitraumBis");
-  const saldoRaw = formData.get("saldo");
+  const kostenanteilRaw = formData.get("kostenanteil");
+  const vorauszahlungRaw = formData.get("vorauszahlung");
 
   if (typeof mietvertragId !== "string" || !mietvertragId) return "Bitte einen Mietvertrag wählen.";
   if (typeof zeitraumVon !== "string" || !zeitraumVon || typeof zeitraumBis !== "string" || !zeitraumBis) {
     return "Zeitraum ist erforderlich.";
   }
-  const saldo = typeof saldoRaw === "string" ? Number(saldoRaw.replace(",", ".")) : NaN;
-  if (!Number.isFinite(saldo)) return "Ungültiger Saldo.";
+  const kostenanteil = typeof kostenanteilRaw === "string" ? Number(kostenanteilRaw.replace(",", ".")) : NaN;
+  if (!Number.isFinite(kostenanteil)) return "Ungültiger Kostenanteil.";
+  const vorauszahlung = typeof vorauszahlungRaw === "string" ? Number(vorauszahlungRaw.replace(",", ".")) : NaN;
+  if (!Number.isFinite(vorauszahlung)) return "Ungültige Vorauszahlung.";
+  const saldo = vorauszahlung - kostenanteil;
 
   const mietvertrag = await prisma.mietvertrag.findUnique({
     where: { id: mietvertragId },
@@ -193,8 +196,8 @@ export async function fuegePositionManuellHinzu(
         mietvertragId,
         zeitraumVon: new Date(zeitraumVon),
         zeitraumBis: new Date(zeitraumBis),
-        kostenanteilGesamt: -saldo,
-        vorauszahlungGesamt: 0,
+        kostenanteilGesamt: kostenanteil,
+        vorauszahlungGesamt: vorauszahlung,
         saldo,
       },
     });

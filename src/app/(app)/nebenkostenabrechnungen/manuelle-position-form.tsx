@@ -5,12 +5,22 @@ import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { toDateInputValue } from "@/lib/date-utils";
 import { fuegePositionManuellHinzu } from "./actions";
 
+function formatEuro(value: number) {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
+}
+
+function parseKommaBetrag(text: string): number {
+  const bereinigt = text.trim().replace(",", ".");
+  const wert = Number(bereinigt);
+  return Number.isFinite(wert) ? wert : 0;
+}
+
 /**
  * Für Jahre mit unvollständigen/unzuverlässigen Kostendaten (z.B. 2024), wo die eigentliche
  * Berechnung (berechneNebenkostenabrechnung) keine sinnvollen Kostenanteile liefern kann — trägt
- * direkt den Saldo (Guthaben/Nachzahlung) ein, ohne dass Kostenanteil/Vorauszahlung einzeln
- * korrekt sein müssen. Absichtlich hinter einem eingeklappten Link versteckt, analog zum
- * Aufteilen einer Kostenposition — ein seltener Sonderfall, der die normale Ansicht nicht
+ * Kostenanteil und Vorauszahlung direkt ein, der Saldo wird daraus berechnet (wie überall sonst:
+ * Vorauszahlung - Kostenanteil). Absichtlich hinter einem eingeklappten Link versteckt, analog
+ * zum Aufteilen einer Kostenposition — ein seltener Sonderfall, der die normale Ansicht nicht
  * zumüllen soll.
  */
 export function ManuellePositionForm({
@@ -24,8 +34,12 @@ export function ManuellePositionForm({
 }) {
   const [offen, setOffen] = useState(false);
   const [mietvertragId, setMietvertragId] = useState("");
+  const [kostenanteil, setKostenanteil] = useState("");
+  const [vorauszahlung, setVorauszahlung] = useState("");
   const action = fuegePositionManuellHinzu.bind(null, abrechnungId);
   const [fehler, formAction, pending] = useActionState(action, null);
+
+  const saldo = parseKommaBetrag(vorauszahlung) - parseKommaBetrag(kostenanteil);
 
   if (!offen) {
     return (
@@ -43,8 +57,8 @@ export function ManuellePositionForm({
     <div className="mt-4 rounded-lg border border-neutral-800 p-4">
       <p className="mb-3 text-sm font-medium text-white">Position manuell hinzufügen</p>
       <p className="mb-3 text-xs text-neutral-500">
-        Nur der Saldo (Guthaben/Nachzahlung) ist hier verlässlich — Kostenanteil und
-        Vorauszahlung werden nicht einzeln berechnet.
+        Kostenanteil und Vorauszahlung werden direkt eingetragen — der Saldo ergibt sich daraus
+        (Vorauszahlung − Kostenanteil), genau wie bei einer automatisch berechneten Position.
       </p>
       <form action={formAction} className="space-y-3">
         <input type="hidden" name="mietvertragId" value={mietvertragId} />
@@ -58,7 +72,7 @@ export function ManuellePositionForm({
             size="md"
           />
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs text-neutral-400">Zeitraum von</label>
             <input
@@ -80,17 +94,36 @@ export function ManuellePositionForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-neutral-400">
-              Saldo (€, positiv = Guthaben)
-            </label>
+            <label className="mb-1 block text-xs text-neutral-400">Kostenanteil</label>
             <input
               type="text"
               inputMode="decimal"
-              name="saldo"
+              name="kostenanteil"
               required
-              placeholder="-150,00"
-              className="w-32 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+              value={kostenanteil}
+              onChange={(e) => setKostenanteil(e.target.value)}
+              placeholder="0,00"
+              className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">Vorauszahlung</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              name="vorauszahlung"
+              required
+              value={vorauszahlung}
+              onChange={(e) => setVorauszahlung(e.target.value)}
+              placeholder="0,00"
+              className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-xs text-neutral-400">Saldo</p>
+            <p className={`px-2 py-1.5 text-sm font-medium ${saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {formatEuro(saldo)}
+            </p>
           </div>
         </div>
 
