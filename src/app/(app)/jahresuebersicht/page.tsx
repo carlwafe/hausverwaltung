@@ -276,8 +276,10 @@ export default async function JahresuebersichtPage({
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
         <p className="mb-3 text-sm text-neutral-400">
-          Saldo neu = Saldo alt − Soll + Miete + Nebenkostenabrechnung offen (Vorjahr). Negativer
-          Saldo = Rückstand, positiver Saldo = Guthaben/Vorauszahlung. &bdquo;Nebenkostenabrechnung
+          Saldo neu = Saldo alt − Soll + Miete + Nebenkostenabrechnung offen (Vorjahr), wobei Soll =
+          Soll Kaltmiete + Soll Nebenkosten (letztere Spalte zeigt bei Garagen die Mehrwertsteuer
+          statt Nebenkosten). Negativer Saldo = Rückstand, positiver Saldo = Guthaben/
+          Vorauszahlung. &bdquo;Nebenkostenabrechnung
           offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
           Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
           in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
@@ -298,7 +300,8 @@ export default async function JahresuebersichtPage({
               <tr className="border-b border-neutral-800 text-left text-xs text-neutral-400">
                 <th className="px-4 py-2">Mietvertrag</th>
                 <th className="px-4 py-2 text-right">Saldo alt</th>
-                <th className="px-4 py-2 text-right">Soll</th>
+                <th className="px-4 py-2 text-right">Soll Kaltmiete</th>
+                <th className="px-4 py-2 text-right">Soll Nebenkosten</th>
                 <th className="px-4 py-2 text-right">Miete</th>
                 <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen (Vorjahr)</th>
                 <th className="px-4 py-2 text-right">Saldo neu</th>
@@ -318,7 +321,8 @@ export default async function JahresuebersichtPage({
                   <td className={`px-4 py-2 text-right ${z.saldoAlt < 0 ? "text-red-400" : "text-neutral-300"}`}>
                     {formatEuro(z.saldoAlt)}
                   </td>
-                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.soll)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.sollKaltmiete)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.sollNebenkosten)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.miete)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">
                     {z.nebenkostenabrechnungOffen ? formatEuro(z.nebenkostenabrechnungOffen) : "–"}
@@ -339,7 +343,7 @@ export default async function JahresuebersichtPage({
               ))}
               {mieterZeilen.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-4 text-center text-neutral-500">
+                  <td colSpan={8} className="px-4 py-4 text-center text-neutral-500">
                     Keine Mietverträge mit Bewegung in {jahr}.
                   </td>
                 </tr>
@@ -353,7 +357,10 @@ export default async function JahresuebersichtPage({
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoAlt, 0))}
                   </td>
                   <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.soll, 0))}
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.sollKaltmiete, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.sollNebenkosten, 0))}
                   </td>
                   <td className="px-4 py-2 text-right text-white">
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.miete, 0))}

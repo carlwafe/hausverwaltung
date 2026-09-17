@@ -50,6 +50,10 @@ export type SollZeile = {
   monat: number; // 1-12
   faelligAm: Date;
   betrag: number;
+  // Kaltmiete-Anteil von betrag — für Aufschlüsselungen, die Kaltmiete getrennt von
+  // Nebenkosten/Mehrwertsteuer zeigen wollen (z.B. der Mieter-Jahresbericht). Der
+  // Nebenkosten-Anteil (inkl. ggf. Mehrwertsteuer bei Garagen) ergibt sich als betrag - kaltmiete.
+  kaltmiete: number;
 };
 
 /** Der dritte Werktag (Mo–Fr) eines Monats — üblicher vertraglicher Fälligkeitstermin für Miete. */
@@ -110,6 +114,7 @@ export function sollAufschluesselung(
       monat,
       faelligAm: dritterWerktagDesMonats(jahr, monat - 1),
       betrag: kaltmiete + nebenkostenVorauszahlung + (vertrag.mehrwertsteuer ?? 0),
+      kaltmiete,
     });
     monat++;
     if (monat > 12) {
@@ -135,6 +140,16 @@ export function berechneSoll(
   buchhaltungAb: Date | null = null,
 ): number {
   return sollAufschluesselung(vertrag, heute, buchhaltungAb).reduce((sum, z) => sum + z.betrag, 0);
+}
+
+/** Wie berechneSoll, aber nur der Kaltmiete-Anteil — für Aufschlüsselungen, die Kaltmiete
+ * getrennt von Nebenkosten zeigen (siehe SollZeile.kaltmiete). */
+export function berechneSollKaltmiete(
+  vertrag: MietvertragFuerSollIst,
+  heute: Date = new Date(),
+  buchhaltungAb: Date | null = null,
+): number {
+  return sollAufschluesselung(vertrag, heute, buchhaltungAb).reduce((sum, z) => sum + z.kaltmiete, 0);
 }
 
 /**
