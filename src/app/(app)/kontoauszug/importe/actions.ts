@@ -26,13 +26,20 @@ export async function pruefeImportVollstaendigkeit(
   // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
   // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
   // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.
-  const [alleZahlungen, alleKosten, alleMietweiterleitungen, alleKautionsbuchungen, alleSonstigenBuchungen] =
-    await Promise.all([
+  const [
+    alleZahlungen,
+    alleKosten,
+    alleMietweiterleitungen,
+    alleKautionsbuchungen,
+    alleSonstigenBuchungen,
+    alleNichtZugeordneten,
+  ] = await Promise.all([
       prisma.zahlung.findMany({ select: { rohdaten: true } }),
       prisma.kostenposition.findMany({ select: { rohdaten: true } }),
       prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
       prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
       prisma.nebenkostenausgleichZahlung.findMany({ select: { rohdaten: true } }),
+      prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
     ]);
   const zahlung = new Set(
     alleZahlungen
@@ -59,6 +66,11 @@ export async function pruefeImportVollstaendigkeit(
       .map((s) => zeilenSchluesselAusRohdaten(s.rohdaten))
       .filter((s): s is string => s !== null),
   );
+  const nichtZugeordnet = new Set(
+    alleNichtZugeordneten
+      .map((n) => zeilenSchluesselAusRohdaten(n.rohdaten))
+      .filter((s): s is string => s !== null),
+  );
 
   return pruefeVollstaendigkeit(inhalt, batch.dateiname, {
     zahlung,
@@ -66,6 +78,7 @@ export async function pruefeImportVollstaendigkeit(
     mietweiterleitung,
     kautionsbuchung,
     sonstige,
+    nichtZugeordnet,
   });
 }
 
@@ -80,6 +93,10 @@ export async function raeumeVerwaisteImporteAuf(): Promise<void> {
       eigentuemerbuchungen: { none: {} },
       kautionsbuchungen: { none: {} },
       nebenkostenausgleichZahlungen: { none: {} },
+      // Ein Batch, aus dem nur geparkte (noch nicht kategorisierte) Buchungen entstanden sind,
+      // gilt nicht als verwaist — die Originaldatei wird für deren Rohdaten-Download noch
+      // gebraucht (siehe NichtZugeordneteBuchung).
+      nichtZugeordneteBuchungen: { none: {} },
     },
     select: { id: true, speicherpfad: true },
   });

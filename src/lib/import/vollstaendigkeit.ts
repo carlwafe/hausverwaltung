@@ -1,8 +1,9 @@
 // Prüft für eine gespeicherte Kontoauszug-Datei, ob wirklich jede Zeile irgendwo im System
 // gelandet ist — als Zahlung, als Kostenposition, als Mietweiterleitung (EigentuemerBuchung),
-// als Kautionsbuchung, als sonstige (bewusst nicht weiter verfolgte) Buchung, oder als (im
-// Import sichtbare) Fehlerzeile. Was übrig bleibt, ist eine Zeile, die weder importiert noch
-// anderweitig erklärt ist und manuell nachgesehen werden sollte.
+// als Kautionsbuchung, als sonstige (bewusst nicht weiter verfolgte) Buchung, als bewusst
+// geparkte, noch nicht kategorisierte Buchung (NichtZugeordneteBuchung), oder als (im Import
+// sichtbare) Fehlerzeile. Was übrig bleibt, ist eine Zeile, die weder importiert noch anderweitig
+// erklärt ist und manuell nachgesehen werden sollte.
 import { parseSpreadsheetFile } from "./spreadsheet";
 import { findeKontoauszugSpalten, leseBetrag, parseGermanDate, repariereMojibake } from "./bank-csv";
 
@@ -38,6 +39,12 @@ export type VollstaendigkeitsErgebnis = {
   alsMietweiterleitungGefunden: number;
   alsKautionsbuchungGefunden: number;
   alsSonstigesGefunden: number;
+  // Bewusst als "erklärt" gezählt, nicht als "ungeklärt" — der Nutzer hat sich aktiv entschieden,
+  // die Zeile (noch) nicht zuzuordnen, statt sie zu übersehen (siehe NichtZugeordneteBuchung).
+  // Wird die Zeile später zugeordnet, taucht sie stattdessen unter alsKostenGefunden auf (die
+  // entstandene Kostenposition übernimmt dieselben Rohdaten); wird sie stattdessen gelöscht, ohne
+  // zugeordnet zu werden, verschwindet sie aus keinem der Sets mehr und gilt wieder als ungeklärt.
+  alsNichtZugeordnetGefunden: number;
   fehlerzeilen: number;
   ungeklaert: UngeklaerteZeile[];
   doppelteBuchungen: DoppelteBuchung[];
@@ -83,6 +90,7 @@ export async function pruefeVollstaendigkeit(
     mietweiterleitung: Set<string>;
     kautionsbuchung: Set<string>;
     sonstige: Set<string>;
+    nichtZugeordnet: Set<string>;
   },
 ): Promise<VollstaendigkeitsErgebnis> {
   const file = new File([new Uint8Array(dateiInhalt)], dateiname);
@@ -94,6 +102,7 @@ export async function pruefeVollstaendigkeit(
   let alsMietweiterleitungGefunden = 0;
   let alsKautionsbuchungGefunden = 0;
   let alsSonstigesGefunden = 0;
+  let alsNichtZugeordnetGefunden = 0;
   let fehlerzeilen = 0;
   const ungeklaert: UngeklaerteZeile[] = [];
   const doppelteBuchungen: DoppelteBuchung[] = [];
@@ -115,6 +124,7 @@ export async function pruefeVollstaendigkeit(
     if (bekannteSchluessel.mietweiterleitung.has(schluessel)) gefundenIn.push("Mietweiterleitung");
     if (bekannteSchluessel.kautionsbuchung.has(schluessel)) gefundenIn.push("Kautionsbuchung");
     if (bekannteSchluessel.sonstige.has(schluessel)) gefundenIn.push("Sonstige Buchung");
+    if (bekannteSchluessel.nichtZugeordnet.has(schluessel)) gefundenIn.push("Nicht kategorisiert (geparkt)");
 
     const datum = spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null;
     const betrag = leseBetrag(row, spalten);
@@ -124,6 +134,7 @@ export async function pruefeVollstaendigkeit(
     if (gefundenIn.includes("Mietweiterleitung")) alsMietweiterleitungGefunden++;
     if (gefundenIn.includes("Kautionsbuchung")) alsKautionsbuchungGefunden++;
     if (gefundenIn.includes("Sonstige Buchung")) alsSonstigesGefunden++;
+    if (gefundenIn.includes("Nicht kategorisiert (geparkt)")) alsNichtZugeordnetGefunden++;
 
     const name = spalten.nameCol ? (row[spalten.nameCol] ?? "").trim() : "";
     const verwendungszweck = spalten.zweckCol ? (row[spalten.zweckCol] ?? "").trim() : "";
@@ -142,6 +153,7 @@ export async function pruefeVollstaendigkeit(
     alsMietweiterleitungGefunden,
     alsKautionsbuchungGefunden,
     alsSonstigesGefunden,
+    alsNichtZugeordnetGefunden,
     fehlerzeilen,
     ungeklaert,
     doppelteBuchungen,
