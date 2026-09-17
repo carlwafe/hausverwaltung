@@ -68,6 +68,7 @@ const columns: Column<ZahlungRow>[] = [
     label: "Einheit",
     sortValue: (z) => z.einheitBezeichnung,
     searchValue: (z) => z.einheitBezeichnung,
+    className: "whitespace-nowrap",
     render: (z) => (
       <span>
         <Link href={`/mietvertraege/${z.mietvertragId}`} className="font-medium hover:underline">
@@ -108,7 +109,14 @@ const columns: Column<ZahlungRow>[] = [
     label: "Verwendungszweck",
     sortValue: (z) => z.verwendungszweck ?? "",
     searchValue: (z) => z.verwendungszweck ?? "",
-    render: (z) => z.verwendungszweck || "–",
+    // Freitext, teils sehr lang — ohne Begrenzung drängt diese Spalte alle anderen (v.a. Einheit)
+    // beim Rendern aller Zahlungen zusammen. Volltext bleibt per title-Tooltip und auf der
+    // Zahlungs-Detailseite einsehbar.
+    render: (z) => (
+      <span className="block max-w-xs truncate" title={z.verwendungszweck ?? undefined}>
+        {z.verwendungszweck || "–"}
+      </span>
+    ),
   },
   {
     key: "quelle",
