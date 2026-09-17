@@ -5,15 +5,18 @@ import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
+import { toDateInputValue } from "@/lib/date-utils";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import {
   deleteAbrechnung,
   ladeBerechnungsdaten,
   ladeNebenkostenausgleichSummen,
+  loeschePosition,
   neuBerechnen,
   setAbrechnungStatus,
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
+import { PositionBearbeitenForm } from "../position-bearbeiten-form";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile } from "../vorverteilte-kostenanteile-form";
 
 function formatEuro(value: number) {
@@ -419,6 +422,22 @@ export default async function NebenkostenabrechnungDetailPage({
                       </div>
                     )}
                   </details>
+                  {p.mietvertragId && (
+                    <PositionBearbeitenForm
+                      positionId={p.id}
+                      initialZeitraumVon={toDateInputValue(p.zeitraumVon)}
+                      initialZeitraumBis={toDateInputValue(p.zeitraumBis)}
+                      initialKostenanteil={Number(p.kostenanteilGesamt)}
+                      initialVorauszahlung={Number(p.vorauszahlungGesamt)}
+                    />
+                  )}
+                  <div className="mt-2">
+                    <DeleteButton
+                      action={loeschePosition.bind(null, p.id)}
+                      confirmText="Position wirklich löschen?"
+                      label="Position löschen"
+                    />
+                  </div>
                 </td>
               </tr>
               </Fragment>

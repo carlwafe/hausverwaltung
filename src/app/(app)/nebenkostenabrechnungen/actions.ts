@@ -212,6 +212,54 @@ export async function fuegePositionManuellHinzu(
   return null;
 }
 
+// Bearbeitet eine einzelne, bereits bestehende Position — egal ob ursprünglich manuell erfasst
+// oder berechnet (ein erneutes "Neu berechnen" würde eine berechnete Position ohnehin wieder
+// überschreiben, ein manueller Zwischen-Edit stört das nicht). Gleiches Eingabeschema wie
+// fuegePositionManuellHinzu: kostenanteilGesamt/vorauszahlungGesamt direkt, saldo daraus berechnet.
+export async function bearbeitePosition(
+  positionId: string,
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireEditor();
+
+  const zeitraumVon = formData.get("zeitraumVon");
+  const zeitraumBis = formData.get("zeitraumBis");
+  const kostenanteilRaw = formData.get("kostenanteil");
+  const vorauszahlungRaw = formData.get("vorauszahlung");
+
+  if (typeof zeitraumVon !== "string" || !zeitraumVon || typeof zeitraumBis !== "string" || !zeitraumBis) {
+    return "Zeitraum ist erforderlich.";
+  }
+  const kostenanteil = typeof kostenanteilRaw === "string" ? Number(kostenanteilRaw.replace(",", ".")) : NaN;
+  if (!Number.isFinite(kostenanteil)) return "Ungültiger Kostenanteil.";
+  const vorauszahlung = typeof vorauszahlungRaw === "string" ? Number(vorauszahlungRaw.replace(",", ".")) : NaN;
+  if (!Number.isFinite(vorauszahlung)) return "Ungültige Vorauszahlung.";
+  const saldo = vorauszahlung - kostenanteil;
+
+  const position = await prisma.nebenkostenabrechnungPosition.update({
+    where: { id: positionId },
+    data: {
+      zeitraumVon: new Date(zeitraumVon),
+      zeitraumBis: new Date(zeitraumBis),
+      kostenanteilGesamt: kostenanteil,
+      vorauszahlungGesamt: vorauszahlung,
+      saldo,
+    },
+  });
+
+  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
+  return null;
+}
+
+// Löscht eine einzelne Position (z.B. eine versehentlich manuell angelegte) — im Unterschied zu
+// deleteAbrechnung, das die ganze Abrechnung samt aller Positionen löscht.
+export async function loeschePosition(positionId: string) {
+  await requireEditor();
+  const position = await prisma.nebenkostenabrechnungPosition.delete({ where: { id: positionId } });
+  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
+}
+
 // Gebündelte Summe je Mietvertrag für ein Abrechnungsjahr aus dem NebenkostenausgleichZahlung-
 // Archiv — die einzige Quelle für den "Rückzahlung/Gutschrift"-Status auf der Detailseite, statt
 // eines separat gepflegten Felds auf der Position. Vorzeichen gedreht (wie überall in diesem
