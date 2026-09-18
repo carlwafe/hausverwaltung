@@ -4,15 +4,33 @@
 // IDs werden 1:1 übernommen (cuid-Kollisionsrisiko über verschiedene Quelltabellen hinweg
 // praktisch null) — dadurch bleiben aufteilungGruppeId-Korrelationen und Dokument-Verknüpfungen
 // ohne separate ID-Mapping-Tabelle gültig.
-import { Client as PgClient } from "pg";
+import { Client as PgClient, types } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./src/generated/prisma/client";
+
+// node-postgres interpretiert "timestamp without time zone"-Spalten standardmäßig als lokale Zeit
+// und liefert ein auf UTC verschobenes Date-Objekt zurück — Prisma behandelt dieselben Spalten
+// dagegen als naive, unveränderte Textwerte. Ohne diesen Fix verschiebt sich jeder migrierte
+// Zeitstempel um den lokalen UTC-Offset (1-2h), was bei den hier durchgängig auf Mitternacht
+// liegenden datum-Werten praktisch jede Buchung einen Kalendertag zu früh einordnet (beim ersten
+// Lauf dieses Skripts passiert und erst nachträglich per scripts-tmp-fix-timezone-shift.ts
+// korrigiert — dieser Fix hier verhindert, dass ein künftiger Lauf denselben Fehler wiederholt).
+types.setTypeParser(1114, (val: string) => val);
 
 const OLD_DATABASE_URL =
   "postgresql://mietverwaltung:fbf02f42f7f5a3e9883a28e060ed7fc8@localhost:5432/mietverwaltung_eutin";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
+
+// Rohstring (aus dem type parser oben) als exakt denselben literalen Zeitpunkt, als UTC
+// interpretiert, neu konstruieren — dieselbe Konvention, die Prisma für @db.Timestamp-Felder
+// selbst verwendet, damit der Text 1:1 erhalten bleibt.
+function parseTs(raw: unknown): Date | null {
+  if (raw === null || raw === undefined) return null;
+  if (raw instanceof Date) return raw;
+  return new Date(String(raw).replace(" ", "T") + "Z");
+}
 
 type BuchungsartSeed = {
   code: string;
@@ -120,7 +138,7 @@ async function main() {
           id: z.id,
           mietvertragId: z.mietvertragId,
           buchungsartId: buchungsartId.get("MIETZAHLUNG")!,
-          datum: z.datum,
+          datum: parseTs(z.datum)!,
           betrag: z.betrag,
           periodeMonat: z.periodeMonat,
           periodeJahr: z.periodeJahr,
@@ -128,7 +146,7 @@ async function main() {
           rohdaten: z.rohdaten,
           importBatchId: z.importBatchId,
           aufteilungGruppeId: z.aufteilungGruppeId,
-          erstelltAm: z.createdAt,
+          erstelltAm: parseTs(z.createdAt)!,
         },
       });
     }
@@ -149,14 +167,14 @@ async function main() {
           kostengruppeId: k.kostengruppeId,
           einheitId: k.einheitId,
           jahr: k.jahr,
-          datum: k.datum,
+          datum: parseTs(k.datum)!,
           betrag: k.betrag,
           verwendungszweck: k.beschreibung,
           empfaenger: k.empfaenger,
           rohdaten: k.rohdaten,
           importBatchId: k.importBatchId,
           aufteilungGruppeId: k.aufteilungGruppeId,
-          erstelltAm: k.createdAt,
+          erstelltAm: parseTs(k.createdAt)!,
           // virtuelleKautionBuchungId wird erst in Schritt 6 (nach der Kaution-Migration)
           // nachgetragen, siehe unten.
         },
@@ -173,13 +191,13 @@ async function main() {
         data: {
           id: e.id,
           buchungsartId: buchungsartId.get("MIETWEITERLEITUNG")!,
-          datum: e.datum,
+          datum: parseTs(e.datum)!,
           betrag: e.betrag,
           empfaenger: e.empfaenger,
           verwendungszweck: e.verwendungszweck,
           rohdaten: e.rohdaten,
           importBatchId: e.importBatchId,
-          erstelltAm: e.createdAt,
+          erstelltAm: parseTs(e.createdAt)!,
         },
       });
     }
@@ -203,13 +221,13 @@ async function main() {
           id: k.id,
           mietvertragId: k.mietvertragId,
           buchungsartId: buchungsartId.get(kategorieZuCode[k.kategorie])!,
-          datum: k.datum,
+          datum: parseTs(k.datum)!,
           betrag: k.betrag,
           empfaenger: k.empfaenger,
           verwendungszweck: k.verwendungszweck,
           rohdaten: k.rohdaten,
           importBatchId: k.importBatchId,
-          erstelltAm: k.createdAt,
+          erstelltAm: parseTs(k.createdAt)!,
         },
       });
     }
@@ -239,13 +257,13 @@ async function main() {
           mietvertragId: n.mietvertragId,
           buchungsartId: buchungsartId.get("NEBENKOSTENAUSGLEICH")!,
           jahr: n.jahr,
-          datum: n.datum,
+          datum: parseTs(n.datum)!,
           betrag: n.betrag,
           empfaenger: n.empfaenger,
           verwendungszweck: n.verwendungszweck,
           rohdaten: n.rohdaten,
           importBatchId: n.importBatchId,
-          erstelltAm: n.createdAt,
+          erstelltAm: parseTs(n.createdAt)!,
         },
       });
     }
@@ -267,7 +285,7 @@ async function main() {
           buchungId: d.kostenpositionId,
           einheitId: d.einheitId,
           hochgeladenVon: d.hochgeladenVon,
-          createdAt: d.createdAt,
+          createdAt: parseTs(d.createdAt)!,
         },
       });
     }
