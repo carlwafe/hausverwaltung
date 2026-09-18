@@ -17,6 +17,9 @@ export type KostenartRow = {
   name: string;
   umlagefaehig: boolean;
   standardVerteilerschluessel: string | null;
+  betrKvNummer: number | null;
+  istSonstigeBetriebskosten: boolean;
+  vertraglicheGrundlage: string | null;
   anzahlPositionen: number;
 };
 
@@ -55,6 +58,27 @@ const columns: Column<KostenartRow>[] = [
     label: "Kostenpositionen",
     sortValue: (k) => k.anzahlPositionen,
     render: (k) => k.anzahlPositionen,
+  },
+  {
+    key: "betrKv",
+    label: "BetrKV-Nr.",
+    sortValue: (k) => k.betrKvNummer ?? (k.istSonstigeBetriebskosten ? 17 : 0),
+    render: (k) => {
+      if (k.istSonstigeBetriebskosten) {
+        const fehlendeGrundlage = k.umlagefaehig && !k.vertraglicheGrundlage?.trim();
+        return fehlendeGrundlage ? (
+          <span
+            className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
+            title="Vertragliche Grundlage fehlt — Umlage dieser Position ist rechtlich angreifbar"
+          >
+            17 — Nachweis fehlt
+          </span>
+        ) : (
+          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">17 — belegt</span>
+        );
+      }
+      return k.betrKvNummer ?? "–";
+    },
   },
 ];
 

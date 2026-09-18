@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { VerifikationsStern } from "./verifikations-stern";
 import { berechneMieterJahresbericht, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
+import { kontostandAmStichtag } from "@/lib/kontostand";
+import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-form";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -12,53 +16,76 @@ async function ladeJahresuebersicht(jahr: number) {
   const jahresanfang = new Date(jahr, 0, 1);
   const jahresende = new Date(jahr + 1, 0, 1);
 
-  const [zahlungen, kostenpositionen, nebenkostenausgleichZahlungen] = await Promise.all([
-    prisma.zahlung.findMany({
-      where: { datum: { gte: jahresanfang, lt: jahresende } },
-      select: { betrag: true },
+  const [datumsBasiert, kostenpositionen] = await Promise.all([
+    // Alle eur-relevanten Buchungen mit echtem Buchungsdatum im Jahr — außer Kostenpositionen,
+    // die stattdessen nach Abrechnungsjahr zählen, nicht nach Buchungsdatum (siehe unten). Die
+    // Auswahl läuft über das eurRelevant-Flag im Buchungsart-Katalog statt einer von Hand
+    // gepflegten Code-Liste — eine künftige eur-relevante, datumsbasierte Buchungsart landet damit
+    // automatisch hier, ohne dass diese Datei angefasst werden muss.
+    prisma.buchung.findMany({
+      where: {
+        buchungsart: { eurRelevant: true, code: { not: "KOSTENPOSITION" } },
+        datum: { gte: jahresanfang, lt: jahresende },
+        ...AKTIVE_BUCHUNG_FILTER,
+      },
+      select: { betrag: true, buchungsart: { select: { code: true } } },
     }),
-    prisma.kostenposition.findMany({
-      where: { jahr },
+    prisma.buchung.findMany({
+      where: { buchungsart: { eurRelevant: true, code: "KOSTENPOSITION" }, jahr, ...AKTIVE_BUCHUNG_FILTER },
       include: { kostenart: true },
-    }),
-    // Auszahlungen/Einzüge aus der Nebenkostenabrechnung (Guthaben-Auszahlungen, Nachzahlungen)
-    // fließen nie als Zahlung/Kostenposition ein — werden direkt aus dem Nebenkostenausgleich-
-    // Archiv gezählt (nach tatsächlichem Zahlungsdatum, nicht Abrechnungsjahr), das seit dem
-    // vereinfachten Import die einzige Quelle für jede Nebenkostenausgleich-Buchung ist.
-    prisma.nebenkostenausgleichZahlung.findMany({
-      where: { datum: { gte: jahresanfang, lt: jahresende } },
-      select: { betrag: true },
     }),
   ]);
 
-  const mieteinnahmen = zahlungen.reduce((sum, z) => sum + Number(z.betrag), 0);
+  let mieteinnahmen = 0;
+  // Vorzeichen wie NebenkostenabrechnungPosition.saldo: positiv = ausgezahltes Guthaben (Ausgabe
+  // für den Eigentümer), negativ = eingezogene Nachzahlung (Einnahme).
+  let nachzahlungenEingezogen = 0;
+  let guthabenAusgezahlt = 0;
+  // Negativer Rohbetrag (siehe synchronisiereKautionEinbehaltBuchung in kautionen/actions.ts) =
+  // einbehaltener, erfolgswirksamer Betrag — kein Kontofluss, aber eur-relevant wie eine
+  // Betriebskosten-Erstattung (siehe Artefakt-Vergleich).
+  let kautionEinbehalte = 0;
+  // Fängt jede eur-relevante, datumsbasierte Buchungsart auf, die oben nicht explizit einer der
+  // drei bekannten Kategorien zugeordnet wird — nur zur Absicherung der Summen, keine eigene
+  // Anzeige-Zeile.
+  let sonstigeEurRelevant = 0;
+  for (const b of datumsBasiert) {
+    const betrag = Number(b.betrag);
+    switch (b.buchungsart.code) {
+      case "MIETZAHLUNG":
+        mieteinnahmen += betrag;
+        break;
+      case "NEBENKOSTENAUSGLEICH": {
+        const saldoBetrag = -betrag;
+        if (saldoBetrag > 0) guthabenAusgezahlt += saldoBetrag;
+        else nachzahlungenEingezogen += -saldoBetrag;
+        break;
+      }
+      case "KAUTION_EINBEHALT":
+        kautionEinbehalte += -betrag;
+        break;
+      default:
+        sonstigeEurRelevant += betrag;
+    }
+  }
 
   const kostenNachArtMap = new Map<string, { summe: number; umlagefaehig: boolean }>();
   for (const k of kostenpositionen) {
-    const eintrag = kostenNachArtMap.get(k.kostenart.name) ?? {
+    const name = k.kostenart?.name ?? "Unbekannt";
+    const eintrag = kostenNachArtMap.get(name) ?? {
       summe: 0,
-      umlagefaehig: k.kostenart.umlagefaehig,
+      umlagefaehig: k.kostenart?.umlagefaehig ?? false,
     };
     eintrag.summe += Number(k.betrag);
-    kostenNachArtMap.set(k.kostenart.name, eintrag);
+    kostenNachArtMap.set(name, eintrag);
   }
   const kostenNachArt = [...kostenNachArtMap.entries()]
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.summe - a.summe);
   const kostenSumme = kostenpositionen.reduce((sum, k) => sum + Number(k.betrag), 0);
 
-  // Vorzeichen wie NebenkostenabrechnungPosition.saldo: positiv = ausgezahltes Guthaben (Ausgabe
-  // für den Eigentümer), negativ = eingezogene Nachzahlung (Einnahme).
-  let nachzahlungenEingezogen = 0;
-  let guthabenAusgezahlt = 0;
-  for (const z of nebenkostenausgleichZahlungen) {
-    const betrag = -Number(z.betrag);
-    if (betrag > 0) guthabenAusgezahlt += betrag;
-    else nachzahlungenEingezogen += -betrag;
-  }
-
-  const einnahmen = mieteinnahmen + nachzahlungenEingezogen;
-  const ausgaben = kostenSumme + guthabenAusgezahlt;
+  const einnahmen = mieteinnahmen + nachzahlungenEingezogen + kautionEinbehalte + Math.max(sonstigeEurRelevant, 0);
+  const ausgaben = kostenSumme + guthabenAusgezahlt + Math.max(-sonstigeEurRelevant, 0);
   const ergebnis = einnahmen - ausgaben;
 
   return {
@@ -67,9 +94,69 @@ async function ladeJahresuebersicht(jahr: number) {
     kostenSumme,
     nachzahlungenEingezogen,
     guthabenAusgezahlt,
+    kautionEinbehalte,
     einnahmen,
     ausgaben,
     ergebnis,
+  };
+}
+
+// Kontenabgleich (Artefakt-Vergleich, Abschnitt 7): Kontostand-Anfang + Summe aller
+// zahlungswirksamen Bewegungen im Jahr, aufgeteilt nach eur_relevant, muss exakt den unabhängig
+// über den vollen Kontostand-Verlauf berechneten Kontostand-Endsaldo ergeben — weicht die
+// Differenz von 0 ab, fehlt eine Buchung oder eine Buchungsart ist falsch geflaggt. Der Vergleich
+// gegen den tatsächlichen Kontostand laut Bankauszug bleibt Handarbeit (kein Bank-Feed
+// angebunden) — die Kontrollrechnung selbst ist aber vollautomatisch.
+async function ladeKontenabgleich(jahr: number) {
+  const objekt = await prisma.objekt.findFirst({
+    select: { kontostandAnkerDatum: true, kontostandAnkerBetrag: true },
+  });
+  if (!objekt?.kontostandAnkerDatum || objekt.kontostandAnkerBetrag === null) return null;
+
+  const anker = { datum: objekt.kontostandAnkerDatum, betrag: Number(objekt.kontostandAnkerBetrag) };
+  const eintraege = await ladeKontostandEintraege();
+
+  const jahresanfang = new Date(jahr, 0, 1);
+  const jahresende = new Date(jahr, 11, 31, 23, 59, 59, 999);
+  const vorjahresende = new Date(jahresanfang.getTime() - 1);
+
+  const kontostandAnfang = kontostandAmStichtag(eintraege, anker, vorjahresende);
+  const kontostandEndeVerlauf = kontostandAmStichtag(eintraege, anker, jahresende);
+
+  // Bewusst eine eigene, direkte Abfrage auf buchungsart.eurRelevant statt die
+  // Anzeige-Kategorisierung aus ladeKontostandEintraege (zahlung/kosten/mietweiterleitung/
+  // kaution/sonstige) als Stellvertreter zu nutzen — genau das Flag-statt-Code-Prinzip, um das es
+  // hier geht (siehe Artefakt-Vergleich).
+  const zahlungswirksameBuchungenImJahr = await prisma.buchung.findMany({
+    where: {
+      buchungsart: { zahlungswirksam: true },
+      datum: { gte: jahresanfang, lte: jahresende },
+      ...AKTIVE_BUCHUNG_FILTER,
+    },
+    select: { betrag: true, buchungsart: { select: { code: true, eurRelevant: true } } },
+  });
+  let eurRelevanteBewegung = 0;
+  let durchlaufendeBewegung = 0;
+  for (const b of zahlungswirksameBuchungenImJahr) {
+    const rohBetrag = Number(b.betrag);
+    // Kostenpositionen sind im Kontostand-Verlauf vorzeichengedreht (positiv = echte Ausgabe wird
+    // dort zu negativ = abgehend) — dieselbe Drehung wie in ladeKontostandEintraege, damit beide
+    // Summen dieselbe Vorzeichenkonvention wie kontostandEndeVerlauf verwenden.
+    const betrag = b.buchungsart.code === "KOSTENPOSITION" ? -rohBetrag : rohBetrag;
+    if (b.buchungsart.eurRelevant) eurRelevanteBewegung += betrag;
+    else durchlaufendeBewegung += betrag;
+  }
+
+  const kontostandEndeBerechnet = kontostandAnfang + eurRelevanteBewegung + durchlaufendeBewegung;
+  const differenz = Math.round((kontostandEndeBerechnet - kontostandEndeVerlauf) * 100) / 100;
+
+  return {
+    kontostandAnfang,
+    eurRelevanteBewegung,
+    durchlaufendeBewegung,
+    kontostandEndeBerechnet,
+    kontostandEndeVerlauf,
+    differenz,
   };
 }
 
@@ -81,7 +168,6 @@ async function ladeMieterZeilen(jahr: number) {
       include: {
         einheit: true,
         mieter: true,
-        zahlungen: { select: { periodeMonat: true, periodeJahr: true, betrag: true } },
         abrechnungspositionen: {
           select: { saldo: true, abrechnung: { select: { jahr: true } } },
         },
@@ -90,13 +176,30 @@ async function ladeMieterZeilen(jahr: number) {
     }),
   ]);
 
-  // Tatsächlich gezahlte/erhaltene Summe je Mietvertrag+Abrechnungsjahr aus dem Nebenkostenausgleich-
-  // Archiv (dieselbe Quelle wie die "Rückzahlung/Gutschrift"-Spalte auf der Abrechnungs-
-  // Detailseite) — ersetzt das frühere, direkt auf der Position gepflegte beglichenBetrag.
-  const nebenkostenausgleichZahlungen = await prisma.nebenkostenausgleichZahlung.findMany({
-    where: { mietvertragId: { in: vertraegeRaw.map((v) => v.id) } },
-    select: { mietvertragId: true, jahr: true, betrag: true },
-  });
+  const mietvertragIds = vertraegeRaw.map((v) => v.id);
+  const [zahlungenRaw, nebenkostenausgleichZahlungen] = await Promise.all([
+    prisma.buchung.findMany({
+      where: { mietvertragId: { in: mietvertragIds }, buchungsart: { code: "MIETZAHLUNG" } },
+      select: { mietvertragId: true, periodeMonat: true, periodeJahr: true, betrag: true },
+    }),
+    // Tatsächlich gezahlte/erhaltene Summe je Mietvertrag+Abrechnungsjahr aus dem
+    // Nebenkostenausgleich-Journal (dieselbe Quelle wie die "Rückzahlung/Gutschrift"-Spalte auf
+    // der Abrechnungs-Detailseite) — ersetzt das frühere, direkt auf der Position gepflegte
+    // beglichenBetrag.
+    prisma.buchung.findMany({
+      where: { mietvertragId: { in: mietvertragIds }, buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
+      select: { mietvertragId: true, jahr: true, betrag: true },
+    }),
+  ]);
+
+  const zahlungenNachVertrag = new Map<string, { periodeMonat: number; periodeJahr: number; betrag: number }[]>();
+  for (const z of zahlungenRaw) {
+    if (!z.mietvertragId || z.periodeMonat === null || z.periodeJahr === null) continue;
+    const liste = zahlungenNachVertrag.get(z.mietvertragId) ?? [];
+    liste.push({ periodeMonat: z.periodeMonat, periodeJahr: z.periodeJahr, betrag: Number(z.betrag) });
+    zahlungenNachVertrag.set(z.mietvertragId, liste);
+  }
+
   const zahlungSummenMap = new Map<string, number>();
   for (const z of nebenkostenausgleichZahlungen) {
     if (!z.mietvertragId || z.jahr === null) continue;
@@ -119,11 +222,7 @@ async function ladeMieterZeilen(jahr: number) {
     })),
     einheitBezeichnung: v.einheit.bezeichnung,
     mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-    zahlungen: v.zahlungen.map((z) => ({
-      periodeMonat: z.periodeMonat,
-      periodeJahr: z.periodeJahr,
-      betrag: Number(z.betrag),
-    })),
+    zahlungen: zahlungenNachVertrag.get(v.id) ?? [],
     nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
       jahr: p.abrechnung.jahr,
       saldo: Number(p.saldo),
@@ -147,10 +246,12 @@ export default async function JahresuebersichtPage({
   const { jahr: jahrParam } = await searchParams;
   const jahr = Number(jahrParam) || new Date().getFullYear();
 
-  const [daten, mieterZeilen, verifikationen] = await Promise.all([
+  const [daten, mieterZeilen, verifikationen, kontenabgleich, kontenabgleichVerifikation] = await Promise.all([
     ladeJahresuebersicht(jahr),
     ladeMieterZeilen(jahr),
     prisma.jahresberichtVerifikation.findMany({ where: { jahr }, select: { mietvertragId: true } }),
+    ladeKontenabgleich(jahr),
+    prisma.kontenabgleichVerifikation.findUnique({ where: { jahr }, select: { kontostandLautBankauszug: true } }),
   ]);
   const verifizierteIds = new Set(verifikationen.map((v) => v.mietvertragId));
 
@@ -215,6 +316,18 @@ export default async function JahresuebersichtPage({
                     </td>
                   </tr>
                 )}
+                {daten.kautionEinbehalte > 0 && (
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-white">
+                      <Link href="/kautionen" className="hover:underline">
+                        Kaution-Einbehalte (unstrittig/bestätigt)
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(daten.kautionEinbehalte)}
+                    </td>
+                  </tr>
+                )}
                 <tr>
                   <td className="px-4 py-2 font-medium text-white">Summe</td>
                   <td className="px-4 py-2 text-right font-medium text-white">
@@ -271,6 +384,87 @@ export default async function JahresuebersichtPage({
             </table>
           </div>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="mb-3 text-lg font-medium text-white">Kontenabgleich {jahr}</h2>
+        {kontenabgleich === null ? (
+          <p className="rounded-lg border border-neutral-800 p-4 text-sm text-neutral-500">
+            Kein Kontostand-Anker hinterlegt —{" "}
+            <Link href="/objekt" className="underline hover:text-white">
+              unter Objekt-Einstellungen
+            </Link>{" "}
+            eintragen, um den Kontenabgleich zu berechnen.
+          </p>
+        ) : (
+          <>
+            <p className="mb-3 text-sm text-neutral-400">
+              Kontrollrechnung: Kontostand am 31.12. laut Buchungsjournal (Kontostand Anfang + alle
+              zahlungswirksamen Bewegungen im Jahr) muss exakt dem unabhängig über den vollen
+              Kontostand-Verlauf berechneten Endsaldo entsprechen — weicht die Differenz von 0 ab,
+              fehlt eine Buchung oder eine Buchungsart ist falsch geflaggt (zahlungswirksam/
+              eurRelevant). Der Abgleich gegen den tatsächlichen Kontostand laut Kontoauszug bleibt
+              manuell, siehe{" "}
+              <Link href="/kontostand" className="underline hover:text-white">
+                Kontostand
+              </Link>
+              .
+            </p>
+            <div className="overflow-auto rounded-lg border border-neutral-800">
+              <table className="w-full text-sm">
+                <tbody>
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-white">Kontostand am 1.1.{jahr}</td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(kontenabgleich.kontostandAnfang)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-white">+ eur-relevante Bewegung (Ergebnis)</td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(kontenabgleich.eurRelevanteBewegung)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-white">+ durchlaufende Posten (Kaution/Mietweiterleitung)</td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(kontenabgleich.durchlaufendeBewegung)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-neutral-800 font-medium">
+                    <td className="px-4 py-2 text-white">= Kontostand am 31.12.{jahr} (berechnet)</td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(kontenabgleich.kontostandEndeBerechnet)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-neutral-400">
+                      Kontostand am 31.12.{jahr} (Kontostand-Verlauf, unabhängig berechnet)
+                    </td>
+                    <td className="px-4 py-2 text-right text-neutral-400">
+                      {formatEuro(kontenabgleich.kontostandEndeVerlauf)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-medium text-white">Differenz</td>
+                    <td
+                      className={`px-4 py-2 text-right font-medium ${kontenabgleich.differenz === 0 ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {formatEuro(kontenabgleich.differenz)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <KontenabgleichVerifikationForm
+              jahr={jahr}
+              kontostandLautJournal={kontenabgleich.kontostandEndeVerlauf}
+              gespeicherterWert={
+                kontenabgleichVerifikation ? Number(kontenabgleichVerifikation.kontostandLautBankauszug) : null
+              }
+            />
+          </>
+        )}
       </div>
 
       <div className="mb-6">

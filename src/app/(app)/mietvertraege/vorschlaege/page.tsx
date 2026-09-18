@@ -4,6 +4,7 @@ import { periodenSummenAusZahlungen, erkenneMietwechsel, type ErkannterWechsel }
 import { ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "@/lib/soll-ist";
 import { erfasseMieterhoehung, neuBerechnenVorschlaege } from "../actions";
 import { VerwerfenToggle } from "./verwerfen-toggle";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -42,7 +43,10 @@ async function ladeVorschlaege(): Promise<{ vorschlaege: VorschlagZeile[]; verwo
     include: {
       einheit: true,
       mieter: true,
-      zahlungen: { select: { periodeJahr: true, periodeMonat: true, betrag: true } },
+      buchungen: {
+        where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
+        select: { periodeJahr: true, periodeMonat: true, betrag: true },
+      },
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
       mieterhoehungVorschlaegeVerworfen: { select: { abJahr: true, abMonat: true } },
     },
@@ -70,7 +74,7 @@ async function ladeVorschlaege(): Promise<{ vorschlaege: VorschlagZeile[]; verwo
     };
 
     const perioden = periodenSummenAusZahlungen(
-      v.zahlungen.map((z) => ({ periodeJahr: z.periodeJahr, periodeMonat: z.periodeMonat, betrag: Number(z.betrag) })),
+      v.buchungen.map((z) => ({ periodeJahr: z.periodeJahr!, periodeMonat: z.periodeMonat!, betrag: Number(z.betrag) })),
     );
     const { wechsel, aeltestesPlateau } = erkenneMietwechsel(perioden);
 

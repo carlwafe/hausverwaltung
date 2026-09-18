@@ -38,3 +38,26 @@ export function berechneKontostandVerlauf(
     return { ...e, kontostand: offset + laufsumme };
   });
 }
+
+/**
+ * Kontostand an einem beliebigen Stichtag (nicht nur an einem tatsächlichen Buchungsdatum) —
+ * für den Kontenabgleich auf /jahresuebersicht (Kontostand zu Jahresanfang/-ende). Rechnet direkt
+ * aus den Rohbuchungen relativ zum Anker, statt einen Eintrag im bereits berechneten Verlauf zu
+ * suchen — funktioniert dadurch auch für Stichtage außerhalb des eigentlichen Buchungszeitraums
+ * (z.B. ein Jahresanfang vor der ersten erfassten Buchung).
+ */
+export function kontostandAmStichtag(
+  eintraege: KontostandEintrag[],
+  anker: { datum: Date; betrag: number },
+  stichtag: Date,
+): number {
+  const summeBisAnker = eintraege.reduce(
+    (sum, e) => sum + (e.datum.getTime() <= anker.datum.getTime() ? e.betrag : 0),
+    0,
+  );
+  const summeBisStichtag = eintraege.reduce(
+    (sum, e) => sum + (e.datum.getTime() <= stichtag.getTime() ? e.betrag : 0),
+    0,
+  );
+  return anker.betrag - summeBisAnker + summeBisStichtag;
+}

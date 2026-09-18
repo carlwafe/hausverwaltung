@@ -106,8 +106,8 @@ export default async function NebenkostenabrechnungDetailPage({
   const wohnungenRoh = einheiten.filter((e) => e.typ === "WOHNUNG");
   const vorverteilteGruppen = await Promise.all(
     vorverteilteKostenarten.map(async (k) => {
-      const juengste = await prisma.kostenposition.findFirst({
-        where: { kostenartId: k.id },
+      const juengste = await prisma.buchung.findFirst({
+        where: { buchungsart: { code: "KOSTENPOSITION" }, kostenartId: k.id },
         orderBy: { datum: "desc" },
         select: { gebaeudeId: true, hausId: true, kostengruppeId: true },
       });

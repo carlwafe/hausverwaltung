@@ -10,6 +10,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { berechneSoll, berechneIst, sollAufschluesselung, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -47,7 +48,10 @@ export default async function MietvertragDetailPage({
         einheit: true,
         mieter: true,
         kaution: true,
-        zahlungen: { orderBy: { datum: "desc" } },
+        buchungen: {
+          where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
+          orderBy: { datum: "desc" },
+        },
         dokumente: { orderBy: { createdAt: "desc" } },
         mieterhoehungen: { orderBy: { gueltigAb: "desc" } },
       },
@@ -85,7 +89,7 @@ export default async function MietvertragDetailPage({
   const bis = objekt?.buchhaltungBis ?? new Date();
   const soll = berechneSoll(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
   const ist = berechneIst(
-    vertrag.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+    vertrag.buchungen.map((z) => ({ datum: z.datum!, betrag: Number(z.betrag) })),
     objekt?.buchhaltungAb ?? null,
     bis,
   );
@@ -207,7 +211,7 @@ export default async function MietvertragDetailPage({
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-medium text-white">
-              Zahlungen ({vertrag.zahlungen.length})
+              Zahlungen ({vertrag.buchungen.length})
             </h2>
             <Link
               href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
@@ -228,15 +232,15 @@ export default async function MietvertragDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {vertrag.zahlungen.map((z) => (
+                {vertrag.buchungen.map((z) => (
                   <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
                     <td className="px-4 py-2 text-white">
                       <Link href={`/zahlungen/${z.id}`} className="hover:underline">
-                        {formatDate(z.datum)}
+                        {formatDate(z.datum!)}
                       </Link>
                     </td>
                     <td className="px-4 py-2 text-white">
-                      {MONATE_KURZ[z.periodeMonat - 1]} {z.periodeJahr}
+                      {MONATE_KURZ[z.periodeMonat! - 1]} {z.periodeJahr}
                     </td>
                     <td className="px-4 py-2 text-white">{formatEuro(Number(z.betrag))}</td>
                     <td
@@ -254,7 +258,7 @@ export default async function MietvertragDetailPage({
                     </td>
                   </tr>
                 ))}
-                {vertrag.zahlungen.length === 0 && (
+                {vertrag.buchungen.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
                       Noch keine Zahlungen erfasst.

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
-  const zahlungen = await prisma.zahlung.findMany({
+  const zahlungen = await prisma.buchung.findMany({
+    where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
     // Bei gleichem Datum (z.B. zwei durch Aufteilung entstandene Zahlungen, siehe
     // aufteilungGruppeId) sonst unbestimmte Reihenfolge — zusätzlich nach Periode absteigend
     // sortiert, damit z.B. "Nov 2025, Okt 2025" statt eines zufällig wirkenden "Okt 2025,
@@ -12,14 +14,17 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true },
   });
 
+  // mietvertragId/datum/periodeMonat/periodeJahr sind bei MIETZAHLUNG immer gesetzt (siehe
+  // pflichtfeldErfuellt in commitBuchungen) — auf DB-Ebene bleiben sie nullable, weil dasselbe
+  // Buchung-Modell auch andere Buchungsarten trägt, bei denen sie leer sind.
   return zahlungen.map((z) => ({
     id: z.id,
-    mietvertragId: z.mietvertragId,
-    datum: z.datum.toISOString(),
-    einheitBezeichnung: z.mietvertrag.einheit.bezeichnung,
-    mieterNamen: z.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-    periodeMonat: z.periodeMonat,
-    periodeJahr: z.periodeJahr,
+    mietvertragId: z.mietvertragId!,
+    datum: z.datum!.toISOString(),
+    einheitBezeichnung: z.mietvertrag!.einheit.bezeichnung,
+    mieterNamen: z.mietvertrag!.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    periodeMonat: z.periodeMonat!,
+    periodeJahr: z.periodeJahr!,
     betrag: Number(z.betrag),
     verwendungszweck: z.verwendungszweck,
     rohdaten: (z.rohdaten as Record<string, string> | null) ?? null,

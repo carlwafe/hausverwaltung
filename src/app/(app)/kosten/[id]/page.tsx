@@ -22,8 +22,8 @@ export default async function KostenpositionDetailPage({
 }) {
   const { id } = await params;
   const [kostenposition, kostenarten, gebaeude, virtuelleAuszahlungen, einheiten] = await Promise.all([
-    prisma.kostenposition.findUnique({
-      where: { id },
+    prisma.buchung.findUnique({
+      where: { id, buchungsart: { code: "KOSTENPOSITION" } },
       include: {
         kostenart: true,
         gebaeude: true,
@@ -31,7 +31,6 @@ export default async function KostenpositionDetailPage({
         kostengruppe: true,
         einheit: { include: { gebaeude: true } },
         dokumente: { orderBy: { createdAt: "desc" } },
-        virtuelleKautionBuchung: true,
       },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
@@ -45,15 +44,25 @@ export default async function KostenpositionDetailPage({
     ladeVirtuelleAuszahlungen(),
     ladeEinheitenFuerAuswahl(),
   ]);
-  if (!kostenposition) notFound();
+  if (!kostenposition || !kostenposition.kostenart) notFound();
 
-  const aufteilungGeschwister = kostenposition.aufteilungGruppeId
-    ? await prisma.kostenposition.findMany({
-        where: { aufteilungGruppeId: kostenposition.aufteilungGruppeId },
-        include: { kostenart: true },
-        orderBy: { createdAt: "asc" },
-      })
-    : [];
+  const [aufteilungGeschwisterRaw, virtuelleKautionBuchung] = await Promise.all([
+    kostenposition.aufteilungGruppeId
+      ? prisma.buchung.findMany({
+          where: { aufteilungGruppeId: kostenposition.aufteilungGruppeId, buchungsart: { code: "KOSTENPOSITION" } },
+          include: { kostenart: true },
+          orderBy: { erstelltAm: "asc" },
+        })
+      : Promise.resolve([]),
+    // Frühere eigene Relation virtuelleKautionBuchung ersetzt durch den polymorphen
+    // bezugTyp/bezugId-Bezug (siehe kosten-liste.ts für dieselbe Ableitung).
+    kostenposition.bezugTyp === "Buchung" && kostenposition.bezugId
+      ? prisma.buchung.findUnique({ where: { id: kostenposition.bezugId } })
+      : Promise.resolve(null),
+  ]);
+  const aufteilungGeschwister = aufteilungGeschwisterRaw.filter(
+    (p): p is typeof p & { kostenart: NonNullable<(typeof p)["kostenart"]> } => p.kostenart !== null,
+  );
 
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
   const gebaeudeLabel = gebaeudeOderHausLabel(
@@ -67,7 +76,7 @@ export default async function KostenpositionDetailPage({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          {kostenposition.kostenart.name} — {gebaeudeLabel} ({kostenposition.jahr})
+          {kostenposition.kostenart!.name} — {gebaeudeLabel} ({kostenposition.jahr})
         </h1>
         <DeleteButton
           action={deleteKostenposition.bind(null, id)}
@@ -80,31 +89,31 @@ export default async function KostenpositionDetailPage({
         virtuelleAuszahlungen={virtuelleAuszahlungen}
         istImportiert={kostenposition.rohdaten !== null}
         initial={{
-          kostenartId: kostenposition.kostenartId,
+          kostenartId: kostenposition.kostenartId!,
           gebaeudeAuswahl: gebaeudeAuswahlWert(
             kostenposition.gebaeudeId,
             kostenposition.hausId,
             kostenposition.kostengruppeId,
             kostenposition.einheitId,
           ),
-          jahr: kostenposition.jahr,
+          jahr: kostenposition.jahr!,
           datum: kostenposition.datum ? kostenposition.datum.toISOString().slice(0, 10) : null,
           betrag: kostenposition.betrag.toString(),
-          beschreibung: kostenposition.beschreibung,
+          beschreibung: kostenposition.verwendungszweck,
           empfaenger: kostenposition.empfaenger,
-          virtuelleKautionBuchungId: kostenposition.virtuelleKautionBuchungId,
+          virtuelleKautionBuchungId: virtuelleKautionBuchung?.id ?? null,
         }}
         action={updateKostenposition.bind(null, id)}
       />
 
-      {kostenposition.virtuelleKautionBuchung && (
+      {virtuelleKautionBuchung && virtuelleKautionBuchung.datum && (
         <div className="mt-4 rounded-lg border border-purple-900/40 bg-purple-500/5 p-4">
           <p className="text-sm text-purple-300">
             Virtuelle Gutschrift — verknüpft mit Kautionsbuchung vom{" "}
-            {new Intl.DateTimeFormat("de-DE").format(kostenposition.virtuelleKautionBuchung.datum)} (
-            {formatEuro(Number(kostenposition.virtuelleKautionBuchung.betrag))}).{" "}
+            {new Intl.DateTimeFormat("de-DE").format(virtuelleKautionBuchung.datum)} (
+            {formatEuro(Number(virtuelleKautionBuchung.betrag))}).{" "}
             <Link
-              href={`/kautionen#kautionsbuchung-${kostenposition.virtuelleKautionBuchung.id}`}
+              href={`/kautionen#kautionsbuchung-${virtuelleKautionBuchung.id}`}
               className="underline hover:text-purple-200"
             >
               Kautionsbuchung anzeigen
@@ -127,10 +136,10 @@ export default async function KostenpositionDetailPage({
             {aufteilungGeschwister.map((p) => (
               <li key={p.id} className="flex items-center justify-between">
                 {p.id === id ? (
-                  <span className="text-neutral-400">{p.kostenart.name} (diese Position)</span>
+                  <span className="text-neutral-400">{p.kostenart!.name} (diese Position)</span>
                 ) : (
                   <Link href={`/kosten/${p.id}`} className="text-white hover:underline">
-                    {p.kostenart.name}
+                    {p.kostenart!.name}
                   </Link>
                 )}
                 <span className="text-neutral-300">{formatEuro(Number(p.betrag))}</span>
@@ -139,7 +148,7 @@ export default async function KostenpositionDetailPage({
           </ul>
           <DeleteButton
             action={hebeAufteilungAuf.bind(null, id)}
-            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Positionen werden zu einer Position unter "${kostenposition.kostenart.name}" zusammengeführt.`}
+            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Positionen werden zu einer Position unter "${kostenposition.kostenart!.name}" zusammengeführt.`}
             label="Aufteilung rückgängig machen"
           />
         </div>
@@ -148,7 +157,7 @@ export default async function KostenpositionDetailPage({
           kostenpositionId={id}
           betragGesamt={Number(kostenposition.betrag)}
           kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
-          aktuelleKostenartId={kostenposition.kostenartId}
+          aktuelleKostenartId={kostenposition.kostenartId!}
         />
       )}
 
@@ -156,7 +165,7 @@ export default async function KostenpositionDetailPage({
         <BelegeSektion
           dokumente={kostenposition.dokumente}
           uploadAction={uploadDokument.bind(null, {
-            kostenpositionId: id,
+            buchungId: id,
             revalidatePath: `/kosten/${id}`,
           })}
           revalidatePath={`/kosten/${id}`}

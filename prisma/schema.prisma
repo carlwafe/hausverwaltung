@@ -59,6 +59,110 @@ enum AbrechnungStatus {
   FINAL
 }
 
+enum Kontokreis {
+  MIETKONTO
+  KAUTIONSKONTO
+  OBJEKTKONTO
+}
+
+// Kleine, gepflegte Stammdaten-Tabelle statt Enum im Code — neue Buchungsarten kommen im Betrieb
+// dazu, ohne dass deploy't werden muss. Zwei unabhängige Flags: zahlungswirksam (fließt echtes
+// Geld übers Konto? steuert /kontostand) und eurRelevant (zählt für die steuerliche EÜR? steuert
+// Jahresübersicht). Kaution ist der Grund, warum beide getrennt sein müssen: zahlungswirksam =
+// wahr, aber eurRelevant = falsch (erfolgsneutraler Durchlaufposten).
+model Buchungsart {
+  id              String     @id @default(cuid())
+  code            String     @unique
+  bezeichnung     String
+  kontokreis      Kontokreis
+  zahlungswirksam Boolean
+  eurRelevant     Boolean
+  aktiv           Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+
+  buchungen Buchung[]
+
+  @@map("buchungsarten")
+}
+
+// Das Journal: jede Geldbewegung/Sollstellung als unveränderliche Zeile. Ersetzt Zahlung,
+// Kostenposition, KautionBuchung, EigentuemerBuchung und NebenkostenausgleichZahlung aus dem
+// Vorgänger-Modell — siehe Vergleichsplan. Saldo/Reports sind nie ein gespeicherter Wert, sondern
+// immer eine Abfrage auf diese Tabelle (siehe src/lib/buchungsjournal.ts).
+//
+// Bewusster Kompromiss gegenüber getrennten Tabellen: mehrere Domänenfelder (kostenartId,
+// gebaeudeId/hausId/kostengruppeId/einheitId, periodeMonat/periodeJahr, jahr) sind
+// nur bei bestimmten Buchungsarten sinnvoll befüllt — die Schema-Ebene erzwingt das nicht mehr
+// (anders als z.B. Kostenposition.kostenartId, das vorher ein Pflicht-Feld war). Das ist genau
+// der Typsicherheits-Preis des Journal-Modells, siehe Gegenüberstellung im Chat.
+model Buchung {
+  id            String       @id @default(cuid())
+  mietvertrag   Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  mietvertragId String?
+  buchungsart   Buchungsart  @relation(fields: [buchungsartId], references: [id], onDelete: Restrict)
+  buchungsartId String
+  // Nullable: eine manuell erfasste, umlagefähige Kostenposition kennt teils nur das Jahr, kein
+  // genaues Buchungsdatum (siehe jahr unten) — Berichte, die einen echten Zeitpunkt brauchen
+  // (Kontostand-Verlauf), filtern dann bewusst auf datum != null, wie im Vorgänger-Modell.
+  datum         DateTime?
+  betrag        Decimal      @db.Decimal(10, 2)
+
+  // Nur bei KOSTENPOSITION-artigen Buchungen gesetzt (Zuordnung zur Kostenart/Gebäude-Ebene) —
+  // höchstens eins von gebaeude/haus/kostengruppe/einheit, wie im Vorgänger-Modell.
+  kostenart      Kostenart?    @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+  kostenartId    String?
+  gebaeude       Gebaeude?     @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
+  gebaeudeId     String?
+  haus           Haus?         @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId         String?
+  kostengruppe   Kostengruppe? @relation(fields: [kostengruppeId], references: [id], onDelete: SetNull)
+  kostengruppeId String?
+  einheit        Einheit?      @relation(fields: [einheitId], references: [id], onDelete: SetNull)
+  einheitId      String?
+
+  // Nur bei MIETZAHLUNG gesetzt: für welchen Monat diese Zahlung gedacht ist (nicht wann sie
+  // einging) — siehe periodeMonat/periodeJahr im Vorgänger-Modell.
+  periodeMonat Int?
+  periodeJahr  Int?
+  // Doppelt genutzt, je nach Buchungsart (nie gleichzeitig): bei KOSTENPOSITION das Kostenjahr
+  // (immer gesetzt, auch ohne genaues datum), bei NEBENKOSTENAUSGLEICH das Abrechnungsjahr, auf
+  // das sich die Rückzahlung/Nachzahlung bezieht (optional).
+  jahr         Int?
+
+  empfaenger       String?
+  verwendungszweck String?
+  bemerkung        String?
+
+  // Polymorpher Bezug auf das auslösende Ereignis (z.B. "NebenkostenabrechnungPosition") — ersetzt
+  // die vorher typisierte virtuelleKautionBuchungId-Relation; büßt dafür referenzielle Integrität
+  // auf DB-Ebene ein (Postgres kann bezugId nicht als echten FK prüfen).
+  bezugTyp String?
+  bezugId  String?
+
+  rohdaten           Json?
+  importBatch        ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatchId      String?
+  aufteilungGruppeId String?
+
+  erstelltAm  DateTime @default(now())
+  erstelltVon String?
+
+  // Storno-Prinzip: kein UPDATE/DELETE aus der Anwendung heraus, nur eine Gegenbuchung mit
+  // negiertem Betrag, die hierher zurückverweist.
+  storniertDurchBuchungId String?  @unique
+  storniertDurch          Buchung? @relation("Storno", fields: [storniertDurchBuchungId], references: [id])
+  storniertZeile          Buchung? @relation("Storno")
+
+  dokumente        Dokument[]
+  kautionEinbehalt KautionEinbehalt?
+
+  @@index([mietvertragId, datum])
+  @@index([buchungsartId])
+  @@index([kostenartId])
+  @@index([aufteilungGruppeId])
+  @@map("buchungen")
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -117,8 +221,8 @@ model Haus {
   objektId  String
   createdAt DateTime @default(now())
 
-  gebaeude         Gebaeude[]
-  kostenpositionen Kostenposition[]
+  gebaeude  Gebaeude[]
+  buchungen Buchung[]
 
   @@map("haeuser")
 }
@@ -135,8 +239,8 @@ model Kostengruppe {
   bezeichnung String
   createdAt   DateTime @default(now())
 
-  gebaeude         Gebaeude[]
-  kostenpositionen Kostenposition[]
+  gebaeude  Gebaeude[]
+  buchungen Buchung[]
 
   @@map("kostengruppen")
 }
@@ -155,8 +259,8 @@ model Gebaeude {
   beschreibung  String?
   createdAt     DateTime       @default(now())
 
-  einheiten        Einheit[]
-  kostenpositionen Kostenposition[]
+  einheiten Einheit[]
+  buchungen Buchung[]
 
   @@unique([objektId, strasse, hausnummer])
   @@map("gebaeude")
@@ -179,7 +283,7 @@ model Einheit {
   nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
   verbrauchswerte                 Verbrauchswert[]
   dokumente                       Dokument[]
-  kostenpositionen                Kostenposition[]
+  buchungen                       Buchung[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
@@ -232,11 +336,9 @@ model Mietvertrag {
   createdAt                DateTime          @default(now())
 
   kaution                           Kaution?
-  kautionsbuchungen                 KautionBuchung[]
-  zahlungen                         Zahlung[]
+  buchungen                         Buchung[]
   dokumente                         Dokument[]
   abrechnungspositionen             NebenkostenabrechnungPosition[]
-  nebenkostenausgleichZahlungen     NebenkostenausgleichZahlung[]
   vorverteilteKostenanteile         VorverteilterKostenanteil[]
   jahresberichtVerifikationen       JahresberichtVerifikation[]
   mieterhoehungen                   Mieterhoehung[]
@@ -307,34 +409,47 @@ model Kaution {
   notizen             String?
   createdAt           DateTime          @default(now())
 
+  einbehalte KautionEinbehalt[]
+
   @@map("kautionen")
 }
 
-model Zahlung {
-  id                 String       @id @default(cuid())
-  mietvertrag        Mietvertrag  @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
-  mietvertragId      String
-  datum              DateTime
-  betrag             Decimal      @db.Decimal(10, 2)
-  periodeMonat       Int
-  periodeJahr        Int
-  verwendungszweck   String?
-  // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
-  // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
-  rohdaten           Json?
-  importBatch        ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId      String?
-  createdAt          DateTime     @default(now())
-  // Gesetzt, wenn diese Zahlung aus dem Aufteilen einer ursprünglich als eine Buchung
-  // importierten/erfassten Zahlung entstanden ist (z.B. eine Überweisung, die Miete für Wohnung
-  // und Garage in einer Summe zahlt). Alle Zahlungen mit derselben Id gehören zur selben
-  // ursprünglichen Buchung — ihre Beträge summieren sich exakt zum ursprünglichen Gesamtbetrag.
-  // Der Wert ist die Id der allerersten (inzwischen gelöschten) Zahlung vor der ersten Aufteilung.
-  aufteilungGruppeId String?
+enum KautionEinbehaltStatus {
+  // Unbestritten, sofort wirksam — zählt direkt in die "Einbehalten"-Summe auf /kautionen.
+  UNSTRITTIG
+  // Noch nicht geklärt — das Zurückbehaltungsrecht gilt: die Anwendung darf diesen Betrag noch
+  // nicht als endgültig einbehalten ausweisen, er bleibt als offener Fall sichtbar.
+  STRITTIG_OFFEN
+  STRITTIG_BESTAETIGT
+  STRITTIG_VERWORFEN
+}
 
-  @@index([mietvertragId, periodeJahr, periodeMonat])
-  @@index([aufteilungGruppeId])
-  @@map("zahlungen")
+// Ein einzelner, begründeter Einbehalt bei Auflösung der Kaution (z.B. Schadensersatz, offene
+// NK-Nachzahlung) — löst das Problem, dass die bisherige "Einbehalten"-Zahl (Auflösung ./.
+// Auszahlung) nur eine unerklärte Differenz war, ohne Angabe wofür und ohne Streit-Status.
+model KautionEinbehalt {
+  id                String                 @id @default(cuid())
+  kaution           Kaution                @relation(fields: [kautionId], references: [id], onDelete: Cascade)
+  kautionId         String
+  positionText      String
+  betrag            Decimal                @db.Decimal(10, 2)
+  // Optionaler Bezug, z.B. auf eine offene NebenkostenabrechnungPosition.
+  bezugTyp          String?
+  bezugId           String?
+  status            KautionEinbehaltStatus @default(STRITTIG_OFFEN)
+  belegId           String?
+  erstelltAm        DateTime               @default(now())
+  statusGeaendertAm DateTime               @default(now())
+  // Gesetzt, sobald status UNSTRITTIG/STRITTIG_BESTAETIGT erreicht und dafür eine echte
+  // KAUTION_EINBEHALT-Buchung im Journal entstanden ist (siehe kautionen/actions.ts) — null,
+  // solange der Einbehalt strittig offen ist (Zurückbehaltungsrecht: kein Buchungssatz, bevor der
+  // Streit geklärt ist). Wechselt der Status zurück auf offen/verworfen, wird die Buchung
+  // storniert und dieser Verweis wieder auf null gesetzt.
+  buchung           Buchung?               @relation(fields: [buchungId], references: [id], onDelete: SetNull)
+  buchungId         String?                @unique
+
+  @@index([kautionId])
+  @@map("kaution_einbehalte")
 }
 
 model Kostenart {
@@ -345,9 +460,26 @@ model Kostenart {
   // Nur relevant bei Verteilerschlüssel VERBRAUCH_MANUELL, z.B. "kWh" oder "m³" — Beschriftung
   // für die Verbrauchswert-Erfassung und die Abrechnungsanzeige.
   masseinheit                 String?
+  // Welche der 16 namentlich benannten BetrKV-Kategorien diese Kostenart abdeckt (1 Grundsteuer/
+  // öffentl. Lasten, 2 Wasserversorgung, 3 Entwässerung, 4 Heizung, 5 Warmwasser, 6 verbundene
+  // Heizung+Warmwasser, 7 Aufzug, 8 Straßenreinigung/Müllbeseitigung, 9 Gebäudereinigung/
+  // Ungezieferbekämpfung, 10 Gartenpflege, 11 Beleuchtung, 12 Schornsteinreinigung, 13 Sach-/
+  // Haftpflichtversicherung, 14 Hauswart, 15 Antenne/Kabelanschluss, 16 Wäschepflege) — rein
+  // dokumentarisch, keine Berechnung hängt daran. Nr. 17 ("sonstige") wird bewusst NICHT hier
+  // eingetragen, sondern über istSonstigeBetriebskosten/vertraglicheGrundlage unten, weil dafür
+  // zusätzlich ein Pflichtnachweis nötig ist.
+  betrKvNummer                 Int?
+  // true = fällt unter § 2 Nr. 17 BetrKV ("sonstige Betriebskosten", z.B. Rauchwarnmelder-Wartung,
+  // Dachrinnenreinigung) statt einer der namentlich benannten Nr. 1–16. Laut BGH-Rechtsprechung
+  // reicht dafür ein pauschaler Verweis auf § 2 Nr. 17 BetrKV im Mietvertrag NICHT aus — jede
+  // einzelne Position muss dort konkret benannt sein, sonst ist die Umlage angreifbar.
+  istSonstigeBetriebskosten   Boolean              @default(false)
+  // Pflicht, wenn istSonstigeBetriebskosten und umlagefaehig beide true sind: Fundstelle/Wortlaut
+  // aus dem Mietvertrag, der diese konkrete Kostenposition benennt (siehe Kommentar oben).
+  vertraglicheGrundlage       String?
   createdAt                   DateTime             @default(now())
 
-  kostenpositionen          Kostenposition[]
+  buchungen                 Buchung[]
   verbrauchswerte           Verbrauchswert[]
   vorverteilteKostenanteile VorverteilterKostenanteil[]
 
@@ -417,63 +549,18 @@ model JahresberichtVerifikation {
   @@map("jahresbericht_verifikationen")
 }
 
-model Kostenposition {
-  id                 String        @id @default(cuid())
-  kostenart          Kostenart     @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
-  kostenartId        String
-  // Höchstens eins von gebaeude/haus/kostengruppe/einheit ist gesetzt: gebaeude für eine
-  // einzelne Adresse (z.B. eine Reparatur), haus für ein ganzes Bauwerk mit mehreren
-  // Hausnummern (z.B. Grundsteuer), kostengruppe für eine frei zusammengestellte Gruppe über
-  // Haus-Grenzen hinweg (z.B. wenn ein Versorger mehrere Häuser gemeinsam abrechnet), einheit
-  // als spezifischste Ebene für Kosten, die nur eine einzelne Wohnung betreffen (z.B. eine
-  // Kleinreparatur). Sind alle vier null, betrifft die Kostenposition das ganze Objekt (z.B.
-  // Bankgebühren).
-  gebaeude           Gebaeude?     @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
-  gebaeudeId         String?
-  haus               Haus?         @relation(fields: [hausId], references: [id], onDelete: SetNull)
-  hausId             String?
-  kostengruppe       Kostengruppe? @relation(fields: [kostengruppeId], references: [id], onDelete: SetNull)
-  kostengruppeId     String?
-  einheit            Einheit?      @relation(fields: [einheitId], references: [id], onDelete: SetNull)
-  einheitId          String?
-  jahr               Int
-  // Genaues Buchungsdatum, falls aus einem Kontoauszug importiert (manuell erfasste
-  // Kostenpositionen kennen nur das Jahr).
-  datum              DateTime?
-  betrag             Decimal       @db.Decimal(10, 2)
-  beschreibung       String?
-  empfaenger         String?
-  // Die vollständige Rohzeile aus der importierten CSV/Excel-Datei (alle Spalten), damit man bei
-  // Unstimmigkeiten nachvollziehen kann, was genau in der Quelldatei stand.
-  rohdaten           Json?
-  importBatch        ImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId      String?
-  createdAt          DateTime      @default(now())
-  // Gesetzt, wenn diese Position aus dem Aufteilen einer ursprünglich als eine Buchung
-  // importierten Kostenposition entstanden ist (z.B. eine Hausmeister-Rechnung, die sowohl
-  // umlagefähigen Hausmeisterdienst als auch nicht umlagefähigen Winterdienst enthält). Alle
-  // Positionen mit derselben Id gehören zur selben ursprünglichen Buchung — ihre Beträge
-  // summieren sich exakt zum ursprünglich importierten Gesamtbetrag. Der Wert ist die Id der
-  // allerersten (inzwischen gelöschten) Position vor der ersten Aufteilung.
-  aufteilungGruppeId String?
+// Der manuell vom echten Kontoauszug abgelesene Kontostand zum 31.12. eines Jahres — die externe
+// Gegenprüfung zum Kontenabgleich auf jahresuebersicht/page.tsx (siehe kontostandAmStichtag): der
+// dort berechnete Kontostand ist nur intern konsistent (rechnet sich selbst nach), dieser Wert
+// hier ist der einzige Bezug zur Realität, ohne den eine Abweichung nie auffallen würde.
+model KontenabgleichVerifikation {
+  id                       String   @id @default(cuid())
+  jahr                     Int      @unique
+  kontostandLautBankauszug Decimal  @db.Decimal(10, 2)
+  erstelltAm               DateTime @default(now())
+  aktualisiertAm           DateTime @updatedAt
 
-  // Virtuelle Gegenbuchung zu einer Kautionsbuchung der Kategorie VIRTUELLE_AUSZAHLUNG (z.B. eine
-  // Reparatur, die vom einbehaltenen Kautionsrest bezahlt wurde, statt über alle Mieter umgelegt
-  // zu werden) — üblicherweise eine negative Gutschrift unter derselben Kostenart wie die reale
-  // Rechnung. Ein und dieselbe Kautionsbuchung kann von mehreren Kostenpositionen referenziert
-  // werden (z.B. falls ein einbehaltener Betrag auf zwei Kostenarten aufgeteilt wird).
-  virtuelleKautionBuchung   KautionBuchung? @relation(fields: [virtuelleKautionBuchungId], references: [id], onDelete: SetNull)
-  virtuelleKautionBuchungId String?
-
-  dokumente Dokument[]
-
-  @@index([gebaeudeId, jahr])
-  @@index([hausId, jahr])
-  @@index([virtuelleKautionBuchungId])
-  @@index([kostengruppeId, jahr])
-  @@index([einheitId, jahr])
-  @@index([aufteilungGruppeId])
-  @@map("kostenpositionen")
+  @@map("kontenabgleich_verifikationen")
 }
 
 // Eine Abrechnung pro Jahr fürs ganze Objekt (nicht pro Gebäude) — Kosten liegen inzwischen auf
@@ -515,21 +602,21 @@ model NebenkostenabrechnungPosition {
 }
 
 model Dokument {
-  id               String          @id @default(cuid())
-  dateiname        String
-  speicherpfad     String
-  mimeType         String?
-  groesseBytes     Int?
-  mietvertrag      Mietvertrag?    @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
-  mietvertragId    String?
-  kostenposition   Kostenposition? @relation(fields: [kostenpositionId], references: [id], onDelete: Cascade)
-  kostenpositionId String?
+  id             String       @id @default(cuid())
+  dateiname      String
+  speicherpfad   String
+  mimeType       String?
+  groesseBytes   Int?
+  mietvertrag    Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId  String?
+  buchung        Buchung?     @relation(fields: [buchungId], references: [id], onDelete: Cascade)
+  buchungId      String?
   // Fotos einer Einheit (Zustand, Ausstattung) — dieselbe Ablage wie Mietvertrags-/Kosten-Belege,
   // nur mit einem dritten möglichen Ziel.
-  einheit          Einheit?        @relation(fields: [einheitId], references: [id], onDelete: Cascade)
-  einheitId        String?
-  hochgeladenVon   String?
-  createdAt        DateTime        @default(now())
+  einheit        Einheit?     @relation(fields: [einheitId], references: [id], onDelete: Cascade)
+  einheitId      String?
+  hochgeladenVon String?
+  createdAt      DateTime     @default(now())
 
   @@map("dokumente")
 }
@@ -548,117 +635,10 @@ model ImportBatch {
   anzahlZeilen Int?
   erstelltAm   DateTime @default(now())
 
-  zahlungen                     Zahlung[]
-  kostenpositionen              Kostenposition[]
-  eigentuemerbuchungen          EigentuemerBuchung[]
-  kautionsbuchungen             KautionBuchung[]
-  nebenkostenausgleichZahlungen NebenkostenausgleichZahlung[]
-  nichtZugeordneteBuchungen     NichtZugeordneteBuchung[]
+  buchungen                 Buchung[]
+  nichtZugeordneteBuchungen NichtZugeordneteBuchung[]
 
   @@map("import_batches")
-}
-
-// Geldbewegung zwischen dem Objekt-Konto und der Eigentümerin persönlich (Mietweiterleitung =
-// Geld raus zur Eigentümerin, Einlage = Geld von ihr aufs Konto — unterschieden rein über das
-// Vorzeichen von betrag, kein eigenes Feld dafür). Terminal: keine weitere
-// Zuordnung/Kategorie-Auflösung wie bei Zahlung/Kostenposition nötig oder vorgesehen.
-model EigentuemerBuchung {
-  id               String       @id @default(cuid())
-  datum            DateTime
-  betrag           Decimal      @db.Decimal(10, 2)
-  empfaenger       String?
-  verwendungszweck String?
-  rohdaten         Json?
-  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId    String?
-  createdAt        DateTime     @default(now())
-
-  @@map("eigentuemerbuchungen")
-}
-
-// Kontobuchung einer Kautionszahlung/-rückzahlung. Bewusst getrennt vom `Kaution`-Modell, das
-// der manuell gepflegte "aktueller Stand"-Datensatz pro Mietvertrag bleibt (1:1, Sollbetrag/
-// Anlageform/Status) — hier geht es nur um die reine Buchungshistorie aus dem
-// Kontoauszug-Import. Kein automatischer Abgleich zwischen beiden.
-model KautionBuchung {
-  id                    String                  @id @default(cuid())
-  mietvertrag           Mietvertrag?            @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
-  mietvertragId         String?
-  datum                 DateTime
-  betrag                Decimal                 @db.Decimal(10, 2)
-  empfaenger            String?
-  verwendungszweck      String?
-  rohdaten              Json?
-  importBatch           ImportBatch?            @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId         String?
-  createdAt             DateTime                @default(now())
-  // Welche Art von Kautionsbewegung das ist — siehe KautionBuchungKategorie. Kein Default mehr
-  // (früher NICHT_ZUGEORDNET als Platzhalter für Altbuchungen) — jede Buchung bekommt beim
-  // Import bereits eine echte Kategorie zugewiesen.
-  kategorie             KautionBuchungKategorie
-  // Kostenpositionen, deren virtuelle Gutschrift diese Buchung als Gegenbuchung referenziert
-  // (Kategorie VIRTUELLE_AUSZAHLUNG) — siehe Kostenposition.virtuelleKautionBuchungId.
-  virtuelleGutschriften Kostenposition[]
-
-  @@index([mietvertragId])
-  @@map("kautionsbuchungen")
-}
-
-enum KautionBuchungKategorie {
-  // Ursprüngliche Einzahlung der Kaution durch den Mieter (oder in seinem Auftrag, z.B. eine
-  // Behörde) auf das Konto, bei Mietbeginn.
-  EINZAHLUNG_MIETER
-  // Interne Überweisung vom Geschäfts- aufs Kautionskonto — Verwendungszweck nennt dafür
-  // zuverlässig das Wort "Anlage" (siehe KAUTION_ANLAGE_PATTERN in bank-csv.ts).
-  ANLAGE
-  // Interne Überweisung vom Kautionskonto zurück aufs Geschäftskonto, meist beim Auszug — dafür
-  // gibt es (anders als bei ANLAGE) kein zuverlässiges Schlüsselwort, muss aktuell manuell
-  // gesetzt werden.
-  AUFLOESUNG
-  // Teil- oder Gesamtauszahlung der Kaution an den (ausgezogenen) Mieter.
-  AUSZAHLUNG_MIETER
-  // Bewusst abgeschlossen, aber keine der vier echten Kategorien — z.B. eine Korrekturbuchung für
-  // eine versehentliche Doppelüberweisung ohne Bezug zu einem echten Auflösungs-/Auszahlungs-
-  // Vorgang.
-  SONSTIGES
-  // Wie AUSZAHLUNG_MIETER, aber ohne eigene Kontobewegung — der Betrag wurde bereits über eine
-  // reale Kostenposition abgebucht (z.B. eine Reparatur, vom einbehaltenen Kautionsrest bezahlt).
-  // Fließt bewusst ganz normal in /kontostand und die Jahresübersicht ein wie jede andere
-  // Kategorie — sie gleicht sich dort rein durch das entgegengesetzte Vorzeichen der verknüpften
-  // Kostenposition (Kostenposition.virtuelleKautionBuchungId) von selbst aus, ohne eigene
-  // Ausschluss-Logik.
-  VIRTUELLE_AUSZAHLUNG
-}
-
-// Eine Nebenkostenabrechnung-Rückzahlung/-nachzahlung, unabhängig davon, ob es für ihr Jahr
-// bereits eine Nebenkostenabrechnung in dieser App gibt — der Import schreibt hierher, egal ob
-// (noch) eine passende NebenkostenabrechnungPosition existiert. Steht `jahr` fest, wird beim
-// Erstellen/Neu-Berechnen einer Abrechnung für genau dieses Jahr automatisch nach passenden
-// Zeilen (Mietvertrag+Jahr) gesucht und die passende Position als beglichen markiert (siehe
-// synchronisiertNebenkostenausgleich in nebenkostenabrechnungen/actions.ts) — unabhängig vom
-// Lebenszyklus einer einzelnen Abrechnung (übersteht also auch deren Löschen+Neuanlegen). `jahr:
-// null` bedeutet rein archivarisch, ohne automatische Verknüpfung (z.B. eine wirklich unklare
-// Buchung) — dient dann nur dazu, dass die Vollständigkeitsprüfung eines Kontoauszugs die Zeile
-// als geklärt erkennt, statt sie dauerhaft als "ungeklärt" zu melden.
-model NebenkostenausgleichZahlung {
-  id               String       @id @default(cuid())
-  mietvertrag      Mietvertrag? @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
-  mietvertragId    String?
-  // Das Abrechnungsjahr, auf das sich diese Zahlung bezieht — z.B. eine "BK-Abr 2023"-Auszahlung,
-  // die erst 2024 überwiesen wurde (nicht das Buchungsjahr, das oft ein Jahr später liegt).
-  jahr             Int?
-  datum            DateTime
-  betrag           Decimal      @db.Decimal(10, 2)
-  empfaenger       String?
-  verwendungszweck String?
-  rohdaten         Json?
-  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-  importBatchId    String?
-  createdAt        DateTime     @default(now())
-
-  @@index([mietvertragId])
-  @@index([mietvertragId, jahr])
-  @@map("nebenkostenausgleich_zahlungen")
 }
 
 // Eine beim Kontoauszug-Import bewusst noch nicht zugeordnete Buchung — der Nutzer konnte sie in

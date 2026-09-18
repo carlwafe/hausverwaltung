@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { MietweiterleitungenTable, type MietweiterleitungRow } from "./mietweiterleitungen-table";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeMietweiterleitungen(): Promise<MietweiterleitungRow[]> {
-  const buchungen = await prisma.eigentuemerBuchung.findMany({
+  const buchungen = await prisma.buchung.findMany({
+    where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...AKTIVE_BUCHUNG_FILTER },
     orderBy: { datum: "desc" },
     include: { importBatch: true },
   });
 
   return buchungen.map((m) => ({
     id: m.id,
-    datum: m.datum.toISOString(),
+    datum: m.datum!.toISOString(),
     betrag: Number(m.betrag),
     empfaenger: m.empfaenger,
     verwendungszweck: m.verwendungszweck,

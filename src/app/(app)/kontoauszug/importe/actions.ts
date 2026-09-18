@@ -34,11 +34,11 @@ export async function pruefeImportVollstaendigkeit(
     alleSonstigenBuchungen,
     alleNichtZugeordneten,
   ] = await Promise.all([
-      prisma.zahlung.findMany({ select: { rohdaten: true } }),
-      prisma.kostenposition.findMany({ select: { rohdaten: true } }),
-      prisma.eigentuemerBuchung.findMany({ select: { rohdaten: true } }),
-      prisma.kautionBuchung.findMany({ select: { rohdaten: true } }),
-      prisma.nebenkostenausgleichZahlung.findMany({ select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETZAHLUNG" } }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "KOSTENPOSITION" } }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETWEITERLEITUNG" } }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } }, select: { rohdaten: true } }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
     ]);
   const zahlung = new Set(
@@ -88,11 +88,7 @@ export async function raeumeVerwaisteImporteAuf(): Promise<void> {
   const verwaist = await prisma.importBatch.findMany({
     where: {
       typ: "KONTOAUSZUG",
-      zahlungen: { none: {} },
-      kostenpositionen: { none: {} },
-      eigentuemerbuchungen: { none: {} },
-      kautionsbuchungen: { none: {} },
-      nebenkostenausgleichZahlungen: { none: {} },
+      buchungen: { none: {} },
       // Ein Batch, aus dem nur geparkte (noch nicht kategorisierte) Buchungen entstanden sind,
       // gilt nicht als verwaist — die Originaldatei wird für deren Rohdaten-Download noch
       // gebraucht (siehe NichtZugeordneteBuchung).

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIst, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -30,7 +31,10 @@ export default async function DashboardPage() {
           nebenkostenVorauszahlung: true,
           mehrwertsteuer: true,
           saldovortrag: true,
-          zahlungen: { select: { datum: true, betrag: true } },
+          buchungen: {
+            where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
+            select: { datum: true, betrag: true },
+          },
           mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
         },
       }),
@@ -74,7 +78,7 @@ export default async function DashboardPage() {
       buchhaltungAb,
     );
     const ist = berechneIst(
-      v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
+      v.buchungen.map((z) => ({ datum: z.datum!, betrag: Number(z.betrag) })),
       buchhaltungAb,
     );
     const saldo = ist - soll + Number(v.saldovortrag);

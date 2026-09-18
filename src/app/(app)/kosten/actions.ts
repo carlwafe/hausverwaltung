@@ -6,6 +6,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
+import { storniereBuchung } from "@/lib/buchung-storno";
+
+async function ladeKostenpositionBuchungsartId(): Promise<string> {
+  const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
+  return art.id;
+}
 
 const kostenpositionSchema = z.object({
   kostenartId: z.string().min(1, "Kostenart ist erforderlich"),
@@ -23,7 +29,7 @@ const kostenpositionSchema = z.object({
   beschreibung: z.string().optional(),
   empfaenger: z.string().optional(),
   // Verknüpft diese Position als virtuelle Gutschrift mit einer Kautionsbuchung der Kategorie
-  // VIRTUELLE_AUSZAHLUNG (Gegenbuchung, siehe Kostenposition.virtuelleKautionBuchungId im Schema).
+  // VIRTUELLE_AUSZAHLUNG — polymorpher Bezug über bezugTyp/bezugId (siehe Buchung im Schema).
   virtuelleKautionBuchungId: z.string().optional(),
 });
 
@@ -41,9 +47,9 @@ function parseForm(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
   }
-  const { gebaeudeAuswahl, ...rest } = parsed.data;
+  const { gebaeudeAuswahl, beschreibung, ...rest } = parsed.data;
   const { gebaeudeId, hausId, kostengruppeId, einheitId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
-  return { ...rest, gebaeudeId, hausId, kostengruppeId, einheitId };
+  return { ...rest, verwendungszweck: beschreibung, gebaeudeId, hausId, kostengruppeId, einheitId };
 }
 
 // Das Datumsfeld wird bei einer importierten Position deaktiviert (siehe kostenposition-form.tsx)
@@ -65,8 +71,8 @@ async function ermittleDatumFuerVirtuelleGutschrift(
   virtuelleKautionBuchungId: string | undefined,
 ): Promise<Date | null> {
   if (!virtuelleKautionBuchungId) return null;
-  const buchung = await prisma.kautionBuchung.findUnique({
-    where: { id: virtuelleKautionBuchungId },
+  const buchung = await prisma.buchung.findUnique({
+    where: { id: virtuelleKautionBuchungId, buchungsart: { kontokreis: "KAUTIONSKONTO" } },
     select: { datum: true },
   });
   return buchung?.datum ?? null;
@@ -78,19 +84,20 @@ export async function createKostenposition(formData: FormData) {
     parseForm(formData);
   const { wert: explizitesDatum } = parseDatumFeld(formData);
   const datum = explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId));
+  const buchungsartId = await ladeKostenpositionBuchungsartId();
 
-  await prisma.kostenposition.create({
+  await prisma.buchung.create({
     data: {
       ...rest,
+      buchungsartId,
+      kostenartId,
       datum,
-      kostenart: { connect: { id: kostenartId } },
-      ...(gebaeudeId ? { gebaeude: { connect: { id: gebaeudeId } } } : {}),
-      ...(hausId ? { haus: { connect: { id: hausId } } } : {}),
-      ...(kostengruppeId ? { kostengruppe: { connect: { id: kostengruppeId } } } : {}),
-      ...(einheitId ? { einheit: { connect: { id: einheitId } } } : {}),
-      ...(virtuelleKautionBuchungId
-        ? { virtuelleKautionBuchung: { connect: { id: virtuelleKautionBuchungId } } }
-        : {}),
+      gebaeudeId: gebaeudeId || null,
+      hausId: hausId || null,
+      kostengruppeId: kostengruppeId || null,
+      einheitId: einheitId || null,
+      bezugTyp: virtuelleKautionBuchungId ? "Buchung" : null,
+      bezugId: virtuelleKautionBuchungId || null,
     },
   });
 
@@ -99,6 +106,8 @@ export async function createKostenposition(formData: FormData) {
   redirect("/kosten");
 }
 
+// "Bearbeiten" heißt beim Storno-Prinzip: die alte Buchung stornieren und mit den korrigierten
+// Werten neu anlegen — importBatchId/rohdaten/aufteilungGruppeId wandern dabei mit.
 export async function updateKostenposition(id: string, formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
@@ -108,24 +117,30 @@ export async function updateKostenposition(id: string, formData: FormData) {
   // eingetragenes Datum immer Vorrang; ist das Feld leer, greift wie beim Anlegen die Vorbelegung
   // aus einer verknüpften Kautionsbuchung, sonst wird das Datum explizit gelöscht.
   const { vorhanden, wert: explizitesDatum } = parseDatumFeld(formData);
+  const bisherige = await prisma.buchung.findUniqueOrThrow({ where: { id } });
   const datum = vorhanden
     ? (explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId)))
-    : undefined;
+    : bisherige.datum;
 
-  await prisma.kostenposition.update({
-    where: { id },
-    data: {
-      ...rest,
-      ...(datum !== undefined ? { datum } : {}),
-      kostenart: { connect: { id: kostenartId } },
-      gebaeude: gebaeudeId ? { connect: { id: gebaeudeId } } : { disconnect: true },
-      haus: hausId ? { connect: { id: hausId } } : { disconnect: true },
-      kostengruppe: kostengruppeId ? { connect: { id: kostengruppeId } } : { disconnect: true },
-      einheit: einheitId ? { connect: { id: einheitId } } : { disconnect: true },
-      virtuelleKautionBuchung: virtuelleKautionBuchungId
-        ? { connect: { id: virtuelleKautionBuchungId } }
-        : { disconnect: true },
-    },
+  await prisma.$transaction(async (tx) => {
+    await storniereBuchung(tx, id);
+    await tx.buchung.create({
+      data: {
+        ...rest,
+        buchungsartId: bisherige.buchungsartId,
+        kostenartId,
+        datum,
+        gebaeudeId: gebaeudeId || null,
+        hausId: hausId || null,
+        kostengruppeId: kostengruppeId || null,
+        einheitId: einheitId || null,
+        bezugTyp: virtuelleKautionBuchungId ? "Buchung" : null,
+        bezugId: virtuelleKautionBuchungId || null,
+        rohdaten: bisherige.rohdaten ?? undefined,
+        importBatchId: bisherige.importBatchId,
+        aufteilungGruppeId: bisherige.aufteilungGruppeId,
+      },
+    });
   });
 
   revalidatePath("/kosten");
@@ -136,7 +151,9 @@ export async function updateKostenposition(id: string, formData: FormData) {
 
 export async function deleteKostenposition(id: string) {
   await requireEditor();
-  await prisma.kostenposition.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await storniereBuchung(tx, id);
+  });
   revalidatePath("/kosten");
   redirect("/kosten");
 }
@@ -144,7 +161,11 @@ export async function deleteKostenposition(id: string) {
 export async function deleteKostenpositionen(ids: string[]) {
   await requireEditor();
   if (ids.length === 0) return;
-  await prisma.kostenposition.deleteMany({ where: { id: { in: ids } } });
+  await prisma.$transaction(async (tx) => {
+    for (const id of ids) {
+      await storniereBuchung(tx, id);
+    }
+  });
   revalidatePath("/kosten");
 }
 
@@ -157,8 +178,8 @@ const aufteilungTeilSchema = z.object({
 /**
  * Teilt eine als eine Buchung importierte Kostenposition (z.B. eine Hausmeister-Rechnung mit
  * umlagefähigem Hausmeisterdienst + nicht umlagefähigem Winterdienst) in mehrere Positionen mit
- * je eigener Kostenart/Betrag auf. Die ursprüngliche Position wird durch die neuen ersetzt statt
- * daneben zu bestehen — dadurch bleiben alle bestehenden Summen (Nebenkostenabrechnung,
+ * je eigener Kostenart/Betrag auf. Die ursprüngliche Position wird storniert statt echt gelöscht
+ * (Storno-Prinzip) — dadurch bleiben alle bestehenden Summen (Nebenkostenabrechnung,
  * Jahresübersicht, Kosten-Übersicht) automatisch korrekt, ohne dass sie von der Aufteilung
  * wissen müssen. `aufteilungGruppeId` verknüpft die neuen Positionen als zusammengehörig, damit
  * die Kosten-Übersicht sie wieder als eine Zeile darstellen kann.
@@ -186,7 +207,7 @@ export async function teileKostenpositionAuf(
   }
   const teile = parsed.data;
 
-  const original = await prisma.kostenposition.findUnique({ where: { id } });
+  const original = await prisma.buchung.findUnique({ where: { id } });
   if (!original) return "Kostenposition nicht gefunden.";
 
   const summeTeile = teile.reduce((sum, t) => sum + t.betrag, 0);
@@ -199,11 +220,12 @@ export async function teileKostenpositionAuf(
   await prisma.$transaction(async (tx) => {
     const neuePositionen = [];
     for (const teil of teile) {
-      const neu = await tx.kostenposition.create({
+      const neu = await tx.buchung.create({
         data: {
+          buchungsartId: original.buchungsartId,
           kostenartId: teil.kostenartId,
           betrag: teil.betrag,
-          beschreibung: teil.beschreibung || original.beschreibung,
+          verwendungszweck: teil.beschreibung || original.verwendungszweck,
           empfaenger: original.empfaenger,
           gebaeudeId: original.gebaeudeId,
           hausId: original.hausId,
@@ -219,12 +241,12 @@ export async function teileKostenpositionAuf(
       neuePositionen.push(neu);
     }
     // Belege hängen an der ursprünglichen Position — auf die erste neue Teil-Position umhängen,
-    // statt sie beim Löschen der ursprünglichen Position durch die Cascade zu verlieren.
+    // statt sie sonst verwaist stehen zu lassen.
     await tx.dokument.updateMany({
-      where: { kostenpositionId: id },
-      data: { kostenpositionId: neuePositionen[0].id },
+      where: { buchungId: id },
+      data: { buchungId: neuePositionen[0].id },
     });
-    await tx.kostenposition.delete({ where: { id } });
+    await storniereBuchung(tx, id);
   });
 
   revalidatePath("/kosten");
@@ -232,25 +254,27 @@ export async function teileKostenpositionAuf(
 }
 
 // Macht eine Aufteilung wieder rückgängig: alle Positionen derselben aufteilungGruppeId werden
-// zu einer einzigen Position zusammengeführt (Betrag = Summe), unter der Kostenart der Position,
-// von der aus die Aktion aufgerufen wurde. Belege aller Teile wandern auf die neue Position.
+// storniert und zu einer einzigen neuen Position zusammengeführt (Betrag = Summe), unter der
+// Kostenart der Position, von der aus die Aktion aufgerufen wurde. Belege aller Teile wandern auf
+// die neue Position.
 export async function hebeAufteilungAuf(positionId: string) {
   await requireEditor();
-  const position = await prisma.kostenposition.findUnique({ where: { id: positionId } });
+  const position = await prisma.buchung.findUnique({ where: { id: positionId } });
   if (!position) throw new Error("Kostenposition nicht gefunden.");
   if (!position.aufteilungGruppeId) throw new Error("Diese Position ist nicht Teil einer Aufteilung.");
 
-  const gruppe = await prisma.kostenposition.findMany({
+  const gruppe = await prisma.buchung.findMany({
     where: { aufteilungGruppeId: position.aufteilungGruppeId },
   });
   const summe = gruppe.reduce((sum, p) => sum + Number(p.betrag), 0);
 
   await prisma.$transaction(async (tx) => {
-    const neu = await tx.kostenposition.create({
+    const neu = await tx.buchung.create({
       data: {
+        buchungsartId: position.buchungsartId,
         kostenartId: position.kostenartId,
         betrag: summe,
-        beschreibung: position.beschreibung,
+        verwendungszweck: position.verwendungszweck,
         empfaenger: position.empfaenger,
         gebaeudeId: position.gebaeudeId,
         hausId: position.hausId,
@@ -263,10 +287,12 @@ export async function hebeAufteilungAuf(positionId: string) {
       },
     });
     await tx.dokument.updateMany({
-      where: { kostenpositionId: { in: gruppe.map((p) => p.id) } },
-      data: { kostenpositionId: neu.id },
+      where: { buchungId: { in: gruppe.map((p) => p.id) } },
+      data: { buchungId: neu.id },
     });
-    await tx.kostenposition.deleteMany({ where: { aufteilungGruppeId: position.aufteilungGruppeId } });
+    for (const teil of gruppe) {
+      await storniereBuchung(tx, teil.id);
+    }
   });
 
   revalidatePath("/kosten");
@@ -303,10 +329,12 @@ export async function ordneNichtZugeordneteBuchungZu(
 
   const buchung = await prisma.nichtZugeordneteBuchung.findUnique({ where: { id } });
   if (!buchung) return "Diese Buchung wurde bereits zugeordnet oder gelöscht.";
+  const buchungsartId = await ladeKostenpositionBuchungsartId();
 
   await prisma.$transaction([
-    prisma.kostenposition.create({
+    prisma.buchung.create({
       data: {
+        buchungsartId,
         kostenartId,
         gebaeudeId,
         hausId,
@@ -316,7 +344,7 @@ export async function ordneNichtZugeordneteBuchungZu(
         datum: buchung.datum,
         betrag: buchung.betrag,
         empfaenger: buchung.empfaenger,
-        beschreibung: buchung.verwendungszweck,
+        verwendungszweck: buchung.verwendungszweck,
         rohdaten: buchung.rohdaten ?? undefined,
         importBatchId: buchung.importBatchId,
       },

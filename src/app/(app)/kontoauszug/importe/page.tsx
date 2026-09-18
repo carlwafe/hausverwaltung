@@ -3,35 +3,66 @@ import { prisma } from "@/lib/prisma";
 import { ImporteTabelle, type GruppierterImportRow } from "./importe-tabelle";
 
 export default async function KontoauszugImportePage() {
-  const batches = await prisma.importBatch.findMany({
-    where: { typ: "KONTOAUSZUG" },
-    orderBy: { erstelltAm: "desc" },
-    include: {
-      _count: {
-        select: {
-          zahlungen: true,
-          kostenpositionen: true,
-          eigentuemerbuchungen: true,
-          kautionsbuchungen: true,
-          nebenkostenausgleichZahlungen: true,
-          nichtZugeordneteBuchungen: true,
-        },
-      },
-    },
-  });
+  const [batches, buchungenRaw, buchungsarten] = await Promise.all([
+    prisma.importBatch.findMany({
+      where: { typ: "KONTOAUSZUG" },
+      orderBy: { erstelltAm: "desc" },
+      include: { _count: { select: { nichtZugeordneteBuchungen: true } } },
+    }),
+    // Kein _count pro Buchungsart mehr möglich, seit alle 5 Vorgänger-Tabellen zu einer
+    // gemeinsamen Buchung-Tabelle zusammengefasst wurden — stattdessen hier per Hand aggregiert.
+    prisma.buchung.findMany({
+      where: { importBatchId: { not: null } },
+      select: { importBatchId: true, buchungsartId: true },
+    }),
+    prisma.buchungsart.findMany({ select: { id: true, code: true, kontokreis: true } }),
+  ]);
+  const artNachId = new Map(buchungsarten.map((a) => [a.id, a]));
 
-  const rows = batches.map((b) => ({
-    id: b.id,
-    dateiname: b.dateiname,
-    erstelltAm: b.erstelltAm.toISOString(),
-    anzahlZeilen: b.anzahlZeilen,
-    anzahlZahlungen: b._count.zahlungen,
-    anzahlKosten: b._count.kostenpositionen,
-    anzahlMietweiterleitungen: b._count.eigentuemerbuchungen,
-    anzahlKautionsbuchungen: b._count.kautionsbuchungen,
-    anzahlSonstige: b._count.nebenkostenausgleichZahlungen,
-    anzahlNichtZugeordnet: b._count.nichtZugeordneteBuchungen,
-  }));
+  const anzahlProBatch = new Map<
+    string,
+    { zahlungen: number; kosten: number; mietweiterleitungen: number; kaution: number; sonstige: number }
+  >();
+  for (const b of buchungenRaw) {
+    if (!b.importBatchId) continue;
+    const art = artNachId.get(b.buchungsartId);
+    if (!art) continue;
+    const eintrag = anzahlProBatch.get(b.importBatchId) ?? {
+      zahlungen: 0,
+      kosten: 0,
+      mietweiterleitungen: 0,
+      kaution: 0,
+      sonstige: 0,
+    };
+    if (art.code === "MIETZAHLUNG") eintrag.zahlungen++;
+    else if (art.code === "KOSTENPOSITION") eintrag.kosten++;
+    else if (art.code === "MIETWEITERLEITUNG") eintrag.mietweiterleitungen++;
+    else if (art.kontokreis === "KAUTIONSKONTO") eintrag.kaution++;
+    else if (art.code === "NEBENKOSTENAUSGLEICH") eintrag.sonstige++;
+    anzahlProBatch.set(b.importBatchId, eintrag);
+  }
+
+  const rows = batches.map((b) => {
+    const anzahl = anzahlProBatch.get(b.id) ?? {
+      zahlungen: 0,
+      kosten: 0,
+      mietweiterleitungen: 0,
+      kaution: 0,
+      sonstige: 0,
+    };
+    return {
+      id: b.id,
+      dateiname: b.dateiname,
+      erstelltAm: b.erstelltAm.toISOString(),
+      anzahlZeilen: b.anzahlZeilen,
+      anzahlZahlungen: anzahl.zahlungen,
+      anzahlKosten: anzahl.kosten,
+      anzahlMietweiterleitungen: anzahl.mietweiterleitungen,
+      anzahlKautionsbuchungen: anzahl.kaution,
+      anzahlSonstige: anzahl.sonstige,
+      anzahlNichtZugeordnet: b._count.nichtZugeordneteBuchungen,
+    };
+  });
   const verwaisteAnzahl = rows.filter(
     (r) =>
       r.anzahlZahlungen === 0 &&

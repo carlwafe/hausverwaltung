@@ -19,10 +19,21 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
     include: {
       einheit: true,
       mieter: true,
-      zahlungen: true,
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
     },
   });
+
+  const zahlungenRaw = await prisma.buchung.findMany({
+    where: { mietvertragId: { in: vertraege.map((v) => v.id) }, buchungsart: { code: "MIETZAHLUNG" } },
+    select: { mietvertragId: true, datum: true, betrag: true },
+  });
+  const zahlungenNachVertrag = new Map<string, { datum: Date; betrag: number }[]>();
+  for (const z of zahlungenRaw) {
+    if (!z.mietvertragId || !z.datum) continue;
+    const liste = zahlungenNachVertrag.get(z.mietvertragId) ?? [];
+    liste.push({ datum: z.datum, betrag: Number(z.betrag) });
+    zahlungenNachVertrag.set(z.mietvertragId, liste);
+  }
 
   return vertraege
     .map((v) => {
@@ -42,11 +53,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         bis,
         buchhaltungAb,
       );
-      const ist = berechneIst(
-        v.zahlungen.map((z) => ({ datum: z.datum, betrag: Number(z.betrag) })),
-        buchhaltungAb,
-        bis,
-      );
+      const ist = berechneIst(zahlungenNachVertrag.get(v.id) ?? [], buchhaltungAb, bis);
       const saldovortrag = Number(v.saldovortrag);
       const saldo = ist - soll + saldovortrag;
 

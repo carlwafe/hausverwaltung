@@ -15,12 +15,28 @@ const VERTEILERSCHLUESSEL = [
   "VORVERTEILT",
 ] as const;
 
-const kostenartSchema = z.object({
-  name: z.string().min(1, "Name ist erforderlich"),
-  umlagefaehig: z.coerce.boolean(),
-  standardVerteilerschluessel: z.enum(VERTEILERSCHLUESSEL).optional(),
-  masseinheit: z.string().optional(),
-});
+const kostenartSchema = z
+  .object({
+    name: z.string().min(1, "Name ist erforderlich"),
+    umlagefaehig: z.coerce.boolean(),
+    standardVerteilerschluessel: z.enum(VERTEILERSCHLUESSEL).optional(),
+    masseinheit: z.string().optional(),
+    betrKvNummer: z.coerce.number().int().min(1).max(16).optional(),
+    istSonstigeBetriebskosten: z.coerce.boolean(),
+    vertraglicheGrundlage: z.string().optional(),
+  })
+  .refine(
+    (data) => !(data.umlagefaehig && data.istSonstigeBetriebskosten) || !!data.vertraglicheGrundlage?.trim(),
+    {
+      message:
+        "Vertragliche Grundlage ist erforderlich für umlagefähige Kostenarten unter § 2 Nr. 17 BetrKV — ein pauschaler Verweis auf die Vorschrift reicht laut Rechtsprechung nicht aus, die Position muss konkret im Mietvertrag benannt sein",
+      path: ["vertraglicheGrundlage"],
+    },
+  )
+  .refine((data) => !(data.betrKvNummer && data.istSonstigeBetriebskosten), {
+    message: "Eine Kostenart ist entweder einer der Nr. 1–16 zugeordnet oder \"sonstige\" (Nr. 17), nicht beides",
+    path: ["betrKvNummer"],
+  });
 
 function parseForm(formData: FormData) {
   const parsed = kostenartSchema.safeParse({
@@ -28,6 +44,9 @@ function parseForm(formData: FormData) {
     umlagefaehig: formData.get("umlagefaehig") === "on",
     standardVerteilerschluessel: formData.get("standardVerteilerschluessel") || undefined,
     masseinheit: formData.get("masseinheit") || undefined,
+    betrKvNummer: formData.get("betrKvNummer") || undefined,
+    istSonstigeBetriebskosten: formData.get("istSonstigeBetriebskosten") === "on",
+    vertraglicheGrundlage: formData.get("vertraglicheGrundlage") || undefined,
   });
 
   if (!parsed.success) {
@@ -45,6 +64,8 @@ export async function createKostenart(formData: FormData) {
       ...data,
       standardVerteilerschluessel: data.standardVerteilerschluessel ?? null,
       masseinheit: data.masseinheit ?? null,
+      betrKvNummer: data.betrKvNummer ?? null,
+      vertraglicheGrundlage: data.vertraglicheGrundlage ?? null,
     },
   });
 
@@ -65,6 +86,8 @@ export async function updateKostenart(id: string, formData: FormData) {
       ...data,
       standardVerteilerschluessel: data.standardVerteilerschluessel ?? null,
       masseinheit: data.masseinheit ?? null,
+      betrKvNummer: data.betrKvNummer ?? null,
+      vertraglicheGrundlage: data.vertraglicheGrundlage ?? null,
     },
   });
 

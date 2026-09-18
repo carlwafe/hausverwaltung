@@ -6,7 +6,7 @@ import { requireEditor } from "@/lib/session";
 import { speichereDatei, loescheDatei } from "@/lib/storage";
 
 type UploadZiel =
-  | { kostenpositionId: string; revalidatePath: string }
+  | { buchungId: string; revalidatePath: string }
   | { mietvertragId: string; revalidatePath: string }
   | { einheitId: string; revalidatePath: string };
 
@@ -33,7 +33,7 @@ export async function uploadDokument(
         speicherpfad,
         mimeType: file.type || null,
         groesseBytes: file.size,
-        kostenpositionId: "kostenpositionId" in ziel ? ziel.kostenpositionId : undefined,
+        buchungId: "buchungId" in ziel ? ziel.buchungId : undefined,
         mietvertragId: "mietvertragId" in ziel ? ziel.mietvertragId : undefined,
         einheitId: "einheitId" in ziel ? ziel.einheitId : undefined,
         hochgeladenVon: user.email ?? user.name ?? null,

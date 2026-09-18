@@ -14,8 +14,8 @@ function formatEuro(value: number) {
 export default async function ZahlungDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [zahlung, vertraege, kostenarten] = await Promise.all([
-    prisma.zahlung.findUnique({
-      where: { id },
+    prisma.buchung.findUnique({
+      where: { id, buchungsart: { code: "MIETZAHLUNG" } },
       include: { mietvertrag: { include: { einheit: true, mieter: true } } },
     }),
     prisma.mietvertrag.findMany({
@@ -24,20 +24,28 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
   ]);
-  if (!zahlung) notFound();
+  if (!zahlung || !zahlung.mietvertrag || !zahlung.datum) notFound();
   vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
 
   const aufteilungGruppeId = zahlung.aufteilungGruppeId;
-  const aufteilungGeschwister = await prisma.zahlung.findMany({
-    where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__" },
-    include: { mietvertrag: { include: { einheit: true, mieter: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-  const aufteilungKosten = await prisma.kostenposition.findMany({
-    where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__" },
-    include: { kostenart: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const [aufteilungGeschwisterRaw, aufteilungKostenRaw] = await Promise.all([
+    prisma.buchung.findMany({
+      where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__", buchungsart: { code: "MIETZAHLUNG" } },
+      include: { mietvertrag: { include: { einheit: true, mieter: true } } },
+      orderBy: { erstelltAm: "asc" },
+    }),
+    prisma.buchung.findMany({
+      where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__", buchungsart: { code: "KOSTENPOSITION" } },
+      include: { kostenart: true },
+      orderBy: { erstelltAm: "asc" },
+    }),
+  ]);
+  const aufteilungGeschwister = aufteilungGeschwisterRaw.filter(
+    (z): z is typeof z & { mietvertrag: NonNullable<(typeof z)["mietvertrag"]> } => z.mietvertrag !== null,
+  );
+  const aufteilungKosten = aufteilungKostenRaw.filter(
+    (k): k is typeof k & { kostenart: NonNullable<(typeof k)["kostenart"]> } => k.kostenart !== null,
+  );
 
   const mietvertraegeOptionen = vertraege.map((v) => ({
     id: v.id,
@@ -48,19 +56,19 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          Zahlung — {zahlung.mietvertrag.einheit.bezeichnung} (
-          {zahlung.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")})
+          Zahlung — {zahlung.mietvertrag!.einheit.bezeichnung} (
+          {zahlung.mietvertrag!.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")})
         </h1>
         <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Zahlung wirklich löschen?" />
       </div>
       <ZahlungForm
         mietvertraege={mietvertraegeOptionen}
         initial={{
-          mietvertragId: zahlung.mietvertragId,
-          datum: zahlung.datum.toISOString().slice(0, 10),
+          mietvertragId: zahlung.mietvertragId!,
+          datum: zahlung.datum!.toISOString().slice(0, 10),
           betrag: zahlung.betrag.toString(),
-          periodeMonat: zahlung.periodeMonat,
-          periodeJahr: zahlung.periodeJahr,
+          periodeMonat: zahlung.periodeMonat!,
+          periodeJahr: zahlung.periodeJahr!,
           verwendungszweck: zahlung.verwendungszweck,
         }}
         action={updateZahlung.bind(null, id)}
@@ -108,7 +116,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           </ul>
           <DeleteButton
             action={hebeZahlungAufteilungAuf.bind(null, id)}
-            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Zahlungen werden zu einer Zahlung unter "${zahlung.mietvertrag.einheit.bezeichnung}" zusammengeführt.${aufteilungKosten.length > 0 ? " Die abgespaltenen Kostenpositionen bleiben davon unberührt bestehen." : ""}`}
+            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Zahlungen werden zu einer Zahlung unter "${zahlung.mietvertrag!.einheit.bezeichnung}" zusammengeführt.${aufteilungKosten.length > 0 ? " Die abgespaltenen Kostenpositionen bleiben davon unberührt bestehen." : ""}`}
             label="Aufteilung rückgängig machen"
           />
         </div>
@@ -116,9 +124,9 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
         <AufteilenForm
           zahlungId={id}
           betragGesamt={Number(zahlung.betrag)}
-          aktuelleMietvertragId={zahlung.mietvertragId}
-          periodeMonat={zahlung.periodeMonat}
-          periodeJahr={zahlung.periodeJahr}
+          aktuelleMietvertragId={zahlung.mietvertragId!}
+          periodeMonat={zahlung.periodeMonat!}
+          periodeJahr={zahlung.periodeJahr!}
           mietvertraege={mietvertraegeOptionen}
           kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
         />

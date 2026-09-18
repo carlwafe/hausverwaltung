@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { KostenartenTable, type KostenartRow } from "./kostenarten-table";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeKostenarten(): Promise<KostenartRow[]> {
   const kostenarten = await prisma.kostenart.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { kostenpositionen: true } } },
+    include: { _count: { select: { buchungen: { where: AKTIVE_BUCHUNG_FILTER } } } },
   });
 
   return kostenarten.map((k) => ({
@@ -13,7 +14,10 @@ async function ladeKostenarten(): Promise<KostenartRow[]> {
     name: k.name,
     umlagefaehig: k.umlagefaehig,
     standardVerteilerschluessel: k.standardVerteilerschluessel,
-    anzahlPositionen: k._count.kostenpositionen,
+    betrKvNummer: k.betrKvNummer,
+    istSonstigeBetriebskosten: k.istSonstigeBetriebskosten,
+    vertraglicheGrundlage: k.vertraglicheGrundlage,
+    anzahlPositionen: k._count.buchungen,
   }));
 }
 

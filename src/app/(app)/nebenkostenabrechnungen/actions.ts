@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -19,8 +20,8 @@ import {
 export async function ladeBerechnungsdaten(jahr: number) {
   const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw, vorverteilteAnteileRaw] =
     await Promise.all([
-      prisma.kostenposition.findMany({
-        where: { jahr, kostenart: { umlagefaehig: true } },
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "KOSTENPOSITION" }, jahr, kostenart: { umlagefaehig: true }, ...AKTIVE_BUCHUNG_FILTER },
         include: {
           kostenart: true,
           gebaeude: true,
@@ -37,18 +38,23 @@ export async function ladeBerechnungsdaten(jahr: number) {
       prisma.vorverteilterKostenanteil.findMany({ where: { jahr }, include: { kostenart: true } }),
     ]);
 
-  const kostenpositionen: KostenpositionFuerAbrechnung[] = kostenpositionenRaw.map((k) => ({
-    betrag: Number(k.betrag),
-    gebaeudeId: k.gebaeudeId,
-    hausId: k.hausId,
-    kostengruppeId: k.kostengruppeId,
-    einheitId: k.einheitId,
-    kostenartId: k.kostenartId,
-    verteilerschluessel: k.kostenart.standardVerteilerschluessel,
-    kostenartName: k.kostenart.name,
-    scopeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe, k.einheit),
-    masseinheit: k.kostenart.masseinheit,
-  }));
+  // Die where-Klausel oben filtert bereits auf kostenart: { umlagefaehig: true } — kostenart ist
+  // für jede zurückgegebene Zeile also real vorhanden, auch wenn die Relation im Schema (anders
+  // als bei der alten Kostenposition.kostenartId, einem Pflichtfeld) jetzt optional ist.
+  const kostenpositionen: KostenpositionFuerAbrechnung[] = kostenpositionenRaw
+    .filter((k) => k.kostenart !== null)
+    .map((k) => ({
+      betrag: Number(k.betrag),
+      gebaeudeId: k.gebaeudeId,
+      hausId: k.hausId,
+      kostengruppeId: k.kostengruppeId,
+      einheitId: k.einheitId,
+      kostenartId: k.kostenartId!,
+      verteilerschluessel: k.kostenart!.standardVerteilerschluessel,
+      kostenartName: k.kostenart!.name,
+      scopeLabel: gebaeudeOderHausLabel(k.gebaeude, k.haus, k.kostengruppe, k.einheit),
+      masseinheit: k.kostenart!.masseinheit,
+    }));
   const einheiten: EinheitFuerAbrechnung[] = einheitenRaw.map((e) => ({
     id: e.id,
     bezeichnung: e.bezeichnung,
@@ -272,13 +278,14 @@ export async function ladeNebenkostenausgleichSummen(
   const ids = [...new Set(mietvertragIds.filter((id): id is string => id !== null))];
   if (ids.length === 0) return new Map();
 
-  const zahlungen = await prisma.nebenkostenausgleichZahlung.findMany({
-    where: { jahr, mietvertragId: { in: ids } },
+  const zahlungen = await prisma.buchung.findMany({
+    where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, jahr, mietvertragId: { in: ids }, ...AKTIVE_BUCHUNG_FILTER },
     select: { mietvertragId: true, datum: true, betrag: true },
   });
 
   const ergebnis = new Map<string, { summe: number; juengstesDatum: Date }>();
   for (const z of zahlungen) {
+    if (!z.datum) continue;
     const mietvertragId = z.mietvertragId as string;
     const bisher = ergebnis.get(mietvertragId);
     const betrag = -Number(z.betrag);
@@ -356,9 +363,11 @@ export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormDa
   const betrag = typeof betragRaw === "string" ? Number(betragRaw.replace(",", ".")) : NaN;
   if (!Number.isFinite(betrag)) throw new Error("Ungültiger Betrag.");
 
-  await prisma.nebenkostenausgleichZahlung.create({
+  const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
+  await prisma.buchung.create({
     data: {
       mietvertragId,
+      buchungsartId: buchungsart.id,
       jahr: Number(jahr),
       datum: new Date(datum),
       betrag: -betrag,

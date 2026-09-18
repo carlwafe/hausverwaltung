@@ -5,11 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, requireEditor } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
-import {
-  mapZahlungenRows,
-  type ParsedZahlungRow,
-  type MietvertragKandidat,
-} from "@/lib/import/zahlungen-import";
+import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
 import {
   mapKostenRows,
   type EinheitKandidat,
@@ -17,8 +13,13 @@ import {
   type GebaeudeKandidat,
   type KostenartKandidat,
   type MieterKandidat,
-  type ParsedKostenRow,
 } from "@/lib/import/kosten-import";
+import {
+  vereinheitlicheZeilen,
+  ermittleBuchungsartGruppe,
+  type VereinheitlichteZeile,
+  type BuchungsartGruppe,
+} from "@/lib/import/buchung-klassifizierung";
 import { gebaeudeAuswahlWert, parseGebaeudeAuswahlWert, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
 import {
   datumBetragSchluessel,
@@ -27,15 +28,24 @@ import {
   normalizeText,
 } from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
+
+export type BuchungsartKandidat = { id: string; code: string; bezeichnung: string; kontokreis: string };
+
+// Buchungsart-Katalog einmal geladen statt in jeder Commit-Funktion einzeln nachzuschlagen.
+async function ladeBuchungsartMap(): Promise<Map<string, string>> {
+  const arten = await prisma.buchungsart.findMany({ select: { id: true, code: true } });
+  return new Map(arten.map((a) => [a.code, a.id]));
+}
+
 export type PreviewResult =
   | {
-      zahlungenRows: ParsedZahlungRow[];
+      zeilen: VereinheitlichteZeile[];
       mietvertragKandidaten: { id: string; label: string }[];
-      bestehendeZahlungen: string[];
-      kostenRows: ParsedKostenRow[];
       kostenarten: KostenartKandidat[];
       gebaeude: GebaeudeKandidat[];
       einheiten: EinheitMitAdresse[];
+      buchungsarten: BuchungsartKandidat[];
+      bestehendeZahlungen: string[];
       bestehendeKosten: string[];
       bestehendeZahlungenDatumBetrag: string[];
       bestehendeMietweiterleitungen: string[];
@@ -105,13 +115,13 @@ function berechneBestehendeImportSets({
     empfaenger: string | null;
     datum: Date | null;
     betrag: unknown;
-    beschreibung: string | null;
+    verwendungszweck: string | null;
     aufteilungGruppeId: string | null;
   }[];
-  mietweiterleitungenRaw: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
-  kautionsbuchungenRaw: { datum: Date; betrag: unknown; verwendungszweck: string | null }[];
-  sonstigeZahlungenRaw: { datum: Date; betrag: unknown }[];
-  nichtZugeordneteBuchungenRaw: { datum: Date; betrag: unknown }[];
+  mietweiterleitungenRaw: { datum: Date | null; betrag: unknown; verwendungszweck: string | null }[];
+  kautionsbuchungenRaw: { datum: Date | null; betrag: unknown; verwendungszweck: string | null }[];
+  sonstigeZahlungenRaw: { datum: Date | null; betrag: unknown }[];
+  nichtZugeordneteBuchungenRaw: { datum: Date | null; betrag: unknown }[];
 }): BestehendeImportSets {
   // Verwendungszweck gehört mit in den Schlüssel, nicht nur Mietvertrag+Datum+Betrag: mehrere
   // Mieter zahlen oft am selben Tag denselben (Kaltmiete-)Betrag, und eine "mehrdeutig"-Zeile
@@ -177,7 +187,7 @@ function berechneBestehendeImportSets({
           k.empfaenger,
           k.datum,
           k.aufteilungGruppeId ? aufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
-          k.beschreibung,
+          k.verwendungszweck,
         ),
       ),
   );
@@ -216,34 +226,60 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
   await requireUser();
 
   const [
-    vertraegeMitZahlungen,
+    vertraege,
+    zahlungenRaw,
     bestehendeKostenpositionen,
     mietweiterleitungenRaw,
     kautionsbuchungenRaw,
     sonstigeZahlungenRaw,
     nichtZugeordneteBuchungenRaw,
   ] = await Promise.all([
-      prisma.mietvertrag.findMany({
-        where: { status: { in: ["AKTIV", "BEENDET"] } },
-        select: {
-          id: true,
-          zahlungen: { select: { datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true } },
-        },
+      prisma.mietvertrag.findMany({ where: { status: { in: ["AKTIV", "BEENDET"] } }, select: { id: true } }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "MIETZAHLUNG" } },
+        select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
       }),
-      prisma.kostenposition.findMany({
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "KOSTENPOSITION" } },
         select: {
           empfaenger: true,
           datum: true,
           betrag: true,
-          beschreibung: true,
+          verwendungszweck: true,
           aufteilungGruppeId: true,
         },
       }),
-      prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
-      prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
-      prisma.nebenkostenausgleichZahlung.findMany({ select: { datum: true, betrag: true } }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "MIETWEITERLEITUNG" } },
+        select: { datum: true, betrag: true, verwendungszweck: true },
+      }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } },
+        select: { datum: true, betrag: true, verwendungszweck: true },
+      }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
+        select: { datum: true, betrag: true },
+      }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
     ]);
+
+  const zahlungenNachVertrag = new Map<string, typeof zahlungenRaw>();
+  for (const z of zahlungenRaw) {
+    if (!z.mietvertragId) continue;
+    const liste = zahlungenNachVertrag.get(z.mietvertragId) ?? [];
+    liste.push(z);
+    zahlungenNachVertrag.set(z.mietvertragId, liste);
+  }
+  const vertraegeMitZahlungen = vertraege.map((v) => ({
+    id: v.id,
+    zahlungen: (zahlungenNachVertrag.get(v.id) ?? []).map((z) => ({
+      datum: z.datum!,
+      betrag: z.betrag,
+      verwendungszweck: z.verwendungszweck,
+      aufteilungGruppeId: z.aufteilungGruppeId,
+    })),
+  }));
 
   return berechneBestehendeImportSets({
     vertraegeMitZahlungen,
@@ -308,15 +344,17 @@ export async function previewImport(
       kostenartenRaw,
       gebaeudeRaw,
       einheitenRaw,
+      zahlungenRaw,
       bestehendeKostenpositionen,
       bestehendeMietweiterleitungenRaw,
       bestehendeKautionsbuchungenRaw,
       bestehendeSonstigenBuchungenRaw,
       bestehendeNichtZugeordnetenBuchungenRaw,
+      buchungsartenRaw,
     ] = await Promise.all([
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
-        include: { einheit: true, mieter: true, zahlungen: true },
+        include: { einheit: true, mieter: true },
       }),
       prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
       prisma.gebaeude.findMany({
@@ -334,7 +372,12 @@ export async function previewImport(
           gebaeude: { select: { strasse: true, hausnummer: true } },
         },
       }),
-      prisma.kostenposition.findMany({
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "MIETZAHLUNG" } },
+        select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
+      }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "KOSTENPOSITION" } },
         select: {
           empfaenger: true,
           kostenartId: true,
@@ -344,16 +387,47 @@ export async function previewImport(
           einheitId: true,
           datum: true,
           betrag: true,
-          beschreibung: true,
+          verwendungszweck: true,
           rohdaten: true,
           aufteilungGruppeId: true,
         },
       }),
-      prisma.eigentuemerBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
-      prisma.kautionBuchung.findMany({ select: { datum: true, betrag: true, verwendungszweck: true } }),
-      prisma.nebenkostenausgleichZahlung.findMany({ select: { datum: true, betrag: true } }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "MIETWEITERLEITUNG" } },
+        select: { datum: true, betrag: true, verwendungszweck: true },
+      }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } },
+        select: { datum: true, betrag: true, verwendungszweck: true },
+      }),
+      prisma.buchung.findMany({
+        where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
+        select: { datum: true, betrag: true },
+      }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
+      prisma.buchungsart.findMany({
+        where: { aktiv: true },
+        select: { id: true, code: true, bezeichnung: true, kontokreis: true },
+        orderBy: { bezeichnung: "asc" },
+      }),
     ]);
+
+    const zahlungenNachVertrag = new Map<string, typeof zahlungenRaw>();
+    for (const z of zahlungenRaw) {
+      if (!z.mietvertragId) continue;
+      const liste = zahlungenNachVertrag.get(z.mietvertragId) ?? [];
+      liste.push(z);
+      zahlungenNachVertrag.set(z.mietvertragId, liste);
+    }
+    const vertraegeMitZahlungen = vertraege.map((v) => ({
+      id: v.id,
+      zahlungen: (zahlungenNachVertrag.get(v.id) ?? []).map((z) => ({
+        datum: z.datum!,
+        betrag: z.betrag,
+        verwendungszweck: z.verwendungszweck,
+        aufteilungGruppeId: z.aufteilungGruppeId,
+      })),
+    }));
 
     // Ein Mieter kann selbst einmal als Kostenposition-Empfänger auftauchen (z.B. eine
     // Kleinreparatur- oder sonstige Kostenerstattung, die die Verwaltung an ihn überwiesen hat) —
@@ -440,17 +514,22 @@ export async function previewImport(
     // Historie für den Empfänger→Kostenart-Vorschlag. Positionen ohne Empfänger (z.B. von der
     // Sparkasse ohne Namen abgebuchte Kontoführungsgebühren) bleiben drin — für die greift beim
     // Abgleich ein Verwendungszweck-Fallback statt des Empfänger-Namens.
-    const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen.map((k) => {
-      const rohdaten = (k.rohdaten as Record<string, string> | null) ?? {};
-      const mandatsrefCol = findColumn(Object.keys(rohdaten), ["mandatsreferenz"]);
-      return {
-        empfaenger: k.empfaenger ?? "",
-        kostenartId: k.kostenartId,
-        gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId, k.einheitId) || null,
-        verwendungszweck: k.beschreibung,
-        mandatsref: ermittleMandatsrefAusZeile(rohdaten, mandatsrefCol, k.beschreibung ?? ""),
-      };
-    });
+    // kostenartId ist bei einer KOSTENPOSITION-Buchung immer gesetzt (nur das Schema selbst
+    // erzwingt das nicht mehr, siehe Kommentar bei Buchung im Schema) — die Filterung hier ist
+    // daher rein defensiv.
+    const historie: EmpfaengerHistorie[] = bestehendeKostenpositionen
+      .filter((k) => k.kostenartId !== null)
+      .map((k) => {
+        const rohdaten = (k.rohdaten as Record<string, string> | null) ?? {};
+        const mandatsrefCol = findColumn(Object.keys(rohdaten), ["mandatsreferenz"]);
+        return {
+          empfaenger: k.empfaenger ?? "",
+          kostenartId: k.kostenartId!,
+          gebaeudeAuswahl: gebaeudeAuswahlWert(k.gebaeudeId, k.hausId, k.kostengruppeId, k.einheitId) || null,
+          verwendungszweck: k.verwendungszweck,
+          mandatsref: ermittleMandatsrefAusZeile(rohdaten, mandatsrefCol, k.verwendungszweck ?? ""),
+        };
+      });
     const mieterKandidaten: MieterKandidat[] = vertraege.flatMap((v) =>
       v.mieter.map((m) => ({
         vorname: m.vorname,
@@ -471,21 +550,22 @@ export async function previewImport(
       einheitKandidaten,
     );
     const bestehendeSets = berechneBestehendeImportSets({
-      vertraegeMitZahlungen: vertraege,
+      vertraegeMitZahlungen,
       bestehendeKostenpositionen,
       mietweiterleitungenRaw: bestehendeMietweiterleitungenRaw,
       kautionsbuchungenRaw: bestehendeKautionsbuchungenRaw,
       sonstigeZahlungenRaw: bestehendeSonstigenBuchungenRaw,
       nichtZugeordneteBuchungenRaw: bestehendeNichtZugeordnetenBuchungenRaw,
     });
+    const zeilen = vereinheitlicheZeilen(zahlungenRows, kostenRows);
 
     return {
-      zahlungenRows,
+      zeilen,
       mietvertragKandidaten: mietvertragKandidaten.map((k) => ({ id: k.id, label: k.label })),
-      kostenRows,
       kostenarten,
       gebaeude,
       einheiten,
+      buchungsarten: buchungsartenRaw,
       fileName: file.name,
       importBatchId: importBatch.id,
       ...bestehendeSets,
@@ -500,20 +580,35 @@ export async function previewImport(
   }
 }
 
-type ZahlungCommitRow = {
-  mietvertragId: string;
+export type BuchungCommitRow = {
+  // Vom Nutzer im Buchungsart-Dropdown gewählter Katalog-Code (Standard: der erste Kandidat aus
+  // ermittleBuchungsartKandidaten, aber änderbar).
+  buchungsartCode: string;
   datum: string;
   betrag: number;
-  periodeMonat: number;
-  periodeJahr: number;
+  empfaenger: string | null;
   verwendungszweck: string;
   rohdaten: Record<string, string>;
+  // Nur bei Buchungsart-Familie "MIETE"/"KAUTION"/"NEBENKOSTENAUSGLEICH" relevant.
+  mietvertragId?: string | null;
+  // Nur bei "MIETE" relevant.
+  periodeMonat?: number | null;
+  periodeJahr?: number | null;
+  // Nur bei "KOSTEN" relevant.
+  kostenartId?: string | null;
+  gebaeudeAuswahl?: string | null;
+  // Bei "KOSTEN" das Kostenjahr, bei "NEBENKOSTENAUSGLEICH" das Abrechnungsjahr (optional).
+  jahr?: number | null;
 };
 
-export async function commitZahlungen(
-  _prev: string | null,
-  formData: FormData,
-): Promise<string | null> {
+// Ersetzt commitZahlungen/commitKosten/commitMietweiterleitungen/commitKautionsbuchungen/
+// commitNebenkostenausgleich — eine Zeile kann jetzt jede beliebige Buchungsart aus dem Katalog
+// tragen (vom Nutzer per Dropdown gewählt, siehe buchungen-tabelle.tsx), statt in eine von 5 fest
+// zugeordneten Sektionen zu fallen. Pflichtfeld-Prüfung und Dedup-Formel bleiben je
+// Buchungsart-Familie exakt dieselben wie in den vorherigen 5 Funktionen — nur die Zuordnung
+// "welche Formel für diese Zeile" wird jetzt zur Laufzeit anhand der gewählten Buchungsart
+// entschieden statt anhand der Sektion, in der die Zeile ursprünglich angezeigt wurde.
+export async function commitBuchungen(_prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
 
   const raw = formData.get("rows");
@@ -521,151 +616,143 @@ export async function commitZahlungen(
 
   const importBatchId = formData.get("importBatchId");
 
-  let rows: ZahlungCommitRow[];
+  let rows: BuchungCommitRow[];
   try {
     rows = JSON.parse(raw);
   } catch {
     return "Daten konnten nicht gelesen werden.";
   }
 
-  if (rows.length === 0) return "Keine Zahlungen zum Importieren ausgewählt.";
+  if (rows.length === 0) return "Keine Buchungen zum Importieren ausgewählt.";
 
-  const existing = await prisma.zahlung.findMany({
-    where: { mietvertragId: { in: [...new Set(rows.map((r) => r.mietvertragId))] } },
-  });
-  // Verwendungszweck gehört mit in den Schlüssel, genau wie im Vorschau-Check (siehe
-  // pruefeZahlungDuplikat in page.tsx) — sonst wirft z.B. Mietvertrag+Datum+Betrag mehrere
-  // Monatsmieten, die derselbe Mieter am selben Tag mit demselben Betrag nachzahlt (Dez./Jan./
-  // Feb. rückwirkend in einer Überweisung pro Monat), fälschlich in einen Topf: sobald einer
-  // davon schon importiert ist, würden ohne Verwendungszweck im Schlüssel auch die anderen,
-  // tatsächlich neuen Zahlungen hier als Duplikat übersprungen.
-  const existingSet = new Set(
-    existing.map(
-      (z) =>
-        `${z.mietvertragId}|${z.datum.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
-    ),
-  );
+  const gruppen = rows.map((r) => ({ row: r, gruppe: ermittleBuchungsartGruppe(r.buchungsartCode) }));
+  const unbekannt = gruppen.filter((g) => g.gruppe === null);
+  if (unbekannt.length > 0) {
+    return `${unbekannt.length} Zeile(n) haben eine unbekannte Buchungsart.`;
+  }
+  const fehlendeMietvertrag = gruppen.filter((g) => g.gruppe === "MIETE" && !g.row.mietvertragId);
+  if (fehlendeMietvertrag.length > 0) {
+    return `${fehlendeMietvertrag.length} Zeile(n) mit Buchungsart "Mietzahlung" haben noch keinen Mietvertrag ausgewählt.`;
+  }
+  const fehlendeKostenart = gruppen.filter((g) => g.gruppe === "KOSTEN" && !g.row.kostenartId);
+  if (fehlendeKostenart.length > 0) {
+    return `${fehlendeKostenart.length} Zeile(n) mit Buchungsart "Kosten" haben noch keine Kostenart ausgewählt.`;
+  }
 
-  const neu = rows.filter(
-    (r) =>
-      !existingSet.has(
-        `${r.mietvertragId}|${r.datum}|${r.betrag.toFixed(2)}|${r.verwendungszweck.trim().toLowerCase()}`,
-      ),
-  );
-  const uebersprungen = rows.length - neu.length;
+  const arten = await ladeBuchungsartMap();
 
-  if (neu.length > 0) {
-    await prisma.zahlung.createMany({
-      data: neu.map((r) => ({
-        mietvertragId: r.mietvertragId,
-        datum: new Date(r.datum),
-        betrag: r.betrag,
-        rohdaten: r.rohdaten,
-        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
-        periodeMonat: r.periodeMonat,
-        periodeJahr: r.periodeJahr,
-        verwendungszweck: r.verwendungszweck || null,
-      })),
+  // Pro Buchungsart-Familie dieselbe Dedup-Formel wie in den vorherigen 5 Commit-Funktionen — nur
+  // einmal je tatsächlich vorkommender Familie abgefragt, nicht pro Zeile.
+  const familien = new Set(gruppen.map((g) => g.gruppe!));
+  const neu: (BuchungCommitRow & { gruppe: BuchungsartGruppe })[] = [];
+  let uebersprungenGesamt = 0;
+
+  if (familien.has("MIETE")) {
+    const zeilen = gruppen.filter((g) => g.gruppe === "MIETE").map((g) => g.row);
+    const bestehend = await prisma.buchung.findMany({
+      where: {
+        buchungsart: { code: "MIETZAHLUNG" },
+        mietvertragId: { in: [...new Set(zeilen.map((r) => r.mietvertragId!))] },
+      },
+      select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true },
     });
-  }
-
-  if (typeof importBatchId === "string") {
-    await ergaenzeImportBatchErgebnis(
-      importBatchId,
-      `${neu.length} Zahlung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+    const bestehendSet = new Set(
+      bestehend
+        .filter((z) => z.datum)
+        .map(
+          (z) =>
+            `${z.mietvertragId}|${z.datum!.toISOString().slice(0, 10)}|${Number(z.betrag).toFixed(2)}|${(z.verwendungszweck ?? "").trim().toLowerCase()}`,
+        ),
     );
+    for (const r of zeilen) {
+      const schluessel = `${r.mietvertragId}|${r.datum}|${r.betrag.toFixed(2)}|${r.verwendungszweck.trim().toLowerCase()}`;
+      if (bestehendSet.has(schluessel)) uebersprungenGesamt++;
+      else neu.push({ ...r, gruppe: "MIETE" });
+    }
   }
 
-  revalidatePath("/zahlungen");
-  revalidatePath("/offene-posten");
-  revalidatePath("/");
-
-  return `${neu.length} Zahlung(en) importiert.${
-    uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
-  }`;
-}
-
-type KostenCommitRow = {
-  kostenartId: string;
-  gebaeudeAuswahl: string;
-  jahr: number;
-  datum: string;
-  betrag: number;
-  empfaenger: string;
-  verwendungszweck: string;
-  rohdaten: Record<string, string>;
-};
-
-export async function commitKosten(
-  _prev: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  await requireEditor();
-
-  const raw = formData.get("rows");
-  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
-
-  const importBatchId = formData.get("importBatchId");
-
-  let rows: KostenCommitRow[];
-  try {
-    rows = JSON.parse(raw);
-  } catch {
-    return "Daten konnten nicht gelesen werden.";
-  }
-
-  if (rows.length === 0) return "Keine Kostenpositionen zum Importieren ausgewählt.";
-
-  const fehlende = rows.filter((r) => !r.kostenartId);
-  if (fehlende.length > 0) {
-    return `${fehlende.length} Zeile(n) haben noch keine Kostenart ausgewählt.`;
-  }
-
-  const bestehend = await prisma.kostenposition.findMany({
-    where: { datum: { not: null } },
-    select: { empfaenger: true, datum: true, betrag: true, beschreibung: true, aufteilungGruppeId: true },
-  });
-  // Siehe Kommentar bei previewImport: aufgeteilte Positionen zu ihrem Summenbetrag
-  // zusammenfassen, sonst würde die ursprüngliche Buchung hier nie als Duplikat erkannt.
-  const bestehendAufteilungSummen = new Map<string, number>();
-  for (const k of bestehend) {
-    if (!k.aufteilungGruppeId) continue;
-    bestehendAufteilungSummen.set(
-      k.aufteilungGruppeId,
-      (bestehendAufteilungSummen.get(k.aufteilungGruppeId) ?? 0) + Number(k.betrag),
-    );
-  }
-  const bestehendSet = new Set(
-    bestehend.map((k) =>
-      kostenDedupSchluessel(
-        k.empfaenger,
-        k.datum,
-        k.aufteilungGruppeId ? bestehendAufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
-        k.beschreibung,
+  if (familien.has("KOSTEN")) {
+    const zeilen = gruppen.filter((g) => g.gruppe === "KOSTEN").map((g) => g.row);
+    const bestehend = await prisma.buchung.findMany({
+      where: { buchungsart: { code: "KOSTENPOSITION" }, datum: { not: null } },
+      select: { empfaenger: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
+    });
+    // Aufgeteilte Positionen zu ihrem Summenbetrag zusammenfassen, sonst würde die ursprüngliche
+    // Buchung hier nie als Duplikat erkannt (siehe Kommentar bei previewImport).
+    const aufteilungSummen = new Map<string, number>();
+    for (const k of bestehend) {
+      if (!k.aufteilungGruppeId) continue;
+      aufteilungSummen.set(k.aufteilungGruppeId, (aufteilungSummen.get(k.aufteilungGruppeId) ?? 0) + Number(k.betrag));
+    }
+    const bestehendSet = new Set(
+      bestehend.map((k) =>
+        kostenDedupSchluessel(
+          k.empfaenger,
+          k.datum,
+          k.aufteilungGruppeId ? aufteilungSummen.get(k.aufteilungGruppeId)! : Number(k.betrag),
+          k.verwendungszweck,
+        ),
       ),
-    ),
-  );
+    );
+    for (const r of zeilen) {
+      const schluessel = kostenDedupSchluessel(r.empfaenger, new Date(r.datum), r.betrag, r.verwendungszweck);
+      if (bestehendSet.has(schluessel)) uebersprungenGesamt++;
+      else neu.push({ ...r, gruppe: "KOSTEN" });
+    }
+  }
 
-  const neu = rows.filter(
-    (r) => !bestehendSet.has(kostenDedupSchluessel(r.empfaenger, new Date(r.datum), r.betrag, r.verwendungszweck)),
-  );
-  const uebersprungen = rows.length - neu.length;
+  // Mietweiterleitung/Kaution/Nebenkostenausgleich nutzen dieselbe Dedup-Formel
+  // (datumBetragZweckSchluessel), aber jeweils gegen ihre eigene Buchungsart-Familie geprüft —
+  // exakt wie bisher, nur jetzt in einer Schleife statt drei fast identischen Funktionen.
+  const sonstigeFamilien: { gruppe: BuchungsartGruppe; code?: string; kontokreis?: string }[] = [
+    { gruppe: "MIETWEITERLEITUNG", code: "MIETWEITERLEITUNG" },
+    { gruppe: "KAUTION", kontokreis: "KAUTIONSKONTO" },
+    { gruppe: "NEBENKOSTENAUSGLEICH", code: "NEBENKOSTENAUSGLEICH" },
+  ];
+  for (const { gruppe, code, kontokreis } of sonstigeFamilien) {
+    if (!familien.has(gruppe)) continue;
+    const zeilen = gruppen.filter((g) => g.gruppe === gruppe).map((g) => g.row);
+    const bestehend = await prisma.buchung.findMany({
+      where: code
+        ? { buchungsart: { code } }
+        : { buchungsart: { kontokreis: kontokreis as "MIETKONTO" | "KAUTIONSKONTO" | "OBJEKTKONTO" } },
+      select: { datum: true, betrag: true, verwendungszweck: true },
+    });
+    const bestehendSet = new Set(
+      bestehend.map((b) => datumBetragZweckSchluessel(b.datum, Number(b.betrag), b.verwendungszweck)),
+    );
+    for (const r of zeilen) {
+      const schluessel = datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck);
+      if (bestehendSet.has(schluessel)) uebersprungenGesamt++;
+      else neu.push({ ...r, gruppe });
+    }
+  }
 
   if (neu.length > 0) {
-    await prisma.kostenposition.createMany({
+    await prisma.buchung.createMany({
       data: neu.map((r) => {
-        const { gebaeudeId, hausId, kostengruppeId, einheitId } = parseGebaeudeAuswahlWert(r.gebaeudeAuswahl);
+        const { gebaeudeId, hausId, kostengruppeId, einheitId } =
+          r.gruppe === "KOSTEN" ? parseGebaeudeAuswahlWert(r.gebaeudeAuswahl ?? "") : {
+            gebaeudeId: null,
+            hausId: null,
+            kostengruppeId: null,
+            einheitId: null,
+          };
         return {
-          kostenartId: r.kostenartId,
+          buchungsartId: arten.get(r.buchungsartCode)!,
+          mietvertragId: r.mietvertragId || undefined,
+          kostenartId: r.gruppe === "KOSTEN" ? r.kostenartId : undefined,
           gebaeudeId,
           hausId,
           kostengruppeId,
           einheitId,
-          jahr: r.jahr,
           datum: new Date(r.datum),
           betrag: r.betrag,
           empfaenger: r.empfaenger || null,
-          beschreibung: r.verwendungszweck || null,
+          verwendungszweck: r.verwendungszweck || null,
+          periodeMonat: r.gruppe === "MIETE" ? r.periodeMonat : undefined,
+          periodeJahr: r.gruppe === "MIETE" ? r.periodeJahr : undefined,
+          jahr: r.gruppe === "KOSTEN" || r.gruppe === "NEBENKOSTENAUSGLEICH" ? r.jahr : undefined,
           rohdaten: r.rohdaten,
           importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
         };
@@ -676,227 +763,21 @@ export async function commitKosten(
   if (typeof importBatchId === "string") {
     await ergaenzeImportBatchErgebnis(
       importBatchId,
-      `${neu.length} Kostenposition(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
+      `${neu.length} Buchung(en) importiert${uebersprungenGesamt > 0 ? `, ${uebersprungenGesamt} übersprungen` : ""}`,
     );
   }
 
+  revalidatePath("/zahlungen");
+  revalidatePath("/offene-posten");
+  revalidatePath("/");
   revalidatePath("/kosten");
-
-  return `${neu.length} Kostenposition(en) importiert.${
-    uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
-  }`;
-}
-
-type MietweiterleitungCommitRow = {
-  datum: string;
-  betrag: number;
-  empfaenger: string;
-  verwendungszweck: string;
-  rohdaten: Record<string, string>;
-};
-
-export async function commitMietweiterleitungen(
-  _prev: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  await requireEditor();
-
-  const raw = formData.get("rows");
-  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
-
-  const importBatchId = formData.get("importBatchId");
-
-  let rows: MietweiterleitungCommitRow[];
-  try {
-    rows = JSON.parse(raw);
-  } catch {
-    return "Daten konnten nicht gelesen werden.";
-  }
-
-  if (rows.length === 0) return "Keine Mietweiterleitungen zum Importieren ausgewählt.";
-
-  const bestehend = await prisma.eigentuemerBuchung.findMany({
-    select: { datum: true, betrag: true, verwendungszweck: true },
-  });
-  const bestehendSet = new Set(
-    bestehend.map((m) => datumBetragZweckSchluessel(m.datum, Number(m.betrag), m.verwendungszweck)),
-  );
-
-  const neu = rows.filter(
-    (r) => !bestehendSet.has(datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
-  );
-  const uebersprungen = rows.length - neu.length;
-
-  if (neu.length > 0) {
-    await prisma.eigentuemerBuchung.createMany({
-      data: neu.map((r) => ({
-        datum: new Date(r.datum),
-        betrag: r.betrag,
-        empfaenger: r.empfaenger || null,
-        verwendungszweck: r.verwendungszweck || null,
-        rohdaten: r.rohdaten,
-        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
-      })),
-    });
-  }
-
-  if (typeof importBatchId === "string") {
-    await ergaenzeImportBatchErgebnis(
-      importBatchId,
-      `${neu.length} Mietweiterleitung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
-    );
-  }
-
   revalidatePath("/mietweiterleitungen");
-
-  return `${neu.length} Mietweiterleitung(en) importiert.${
-    uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
-  }`;
-}
-
-type KautionsbuchungCommitRow = {
-  mietvertragId: string;
-  datum: string;
-  betrag: number;
-  empfaenger: string;
-  verwendungszweck: string;
-  rohdaten: Record<string, string>;
-  kategorie: "EINZAHLUNG_MIETER" | "ANLAGE" | "AUFLOESUNG" | "AUSZAHLUNG_MIETER" | "SONSTIGES";
-};
-
-export async function commitKautionsbuchungen(
-  _prev: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  await requireEditor();
-
-  const raw = formData.get("rows");
-  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
-
-  const importBatchId = formData.get("importBatchId");
-
-  let rows: KautionsbuchungCommitRow[];
-  try {
-    rows = JSON.parse(raw);
-  } catch {
-    return "Daten konnten nicht gelesen werden.";
-  }
-
-  if (rows.length === 0) return "Keine Kautionsbuchungen zum Importieren ausgewählt.";
-
-  const bestehend = await prisma.kautionBuchung.findMany({
-    select: { datum: true, betrag: true, verwendungszweck: true },
-  });
-  const bestehendSet = new Set(
-    bestehend.map((k) => datumBetragZweckSchluessel(k.datum, Number(k.betrag), k.verwendungszweck)),
-  );
-
-  const neu = rows.filter(
-    (r) => !bestehendSet.has(datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
-  );
-  const uebersprungen = rows.length - neu.length;
-
-  if (neu.length > 0) {
-    await prisma.kautionBuchung.createMany({
-      data: neu.map((r) => ({
-        mietvertragId: r.mietvertragId || undefined,
-        datum: new Date(r.datum),
-        betrag: r.betrag,
-        empfaenger: r.empfaenger || null,
-        verwendungszweck: r.verwendungszweck || null,
-        rohdaten: r.rohdaten,
-        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
-        kategorie: r.kategorie,
-      })),
-    });
-  }
-
-  if (typeof importBatchId === "string") {
-    await ergaenzeImportBatchErgebnis(
-      importBatchId,
-      `${neu.length} Kautionsbuchung(en) importiert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
-    );
-  }
-
   revalidatePath("/kautionen");
-
-  return `${neu.length} Kautionsbuchung(en) importiert.${
-    uebersprungen > 0 ? ` ${uebersprungen} als Duplikat übersprungen.` : ""
-  }`;
-}
-
-type NebenkostenausgleichCommitRow = {
-  mietvertragId: string | null;
-  // Abrechnungsjahr, falls beim Import angegeben (siehe NebenkostenausgleichZahlung.jahr) — wird
-  // auf der Abrechnungs-Detailseite live gegen saldo verglichen (Rückzahlung/Gutschrift-Spalte).
-  // null = rein archivarisch, ohne Verknüpfung.
-  jahr: number | null;
-  datum: string;
-  betrag: number; // Rohbetrag von der Bank (Vorzeichen wie im Kontoauszug)
-  empfaenger: string;
-  verwendungszweck: string;
-  rohdaten: Record<string, string>;
-};
-
-export async function commitNebenkostenausgleich(
-  _prev: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  await requireEditor();
-
-  const raw = formData.get("rows");
-  if (typeof raw !== "string") return "Keine Daten zum Importieren.";
-
-  const importBatchId = formData.get("importBatchId");
-
-  let rows: NebenkostenausgleichCommitRow[];
-  try {
-    rows = JSON.parse(raw);
-  } catch {
-    return "Daten konnten nicht gelesen werden.";
-  }
-
-  if (rows.length === 0) return "Keine Buchungen zum Importieren ausgewählt.";
-
-  // Dedup wie bei Kaution/Mietweiterleitung: gegen den gesamten Bestand, nicht nur diesen Batch.
-  const bestehend = await prisma.nebenkostenausgleichZahlung.findMany({
-    select: { datum: true, betrag: true, verwendungszweck: true },
-  });
-  const bestehendSet = new Set(
-    bestehend.map((s) => datumBetragZweckSchluessel(s.datum, Number(s.betrag), s.verwendungszweck)),
-  );
-  const neu = rows.filter(
-    (r) => !bestehendSet.has(datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck)),
-  );
-  const uebersprungen = rows.length - neu.length;
-
-  if (neu.length > 0) {
-    await prisma.nebenkostenausgleichZahlung.createMany({
-      data: neu.map((r) => ({
-        mietvertragId: r.mietvertragId || undefined,
-        jahr: r.jahr,
-        datum: new Date(r.datum),
-        betrag: r.betrag,
-        empfaenger: r.empfaenger || null,
-        verwendungszweck: r.verwendungszweck || null,
-        rohdaten: r.rohdaten,
-        importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
-      })),
-    });
-  }
-
-  if (typeof importBatchId === "string") {
-    await ergaenzeImportBatchErgebnis(
-      importBatchId,
-      `${neu.length} Nebenkostenausgleich-Buchung(en) archiviert${uebersprungen > 0 ? `, ${uebersprungen} übersprungen` : ""}`,
-    );
-  }
-
   revalidatePath("/nebenkostenabrechnungen");
   revalidatePath("/nebenkostenausgleich");
 
-  return `${neu.length} Buchung(en) archiviert.${
-    uebersprungen > 0 ? ` ${uebersprungen} bereits vorhanden, übersprungen.` : ""
+  return `${neu.length} Buchung(en) importiert.${
+    uebersprungenGesamt > 0 ? ` ${uebersprungenGesamt} als Duplikat übersprungen.` : ""
   }`;
 }
 

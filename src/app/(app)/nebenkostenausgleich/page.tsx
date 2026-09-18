@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import {
   NebenkostenausgleichZahlungenTable,
   type NebenkostenausgleichZahlungRow,
 } from "./nebenkostenausgleich-zahlungen-table";
 
 async function ladeNebenkostenausgleichZahlungen(): Promise<NebenkostenausgleichZahlungRow[]> {
-  const zahlungen = await prisma.nebenkostenausgleichZahlung.findMany({
+  const zahlungen = await prisma.buchung.findMany({
+    where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
     orderBy: { datum: "desc" },
     include: {
       importBatch: true,
@@ -16,7 +18,7 @@ async function ladeNebenkostenausgleichZahlungen(): Promise<Nebenkostenausgleich
 
   return zahlungen.map((b) => ({
     id: b.id,
-    datum: b.datum.toISOString(),
+    datum: b.datum!.toISOString(),
     betrag: Number(b.betrag),
     jahr: b.jahr,
     empfaenger: b.empfaenger,

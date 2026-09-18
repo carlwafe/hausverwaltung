@@ -1,8 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { KautionenTable, type KautionRow } from "./kautionen-table";
-import { KautionsbuchungenTable, type KautionsbuchungRow } from "./kautionsbuchungen-table";
+import {
+  KautionsbuchungenTable,
+  type KautionsbuchungRow,
+  type KautionBuchungKategorie,
+} from "./kautionsbuchungen-table";
 import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
+import { EinbehaltSektion, type KautionEinbehaltRow } from "./einbehalt-sektion";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -21,14 +27,25 @@ const TOLERANZ = 0.01;
 
 const STATUS_SORT: Record<KautionRow["status"], number> = { AKTIV: 0, AUFGELOEST: 1, ERLEDIGT: 2 };
 
+// Kehrt KATEGORIE_ZU_CODE aus actions.ts um — kann von dort nicht importiert werden ("use server"-
+// Dateien dürfen nur async-Funktionen exportieren), deshalb hier dupliziert.
+const CODE_ZU_KATEGORIE: Record<string, KautionBuchungKategorie> = {
+  KAUTION_EINZAHLUNG: "EINZAHLUNG_MIETER",
+  KAUTION_ANLAGE: "ANLAGE",
+  KAUTION_AUFLOESUNG: "AUFLOESUNG",
+  KAUTION_AUSZAHLUNG: "AUSZAHLUNG_MIETER",
+  KAUTION_SONSTIGES: "SONSTIGES",
+  KAUTION_VIRTUELLE_AUSZAHLUNG: "VIRTUELLE_AUSZAHLUNG",
+};
+
 async function ladeKautionen(): Promise<KautionRow[]> {
   const [kautionen, buchungen] = await Promise.all([
     prisma.kaution.findMany({
       include: { mietvertrag: { include: { einheit: true, mieter: true } } },
     }),
-    prisma.kautionBuchung.findMany({
-      where: { mietvertragId: { not: null } },
-      select: { mietvertragId: true, betrag: true, kategorie: true },
+    prisma.buchung.findMany({
+      where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
+      select: { mietvertragId: true, betrag: true, buchungsart: { select: { code: true } } },
     }),
   ]);
 
@@ -44,20 +61,21 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const key = b.mietvertragId!;
     const eintrag = summenProMietvertrag.get(key) ?? { einzahlung: 0, anlage: 0, aufgeloest: 0, ausgezahlt: 0 };
     const betrag = Number(b.betrag);
-    if (b.kategorie === "EINZAHLUNG_MIETER") eintrag.einzahlung += betrag;
+    const code = b.buchungsart.code;
+    if (code === "KAUTION_EINZAHLUNG") eintrag.einzahlung += betrag;
     // Interne Überweisung Geschäfts- -> Kautionskonto — setzt eigentlich eine bereits erfolgte
     // Einzahlung des Mieters voraus. Wird unten als Fallback-Betrag für einen fehlenden
     // Kaution-Stammdatensatz genutzt und liefert außerdem das Signal für die "keine Einzahlung
     // gefunden"-Warnung (siehe warnungFuer).
-    else if (b.kategorie === "ANLAGE") eintrag.anlage += Math.abs(betrag);
+    else if (code === "KAUTION_ANLAGE") eintrag.anlage += Math.abs(betrag);
     // Auflösung/Auszahlung kommen aus dem Kontoauszug mit ihrem tatsächlichen Vorzeichen
     // (Auflösung eingehend = positiv, Auszahlung ausgehend = negativ) — hier auf positive
     // Beträge normalisiert, damit "Einbehalten" als einfache Differenz berechnet werden kann.
-    else if (b.kategorie === "AUFLOESUNG") eintrag.aufgeloest += betrag;
+    else if (code === "KAUTION_AUFLOESUNG") eintrag.aufgeloest += betrag;
     // VIRTUELLE_AUSZAHLUNG zählt genauso wie eine echte Auszahlung Mieter — der Betrag ist der
     // Kaution trotzdem endgültig entzogen, nur ohne eigene Kontobewegung (siehe Gegenbuchung auf
-    // der Kosten-Seite, Kostenposition.virtuelleKautionBuchungId).
-    else if (b.kategorie === "AUSZAHLUNG_MIETER" || b.kategorie === "VIRTUELLE_AUSZAHLUNG")
+    // der Kosten-Seite, jetzt Buchung.bezugId).
+    else if (code === "KAUTION_AUSZAHLUNG" || code === "KAUTION_VIRTUELLE_AUSZAHLUNG")
       eintrag.ausgezahlt += Math.abs(betrag);
     summenProMietvertrag.set(key, eintrag);
   }
@@ -153,31 +171,50 @@ async function ladeKautionen(): Promise<KautionRow[]> {
 }
 
 async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
-  const buchungen = await prisma.kautionBuchung.findMany({
+  const buchungen = await prisma.buchung.findMany({
+    // KAUTION_EINBEHALT bewusst ausgeschlossen — diese Buchungen werden ausschließlich über die
+    // Einbehalt-Sektion (KautionEinbehalt.buchungId) verwaltet; würde man sie hier zusätzlich zum
+    // Bearbeiten/Löschen anbieten, liefe das an synchronisiereKautionEinbehaltBuchung vorbei und
+    // hinterließe eine verwaiste buchungId auf der KautionEinbehalt-Zeile.
+    where: { buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } }, ...AKTIVE_BUCHUNG_FILTER },
     orderBy: { datum: "desc" },
     include: {
       mietvertrag: { include: { einheit: true, mieter: true } },
       importBatch: true,
-      virtuelleGutschriften: { include: { kostenart: true } },
+      buchungsart: { select: { code: true } },
     },
   });
+
+  // Verknüpfte virtuelle Gutschriften (früher Kostenposition.virtuelleKautionBuchungId, jetzt
+  // bezugTyp/bezugId — kein echter FK mehr, deshalb hier per Hand nachgeschlagen statt per
+  // include) — nur für Kaution-Buchungen relevant, die als Gegenbuchung referenziert werden.
+  const gutschriften = await prisma.buchung.findMany({
+    where: { bezugTyp: "Buchung", bezugId: { in: buchungen.map((b) => b.id) }, ...AKTIVE_BUCHUNG_FILTER },
+    include: { kostenart: true },
+  });
+  const gutschriftenNachBuchung = new Map<string, typeof gutschriften>();
+  for (const g of gutschriften) {
+    const liste = gutschriftenNachBuchung.get(g.bezugId!) ?? [];
+    liste.push(g);
+    gutschriftenNachBuchung.set(g.bezugId!, liste);
+  }
 
   return buchungen.map((k) => ({
     id: k.id,
     mietvertragId: k.mietvertragId,
     einheitBezeichnung: k.mietvertrag?.einheit.bezeichnung ?? null,
     mieterNamen: k.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? null,
-    datum: k.datum.toISOString(),
+    datum: k.datum!.toISOString(),
     betrag: Number(k.betrag),
     empfaenger: k.empfaenger,
     verwendungszweck: k.verwendungszweck,
     rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
-    kategorie: k.kategorie,
-    verknuepfteKostenpositionen: k.virtuelleGutschriften.map((kp) => ({
+    kategorie: CODE_ZU_KATEGORIE[k.buchungsart.code]!,
+    verknuepfteKostenpositionen: (gutschriftenNachBuchung.get(k.id) ?? []).map((kp) => ({
       id: kp.id,
-      label: `${kp.kostenart.name} (${formatEuro(Number(kp.betrag))})`,
+      label: `${kp.kostenart?.name ?? "?"} (${formatEuro(Number(kp.betrag))})`,
     })),
   }));
 }
@@ -185,15 +222,33 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
 // Kandidaten für die Verknüpfung einer neuen virtuellen Auszahlung mit ihrer Gegenbuchung — nur
 // Gutschriften (negativer Betrag) kommen als Gegenbuchung infrage.
 async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string; datumISO: string | null }[]> {
-  const positionen = await prisma.kostenposition.findMany({
-    where: { betrag: { lt: 0 } },
-    orderBy: { createdAt: "desc" },
+  const positionen = await prisma.buchung.findMany({
+    where: { buchungsart: { code: "KOSTENPOSITION" }, betrag: { lt: 0 }, ...AKTIVE_BUCHUNG_FILTER },
+    orderBy: { erstelltAm: "desc" },
     include: { kostenart: true },
   });
   return positionen.map((k) => ({
     id: k.id,
-    label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart.name} — ${formatEuro(Number(k.betrag))}${k.virtuelleKautionBuchungId ? " (bereits verknüpft)" : ""}`,
+    label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart?.name ?? "?"} — ${formatEuro(Number(k.betrag))}${k.bezugTyp === "Buchung" ? " (bereits verknüpft)" : ""}`,
     datumISO: k.datum ? k.datum.toISOString().slice(0, 10) : null,
+  }));
+}
+
+async function ladeKautionEinbehalte(): Promise<KautionEinbehaltRow[]> {
+  const einbehalte = await prisma.kautionEinbehalt.findMany({
+    orderBy: { erstelltAm: "desc" },
+    include: { kaution: { include: { mietvertrag: { include: { einheit: true, mieter: true } } } } },
+  });
+  return einbehalte.map((e) => ({
+    id: e.id,
+    mietvertragId: e.kaution.mietvertragId,
+    einheitBezeichnung: e.kaution.mietvertrag.einheit.bezeichnung,
+    mieterNamen: e.kaution.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    positionText: e.positionText,
+    betrag: Number(e.betrag),
+    status: e.status,
+    erstelltAm: e.erstelltAm.toISOString(),
+    gebucht: e.buchungId !== null,
   }));
 }
 
@@ -211,11 +266,12 @@ async function ladeMietvertraege(): Promise<{ id: string; label: string }[]> {
 }
 
 export default async function KautionenPage() {
-  const [kautionen, kautionsbuchungen, mietvertraege, virtuelleGutschriften] = await Promise.all([
+  const [kautionen, kautionsbuchungen, mietvertraege, virtuelleGutschriften, kautionEinbehalte] = await Promise.all([
     ladeKautionen(),
     ladeKautionsbuchungen(),
     ladeMietvertraege(),
     ladeVirtuelleGutschriften(),
+    ladeKautionEinbehalte(),
   ]);
   const offen = kautionen.filter((k) => k.status !== "ERLEDIGT");
   const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
@@ -265,6 +321,8 @@ export default async function KautionenPage() {
         <NeueKautionsbuchungForm mietvertraege={mietvertraege} virtuelleGutschriften={virtuelleGutschriften} />
         <KautionsbuchungenTable rows={kautionsbuchungen} />
       </div>
+
+      <EinbehaltSektion rows={kautionEinbehalte} mietvertragKandidaten={mietvertraege} />
     </div>
   );
 }

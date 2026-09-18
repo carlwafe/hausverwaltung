@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { berechneKontostandVerlauf, type KontostandEintrag } from "@/lib/kontostand";
+import { ladeKontostandVerlauf } from "@/lib/buchungsjournal";
 import { KontostandTable, type KontostandRow } from "./kontostand-table";
 
 function formatEuro(value: number) {
@@ -9,67 +9,6 @@ function formatEuro(value: number) {
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
-}
-
-async function ladeEintraege(): Promise<KontostandEintrag[]> {
-  const [zahlungen, kosten, mietweiterleitungen, kautionsbuchungen, sonstigeBuchungen] = await Promise.all([
-    prisma.zahlung.findMany({
-      select: { id: true, datum: true, betrag: true, verwendungszweck: true },
-    }),
-    prisma.kostenposition.findMany({
-      where: { datum: { not: null } },
-      select: { id: true, datum: true, betrag: true, beschreibung: true, empfaenger: true },
-    }),
-    prisma.eigentuemerBuchung.findMany({
-      select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
-    }),
-    prisma.kautionBuchung.findMany({
-      select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
-    }),
-    prisma.nebenkostenausgleichZahlung.findMany({
-      select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
-    }),
-  ]);
-
-  return [
-    ...zahlungen.map((z) => ({
-      id: `zahlung-${z.id}`,
-      datum: z.datum,
-      betrag: Number(z.betrag),
-      kategorie: "zahlung" as const,
-      beschreibung: z.verwendungszweck || "Zahlung",
-    })),
-    ...kosten.map((k) => ({
-      id: `kosten-${k.id}`,
-      datum: k.datum!,
-      // Kostenpositionen werden positiv gespeichert (Höhe der Kosten) — für den Kontostand
-      // mindern sie den Saldo, das Vorzeichen muss also gedreht werden.
-      betrag: -Number(k.betrag),
-      kategorie: "kosten" as const,
-      beschreibung: k.empfaenger || k.beschreibung || "Kosten",
-    })),
-    ...mietweiterleitungen.map((m) => ({
-      id: `mietweiterleitung-${m.id}`,
-      datum: m.datum,
-      betrag: Number(m.betrag),
-      kategorie: "mietweiterleitung" as const,
-      beschreibung: m.empfaenger || m.verwendungszweck || "Mietweiterleitung/Einlage",
-    })),
-    ...kautionsbuchungen.map((k) => ({
-      id: `kaution-${k.id}`,
-      datum: k.datum,
-      betrag: Number(k.betrag),
-      kategorie: "kaution" as const,
-      beschreibung: k.empfaenger || k.verwendungszweck || "Kaution",
-    })),
-    ...sonstigeBuchungen.map((s) => ({
-      id: `sonstige-${s.id}`,
-      datum: s.datum,
-      betrag: Number(s.betrag),
-      kategorie: "sonstige" as const,
-      beschreibung: s.empfaenger || s.verwendungszweck || "Sonstige Buchung",
-    })),
-  ];
 }
 
 export default async function KontostandPage() {
@@ -98,8 +37,7 @@ export default async function KontostandPage() {
     betrag: Number(objekt.kontostandAnkerBetrag),
   };
 
-  const eintraege = await ladeEintraege();
-  const verlauf = berechneKontostandVerlauf(eintraege, anker);
+  const verlauf = await ladeKontostandVerlauf(anker);
 
   const rows: KontostandRow[] = verlauf
     .slice()

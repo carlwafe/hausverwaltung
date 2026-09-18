@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { storniereBuchung } from "@/lib/buchung-storno";
+
+async function ladeMietzahlungBuchungsartId(): Promise<string> {
+  const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "MIETZAHLUNG" } });
+  return art.id;
+}
 
 const zahlungSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
@@ -38,9 +44,10 @@ export async function createZahlung(formData: FormData) {
   }
 
   const { mietvertragId, ...rest } = parsed.data;
+  const buchungsartId = await ladeMietzahlungBuchungsartId();
 
-  await prisma.zahlung.create({
-    data: { ...rest, mietvertrag: { connect: { id: mietvertragId } } },
+  await prisma.buchung.create({
+    data: { ...rest, buchungsartId, mietvertragId },
   });
 
   revalidatePath("/zahlungen");
@@ -49,6 +56,10 @@ export async function createZahlung(formData: FormData) {
   redirect(`/mietvertraege/${mietvertragId}`);
 }
 
+// "Bearbeiten" heißt beim Storno-Prinzip: die alte Buchung stornieren und mit den korrigierten
+// Werten neu anlegen (siehe storniereBuchung/AKTIVE_BUCHUNG_FILTER) — importBatchId/rohdaten/
+// aufteilungGruppeId wandern dabei auf die neue Zeile mit, weil sie weiterhin dieselbe reale
+// Zahlung repräsentiert.
 export async function updateZahlung(id: string, formData: FormData) {
   await requireEditor();
 
@@ -66,11 +77,20 @@ export async function updateZahlung(id: string, formData: FormData) {
   }
 
   const { mietvertragId, ...rest } = parsed.data;
-  const bisherige = await prisma.zahlung.findUniqueOrThrow({ where: { id }, select: { mietvertragId: true } });
+  const bisherige = await prisma.buchung.findUniqueOrThrow({ where: { id } });
 
-  await prisma.zahlung.update({
-    where: { id },
-    data: { ...rest, mietvertrag: { connect: { id: mietvertragId } } },
+  await prisma.$transaction(async (tx) => {
+    await storniereBuchung(tx, id);
+    await tx.buchung.create({
+      data: {
+        ...rest,
+        buchungsartId: bisherige.buchungsartId,
+        mietvertragId,
+        rohdaten: bisherige.rohdaten ?? undefined,
+        importBatchId: bisherige.importBatchId,
+        aufteilungGruppeId: bisherige.aufteilungGruppeId,
+      },
+    });
   });
 
   revalidatePath("/zahlungen");
@@ -85,7 +105,10 @@ export async function updateZahlung(id: string, formData: FormData) {
 
 export async function deleteZahlung(id: string) {
   await requireEditor();
-  const zahlung = await prisma.zahlung.delete({ where: { id } });
+  const zahlung = await prisma.buchung.findUniqueOrThrow({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await storniereBuchung(tx, id);
+  });
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
   revalidatePath(`/mietvertraege/${zahlung.mietvertragId}`);
@@ -95,7 +118,11 @@ export async function deleteZahlung(id: string) {
 export async function deleteZahlungen(ids: string[]) {
   await requireEditor();
   if (ids.length === 0) return;
-  await prisma.zahlung.deleteMany({ where: { id: { in: ids } } });
+  await prisma.$transaction(async (tx) => {
+    for (const id of ids) {
+      await storniereBuchung(tx, id);
+    }
+  });
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
   revalidatePath("/mietvertraege");
@@ -129,11 +156,11 @@ const aufteilungTeilSchema = z.discriminatedUnion("typ", [
  * Teilt eine als eine Buchung importierte/erfasste Zahlung (z.B. eine Überweisung, die Miete für
  * Wohnung und Garage in einer Summe zahlt, oder eine Zahlung die teilweise eine Kostenerstattung
  * wie eine Mahngebühr ist) in mehrere Mietzahlungen und/oder Kostenpositionen auf. Die
- * ursprüngliche Zahlung wird durch die neuen ersetzt statt daneben zu bestehen — dadurch bleiben
- * Soll/Ist und offene Posten automatisch korrekt. Ein Kosten-Teil wird als negative Kostenposition
- * (Gutschrift) gebucht, exakt wie eine Kleinreparatur-Erstattung beim Kontoauszug-Import (siehe
- * mapKostenRows in src/lib/import/kosten-import.ts). Analog zu teileKostenpositionAuf in
- * kosten/actions.ts.
+ * ursprüngliche Zahlung wird storniert statt echt gelöscht (Storno-Prinzip) — dadurch bleiben
+ * Soll/Ist und offene Posten automatisch korrekt, ohne dass die Original-Buchung spurlos
+ * verschwindet. Ein Kosten-Teil wird als negative Kostenposition (Gutschrift) gebucht, exakt wie
+ * eine Kleinreparatur-Erstattung beim Kontoauszug-Import (siehe mapKostenRows in
+ * src/lib/import/kosten-import.ts). Analog zu teileKostenpositionAuf in kosten/actions.ts.
  */
 export async function teileZahlungAuf(
   id: string,
@@ -158,7 +185,7 @@ export async function teileZahlungAuf(
   }
   const teile = parsed.data;
 
-  const original = await prisma.zahlung.findUnique({ where: { id } });
+  const original = await prisma.buchung.findUnique({ where: { id } });
   if (!original) return "Zahlung nicht gefunden.";
 
   const summeTeile = teile.reduce((sum, t) => sum + t.betrag, 0);
@@ -171,11 +198,17 @@ export async function teileZahlungAuf(
   const kostenTeile = teile.filter((t) => t.typ === "kosten");
   const betroffeneMietvertraege = new Set([original.mietvertragId, ...mieteTeile.map((t) => t.mietvertragId)]);
 
+  const [mietzahlungArt, kostenpositionArt] = await Promise.all([
+    prisma.buchungsart.findUniqueOrThrow({ where: { code: "MIETZAHLUNG" } }),
+    prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } }),
+  ]);
+
   await prisma.$transaction(async (tx) => {
     for (const teil of mieteTeile) {
-      await tx.zahlung.create({
+      await tx.buchung.create({
         data: {
           mietvertragId: teil.mietvertragId,
+          buchungsartId: mietzahlungArt.id,
           datum: original.datum,
           betrag: teil.betrag,
           periodeMonat: teil.periodeMonat,
@@ -188,12 +221,13 @@ export async function teileZahlungAuf(
       });
     }
     for (const teil of kostenTeile) {
-      await tx.kostenposition.create({
+      await tx.buchung.create({
         data: {
+          buchungsartId: kostenpositionArt.id,
           kostenartId: teil.kostenartId,
           betrag: -teil.betrag,
-          beschreibung: teil.beschreibung || original.verwendungszweck,
-          jahr: original.datum.getFullYear(),
+          verwendungszweck: teil.beschreibung || original.verwendungszweck,
+          jahr: original.datum ? original.datum.getFullYear() : new Date().getFullYear(),
           datum: original.datum,
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
@@ -201,7 +235,7 @@ export async function teileZahlungAuf(
         },
       });
     }
-    await tx.zahlung.delete({ where: { id } });
+    await storniereBuchung(tx, id);
   });
 
   revalidatePath("/zahlungen");
@@ -211,23 +245,24 @@ export async function teileZahlungAuf(
   redirect("/zahlungen");
 }
 
-// Macht eine Aufteilung wieder rückgängig: alle Zahlungen derselben aufteilungGruppeId werden zu
-// einer einzigen Zahlung zusammengeführt (Betrag = Summe), unter dem Mietvertrag/der Periode der
-// Zahlung, von der aus die Aktion aufgerufen wurde.
+// Macht eine Aufteilung wieder rückgängig: alle Zahlungen derselben aufteilungGruppeId werden
+// storniert und zu einer einzigen neuen Zahlung zusammengeführt (Betrag = Summe), unter dem
+// Mietvertrag/der Periode der Zahlung, von der aus die Aktion aufgerufen wurde.
 export async function hebeZahlungAufteilungAuf(zahlungId: string) {
   await requireEditor();
-  const zahlung = await prisma.zahlung.findUnique({ where: { id: zahlungId } });
+  const zahlung = await prisma.buchung.findUnique({ where: { id: zahlungId } });
   if (!zahlung) throw new Error("Zahlung nicht gefunden.");
   if (!zahlung.aufteilungGruppeId) throw new Error("Diese Zahlung ist nicht Teil einer Aufteilung.");
 
-  const gruppe = await prisma.zahlung.findMany({ where: { aufteilungGruppeId: zahlung.aufteilungGruppeId } });
+  const gruppe = await prisma.buchung.findMany({ where: { aufteilungGruppeId: zahlung.aufteilungGruppeId } });
   const summe = gruppe.reduce((sum, z) => sum + Number(z.betrag), 0);
   const betroffeneMietvertraege = new Set(gruppe.map((z) => z.mietvertragId));
 
   await prisma.$transaction(async (tx) => {
-    await tx.zahlung.create({
+    await tx.buchung.create({
       data: {
         mietvertragId: zahlung.mietvertragId,
+        buchungsartId: zahlung.buchungsartId,
         datum: zahlung.datum,
         betrag: summe,
         periodeMonat: zahlung.periodeMonat,
@@ -237,7 +272,9 @@ export async function hebeZahlungAufteilungAuf(zahlungId: string) {
         importBatchId: zahlung.importBatchId,
       },
     });
-    await tx.zahlung.deleteMany({ where: { aufteilungGruppeId: zahlung.aufteilungGruppeId } });
+    for (const teil of gruppe) {
+      await storniereBuchung(tx, teil.id);
+    }
   });
 
   revalidatePath("/zahlungen");
