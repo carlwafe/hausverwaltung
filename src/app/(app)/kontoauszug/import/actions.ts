@@ -630,9 +630,11 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
   if (unbekannt.length > 0) {
     return `${unbekannt.length} Zeile(n) haben eine unbekannte Buchungsart.`;
   }
-  const fehlendeMietvertrag = gruppen.filter((g) => g.gruppe === "MIETE" && !g.row.mietvertragId);
+  const fehlendeMietvertrag = gruppen.filter(
+    (g) => (g.gruppe === "MIETE" || g.gruppe === "SONDERZAHLUNG") && !g.row.mietvertragId,
+  );
   if (fehlendeMietvertrag.length > 0) {
-    return `${fehlendeMietvertrag.length} Zeile(n) mit Buchungsart "Mietzahlung" haben noch keinen Mietvertrag ausgewählt.`;
+    return `${fehlendeMietvertrag.length} Zeile(n) mit Buchungsart "Mietzahlung"/"Gebühren-Zahlung" haben noch keinen Mietvertrag ausgewählt.`;
   }
   const fehlendeKostenart = gruppen.filter((g) => g.gruppe === "KOSTEN" && !g.row.kostenartId);
   if (fehlendeKostenart.length > 0) {
@@ -708,6 +710,7 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
     { gruppe: "MIETWEITERLEITUNG", code: "MIETWEITERLEITUNG" },
     { gruppe: "KAUTION", kontokreis: "KAUTIONSKONTO" },
     { gruppe: "NEBENKOSTENAUSGLEICH", code: "NEBENKOSTENAUSGLEICH" },
+    { gruppe: "SONDERZAHLUNG", code: "SONDERZAHLUNG" },
   ];
   for (const { gruppe, code, kontokreis } of sonstigeFamilien) {
     if (!familien.has(gruppe)) continue;

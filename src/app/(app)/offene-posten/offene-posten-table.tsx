@@ -16,6 +16,7 @@ export type OffenePostenRow = {
   ist: number;
   saldovortrag: number;
   saldo: number;
+  sonderforderung: number;
 };
 
 const columns: Column<OffenePostenRow>[] = [
@@ -83,6 +84,19 @@ const columns: Column<OffenePostenRow>[] = [
         {formatEuro(z.saldo)}
       </span>
     ),
+  },
+  {
+    key: "sonderforderung",
+    label: "Sonderforderung",
+    sortValue: (z) => z.sonderforderung,
+    render: (z) =>
+      z.sonderforderung === 0 ? (
+        <span className="text-neutral-600">–</span>
+      ) : (
+        <span className={z.sonderforderung > 0 ? "text-amber-400" : "text-green-400"}>
+          {formatEuro(z.sonderforderung)}
+        </span>
+      ),
   },
 ];
 

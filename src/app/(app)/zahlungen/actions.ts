@@ -147,7 +147,18 @@ const aufteilungTeilSchema = z.discriminatedUnion("typ", [
     // Positiv wie beim Kosten-eigenen Aufteilen-Schema (teileKostenpositionAuf): der Nutzer gibt
     // den Betrag ein, der vom Zahlungseingang in diese Kostenart umgeleitet wird — das Vorzeichen
     // als Gutschrift (negativ) wird erst beim Anlegen der Kostenposition gesetzt, siehe unten.
-    betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+    // Vorzeichen wie der Bankbetrag dieses Teils: positiv = Erstattung (wird zur Gutschrift),
+    // negativ = Gebühr, die uns die Bank abbucht (wird zur Ausgabe, z.B. Rücklastschriftgebühr).
+    betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
+    beschreibung: z.string().optional(),
+    // Nur bei negativem Betrag sinnvoll: die Gebühr zusätzlich als Forderung (MAHNGEBUEHR) auf dem
+    // Mietkonto des Mieters vormerken, damit sie später per Sonderzahlung ausgeglichen werden kann.
+    demMieterBerechnen: z.coerce.boolean().optional(),
+  }),
+  z.object({
+    typ: z.literal("sonderzahlung"),
+    mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
+    betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
     beschreibung: z.string().optional(),
   }),
 ]);
@@ -196,11 +207,18 @@ export async function teileZahlungAuf(
   const gruppeId = original.aufteilungGruppeId ?? original.id;
   const mieteTeile = teile.filter((t) => t.typ === "miete");
   const kostenTeile = teile.filter((t) => t.typ === "kosten");
-  const betroffeneMietvertraege = new Set([original.mietvertragId, ...mieteTeile.map((t) => t.mietvertragId)]);
+  const sonderTeile = teile.filter((t) => t.typ === "sonderzahlung");
+  const betroffeneMietvertraege = new Set([
+    original.mietvertragId,
+    ...mieteTeile.map((t) => t.mietvertragId),
+    ...sonderTeile.map((t) => t.mietvertragId),
+  ]);
 
-  const [mietzahlungArt, kostenpositionArt] = await Promise.all([
+  const [mietzahlungArt, kostenpositionArt, mahngebuehrArt, sonderzahlungArt] = await Promise.all([
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "MIETZAHLUNG" } }),
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } }),
+    prisma.buchungsart.findUniqueOrThrow({ where: { code: "MAHNGEBUEHR" } }),
+    prisma.buchungsart.findUniqueOrThrow({ where: { code: "SONDERZAHLUNG" } }),
   ]);
 
   await prisma.$transaction(async (tx) => {
@@ -220,8 +238,22 @@ export async function teileZahlungAuf(
         },
       });
     }
-    for (const teil of kostenTeile) {
+    for (const teil of sonderTeile) {
       await tx.buchung.create({
+        data: {
+          mietvertragId: teil.mietvertragId,
+          buchungsartId: sonderzahlungArt.id,
+          datum: original.datum,
+          betrag: teil.betrag,
+          verwendungszweck: teil.beschreibung || original.verwendungszweck,
+          rohdaten: original.rohdaten ?? undefined,
+          importBatchId: original.importBatchId,
+          aufteilungGruppeId: gruppeId,
+        },
+      });
+    }
+    for (const teil of kostenTeile) {
+      const kostenBuchung = await tx.buchung.create({
         data: {
           buchungsartId: kostenpositionArt.id,
           kostenartId: teil.kostenartId,
@@ -234,6 +266,21 @@ export async function teileZahlungAuf(
           aufteilungGruppeId: gruppeId,
         },
       });
+      if (teil.demMieterBerechnen && teil.betrag < 0 && original.mietvertragId) {
+        // Bewusst ohne aufteilungGruppeId: die Forderung ist kein Teil des Bankbetrags, sonst
+        // würde "Aufteilung rückgängig machen" (Summe über die Gruppe) sie mitzählen.
+        await tx.buchung.create({
+          data: {
+            mietvertragId: original.mietvertragId,
+            buchungsartId: mahngebuehrArt.id,
+            datum: original.datum,
+            betrag: -teil.betrag,
+            verwendungszweck: teil.beschreibung || original.verwendungszweck,
+            bezugTyp: "Buchung",
+            bezugId: kostenBuchung.id,
+          },
+        });
+      }
     }
     await storniereBuchung(tx, id);
   });

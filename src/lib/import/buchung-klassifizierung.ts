@@ -120,7 +120,7 @@ export function ermittleBuchungsartKandidaten(
   return zahlungZuerst ? [zahlungKandidat, kostenKandidat] : [kostenKandidat, zahlungKandidat];
 }
 
-export type BuchungsartGruppe = "MIETE" | "KOSTEN" | "MIETWEITERLEITUNG" | "KAUTION" | "NEBENKOSTENAUSGLEICH";
+export type BuchungsartGruppe = "MIETE" | "KOSTEN" | "MIETWEITERLEITUNG" | "KAUTION" | "NEBENKOSTENAUSGLEICH" | "SONDERZAHLUNG";
 
 // Ordnet einen Buchungsart-Katalog-Code seiner Familie zu — entscheidet serverseitig (commitBuchungen)
 // über Pflichtfeld-Prüfung/Dedup-Formel und clientseitig (buchungen-tabelle.tsx) über die
@@ -131,6 +131,7 @@ export function ermittleBuchungsartGruppe(code: string): BuchungsartGruppe | nul
   if (code === "KOSTENPOSITION") return "KOSTEN";
   if (code === "MIETWEITERLEITUNG") return "MIETWEITERLEITUNG";
   if (code === "NEBENKOSTENAUSGLEICH") return "NEBENKOSTENAUSGLEICH";
+  if (code === "SONDERZAHLUNG") return "SONDERZAHLUNG";
   if (code.startsWith("KAUTION_")) return "KAUTION";
   return null;
 }

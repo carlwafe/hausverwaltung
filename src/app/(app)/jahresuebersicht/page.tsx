@@ -49,6 +49,7 @@ async function ladeJahresuebersicht(jahr: number) {
   // drei bekannten Kategorien zugeordnet wird — nur zur Absicherung der Summen, keine eigene
   // Anzeige-Zeile.
   let sonstigeEurRelevant = 0;
+  let sonderzahlungen = 0;
   for (const b of datumsBasiert) {
     const betrag = Number(b.betrag);
     switch (b.buchungsart.code) {
@@ -63,6 +64,9 @@ async function ladeJahresuebersicht(jahr: number) {
       }
       case "KAUTION_EINBEHALT":
         kautionEinbehalte += -betrag;
+        break;
+      case "SONDERZAHLUNG":
+        sonderzahlungen += betrag;
         break;
       default:
         sonstigeEurRelevant += betrag;
@@ -84,7 +88,7 @@ async function ladeJahresuebersicht(jahr: number) {
     .sort((a, b) => b.summe - a.summe);
   const kostenSumme = kostenpositionen.reduce((sum, k) => sum + Number(k.betrag), 0);
 
-  const einnahmen = mieteinnahmen + nachzahlungenEingezogen + kautionEinbehalte + Math.max(sonstigeEurRelevant, 0);
+  const einnahmen = mieteinnahmen + nachzahlungenEingezogen + kautionEinbehalte + sonderzahlungen + Math.max(sonstigeEurRelevant, 0);
   const ausgaben = kostenSumme + guthabenAusgezahlt + Math.max(-sonstigeEurRelevant, 0);
   const ergebnis = einnahmen - ausgaben;
 
@@ -95,6 +99,7 @@ async function ladeJahresuebersicht(jahr: number) {
     nachzahlungenEingezogen,
     guthabenAusgezahlt,
     kautionEinbehalte,
+    sonderzahlungen,
     einnahmen,
     ausgaben,
     ergebnis,
@@ -335,6 +340,14 @@ export default async function JahresuebersichtPage({
                     </td>
                     <td className="px-4 py-2 text-right text-white">
                       {formatEuro(daten.kautionEinbehalte)}
+                    </td>
+                  </tr>
+                )}
+                {daten.sonderzahlungen !== 0 && (
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-white">Gebühren-Zahlungen von Mietern (Sonderforderungen)</td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(daten.sonderzahlungen)}
                     </td>
                   </tr>
                 )}

@@ -34,6 +34,7 @@ const FAMILIE_LABELS: Record<BuchungsartGruppe, string> = {
   MIETWEITERLEITUNG: "Mietweiterleitungen",
   KAUTION: "Kaution",
   NEBENKOSTENAUSGLEICH: "Nebenkostenausgleich",
+  SONDERZAHLUNG: "Gebühren-Zahlung (Mieter)",
 };
 const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] = [
   { value: "alle", label: "Alle Buchungsarten" },
@@ -42,6 +43,7 @@ const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] =
   { value: "MIETWEITERLEITUNG", label: FAMILIE_LABELS.MIETWEITERLEITUNG },
   { value: "KAUTION", label: FAMILIE_LABELS.KAUTION },
   { value: "NEBENKOSTENAUSGLEICH", label: FAMILIE_LABELS.NEBENKOSTENAUSGLEICH },
+  { value: "SONDERZAHLUNG", label: FAMILIE_LABELS.SONDERZAHLUNG },
 ];
 
 // Sucht eine vierstellige Jahreszahl im Buchungstext (z.B. "BK-Abr. 2024") als Vorschlag fürs
@@ -108,7 +110,7 @@ type BuchungEditRow = VereinheitlichteZeile & {
 
 function pflichtfeldErfuellt(gruppe: BuchungsartGruppe | null, r: { mietvertragId: string; kostenartId: string }): boolean {
   if (!gruppe) return false;
-  if (gruppe === "MIETE") return Boolean(r.mietvertragId);
+  if (gruppe === "MIETE" || gruppe === "SONDERZAHLUNG") return Boolean(r.mietvertragId);
   if (gruppe === "KOSTEN") return Boolean(r.kostenartId);
   return true;
 }
@@ -258,6 +260,7 @@ export function BuchungenTabelle({
     else if (familie === "KOSTEN") code = "KOSTENPOSITION";
     else if (familie === "MIETWEITERLEITUNG") code = "MIETWEITERLEITUNG";
     else if (familie === "NEBENKOSTENAUSGLEICH") code = "NEBENKOSTENAUSGLEICH";
+    else if (familie === "SONDERZAHLUNG") code = "SONDERZAHLUNG";
     else if (familie === "KAUTION") {
       code =
         buchungsarten.find((b) => b.code === "KAUTION_EINZAHLUNG")?.code ??
@@ -324,7 +327,7 @@ export function BuchungenTabelle({
       empfaenger: r.name || null,
       verwendungszweck: r.verwendungszweck,
       rohdaten: r.rohdaten,
-      mietvertragId: gruppe === "MIETE" || gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH" ? r.mietvertragId || null : undefined,
+      mietvertragId: gruppe === "MIETE" || gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH" || gruppe === "SONDERZAHLUNG" ? r.mietvertragId || null : undefined,
       periodeMonat: gruppe === "MIETE" ? r.periodeMonat : undefined,
       periodeJahr: gruppe === "MIETE" ? r.periodeJahr : undefined,
       kostenartId: gruppe === "KOSTEN" ? r.kostenartId : undefined,
@@ -463,6 +466,7 @@ export function BuchungenTabelle({
                           <option value="MIETWEITERLEITUNG">{FAMILIE_LABELS.MIETWEITERLEITUNG}</option>
                           <option value="KAUTION">{FAMILIE_LABELS.KAUTION}</option>
                           <option value="NEBENKOSTENAUSGLEICH">{FAMILIE_LABELS.NEBENKOSTENAUSGLEICH}</option>
+                          <option value="SONDERZAHLUNG">{FAMILIE_LABELS.SONDERZAHLUNG}</option>
                         </select>
                         {gruppe === "KAUTION" && (
                           <select
@@ -592,6 +596,14 @@ export function BuchungenTabelle({
                             />
                           )}
                         </div>
+                      )}
+                      {gruppe === "SONDERZAHLUNG" && (
+                        <MietvertragAuswahl
+                          kandidaten={mietvertragKandidaten}
+                          value={r.mietvertragId}
+                          leerLabel="– Mietvertrag wählen –"
+                          onChange={(id) => updateRow(r.rowNumber, { mietvertragId: id })}
+                        />
                       )}
                       {gruppe === "MIETWEITERLEITUNG" && <span className="text-xs text-neutral-500">–</span>}
                       {!gruppe && <span className="text-xs text-neutral-500">Buchungsart wählen</span>}

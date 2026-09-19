@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIst } from "@/lib/soll-ist";
 import { DateInput } from "@/components/date-input";
 import { toDateInputValue } from "@/lib/date-utils";
+import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
 
@@ -35,6 +36,8 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
     zahlungenNachVertrag.set(z.mietvertragId, liste);
   }
 
+  const sonderforderungen = await ladeSonderforderungSalden(vertraege.map((v) => v.id));
+
   return vertraege
     .map((v) => {
       const soll = berechneSoll(
@@ -66,6 +69,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         ist,
         saldovortrag,
         saldo,
+        sonderforderung: sonderforderungen.get(v.id)?.offen ?? 0,
       };
     })
     .sort((a, b) => a.saldo - b.saldo);
@@ -91,7 +95,8 @@ export default async function OffenePostenPage() {
             : "Mietbeginn"}
           , gerechnet bis {formatDatum(bis)}) im Vergleich zu den{" "}
           {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
-          = Rückstand, Grün = Guthaben/Vorauszahlung.
+          = Rückstand, Grün = Guthaben/Vorauszahlung. Sonderforderungen (z.B. Rücklastschriftgebühren)
+          werden getrennt vom Mietsaldo geführt.
         </p>
       </div>
 

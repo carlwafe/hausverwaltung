@@ -7,13 +7,14 @@ import { teileZahlungAuf } from "./actions";
 const MONATE_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
 type Zeile = {
-  typ: "miete" | "kosten";
+  typ: "miete" | "kosten" | "sonderzahlung";
   mietvertragId: string;
   betrag: string;
   periodeMonat: number;
   periodeJahr: number;
   kostenartId: string;
   beschreibung: string;
+  demMieterBerechnen: boolean;
 };
 
 function parseKommaBetrag(text: string): number {
@@ -55,6 +56,7 @@ export function AufteilenForm({
     periodeJahr,
     kostenartId: "",
     beschreibung: "",
+    demMieterBerechnen: false,
   });
   const [zeilen, setZeilen] = useState<Zeile[]>([
     {
@@ -65,6 +67,7 @@ export function AufteilenForm({
       periodeJahr,
       kostenartId: "",
       beschreibung: "",
+      demMieterBerechnen: false,
     },
     neueZeile(),
   ]);
@@ -96,12 +99,20 @@ export function AufteilenForm({
                 periodeMonat: z.periodeMonat,
                 periodeJahr: z.periodeJahr,
               }
-            : {
-                typ: "kosten",
-                kostenartId: z.kostenartId,
-                betrag: parseKommaBetrag(z.betrag),
-                beschreibung: z.beschreibung || undefined,
-              },
+            : z.typ === "sonderzahlung"
+              ? {
+                  typ: "sonderzahlung",
+                  mietvertragId: z.mietvertragId || aktuelleMietvertragId,
+                  betrag: parseKommaBetrag(z.betrag),
+                  beschreibung: z.beschreibung || undefined,
+                }
+              : {
+                  typ: "kosten",
+                  kostenartId: z.kostenartId,
+                  betrag: parseKommaBetrag(z.betrag),
+                  beschreibung: z.beschreibung || undefined,
+                  demMieterBerechnen: z.demMieterBerechnen,
+                },
         ),
       ),
     );
@@ -126,7 +137,9 @@ export function AufteilenForm({
       <p className="mb-3 text-xs text-neutral-500">
         Ersetzt diese Zahlung durch die unten angegebenen — z.B. eine Überweisung, die Miete für
         Wohnung und Garage in einer Summe zahlt, oder eine Zahlung, die teilweise eine
-        Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist.
+        Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist. Bei einer geplatzten Lastschrift:
+        Mietteil negativ, die Bankgebühr als Kosten mit negativem Betrag (&quot;dem Mieter berechnen&quot; merkt sie
+        als Forderung vor).
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
@@ -135,7 +148,7 @@ export function AufteilenForm({
               {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Typ</label>}
               <select
                 value={zeile.typ}
-                onChange={(e) => aktualisiereZeile(i, { typ: e.target.value as "miete" | "kosten" })}
+                onChange={(e) => aktualisiereZeile(i, { typ: e.target.value as Zeile["typ"] })}
                 className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
               >
                 <option value="miete" className="bg-neutral-900">
@@ -143,6 +156,9 @@ export function AufteilenForm({
                 </option>
                 <option value="kosten" className="bg-neutral-900">
                   Kosten
+                </option>
+                <option value="sonderzahlung" className="bg-neutral-900">
+                  Gebühren-Zahlung
                 </option>
               </select>
             </div>
@@ -194,6 +210,40 @@ export function AufteilenForm({
                   />
                 </div>
               </>
+            ) : zeile.typ === "sonderzahlung" ? (
+              <>
+                <div className="min-w-0 flex-1">
+                  {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Mietvertrag</label>}
+                  <MietvertragAuswahl
+                    kandidaten={mietvertraege}
+                    value={zeile.mietvertragId || aktuelleMietvertragId}
+                    leerLabel="– wählen –"
+                    onChange={(id) => aktualisiereZeile(i, { mietvertragId: id })}
+                  />
+                </div>
+                <div className="w-24">
+                  {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Betrag</label>}
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={zeile.betrag}
+                    onChange={(e) => aktualisiereZeile(i, { betrag: e.target.value })}
+                    placeholder="0,00"
+                    required
+                    className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+                  />
+                </div>
+                <div className="flex-1">
+                  {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Beschreibung</label>}
+                  <input
+                    type="text"
+                    value={zeile.beschreibung}
+                    onChange={(e) => aktualisiereZeile(i, { beschreibung: e.target.value })}
+                    placeholder="optional"
+                    className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+                  />
+                </div>
+              </>
             ) : (
               <>
                 <div className="min-w-0 flex-1">
@@ -234,6 +284,16 @@ export function AufteilenForm({
                     className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
                   />
                 </div>
+                {parseKommaBetrag(zeile.betrag) < 0 && (
+                  <label className="flex items-center gap-1 pb-2 text-xs text-neutral-300" title="Die Gebühr zusätzlich als Forderung auf dem Mietkonto vormerken">
+                    <input
+                      type="checkbox"
+                      checked={zeile.demMieterBerechnen}
+                      onChange={(e) => aktualisiereZeile(i, { demMieterBerechnen: e.target.checked })}
+                    />
+                    dem Mieter berechnen
+                  </label>
+                )}
               </>
             )}
 
