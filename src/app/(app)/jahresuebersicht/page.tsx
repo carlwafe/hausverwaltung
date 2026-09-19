@@ -147,13 +147,23 @@ async function ladeKontenabgleich(jahr: number) {
     else durchlaufendeBewegung += betrag;
   }
 
-  const kontostandEndeBerechnet = kontostandAnfang + eurRelevanteBewegung + durchlaufendeBewegung;
+  // Geparkte, nicht kategorisierte Buchungen bewegen den Kontostand mit (siehe
+  // ladeKontostandEintraege), gehören aber weder zum Ergebnis noch zu den durchlaufenden Posten.
+  const nichtKategorisiertImJahr = await prisma.nichtZugeordneteBuchung.aggregate({
+    where: { datum: { gte: jahresanfang, lte: jahresende } },
+    _sum: { betrag: true },
+  });
+  const nichtKategorisierteBewegung = Number(nichtKategorisiertImJahr._sum.betrag ?? 0);
+
+  const kontostandEndeBerechnet =
+    kontostandAnfang + eurRelevanteBewegung + durchlaufendeBewegung + nichtKategorisierteBewegung;
   const differenz = Math.round((kontostandEndeBerechnet - kontostandEndeVerlauf) * 100) / 100;
 
   return {
     kontostandAnfang,
     eurRelevanteBewegung,
     durchlaufendeBewegung,
+    nichtKategorisierteBewegung,
     kontostandEndeBerechnet,
     kontostandEndeVerlauf,
     differenz,
@@ -429,6 +439,12 @@ export default async function JahresuebersichtPage({
                     <td className="px-4 py-2 text-white">+ durchlaufende Posten (Kaution/Mietweiterleitung)</td>
                     <td className="px-4 py-2 text-right text-white">
                       {formatEuro(kontenabgleich.durchlaufendeBewegung)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="px-4 py-2 text-white">+ nicht kategorisierte Buchungen</td>
+                    <td className="px-4 py-2 text-right text-white">
+                      {formatEuro(kontenabgleich.nichtKategorisierteBewegung)}
                     </td>
                   </tr>
                   <tr className="border-b border-neutral-800 font-medium">

@@ -3,7 +3,7 @@
 // der Kontostand nur relativ zu einem manuell gesetzten Anker (siehe Objekt.kontostandAnkerDatum/
 // -Betrag) rekonstruieren, nicht absolut.
 
-export type KontostandKategorie = "zahlung" | "kosten" | "mietweiterleitung" | "kaution" | "sonstige";
+export type KontostandKategorie = "zahlung" | "kosten" | "mietweiterleitung" | "kaution" | "sonstige" | "nicht_kategorisiert";
 
 export type KontostandEintrag = {
   id: string;

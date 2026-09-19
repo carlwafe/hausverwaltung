@@ -29,7 +29,22 @@ export async function ladeKontostandEintraege(): Promise<KontostandEintrag[]> {
     },
   });
 
-  return buchungen
+  // Beim Import "als nicht kategorisiert" geparkte Buchungen sind echte Kontobewegungen (Rohbetrag
+  // mit Bankvorzeichen), nur ohne fachliche Zuordnung — sie müssen den Kontostand trotzdem
+  // mitbewegen, sonst weicht er vom echten Kontoauszug ab.
+  const nichtKategorisiert = await prisma.nichtZugeordneteBuchung.findMany({
+    select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
+  });
+
+  const geparkt: KontostandEintrag[] = nichtKategorisiert.map((n) => ({
+    id: n.id,
+    datum: n.datum,
+    betrag: Number(n.betrag),
+    kategorie: "nicht_kategorisiert" as const,
+    beschreibung: n.empfaenger || n.verwendungszweck || "Nicht kategorisierte Buchung",
+  }));
+
+  const journal: KontostandEintrag[] = buchungen
     .filter((b) => b.datum !== null)
     .map((b) => {
       const rohBetrag = Number(b.betrag);
@@ -52,6 +67,8 @@ export async function ladeKontostandEintraege(): Promise<KontostandEintrag[]> {
         beschreibung: b.empfaenger || b.verwendungszweck || "Buchung",
       };
     });
+
+  return [...journal, ...geparkt];
 }
 
 /**

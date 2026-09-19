@@ -58,7 +58,7 @@ export default async function KontostandPage() {
       <h1 className="mb-2 text-2xl font-semibold text-white">Kontostand</h1>
       <p className="mb-6 max-w-2xl text-sm text-neutral-400">
         Simulierter Verlauf, aus allen erfassten Buchungen (Zahlungen, Kosten, Mietweiterleitungen,
-        Kautionsbuchungen, sonstige Buchungen) relativ zum Anker am {formatDate(anker.datum)} (
+        Kautionsbuchungen, nicht kategorisierte Buchungen) relativ zum Anker am {formatDate(anker.datum)} (
         {formatEuro(anker.betrag)}) berechnet. Die Genauigkeit hängt davon ab, dass alle Kontoauszüge
         vollständig importiert sind —{" "}
         <Link href="/kontoauszug/importe" className="underline hover:text-white">

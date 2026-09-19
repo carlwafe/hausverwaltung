@@ -17,6 +17,7 @@ const KATEGORIE_LABEL: Record<KontostandKategorie, string> = {
   mietweiterleitung: "Mietweiterleitung/Einlage",
   kaution: "Kaution",
   sonstige: "Sonstige",
+  nicht_kategorisiert: "Nicht kategorisiert",
 };
 
 export type KontostandRow = {
