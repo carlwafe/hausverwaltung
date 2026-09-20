@@ -221,11 +221,8 @@ export default async function NebenkostenabrechnungDetailPage({
               ))}
           </ul>
           <p className="mt-2 text-xs text-neutral-500">
-            Für mindestens eine betroffene Einheit fehlt ein Ablesewert für {abrechnung.jahr}.{" "}
-            <Link href="/verbrauchswerte" className="underline">
-              Verbrauchswerte erfassen
-            </Link>{" "}
-            und &quot;Neu berechnen&quot;.
+            Für mindestens eine betroffene Einheit fehlt ein Ablesewert für {abrechnung.jahr}. Die
+            Kostenart wird deshalb nicht mit abgerechnet.
           </p>
         </div>
       )}
