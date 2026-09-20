@@ -17,8 +17,9 @@ import { PrismaClient } from "./src/generated/prisma/client";
 // korrigiert — dieser Fix hier verhindert, dass ein künftiger Lauf denselben Fehler wiederholt).
 types.setTypeParser(1114, (val: string) => val);
 
-const OLD_DATABASE_URL =
-  "postgresql://mietverwaltung:fbf02f42f7f5a3e9883a28e060ed7fc8@localhost:5432/mietverwaltung_eutin";
+// Quelle (Datenbank im Alt-Schema) per Umgebungsvariable, Ziel ist DATABASE_URL (Journal-Schema).
+const OLD_DATABASE_URL = process.env.SOURCE_DATABASE_URL;
+if (!OLD_DATABASE_URL) throw new Error("SOURCE_DATABASE_URL (Quelle im Alt-Schema) ist nicht gesetzt.");
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });

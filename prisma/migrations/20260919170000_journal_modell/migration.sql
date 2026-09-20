@@ -5,49 +5,49 @@ CREATE TYPE "Kontokreis" AS ENUM ('MIETKONTO', 'KAUTIONSKONTO', 'OBJEKTKONTO');
 CREATE TYPE "KautionEinbehaltStatus" AS ENUM ('UNSTRITTIG', 'STRITTIG_OFFEN', 'STRITTIG_BESTAETIGT', 'STRITTIG_VERWORFEN');
 
 -- DropForeignKey
-ALTER TABLE "zahlungen" DROP CONSTRAINT "zahlungen_mietvertragId_fkey";
+ALTER TABLE "zahlungen" DROP CONSTRAINT IF EXISTS "zahlungen_mietvertragId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "zahlungen" DROP CONSTRAINT "zahlungen_importBatchId_fkey";
+ALTER TABLE "zahlungen" DROP CONSTRAINT IF EXISTS "zahlungen_importBatchId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_kostenartId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_kostenartId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_gebaeudeId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_gebaeudeId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_hausId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_hausId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_kostengruppeId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_kostengruppeId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_einheitId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_einheitId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_importBatchId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_importBatchId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kostenpositionen" DROP CONSTRAINT "kostenpositionen_virtuelleKautionBuchungId_fkey";
+ALTER TABLE "kostenpositionen" DROP CONSTRAINT IF EXISTS "kostenpositionen_virtuelleKautionBuchungId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "dokumente" DROP CONSTRAINT "dokumente_kostenpositionId_fkey";
+ALTER TABLE "dokumente" DROP CONSTRAINT IF EXISTS "dokumente_kostenpositionId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "eigentuemerbuchungen" DROP CONSTRAINT "eigentuemerbuchungen_importBatchId_fkey";
+ALTER TABLE "eigentuemerbuchungen" DROP CONSTRAINT IF EXISTS "eigentuemerbuchungen_importBatchId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kautionsbuchungen" DROP CONSTRAINT "kautionsbuchungen_mietvertragId_fkey";
+ALTER TABLE "kautionsbuchungen" DROP CONSTRAINT IF EXISTS "kautionsbuchungen_mietvertragId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "kautionsbuchungen" DROP CONSTRAINT "kautionsbuchungen_importBatchId_fkey";
+ALTER TABLE "kautionsbuchungen" DROP CONSTRAINT IF EXISTS "kautionsbuchungen_importBatchId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "nebenkostenausgleich_zahlungen" DROP CONSTRAINT "nebenkostenausgleich_zahlungen_mietvertragId_fkey";
+ALTER TABLE "nebenkostenausgleich_zahlungen" DROP CONSTRAINT IF EXISTS "nebenkostenausgleich_zahlungen_mietvertragId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "nebenkostenausgleich_zahlungen" DROP CONSTRAINT "nebenkostenausgleich_zahlungen_importBatchId_fkey";
+ALTER TABLE "nebenkostenausgleich_zahlungen" DROP CONSTRAINT IF EXISTS "nebenkostenausgleich_zahlungen_importBatchId_fkey";
 
 -- AlterTable
 ALTER TABLE "kostenarten" ADD COLUMN     "betrKvNummer" INTEGER,
