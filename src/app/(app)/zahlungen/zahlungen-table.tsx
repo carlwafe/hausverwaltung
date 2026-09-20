@@ -38,12 +38,14 @@ const MONATE_KURZ = [
 
 export type ZahlungRow = {
   id: string;
+  art: "MIETZAHLUNG" | "SONDERZAHLUNG";
   mietvertragId: string;
   datum: string;
   einheitBezeichnung: string;
   mieterNamen: string;
-  periodeMonat: number;
-  periodeJahr: number;
+  // Nur bei Mietzahlungen gesetzt (Gebühren-Zahlungen gehören zu keiner Mietperiode).
+  periodeMonat: number | null;
+  periodeJahr: number | null;
   betrag: number;
   verwendungszweck: string | null;
   rohdaten: Record<string, string> | null;
@@ -95,8 +97,25 @@ const columns: Column<ZahlungRow>[] = [
   {
     key: "periode",
     label: "Für Periode",
-    sortValue: (z) => z.periodeJahr * 12 + z.periodeMonat,
-    render: (z) => `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}`,
+    sortValue: (z) => (z.periodeJahr ?? 0) * 12 + (z.periodeMonat ?? 0),
+    render: (z) => (z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : "–"),
+  },
+  {
+    key: "art",
+    label: "Art",
+    sortValue: (z) => z.art,
+    searchValue: (z) => (z.art === "SONDERZAHLUNG" ? "Gebühr Sonderzahlung" : "Miete"),
+    render: (z) =>
+      z.art === "SONDERZAHLUNG" ? (
+        <span
+          title="Zahlung des Mieters auf Gebühren (Sonderforderung), keine Miete"
+          className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
+        >
+          Gebühr
+        </span>
+      ) : (
+        <span className="text-xs text-neutral-500">Miete</span>
+      ),
   },
   {
     key: "betrag",
@@ -134,7 +153,11 @@ const csvSpalten: CsvSpalte<ZahlungRow>[] = [
   { label: "Datum", wert: (z) => formatDatumFuerCsv(z.datum) },
   { label: "Einheit", wert: (z) => z.einheitBezeichnung },
   { label: "Mieter", wert: (z) => z.mieterNamen },
-  { label: "Für Periode", wert: (z) => `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` },
+  { label: "Art", wert: (z) => (z.art === "SONDERZAHLUNG" ? "Gebühr" : "Miete") },
+  {
+    label: "Für Periode",
+    wert: (z) => (z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : ""),
+  },
   { label: "Betrag", wert: (z) => formatEuroFuerCsv(z.betrag) },
   { label: "Verwendungszweck", wert: (z) => z.verwendungszweck ?? "" },
 ];

@@ -5,26 +5,27 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
   const zahlungen = await prisma.buchung.findMany({
-    where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
+    where: { buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG"] } }, ...AKTIVE_BUCHUNG_FILTER },
     // Bei gleichem Datum (z.B. zwei durch Aufteilung entstandene Zahlungen, siehe
     // aufteilungGruppeId) sonst unbestimmte Reihenfolge — zusätzlich nach Periode absteigend
     // sortiert, damit z.B. "Nov 2025, Okt 2025" statt eines zufällig wirkenden "Okt 2025,
     // Nov 2025, Okt 2025" erscheint.
     orderBy: [{ datum: "desc" }, { periodeJahr: "desc" }, { periodeMonat: "desc" }],
-    include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true },
+    include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true, buchungsart: { select: { code: true } } },
   });
 
-  // mietvertragId/datum/periodeMonat/periodeJahr sind bei MIETZAHLUNG immer gesetzt (siehe
-  // pflichtfeldErfuellt in commitBuchungen) — auf DB-Ebene bleiben sie nullable, weil dasselbe
-  // Buchung-Modell auch andere Buchungsarten trägt, bei denen sie leer sind.
+  // mietvertragId/datum sind bei MIETZAHLUNG und SONDERZAHLUNG immer gesetzt, die Periode nur bei
+  // MIETZAHLUNG (siehe pflichtfeldErfuellt in commitBuchungen) — auf DB-Ebene bleiben sie
+  // nullable, weil dasselbe Buchung-Modell auch andere Buchungsarten trägt.
   return zahlungen.map((z) => ({
     id: z.id,
+    art: z.buchungsart.code === "SONDERZAHLUNG" ? ("SONDERZAHLUNG" as const) : ("MIETZAHLUNG" as const),
     mietvertragId: z.mietvertragId!,
     datum: z.datum!.toISOString(),
     einheitBezeichnung: z.mietvertrag!.einheit.bezeichnung,
     mieterNamen: z.mietvertrag!.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-    periodeMonat: z.periodeMonat!,
-    periodeJahr: z.periodeJahr!,
+    periodeMonat: z.periodeMonat,
+    periodeJahr: z.periodeJahr,
     betrag: Number(z.betrag),
     verwendungszweck: z.verwendungszweck,
     rohdaten: (z.rohdaten as Record<string, string> | null) ?? null,
@@ -42,7 +43,11 @@ export default async function ZahlungenPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Zahlungen</h1>
-          <p className="text-sm text-neutral-400">{zahlungen.length} Zahlungen erfasst</p>
+          <p className="text-sm text-neutral-400">
+            {zahlungen.length} Zahlungen erfasst
+            {zahlungen.some((z) => z.art === "SONDERZAHLUNG") &&
+              ` (davon ${zahlungen.filter((z) => z.art === "SONDERZAHLUNG").length} Gebühren-Zahlungen)`}
+          </p>
         </div>
         <div className="flex gap-2">
           <Link
