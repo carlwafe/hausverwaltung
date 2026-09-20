@@ -87,7 +87,7 @@ const columns: Column<OffenePostenRow>[] = [
   },
   {
     key: "sonderforderung",
-    label: "Sonderforderung",
+    label: "davon Sonderforderung",
     sortValue: (z) => z.sonderforderung,
     render: (z) =>
       z.sonderforderung === 0 ? (

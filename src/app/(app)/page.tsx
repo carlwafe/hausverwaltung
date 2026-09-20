@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIst, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
@@ -25,6 +26,7 @@ export default async function DashboardPage() {
       prisma.mietvertrag.findMany({
         where: { status: { in: ["AKTIV", "BEENDET"] } },
         select: {
+          id: true,
           beginn: true,
           ende: true,
           kaltmiete: true,
@@ -60,6 +62,10 @@ export default async function DashboardPage() {
   const sollNebenkosten = aktuelleMieten.reduce((sum, m) => sum + m.nebenkostenVorauszahlung, 0);
 
   const buchhaltungAb = objekt?.buchhaltungAb ?? null;
+  const sonderforderungen = await ladeSonderforderungSalden(
+    abrechenbareVertraege.map((v) => v.id),
+    { ab: buchhaltungAb },
+  );
   const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
     const soll = berechneSoll(
       {
@@ -81,7 +87,7 @@ export default async function DashboardPage() {
       v.buchungen.map((z) => ({ datum: z.datum!, betrag: Number(z.betrag) })),
       buchhaltungAb,
     );
-    const saldo = ist - soll + Number(v.saldovortrag);
+    const saldo = ist - soll + Number(v.saldovortrag) - (sonderforderungen.get(v.id)?.offen ?? 0);
     return sum + Math.min(saldo, 0);
   }, 0);
 

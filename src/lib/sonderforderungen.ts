@@ -7,11 +7,19 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 export type SonderforderungSaldo = { forderung: number; bezahlt: number; offen: number };
 
-export async function ladeSonderforderungSalden(mietvertragIds?: string[]): Promise<Map<string, SonderforderungSaldo>> {
+// Zeitraum wie bei Soll/Ist (buchhaltungAb/-Bis), damit die offene Sonderforderung im Mietsaldo
+// denselben Zeitraum abdeckt wie die Mietzahlungen.
+export async function ladeSonderforderungSalden(
+  mietvertragIds?: string[],
+  zeitraum: { ab?: Date | null; bis?: Date | null } = {},
+): Promise<Map<string, SonderforderungSaldo>> {
   const buchungen = await prisma.buchung.findMany({
     where: {
       buchungsart: { code: { in: ["MAHNGEBUEHR", "SONDERZAHLUNG"] } },
       mietvertragId: mietvertragIds ? { in: mietvertragIds } : { not: null },
+      ...(zeitraum.ab || zeitraum.bis
+        ? { datum: { ...(zeitraum.ab ? { gte: zeitraum.ab } : {}), ...(zeitraum.bis ? { lte: zeitraum.bis } : {}) } }
+        : {}),
       ...AKTIVE_BUCHUNG_FILTER,
     },
     select: { mietvertragId: true, betrag: true, buchungsart: { select: { code: true } } },

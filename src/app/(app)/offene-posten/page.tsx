@@ -36,7 +36,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
     zahlungenNachVertrag.set(z.mietvertragId, liste);
   }
 
-  const sonderforderungen = await ladeSonderforderungSalden(vertraege.map((v) => v.id));
+  const sonderforderungen = await ladeSonderforderungSalden(vertraege.map((v) => v.id), { ab: buchhaltungAb, bis });
 
   return vertraege
     .map((v) => {
@@ -58,7 +58,9 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
       );
       const ist = berechneIst(zahlungenNachVertrag.get(v.id) ?? [], buchhaltungAb, bis);
       const saldovortrag = Number(v.saldovortrag);
-      const saldo = ist - soll + saldovortrag;
+      const sonderforderung = sonderforderungen.get(v.id)?.offen ?? 0;
+      // Offene Sonderforderungen (z.B. Rücklastschriftgebühren) mindern den Saldo wie ein Rückstand.
+      const saldo = ist - soll + saldovortrag - sonderforderung;
 
       return {
         id: v.id,
@@ -69,7 +71,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         ist,
         saldovortrag,
         saldo,
-        sonderforderung: sonderforderungen.get(v.id)?.offen ?? 0,
+        sonderforderung,
       };
     })
     .sort((a, b) => a.saldo - b.saldo);
@@ -95,8 +97,8 @@ export default async function OffenePostenPage() {
             : "Mietbeginn"}
           , gerechnet bis {formatDatum(bis)}) im Vergleich zu den{" "}
           {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
-          = Rückstand, Grün = Guthaben/Vorauszahlung. Sonderforderungen (z.B. Rücklastschriftgebühren)
-          werden getrennt vom Mietsaldo geführt.
+          = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
+          sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen.
         </p>
       </div>
 

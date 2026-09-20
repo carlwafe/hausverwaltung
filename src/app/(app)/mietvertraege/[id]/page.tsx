@@ -104,7 +104,12 @@ export default async function MietvertragDetailPage({
     bis,
   );
   const saldovortrag = Number(vertrag.saldovortrag);
-  const saldo = ist - soll + saldovortrag;
+  // Offene Sonderforderung (Gebühren minus Zahlungen darauf) im selben Zeitraum wie Soll/Ist.
+  const ab = objekt?.buchhaltungAb ?? null;
+  const sonderOffenImSaldo = sonderBuchungen
+    .filter((b) => b.datum && (!ab || b.datum >= ab) && b.datum <= bis)
+    .reduce((sum, b) => sum + (b.buchungsart.code === "MAHNGEBUEHR" ? Number(b.betrag) : -Number(b.betrag)), 0);
+  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo;
   const sollZeilen = sollAufschluesselung(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null).reverse();
 
   return (
@@ -179,6 +184,9 @@ export default async function MietvertragDetailPage({
           >
             {formatEuro(saldo)}
           </p>
+          {Math.abs(sonderOffenImSaldo) > 0.005 && (
+            <p className="mt-1 text-xs text-neutral-500">inkl. Sonderforderung {formatEuro(-sonderOffenImSaldo)}</p>
+          )}
         </div>
       </div>
 
@@ -383,7 +391,7 @@ export default async function MietvertragDetailPage({
       <div className="mt-6">
         <h2 className="mb-1 text-lg font-medium text-white">Sonderforderungen (Gebühren)</h2>
         <p className="mb-3 text-xs text-neutral-500">
-          Z.B. Rücklastschrift- oder Mahngebühren — getrennt vom Mietsaldo. Offen:{" "}
+          Z.B. Rücklastschrift- oder Mahngebühren — im Mietsaldo enthalten. Offen:{" "}
           <span className={sonderOffen > 0.005 ? "text-amber-400" : "text-green-400"}>
             {formatEuro(Math.round(sonderOffen * 100) / 100)}
           </span>
