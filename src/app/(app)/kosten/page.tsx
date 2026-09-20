@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { prisma } from "@/lib/prisma";
 import { KostenTable } from "./kosten-table";
 import { ladeKosten, ladeNichtZugeordneteBuchungen } from "./kosten-liste";
@@ -32,7 +33,8 @@ export default async function KostenPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Kosten</h1>
-          <p className="text-sm text-neutral-400">{kosten.length} Kostenpositionen erfasst</p>
+          <p className="mb-1 text-sm text-neutral-400">{kosten.length} Kostenpositionen erfasst</p>
+          <BuchungsartInfo code="KOSTENPOSITION" />
         </div>
         <div className="flex gap-2">
           <Link

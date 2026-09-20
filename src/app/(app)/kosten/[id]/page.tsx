@@ -7,6 +7,7 @@ import { AufteilenForm } from "../aufteilen-form";
 import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
+import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
@@ -84,6 +85,7 @@ export default async function KostenpositionDetailPage({
           confirmText="Kostenposition wirklich löschen?"
         />
       </div>
+      <BuchungsartInfo code="KOSTENPOSITION" />
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
         gebaeude={gebaeudeGruppen}

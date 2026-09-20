@@ -6,6 +6,7 @@ import { updateZahlung, deleteZahlung, hebeZahlungAufteilungAuf } from "../actio
 import { AufteilenForm } from "../aufteilen-form";
 import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
+import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 
 function formatEuro(value: number) {
@@ -62,6 +63,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
         </h1>
         <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Zahlung wirklich löschen?" />
       </div>
+      <BuchungsartInfo code="MIETZAHLUNG" />
       <ZahlungForm
         mietvertraege={mietvertraegeOptionen}
         initial={{
