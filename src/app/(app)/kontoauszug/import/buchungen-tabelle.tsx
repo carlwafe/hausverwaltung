@@ -84,12 +84,25 @@ const HINWEIS_FARBEN: Record<HinweisAnzeige, string> = {
   pruefen: "text-amber-400",
 };
 
-const HINWEIS_OPTIONEN: { value: "alle" | HinweisAnzeige; label: string }[] = [
+// Der Hinweis-Filter trennt jeweils "noch nicht importiert" von "bereits importiert": eine schon
+// importierte Zeile mit Vorschlag/Prüf-Hinweis soll die Arbeitsliste der noch offenen Zeilen nicht
+// verstopfen, muss aber separat auffindbar bleiben.
+type HinweisFilter = "alle" | "vorschlag" | "vorschlag_bereits" | "pruefen" | "pruefen_bereits";
+
+const HINWEIS_OPTIONEN: { value: HinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
   { value: "vorschlag", label: HINWEIS_LABELS.vorschlag },
+  { value: "vorschlag_bereits", label: `${HINWEIS_LABELS.vorschlag} + bereits importiert` },
   { value: "pruefen", label: HINWEIS_LABELS.pruefen },
-  { value: "fehler", label: HINWEIS_LABELS.fehler },
+  { value: "pruefen_bereits", label: `${HINWEIS_LABELS.pruefen} + bereits importiert` },
 ];
+
+function passtZuHinweisFilter(filter: HinweisFilter, hinweis: HinweisAnzeige | null, bereitsImportiert: boolean): boolean {
+  if (filter === "alle") return true;
+  const bereitsFilter = filter.endsWith("_bereits");
+  const art = bereitsFilter ? filter.slice(0, -"_bereits".length) : filter;
+  return hinweis === art && bereitsImportiert === bereitsFilter;
+}
 
 // Der Hinweis-Status der aktuell gewählten Buchungsart dieser Zeile — nicht der ursprünglich
 // vorgeschlagenen. Passt die aktuelle Auswahl zu keinem der (ein oder zwei) Kandidaten aus der
@@ -234,7 +247,7 @@ export function BuchungenTabelle({
   const bestehendeSets = zuBestehendeSets(bestehendeImportSets);
   const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [editRows, setEditRows] = useState<BuchungEditRow[]>(() => zeilen.map((r) => toBuchungEditRow(r, bestehendeSets)));
-  const [hinweisFilter, setHinweisFilter] = useState<"alle" | HinweisAnzeige>("alle");
+  const [hinweisFilter, setHinweisFilter] = useState<HinweisFilter>("alle");
   const [familieFilter, setFamilieFilter] = useState<"alle" | BuchungsartGruppe>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
@@ -280,7 +293,15 @@ export function BuchungenTabelle({
   }
 
   const gefilterteRows = editRows.filter((r) => {
-    if (hinweisFilter !== "alle" && hinweisFuerAuswahl(r) !== hinweisFilter) return false;
+    if (
+      !passtZuHinweisFilter(
+        hinweisFilter,
+        hinweisFuerAuswahl(r),
+        istBereitsImportiert(ermittleBuchungsartGruppe(r.buchungsartCode), r, bestehendeSets),
+      )
+    ) {
+      return false;
+    }
     // Familie-Filter prüft gegen ALLE Kandidaten dieser Zeile, nicht nur die aktuell gewählte
     // Buchungsart — eine unsichere Zeile mit zwei Kandidaten (Miete + Kosten, beide "bitte
     // prüfen") bleibt so unter BEIDEN Filtern auffindbar, bis sie einer Seite zugeordnet wird.
@@ -381,7 +402,7 @@ export function BuchungenTabelle({
         <div className="flex items-center gap-3">
           <select
             value={hinweisFilter}
-            onChange={(e) => setHinweisFilter(e.target.value as "alle" | HinweisAnzeige)}
+            onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
             className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
           >
             {HINWEIS_OPTIONEN.map((o) => (
