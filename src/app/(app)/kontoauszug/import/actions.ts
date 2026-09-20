@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
 import { requireUser, requireEditor } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
@@ -81,6 +82,7 @@ export type PreviewResult =
       bestehendeKautionsbuchungen: string[];
       bestehendeNebenkostenausgleich: string[];
       bestehendeNichtZugeordnet: string[];
+      bestehendeRohdaten: string[];
       fileName: string;
       importBatchId: string;
     }
@@ -121,6 +123,11 @@ export type BestehendeImportSets = {
   bestehendeKautionsbuchungen: string[];
   bestehendeNebenkostenausgleich: string[];
   bestehendeNichtZugeordnet: string[];
+  // Schlüssel (Datum|Betrag|Verwendungszweck|Name) der Bankzeilen, die als Rohdaten an irgendeiner
+  // aktiven Buchung hängen — unabhängig von deren Buchungsart. Erkennt eine Zeile als importiert,
+  // auch wenn sie inzwischen unter einer anderen Art gebucht ist (z.B. umgebucht auf Gebühren-
+  // Zahlung oder Kaution), was die artspezifischen Listen oben nicht können.
+  bestehendeRohdaten: string[];
 };
 
 function berechneBestehendeImportSets({
@@ -130,6 +137,7 @@ function berechneBestehendeImportSets({
   kautionsbuchungenRaw,
   sonstigeZahlungenRaw,
   nichtZugeordneteBuchungenRaw,
+  buchungenRohdaten,
 }: {
   vertraegeMitZahlungen: {
     id: string;
@@ -151,6 +159,7 @@ function berechneBestehendeImportSets({
   kautionsbuchungenRaw: { datum: Date | null; betrag: unknown; verwendungszweck: string | null }[];
   sonstigeZahlungenRaw: { datum: Date | null; betrag: unknown }[];
   nichtZugeordneteBuchungenRaw: { datum: Date | null; betrag: unknown }[];
+  buchungenRohdaten: { rohdaten: unknown }[];
 }): BestehendeImportSets {
   // Verwendungszweck gehört mit in den Schlüssel, nicht nur Mietvertrag+Datum+Betrag: mehrere
   // Mieter zahlen oft am selben Tag denselben (Kaltmiete-)Betrag, und eine "mehrdeutig"-Zeile
@@ -243,6 +252,13 @@ function berechneBestehendeImportSets({
     bestehendeKautionsbuchungen: [...bestehendeKautionsbuchungen],
     bestehendeNebenkostenausgleich: [...bestehendeNebenkostenausgleich],
     bestehendeNichtZugeordnet: [...bestehendeNichtZugeordnet],
+    bestehendeRohdaten: [
+      ...new Set(
+        buchungenRohdaten
+          .map((b) => zeilenSchluesselAusRohdaten(b.rohdaten))
+          .filter((s): s is string => s !== null),
+      ),
+    ],
   };
 }
 
@@ -311,6 +327,8 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
     })),
   }));
 
+  const buchungenRohdaten = await prisma.buchung.findMany({ where: dedup, select: { rohdaten: true } });
+
   return berechneBestehendeImportSets({
     vertraegeMitZahlungen,
     bestehendeKostenpositionen,
@@ -318,6 +336,7 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
     kautionsbuchungenRaw,
     sonstigeZahlungenRaw,
     nichtZugeordneteBuchungenRaw,
+    buchungenRohdaten,
   });
 }
 
@@ -580,7 +599,9 @@ export async function previewImport(
       bekannteWarmmieten,
       einheitKandidaten,
     );
+    const buchungenRohdaten = await prisma.buchung.findMany({ where: dedup, select: { rohdaten: true } });
     const bestehendeSets = berechneBestehendeImportSets({
+      buchungenRohdaten,
       vertraegeMitZahlungen,
       bestehendeKostenpositionen,
       mietweiterleitungenRaw: bestehendeMietweiterleitungenRaw,
@@ -588,7 +609,10 @@ export async function previewImport(
       sonstigeZahlungenRaw: bestehendeSonstigenBuchungenRaw,
       nichtZugeordneteBuchungenRaw: bestehendeNichtZugeordnetenBuchungenRaw,
     });
-    const zeilen = vereinheitlicheZeilen(zahlungenRows, kostenRows);
+    const zeilen = vereinheitlicheZeilen(zahlungenRows, kostenRows).map((z) => ({
+      ...z,
+      rohdatenSchluessel: zeilenSchluesselAusRohdaten(z.rohdaten),
+    }));
 
     return {
       zeilen,

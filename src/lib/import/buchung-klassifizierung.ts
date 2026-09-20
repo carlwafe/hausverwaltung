@@ -40,6 +40,9 @@ export type VereinheitlichteZeile = {
   vorgeschlagenerMietvertragId: string | null;
   vorgeschlageneKostenartId: string | null;
   vorgeschlageneGebaeudeAuswahl: string | null | undefined;
+  // Schlüssel der Bankzeile für die artunabhängige Bereits-importiert-Erkennung (siehe
+  // BestehendeImportSets.bestehendeRohdaten) — wird erst in previewImport gesetzt.
+  rohdatenSchluessel?: string | null;
 };
 
 /**

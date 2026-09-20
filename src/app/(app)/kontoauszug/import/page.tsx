@@ -27,6 +27,7 @@ export default function KontoauszugImportPage() {
         bestehendeKautionsbuchungen: preview.bestehendeKautionsbuchungen,
         bestehendeNebenkostenausgleich: preview.bestehendeNebenkostenausgleich,
         bestehendeNichtZugeordnet: preview.bestehendeNichtZugeordnet,
+        bestehendeRohdaten: preview.bestehendeRohdaten,
       })
     : null;
 
