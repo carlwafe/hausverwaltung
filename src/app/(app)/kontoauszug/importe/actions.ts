@@ -33,6 +33,7 @@ export async function pruefeImportVollstaendigkeit(
     alleKautionsbuchungen,
     alleSonstigenBuchungen,
     alleNichtZugeordneten,
+    alleAufgeteilten,
   ] = await Promise.all([
       prisma.buchung.findMany({ where: { buchungsart: { code: "MIETZAHLUNG" } }, select: { rohdaten: true } }),
       prisma.buchung.findMany({ where: { buchungsart: { code: "KOSTENPOSITION" } }, select: { rohdaten: true } }),
@@ -40,6 +41,11 @@ export async function pruefeImportVollstaendigkeit(
       prisma.buchung.findMany({ where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } }, select: { rohdaten: true } }),
       prisma.buchung.findMany({ where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } }, select: { rohdaten: true } }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
+      // Nur nicht stornierte Teile einer Aufteilung (das stornierte Original zählt nicht mehr mit).
+      prisma.buchung.findMany({
+        where: { aufteilungGruppeId: { not: null }, storniertDurchBuchungId: null },
+        select: { rohdaten: true },
+      }),
     ]);
   const zahlung = new Set(
     alleZahlungen
@@ -72,6 +78,12 @@ export async function pruefeImportVollstaendigkeit(
       .filter((s): s is string => s !== null),
   );
 
+  const aufgeteilt = new Set(
+    alleAufgeteilten
+      .map((b) => zeilenSchluesselAusRohdaten(b.rohdaten))
+      .filter((s): s is string => s !== null),
+  );
+
   return pruefeVollstaendigkeit(inhalt, batch.dateiname, {
     zahlung,
     kosten,
@@ -79,6 +91,7 @@ export async function pruefeImportVollstaendigkeit(
     kautionsbuchung,
     sonstige,
     nichtZugeordnet,
+    aufgeteilt,
   });
 }
 

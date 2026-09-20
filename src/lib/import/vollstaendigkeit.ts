@@ -91,6 +91,10 @@ export async function pruefeVollstaendigkeit(
     kautionsbuchung: Set<string>;
     sonstige: Set<string>;
     nichtZugeordnet: Set<string>;
+    // Zeilen, die absichtlich per "Zahlung aufteilen" in mehrere Buchungen zerlegt wurden — die
+    // Teile tragen alle dieselben Rohdaten und liegen dadurch zwangsläufig in mehreren
+    // Kategorien (z.B. Rücklastschrift = Mietzahlung + Bankgebühr als Kosten). Kein Doppelimport.
+    aufgeteilt: Set<string>;
   },
 ): Promise<VollstaendigkeitsErgebnis> {
   const file = new File([new Uint8Array(dateiInhalt)], dateiname);
@@ -141,7 +145,7 @@ export async function pruefeVollstaendigkeit(
 
     if (gefundenIn.length === 0) {
       ungeklaert.push({ rowNumber: i + 2, datum, betrag, name, verwendungszweck });
-    } else if (gefundenIn.length > 1) {
+    } else if (gefundenIn.length > 1 && !bekannteSchluessel.aufgeteilt.has(schluessel)) {
       doppelteBuchungen.push({ rowNumber: i + 2, datum, betrag, name, verwendungszweck, kategorien: gefundenIn });
     }
   });
