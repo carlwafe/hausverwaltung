@@ -43,7 +43,10 @@ export async function pruefeImportVollstaendigkeit(
       prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
       // Nur nicht stornierte Teile einer Aufteilung (das stornierte Original zählt nicht mehr mit).
       prisma.buchung.findMany({
-        where: { aufteilungGruppeId: { not: null }, storniertDurchBuchungId: null },
+        where: {
+          OR: [{ aufteilungGruppeId: { not: null } }, { bezugTyp: "Umbuchung" }],
+          storniertDurchBuchungId: null,
+        },
         select: { rohdaten: true },
       }),
     ]);

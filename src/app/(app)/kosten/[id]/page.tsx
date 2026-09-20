@@ -6,6 +6,7 @@ import { updateKostenposition, deleteKostenposition, hebeAufteilungAuf } from ".
 import { AufteilenForm } from "../aufteilen-form";
 import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
+import { BuchungsartAendern } from "@/components/buchungsart-aendern";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
@@ -160,6 +161,14 @@ export default async function KostenpositionDetailPage({
           aktuelleKostenartId={kostenposition.kostenartId!}
         />
       )}
+
+      <BuchungsartAendern
+        buchungId={id}
+        aktuellerCode="KOSTENPOSITION"
+        aktuelleMietvertragId={null}
+        rueckPfad="/kosten"
+        datum={kostenposition.datum!}
+      />
 
       <div className="mt-6">
         <BelegeSektion

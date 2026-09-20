@@ -49,7 +49,12 @@ async function ladeDedupFilter() {
     select: { aufteilungGruppeId: true },
     distinct: ["aufteilungGruppeId"],
   });
-  const gruppenIds = gruppen.map((g) => g.aufteilungGruppeId!);
+  // Umbuchungen (Buchungsart geändert) verweisen per bezugId auf die ursprüngliche Bankbuchung.
+  const umbuchungen = await prisma.buchung.findMany({
+    where: { bezugTyp: "Umbuchung", bezugId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
+    select: { bezugId: true },
+  });
+  const gruppenIds = [...gruppen.map((g) => g.aufteilungGruppeId!), ...umbuchungen.map((u) => u.bezugId!)];
   return {
     OR: [AKTIVE_BUCHUNG_FILTER, { id: { in: gruppenIds }, storniertDurchBuchungId: { not: null } }],
   };

@@ -5,6 +5,7 @@ import { ZahlungForm } from "../zahlung-form";
 import { updateZahlung, deleteZahlung, hebeZahlungAufteilungAuf } from "../actions";
 import { AufteilenForm } from "../aufteilen-form";
 import { DeleteButton } from "@/components/delete-button";
+import { BuchungsartAendern } from "@/components/buchungsart-aendern";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 
 function formatEuro(value: number) {
@@ -72,6 +73,14 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           verwendungszweck: zahlung.verwendungszweck,
         }}
         action={updateZahlung.bind(null, id)}
+      />
+
+      <BuchungsartAendern
+        buchungId={id}
+        aktuellerCode="MIETZAHLUNG"
+        aktuelleMietvertragId={zahlung.mietvertragId}
+        rueckPfad="/zahlungen"
+        datum={zahlung.datum!}
       />
 
       {aufteilungGeschwister.length > 0 ? (
