@@ -120,7 +120,7 @@ export function ermittleBuchungsartKandidaten(
   return zahlungZuerst ? [zahlungKandidat, kostenKandidat] : [kostenKandidat, zahlungKandidat];
 }
 
-export type BuchungsartGruppe = "MIETE" | "KOSTEN" | "MIETWEITERLEITUNG" | "KAUTION" | "NEBENKOSTENAUSGLEICH" | "SONDERZAHLUNG";
+export type BuchungsartGruppe = "MIETE" | "KOSTEN" | "MIETWEITERLEITUNG" | "KAUTION" | "NEBENKOSTENAUSGLEICH" | "SONDERZAHLUNG" | "SONSTIGE";
 
 // Ordnet einen Buchungsart-Katalog-Code seiner Familie zu — entscheidet serverseitig (commitBuchungen)
 // über Pflichtfeld-Prüfung/Dedup-Formel und clientseitig (buchungen-tabelle.tsx) über die
@@ -133,7 +133,9 @@ export function ermittleBuchungsartGruppe(code: string): BuchungsartGruppe | nul
   if (code === "NEBENKOSTENAUSGLEICH") return "NEBENKOSTENAUSGLEICH";
   if (code === "SONDERZAHLUNG") return "SONDERZAHLUNG";
   if (code.startsWith("KAUTION_")) return "KAUTION";
-  return null;
+  // Jede weitere, vom Nutzer unter /buchungsarten angelegte Art: generische Familie (Mietvertrag
+  // optional, sonst keine Sonderfelder) — die Flags im Katalog steuern Kontostand/Jahresübersicht.
+  return code ? "SONSTIGE" : null;
 }
 
 /** Zippt die beiden Klassifizierungs-Ergebnisse (gleiche rowNumber) zu einer Zeilenliste. */
@@ -159,4 +161,10 @@ export function vereinheitlicheZeilen(
       vorgeschlageneGebaeudeAuswahl: k.vorgeschlageneGebaeudeAuswahl,
     };
   });
+}
+
+// Buchungsarten, auf die der Code fest zugeschnitten ist (Import-Familien, Kaution-Workflow,
+// Sonderforderungen) — dürfen im Katalog nicht deaktiviert werden. Alles andere ist frei anlegbar.
+export function istSystemBuchungsart(code: string): boolean {
+  return ermittleBuchungsartGruppe(code) !== "SONSTIGE" || code === "MAHNGEBUEHR";
 }

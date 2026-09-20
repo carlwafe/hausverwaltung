@@ -29,7 +29,13 @@ import {
 } from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 
-export type BuchungsartKandidat = { id: string; code: string; bezeichnung: string; kontokreis: string };
+export type BuchungsartKandidat = {
+  id: string;
+  code: string;
+  bezeichnung: string;
+  kontokreis: string;
+  zahlungswirksam: boolean;
+};
 
 // Buchungsart-Katalog einmal geladen statt in jeder Commit-Funktion einzeln nachzuschlagen.
 async function ladeBuchungsartMap(): Promise<Map<string, string>> {
@@ -407,7 +413,7 @@ export async function previewImport(
       prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
       prisma.buchungsart.findMany({
         where: { aktiv: true },
-        select: { id: true, code: true, bezeichnung: true, kontokreis: true },
+        select: { id: true, code: true, bezeichnung: true, kontokreis: true, zahlungswirksam: true },
         orderBy: { bezeichnung: "asc" },
       }),
     ]);
@@ -643,6 +649,18 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
 
   const arten = await ladeBuchungsartMap();
 
+  // Nur Buchungsarten mit echtem Geldfluss lassen sich aus einer Bankzeile importieren.
+  const sonstigeCodes = [...new Set(gruppen.filter((g) => g.gruppe === "SONSTIGE").map((g) => g.row.buchungsartCode))];
+  if (sonstigeCodes.length > 0) {
+    const nichtImportierbar = await prisma.buchungsart.findMany({
+      where: { code: { in: sonstigeCodes }, OR: [{ zahlungswirksam: false }, { aktiv: false }] },
+      select: { bezeichnung: true },
+    });
+    if (nichtImportierbar.length > 0) {
+      return `Buchungsart "${nichtImportierbar[0].bezeichnung}" ist inaktiv oder nicht zahlungswirksam und lässt sich nicht aus einer Bankzeile importieren.`;
+    }
+  }
+
   // Pro Buchungsart-Familie dieselbe Dedup-Formel wie in den vorherigen 5 Commit-Funktionen — nur
   // einmal je tatsächlich vorkommender Familie abgefragt, nicht pro Zeile.
   const familien = new Set(gruppen.map((g) => g.gruppe!));
@@ -728,6 +746,24 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
       const schluessel = datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck);
       if (bestehendSet.has(schluessel)) uebersprungenGesamt++;
       else neu.push({ ...r, gruppe });
+    }
+  }
+
+  if (familien.has("SONSTIGE")) {
+    for (const code of sonstigeCodes) {
+      const zeilen = gruppen.filter((g) => g.gruppe === "SONSTIGE" && g.row.buchungsartCode === code).map((g) => g.row);
+      const bestehend = await prisma.buchung.findMany({
+        where: { buchungsart: { code } },
+        select: { datum: true, betrag: true, verwendungszweck: true },
+      });
+      const bestehendSet = new Set(
+        bestehend.map((b) => datumBetragZweckSchluessel(b.datum, Number(b.betrag), b.verwendungszweck)),
+      );
+      for (const r of zeilen) {
+        const schluessel = datumBetragZweckSchluessel(new Date(r.datum), r.betrag, r.verwendungszweck);
+        if (bestehendSet.has(schluessel)) uebersprungenGesamt++;
+        else neu.push({ ...r, gruppe: "SONSTIGE" });
+      }
     }
   }
 

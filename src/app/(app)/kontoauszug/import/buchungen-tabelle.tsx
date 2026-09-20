@@ -35,6 +35,7 @@ const FAMILIE_LABELS: Record<BuchungsartGruppe, string> = {
   KAUTION: "Kaution",
   NEBENKOSTENAUSGLEICH: "Nebenkostenausgleich",
   SONDERZAHLUNG: "Gebühren-Zahlung (Mieter)",
+  SONSTIGE: "Weitere Buchungsart…",
 };
 const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] = [
   { value: "alle", label: "Alle Buchungsarten" },
@@ -44,6 +45,7 @@ const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] =
   { value: "KAUTION", label: FAMILIE_LABELS.KAUTION },
   { value: "NEBENKOSTENAUSGLEICH", label: FAMILIE_LABELS.NEBENKOSTENAUSGLEICH },
   { value: "SONDERZAHLUNG", label: FAMILIE_LABELS.SONDERZAHLUNG },
+  { value: "SONSTIGE", label: FAMILIE_LABELS.SONSTIGE },
 ];
 
 // Sucht eine vierstellige Jahreszahl im Buchungstext (z.B. "BK-Abr. 2024") als Vorschlag fürs
@@ -254,6 +256,12 @@ export function BuchungenTabelle({
   // Oberkategorie-Wechsel im zweistufigen Buchungsart-Dropdown: für Familien mit genau einem
   // Katalog-Code (alle außer Kaution) direkt diesen setzen; bei Kaution auf die häufigste
   // Unterkategorie vorbelegen — die Unter-Auswahl erscheint dann als zweites Feld daneben.
+  // Frei angelegte Buchungsarten (siehe /buchungsarten) — nur solche mit echtem Geldfluss, denn nur
+  // die lassen sich aus einer Bankzeile importieren.
+  const sonstigeArten = buchungsarten.filter(
+    (b) => ermittleBuchungsartGruppe(b.code) === "SONSTIGE" && b.zahlungswirksam && b.code !== "MAHNGEBUEHR",
+  );
+
   function handleFamilieChange(r: BuchungEditRow, familie: BuchungsartGruppe | "") {
     let code = "";
     if (familie === "MIETE") code = "MIETZAHLUNG";
@@ -261,6 +269,7 @@ export function BuchungenTabelle({
     else if (familie === "MIETWEITERLEITUNG") code = "MIETWEITERLEITUNG";
     else if (familie === "NEBENKOSTENAUSGLEICH") code = "NEBENKOSTENAUSGLEICH";
     else if (familie === "SONDERZAHLUNG") code = "SONDERZAHLUNG";
+    else if (familie === "SONSTIGE") code = sonstigeArten[0]?.code ?? "";
     else if (familie === "KAUTION") {
       code =
         buchungsarten.find((b) => b.code === "KAUTION_EINZAHLUNG")?.code ??
@@ -327,7 +336,7 @@ export function BuchungenTabelle({
       empfaenger: r.name || null,
       verwendungszweck: r.verwendungszweck,
       rohdaten: r.rohdaten,
-      mietvertragId: gruppe === "MIETE" || gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH" || gruppe === "SONDERZAHLUNG" ? r.mietvertragId || null : undefined,
+      mietvertragId: gruppe === "MIETE" || gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH" || gruppe === "SONDERZAHLUNG" || gruppe === "SONSTIGE" ? r.mietvertragId || null : undefined,
       periodeMonat: gruppe === "MIETE" ? r.periodeMonat : undefined,
       periodeJahr: gruppe === "MIETE" ? r.periodeJahr : undefined,
       kostenartId: gruppe === "KOSTEN" ? r.kostenartId : undefined,
@@ -467,7 +476,21 @@ export function BuchungenTabelle({
                           <option value="KAUTION">{FAMILIE_LABELS.KAUTION}</option>
                           <option value="NEBENKOSTENAUSGLEICH">{FAMILIE_LABELS.NEBENKOSTENAUSGLEICH}</option>
                           <option value="SONDERZAHLUNG">{FAMILIE_LABELS.SONDERZAHLUNG}</option>
+                          {sonstigeArten.length > 0 && <option value="SONSTIGE">{FAMILIE_LABELS.SONSTIGE}</option>}
                         </select>
+                        {gruppe === "SONSTIGE" && (
+                          <select
+                            value={r.buchungsartCode}
+                            onChange={(e) => handleBuchungsartChange(r, e.target.value)}
+                            className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+                          >
+                            {sonstigeArten.map((b) => (
+                              <option key={b.id} value={b.code}>
+                                {b.bezeichnung}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         {gruppe === "KAUTION" && (
                           <select
                             value={r.buchungsartCode}
@@ -578,7 +601,7 @@ export function BuchungenTabelle({
                           />
                         </div>
                       )}
-                      {(gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH") && (
+                      {(gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH" || gruppe === "SONSTIGE") && (
                         <div className="flex flex-col gap-1">
                           <MietvertragAuswahl
                             kandidaten={mietvertragKandidaten}
