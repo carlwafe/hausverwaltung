@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { requireUser, requireEditor } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
@@ -36,6 +37,23 @@ export type BuchungsartKandidat = {
   kontokreis: string;
   zahlungswirksam: boolean;
 };
+
+// Welche bestehenden Buchungen zählen bei der "bereits importiert"-Erkennung? Nur aktive: eine
+// gelöschte (stornierte) Buchung samt Gegenbuchung darf eine erneut hochgeladene Zeile nicht mehr
+// blockieren. Ausnahme: das stornierte Original einer Aufteilung ("Zahlung aufteilen") — dessen
+// Bankbetrag ist nur dort noch als Ganzes vorhanden (die Teile summieren sich pro Kategorie
+// anders), es muss die Zeile also weiter als importiert ausweisen.
+async function ladeDedupFilter() {
+  const gruppen = await prisma.buchung.findMany({
+    where: { aufteilungGruppeId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
+    select: { aufteilungGruppeId: true },
+    distinct: ["aufteilungGruppeId"],
+  });
+  const gruppenIds = gruppen.map((g) => g.aufteilungGruppeId!);
+  return {
+    OR: [AKTIVE_BUCHUNG_FILTER, { id: { in: gruppenIds }, storniertDurchBuchungId: { not: null } }],
+  };
+}
 
 // Buchungsart-Katalog einmal geladen statt in jeder Commit-Funktion einzeln nachzuschlagen.
 async function ladeBuchungsartMap(): Promise<Map<string, string>> {
@@ -230,6 +248,7 @@ function berechneBestehendeImportSets({
 // die Dedup-Listen nötigen Felder, keine Kandidatenlisten/Historie fürs Zeilen-Matching).
 export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> {
   await requireUser();
+  const dedup = await ladeDedupFilter();
 
   const [
     vertraege,
@@ -242,11 +261,11 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
   ] = await Promise.all([
       prisma.mietvertrag.findMany({ where: { status: { in: ["AKTIV", "BEENDET"] } }, select: { id: true } }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "MIETZAHLUNG" } },
+        where: { buchungsart: { code: "MIETZAHLUNG" }, ...dedup },
         select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "KOSTENPOSITION" } },
+        where: { buchungsart: { code: "KOSTENPOSITION" }, ...dedup },
         select: {
           empfaenger: true,
           datum: true,
@@ -256,15 +275,15 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
         },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "MIETWEITERLEITUNG" } },
+        where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...dedup },
         select: { datum: true, betrag: true, verwendungszweck: true },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } },
+        where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, ...dedup },
         select: { datum: true, betrag: true, verwendungszweck: true },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
+        where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...dedup },
         select: { datum: true, betrag: true },
       }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
@@ -317,6 +336,7 @@ export async function previewImport(
   formData: FormData,
 ): Promise<PreviewResult> {
   const user = await requireUser();
+  const dedup = await ladeDedupFilter();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -379,11 +399,11 @@ export async function previewImport(
         },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "MIETZAHLUNG" } },
+        where: { buchungsart: { code: "MIETZAHLUNG" }, ...dedup },
         select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "KOSTENPOSITION" } },
+        where: { buchungsart: { code: "KOSTENPOSITION" }, ...dedup },
         select: {
           empfaenger: true,
           kostenartId: true,
@@ -399,15 +419,15 @@ export async function previewImport(
         },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "MIETWEITERLEITUNG" } },
+        where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...dedup },
         select: { datum: true, betrag: true, verwendungszweck: true },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } },
+        where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, ...dedup },
         select: { datum: true, betrag: true, verwendungszweck: true },
       }),
       prisma.buchung.findMany({
-        where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
+        where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...dedup },
         select: { datum: true, betrag: true },
       }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { datum: true, betrag: true } }),
@@ -616,6 +636,7 @@ export type BuchungCommitRow = {
 // entschieden statt anhand der Sektion, in der die Zeile ursprünglich angezeigt wurde.
 export async function commitBuchungen(_prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
+  const dedup = await ladeDedupFilter();
 
   const raw = formData.get("rows");
   if (typeof raw !== "string") return "Keine Daten zum Importieren.";
@@ -673,6 +694,7 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
       where: {
         buchungsart: { code: "MIETZAHLUNG" },
         mietvertragId: { in: [...new Set(zeilen.map((r) => r.mietvertragId!))] },
+        ...dedup,
       },
       select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true },
     });
@@ -694,7 +716,7 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
   if (familien.has("KOSTEN")) {
     const zeilen = gruppen.filter((g) => g.gruppe === "KOSTEN").map((g) => g.row);
     const bestehend = await prisma.buchung.findMany({
-      where: { buchungsart: { code: "KOSTENPOSITION" }, datum: { not: null } },
+      where: { buchungsart: { code: "KOSTENPOSITION" }, datum: { not: null }, ...dedup },
       select: { empfaenger: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
     });
     // Aufgeteilte Positionen zu ihrem Summenbetrag zusammenfassen, sonst würde die ursprüngliche
@@ -734,9 +756,12 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
     if (!familien.has(gruppe)) continue;
     const zeilen = gruppen.filter((g) => g.gruppe === gruppe).map((g) => g.row);
     const bestehend = await prisma.buchung.findMany({
-      where: code
-        ? { buchungsart: { code } }
-        : { buchungsart: { kontokreis: kontokreis as "MIETKONTO" | "KAUTIONSKONTO" | "OBJEKTKONTO" } },
+      where: {
+        ...(code
+          ? { buchungsart: { code } }
+          : { buchungsart: { kontokreis: kontokreis as "MIETKONTO" | "KAUTIONSKONTO" | "OBJEKTKONTO" } }),
+        ...dedup,
+      },
       select: { datum: true, betrag: true, verwendungszweck: true },
     });
     const bestehendSet = new Set(
@@ -753,7 +778,7 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
     for (const code of sonstigeCodes) {
       const zeilen = gruppen.filter((g) => g.gruppe === "SONSTIGE" && g.row.buchungsartCode === code).map((g) => g.row);
       const bestehend = await prisma.buchung.findMany({
-        where: { buchungsart: { code } },
+        where: { buchungsart: { code }, ...dedup },
         select: { datum: true, betrag: true, verwendungszweck: true },
       });
       const bestehendSet = new Set(
