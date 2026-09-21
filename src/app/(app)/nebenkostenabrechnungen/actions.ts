@@ -411,8 +411,29 @@ export async function speichereVorverteilteKostenanteile(formData: FormData) {
     eintraege.push({ mietvertragId, betrag });
   }
 
-  await prisma.$transaction(
-    eintraege.map(({ mietvertragId, betrag }) =>
+  // Leerstand-Zeilen (Beträge, die nicht auf einen Mieter umgelegt werden): der übermittelte Stand
+  // ersetzt die bisherigen Zeilen dieser Kostenart und dieses Jahres komplett.
+  const leerstand: { einheitId: string | null; betrag: number; notiz: string | null }[] = [];
+  const leerstandRoh = formData.get("leerstand");
+  if (typeof leerstandRoh === "string" && leerstandRoh.trim() !== "") {
+    let geparst: unknown;
+    try {
+      geparst = JSON.parse(leerstandRoh);
+    } catch {
+      throw new Error("Leerstand-Angaben konnten nicht gelesen werden.");
+    }
+    if (!Array.isArray(geparst)) throw new Error("Leerstand-Angaben konnten nicht gelesen werden.");
+    for (const z of geparst as { einheitId?: string | null; betrag?: string | number; notiz?: string }[]) {
+      const text = String(z.betrag ?? "").trim().replace(",", ".");
+      if (text === "") continue;
+      const betrag = Number(text);
+      if (!Number.isFinite(betrag) || betrag < 0) throw new Error(`Ungültiger Leerstand-Betrag: "${text}".`);
+      leerstand.push({ einheitId: z.einheitId || null, betrag, notiz: z.notiz?.trim() || null });
+    }
+  }
+
+  await prisma.$transaction([
+    ...eintraege.map(({ mietvertragId, betrag }) =>
       betrag === null
         ? prisma.vorverteilterKostenanteil.deleteMany({ where: { mietvertragId, kostenartId, jahr } })
         : prisma.vorverteilterKostenanteil.upsert({
@@ -421,7 +442,11 @@ export async function speichereVorverteilteKostenanteile(formData: FormData) {
             update: { betrag },
           }),
     ),
-  );
+    prisma.vorverteilterLeerstand.deleteMany({ where: { kostenartId, jahr } }),
+    prisma.vorverteilterLeerstand.createMany({
+      data: leerstand.map((l) => ({ kostenartId, jahr, einheitId: l.einheitId, betrag: l.betrag, notiz: l.notiz })),
+    }),
+  ]);
 
   const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
   if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);

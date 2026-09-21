@@ -18,7 +18,7 @@ import {
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
 import { PositionBearbeitenForm } from "../position-bearbeiten-form";
-import { VorverteilteKostenanteileForm, type VorverteilteZeile } from "../vorverteilte-kostenanteile-form";
+import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -71,6 +71,7 @@ export default async function NebenkostenabrechnungDetailPage({
     mietvertraegeRoh,
     vorverteilteKostenarten,
     vorverteilteKostenanteileRoh,
+    leerstandRoh,
     nebenkostenausgleichSummen,
   ] = await Promise.all([
     ladeBerechnungsdaten(abrechnung.jahr),
@@ -85,6 +86,11 @@ export default async function NebenkostenabrechnungDetailPage({
       orderBy: { name: "asc" },
     }),
     prisma.vorverteilterKostenanteil.findMany({ where: { jahr: abrechnung.jahr } }),
+    prisma.vorverteilterLeerstand.findMany({
+      where: { jahr: abrechnung.jahr },
+      include: { kostenart: { select: { name: true } }, einheit: { select: { gebaeudeId: true, gebaeude: { select: { hausId: true } } } } },
+      orderBy: { createdAt: "asc" },
+    }),
     ladeNebenkostenausgleichSummen(
       abrechnung.jahr,
       abrechnung.positionen.map((p) => p.mietvertragId),
@@ -138,7 +144,13 @@ export default async function NebenkostenabrechnungDetailPage({
           zeitraumBis: p.zeitraumBis.toISOString(),
           betrag: betraege.get(p.mietvertragId!) ?? null,
         }));
-      return { kostenartId: k.id, kostenartName: k.name, zeilen };
+      const leerstand: LeerstandZeile[] = leerstandRoh
+        .filter((l) => l.kostenartId === k.id)
+        .map((l) => ({ einheitId: l.einheitId, betrag: Number(l.betrag), notiz: l.notiz }));
+      const einheitOptionen = wohnungenRoh
+        .filter((e) => passendeEinheitIds.has(e.id))
+        .map((e) => ({ id: e.id, bezeichnung: e.bezeichnung }));
+      return { kostenartId: k.id, kostenartName: k.name, zeilen, leerstand, einheitOptionen };
     }),
   );
 
@@ -159,7 +171,11 @@ export default async function NebenkostenabrechnungDetailPage({
     details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
   }));
   const uebersichtDaten: Record<string, Uebersicht> = {
-    objekt: baueKostenUebersicht(positionenFuerUebersicht, "gesamt"),
+    objekt: baueKostenUebersicht(
+      positionenFuerUebersicht,
+      "gesamt",
+      leerstandRoh.map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
+    ),
   };
   const uebersichtAuswahl: UebersichtAuswahl[] = [{ value: "objekt", label: "Objekt gesamt", gruppe: "objekt" }];
   const gebaeudeInAbrechnung = new Map<string, (typeof abrechnung.positionen)[number]["einheit"]["gebaeude"]>();
@@ -169,14 +185,24 @@ export default async function NebenkostenabrechnungDetailPage({
   for (const haus of [...hausListe.values()].sort((a, b) => hausLabel(a!.gebaeude).localeCompare(hausLabel(b!.gebaeude), "de", { numeric: true }))) {
     const key = `haus:${haus!.id}`;
     uebersichtAuswahl.push({ value: key, label: hausLabel(haus!.gebaeude), gruppe: "haus" });
-    uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.hausId === haus!.id), "anteil");
+    uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.hausId === haus!.id),
+      "anteil",
+      leerstandRoh
+        .filter((l) => l.einheit?.gebaeude.hausId === haus!.id)
+        .map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
+    );
   }
   for (const g of [...gebaeudeInAbrechnung.values()].sort((a, b) =>
     `${a.strasse} ${a.hausnummer}`.localeCompare(`${b.strasse} ${b.hausnummer}`, "de", { numeric: true }),
   )) {
     const key = `gebaeude:${g.id}`;
     uebersichtAuswahl.push({ value: key, label: `${g.strasse} ${g.hausnummer}`, gruppe: "gebaeude" });
-    uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.gebaeudeId === g.id), "anteil");
+    uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.gebaeudeId === g.id),
+      "anteil",
+      leerstandRoh
+        .filter((l) => l.einheit?.gebaeudeId === g.id)
+        .map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
+    );
   }
 
   return (
@@ -290,8 +316,22 @@ export default async function NebenkostenabrechnungDetailPage({
               kostenartId={g.kostenartId}
               kostenartName={g.kostenartName}
               zeilen={g.zeilen}
+              leerstand={g.leerstand}
+              einheiten={g.einheitOptionen}
             />
           ))}
+          {(() => {
+            const mieter = vorverteilteKostenanteileRoh.reduce((s, v) => s + Number(v.betrag), 0);
+            const leer = leerstandRoh.reduce((s, l) => s + Number(l.betrag), 0);
+            return (
+              <div className="ml-auto max-w-sm rounded-lg border border-neutral-700 p-3 text-sm">
+                <p className="mb-1 text-xs uppercase text-neutral-400">Summe aller Einträge {abrechnung.jahr}</p>
+                <div className="flex justify-between text-neutral-300"><span>Mieter</span><span>{formatEuro(mieter)}</span></div>
+                <div className="flex justify-between text-neutral-300"><span>Leerstand</span><span>{formatEuro(leer)}</span></div>
+                <div className="mt-1 flex justify-between border-t border-neutral-700 pt-1 font-medium text-white"><span>Gesamt</span><span>{formatEuro(mieter + leer)}</span></div>
+              </div>
+            );
+          })()}
         </details>
       )}
 

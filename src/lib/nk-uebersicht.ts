@@ -38,6 +38,9 @@ const grundName = (name: string) => name.replace(/\s+Haus\s+[\d,\s\-–]+$/i, ""
 export function baueKostenUebersicht(
   positionen: { einheitId: string; details: KostenanteilDetailEintrag[] }[],
   modus: UebersichtModus,
+  // Beträge, die nicht auf Mieter umgelegt werden (z.B. Techem-Anteil einer leerstehenden Wohnung):
+  // zählen zur Basis der Kostenart, aber nie zum umgelegten Betrag.
+  leerstand: { kostenartName: string; betrag: number }[] = [],
 ): Uebersicht {
   // Stufe 1: je Kostenart+Kostenkreis.
   type Kreis = {
@@ -78,6 +81,19 @@ export function baueKostenUebersicht(
       k.umgelegt += d.anteilZeitraum;
       kreise.set(key, k);
     }
+  }
+
+  for (const l of leerstand) {
+    const key = `${l.kostenartName}|Leerstand`;
+    const k = kreise.get(key) ?? {
+      kostenartName: l.kostenartName,
+      scopeLabel: "Leerstand",
+      verteilerschluessel: "VORVERTEILT",
+      basis: 0,
+      umgelegt: 0,
+    };
+    k.basis += l.betrag;
+    kreise.set(key, k);
   }
 
   // Stufe 2: je Kostenart über alle Kostenkreise.

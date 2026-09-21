@@ -288,6 +288,7 @@ model Einheit {
   verbrauchswerte                 Verbrauchswert[]
   dokumente                       Dokument[]
   buchungen                       Buchung[]
+  vorverteilteLeerstaende         VorverteilterLeerstand[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
@@ -486,6 +487,7 @@ model Kostenart {
   buchungen                 Buchung[]
   verbrauchswerte           Verbrauchswert[]
   vorverteilteKostenanteile VorverteilterKostenanteil[]
+  vorverteilteLeerstaende   VorverteilterLeerstand[]
 
   @@map("kostenarten")
 }
@@ -533,6 +535,26 @@ model VorverteilterKostenanteil {
 
   @@unique([mietvertragId, kostenartId, jahr])
   @@map("vorverteilte_kostenanteile")
+}
+
+// Ein Betrag aus der externen Gesamtabrechnung (Techem), der NICHT auf einen Mieter umgelegt wird —
+// z.B. Leerstand einer Wohnung: die Kosten fallen an, es gibt aber keinen Mietvertrag, dem sie
+// zugerechnet werden können. Trägt der Eigentümer; taucht in der Kostenaufschlüsselung der
+// Abrechnung als "nicht umgelegt" auf und fließt in keine Mieterposition ein. Mehrere Zeilen je
+// Kostenart und Jahr möglich, optional mit Einheit.
+model VorverteilterLeerstand {
+  id             String    @id @default(cuid())
+  kostenart      Kostenart @relation(fields: [kostenartId], references: [id], onDelete: Cascade)
+  kostenartId    String
+  jahr           Int
+  einheit        Einheit?  @relation(fields: [einheitId], references: [id], onDelete: SetNull)
+  einheitId      String?
+  betrag         Decimal   @db.Decimal(10, 2)
+  notiz          String?
+  createdAt      DateTime  @default(now())
+
+  @@index([kostenartId, jahr])
+  @@map("vorverteilte_leerstaende")
 }
 
 // Manuelle Markierung auf der Jahresübersicht: der Nutzer hat "Saldo neu" für diesen
