@@ -6,7 +6,6 @@ import { berechneMieterJahresbericht, type MietvertragFuerJahresbericht } from "
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
 import { kontostandAmStichtag } from "@/lib/kontostand";
-import { BemerkungFeld } from "./bemerkung-feld";
 import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-form";
 
 function formatEuro(value: number) {
@@ -278,16 +277,14 @@ export default async function JahresuebersichtPage({
   const { jahr: jahrParam } = await searchParams;
   const jahr = Number(jahrParam) || new Date().getFullYear();
 
-  const [daten, mieterZeilen, verifikationen, bemerkungen, kontenabgleich, kontenabgleichVerifikation] = await Promise.all([
+  const [daten, mieterZeilen, verifikationen, kontenabgleich, kontenabgleichVerifikation] = await Promise.all([
     ladeJahresuebersicht(jahr),
     ladeMieterZeilen(jahr),
     prisma.jahresberichtVerifikation.findMany({ where: { jahr }, select: { mietvertragId: true } }),
-    prisma.jahresberichtBemerkung.findMany({ where: { jahr }, select: { mietvertragId: true, text: true } }),
     ladeKontenabgleich(jahr),
     prisma.kontenabgleichVerifikation.findUnique({ where: { jahr }, select: { kontostandLautBankauszug: true } }),
   ]);
   const verifizierteIds = new Set(verifikationen.map((v) => v.mietvertragId));
-  const bemerkungNachVertrag = new Map(bemerkungen.map((b) => [b.mietvertragId, b.text]));
 
   return (
     <div>
@@ -556,7 +553,6 @@ export default async function JahresuebersichtPage({
                 <th className="px-4 py-2 text-right">Miete</th>
                 <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen (Vorjahr)</th>
                 <th className="px-4 py-2 text-right">Saldo neu</th>
-                <th className="px-4 py-2">Bemerkung</th>
                 <th className="px-4 py-2 text-center" title="Stimmt mit dem vorhandenen Jahresbericht des früheren Verwalters überein">
                   ✓
                 </th>
@@ -588,14 +584,6 @@ export default async function JahresuebersichtPage({
                   >
                     {formatEuro(z.saldoNeu)}
                   </td>
-                  <td className="px-2 py-1">
-                    <BemerkungFeld
-                      key={`${z.mietvertragId}-${jahr}-${bemerkungNachVertrag.get(z.mietvertragId) ?? ""}`}
-                      mietvertragId={z.mietvertragId}
-                      jahr={jahr}
-                      initial={bemerkungNachVertrag.get(z.mietvertragId) ?? ""}
-                    />
-                  </td>
                   <td className="px-4 py-2 text-center">
                     <VerifikationsStern
                       mietvertragId={z.mietvertragId}
@@ -607,7 +595,7 @@ export default async function JahresuebersichtPage({
               ))}
               {mieterZeilen.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-4 text-center text-neutral-500">
+                  <td colSpan={12} className="px-4 py-4 text-center text-neutral-500">
                     Keine Mietverträge mit Bewegung in {jahr}.
                   </td>
                 </tr>

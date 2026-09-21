@@ -26,22 +26,6 @@ export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr
   revalidatePath("/jahresuebersicht");
 }
 
-/** Speichert die Bemerkung zu einem Mietvertrag/Jahr im Jahresbericht; leerer Text löscht sie. */
-export async function speichereJahresberichtBemerkung(mietvertragId: string, jahr: number, text: string) {
-  await requireEditor();
-  const bereinigt = text.trim();
-  if (bereinigt === "") {
-    await prisma.jahresberichtBemerkung.deleteMany({ where: { mietvertragId, jahr } });
-  } else {
-    await prisma.jahresberichtBemerkung.upsert({
-      where: { mietvertragId_jahr: { mietvertragId, jahr } },
-      update: { text: bereinigt },
-      create: { mietvertragId, jahr, text: bereinigt },
-    });
-  }
-  revalidatePath("/jahresuebersicht");
-}
-
 const kontenabgleichSchema = z.object({
   jahr: z.coerce.number().int(),
   kontostandLautBankauszug: z.coerce.number(),

@@ -346,7 +346,6 @@ model Mietvertrag {
   abrechnungspositionen             NebenkostenabrechnungPosition[]
   vorverteilteKostenanteile         VorverteilterKostenanteil[]
   jahresberichtVerifikationen       JahresberichtVerifikation[]
-  jahresberichtBemerkungen          JahresberichtBemerkung[]
   mieterhoehungen                   Mieterhoehung[]
 
   @@map("mietvertraege")
@@ -557,21 +556,6 @@ model JahresberichtVerifikation {
 
   @@unique([mietvertragId, jahr])
   @@map("jahresbericht_verifikationen")
-}
-
-// Freitext-Bemerkung pro Mietvertrag und Berichtsjahr in der Tabelle "Mieteinnahmen nach
-// Mietvertrag" (jahresuebersicht/page.tsx). Eine leere Bemerkung wird gelöscht statt als leere
-// Zeile gespeichert.
-model JahresberichtBemerkung {
-  id            String      @id @default(cuid())
-  mietvertrag   Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
-  mietvertragId String
-  jahr          Int
-  text          String
-  aktualisiertAm DateTime   @updatedAt
-
-  @@unique([mietvertragId, jahr])
-  @@map("jahresbericht_bemerkungen")
 }
 
 // Der manuell vom echten Kontoauszug abgelesene Kontostand zum 31.12. eines Jahres — die externe
