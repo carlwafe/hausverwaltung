@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
-import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
+import { gebaeudeOderHausLabel, hausLabel } from "@/lib/gebaeude-gruppen";
+import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
+import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
 import { toDateInputValue } from "@/lib/date-utils";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
@@ -148,6 +150,35 @@ export default async function NebenkostenabrechnungDetailPage({
   const naechsterStatusAction = setAbrechnungStatus.bind(null, id, naechsterStatus);
   const neuBerechnenAction = neuBerechnen.bind(null, id);
 
+  // Kostenaufschlüsselung: Objekt gesamt sowie je Haus (mehrere Hausnummern) und je Gebäude, jeweils
+  // aus den gespeicherten Aufschlüsselungen der Positionen (siehe nk-uebersicht.ts).
+  const positionenFuerUebersicht = abrechnung.positionen.map((p) => ({
+    einheitId: p.einheitId,
+    gebaeudeId: p.einheit.gebaeude.id,
+    hausId: p.einheit.gebaeude.hausId,
+    details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
+  }));
+  const uebersichtDaten: Record<string, Uebersicht> = {
+    objekt: baueKostenUebersicht(positionenFuerUebersicht, "gesamt"),
+  };
+  const uebersichtAuswahl: UebersichtAuswahl[] = [{ value: "objekt", label: "Objekt gesamt", gruppe: "objekt" }];
+  const gebaeudeInAbrechnung = new Map<string, (typeof abrechnung.positionen)[number]["einheit"]["gebaeude"]>();
+  for (const p of abrechnung.positionen) gebaeudeInAbrechnung.set(p.einheit.gebaeude.id, p.einheit.gebaeude);
+  const hausListe = new Map<string, (typeof abrechnung.positionen)[number]["einheit"]["gebaeude"]["haus"]>();
+  for (const g of gebaeudeInAbrechnung.values()) if (g.haus && g.haus.gebaeude.length > 1) hausListe.set(g.haus.id, g.haus);
+  for (const haus of [...hausListe.values()].sort((a, b) => hausLabel(a!.gebaeude).localeCompare(hausLabel(b!.gebaeude), "de", { numeric: true }))) {
+    const key = `haus:${haus!.id}`;
+    uebersichtAuswahl.push({ value: key, label: hausLabel(haus!.gebaeude), gruppe: "haus" });
+    uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.hausId === haus!.id), "anteil");
+  }
+  for (const g of [...gebaeudeInAbrechnung.values()].sort((a, b) =>
+    `${a.strasse} ${a.hausnummer}`.localeCompare(`${b.strasse} ${b.hausnummer}`, "de", { numeric: true }),
+  )) {
+    const key = `gebaeude:${g.id}`;
+    uebersichtAuswahl.push({ value: key, label: `${g.strasse} ${g.hausnummer}`, gruppe: "gebaeude" });
+    uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.gebaeudeId === g.id), "anteil");
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -183,6 +214,10 @@ export default async function NebenkostenabrechnungDetailPage({
           />
         </div>
       </div>
+
+      {uebersichtDaten.objekt.zeilen.length > 0 && (
+        <Kostenuebersicht jahr={abrechnung.jahr} auswahl={uebersichtAuswahl} daten={uebersichtDaten} />
+      )}
 
       {nichtBeruecksichtigt.some((n) => n.grund === "kein_verteilerschluessel") && (
         <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">
