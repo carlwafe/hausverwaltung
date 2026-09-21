@@ -10,6 +10,14 @@ type UploadZiel =
   | { mietvertragId: string; revalidatePath: string }
   | { einheitId: string; revalidatePath: string };
 
+// "YYYY-MM-DD" aus einem Datumsfeld als UTC-Mitternacht (wie alle Datumswerte der App); leer/ungültig
+// = kein Belegdatum.
+function parseBelegDatum(wert: FormDataEntryValue | string | null): Date | null {
+  if (typeof wert !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(wert)) return null;
+  const datum = new Date(`${wert}T00:00:00Z`);
+  return Number.isNaN(datum.getTime()) ? null : datum;
+}
+
 // Das "file"-Feld kann mehrfach vorkommen (z.B. mehrere Einheit-Fotos auf einmal, siehe
 // FotosSektion) — hier bewusst per getAll statt get, damit ein- und mehrteilige Uploads
 // dieselbe Action nutzen können.
@@ -25,6 +33,9 @@ export async function uploadDokument(
     return "Bitte eine Datei auswählen.";
   }
 
+  // Optionales Belegdatum (Datum des Belegs selbst), gilt für alle Dateien dieses Uploads.
+  const belegDatum = parseBelegDatum(formData.get("belegDatum"));
+
   for (const file of files) {
     const speicherpfad = await speichereDatei(Buffer.from(await file.arrayBuffer()), file.name);
     await prisma.dokument.create({
@@ -37,6 +48,7 @@ export async function uploadDokument(
         mietvertragId: "mietvertragId" in ziel ? ziel.mietvertragId : undefined,
         einheitId: "einheitId" in ziel ? ziel.einheitId : undefined,
         hochgeladenVon: user.email ?? user.name ?? null,
+        belegDatum,
       },
     });
   }
@@ -53,5 +65,11 @@ export async function deleteDokument(id: string, revalidatePathValue: string): P
 
   await prisma.dokument.delete({ where: { id } });
   await loescheDatei(dokument.speicherpfad);
+  revalidatePath(revalidatePathValue);
+}
+
+export async function aendereBelegDatum(id: string, datum: string, revalidatePathValue: string): Promise<void> {
+  await requireEditor();
+  await prisma.dokument.update({ where: { id }, data: { belegDatum: parseBelegDatum(datum) } });
   revalidatePath(revalidatePathValue);
 }

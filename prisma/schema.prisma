@@ -616,6 +616,10 @@ model Dokument {
   einheit        Einheit?     @relation(fields: [einheitId], references: [id], onDelete: Cascade)
   einheitId      String?
   hochgeladenVon String?
+  // Datum des Belegs selbst (z.B. Rechnungs-/Vertragsdatum) — vom Nutzer beim Upload angegeben und
+  // später änderbar. createdAt bleibt das Upload-Datum. Die Belege-Tabelle sortiert nach
+  // belegDatum (fehlt es: nach dem Upload-Datum), neueste zuerst.
+  belegDatum     DateTime?
   createdAt      DateTime     @default(now())
 
   @@map("dokumente")
