@@ -192,7 +192,7 @@ async function ladeMieterZeilen(jahr: number) {
   ]);
 
   const mietvertragIds = vertraegeRaw.map((v) => v.id);
-  const [zahlungenRaw, nebenkostenausgleichZahlungen] = await Promise.all([
+  const [zahlungenRaw, nebenkostenausgleichZahlungen, sonderRaw] = await Promise.all([
     prisma.buchung.findMany({
       where: { mietvertragId: { in: mietvertragIds }, buchungsart: { code: "MIETZAHLUNG" } },
       select: { mietvertragId: true, periodeMonat: true, periodeJahr: true, betrag: true },
@@ -205,7 +205,22 @@ async function ladeMieterZeilen(jahr: number) {
       where: { mietvertragId: { in: mietvertragIds }, buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
       select: { mietvertragId: true, jahr: true, betrag: true },
     }),
+    prisma.buchung.findMany({
+      where: {
+        mietvertragId: { in: mietvertragIds },
+        buchungsart: { code: { in: ["MAHNGEBUEHR", "SONDERZAHLUNG"] } },
+        ...AKTIVE_BUCHUNG_FILTER,
+      },
+      select: { mietvertragId: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
+    }),
   ]);
+  const sonderNachVertrag = new Map<string, { datum: Date; betrag: number }[]>();
+  for (const s of sonderRaw) {
+    if (!s.mietvertragId || !s.datum) continue;
+    const liste = sonderNachVertrag.get(s.mietvertragId) ?? [];
+    liste.push({ datum: s.datum, betrag: s.buchungsart.code === "MAHNGEBUEHR" ? -Number(s.betrag) : Number(s.betrag) });
+    sonderNachVertrag.set(s.mietvertragId, liste);
+  }
 
   const zahlungenNachVertrag = new Map<string, { periodeMonat: number; periodeJahr: number; betrag: number }[]>();
   for (const z of zahlungenRaw) {
@@ -238,6 +253,7 @@ async function ladeMieterZeilen(jahr: number) {
     einheitBezeichnung: v.einheit.bezeichnung,
     mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
     zahlungen: zahlungenNachVertrag.get(v.id) ?? [],
+    sonderbewegungen: sonderNachVertrag.get(v.id) ?? [],
     nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
       jahr: p.abrechnung.jahr,
       saldo: Number(p.saldo),
@@ -499,14 +515,15 @@ export default async function JahresuebersichtPage({
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
         <p className="mb-3 text-sm text-neutral-400">
-          Saldo neu = Saldo alt − Soll + Miete + Nebenkostenabrechnung offen (Vorjahr), wobei Soll =
+          Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Nebenkostenabrechnung offen (Vorjahr), wobei Soll =
           Soll Kaltmiete + Soll Nebenkosten (letztere Spalte zeigt bei Garagen die Mehrwertsteuer
           statt Nebenkosten). Negativer Saldo = Rückstand, positiver Saldo = Guthaben/
           Vorauszahlung. &bdquo;Nebenkostenabrechnung
           offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
           Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
           in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
-          noch einzuziehende Nachzahlung.
+          noch einzuziehende Nachzahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
+          &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
         </p>
         <p className="mb-3 text-sm text-neutral-400">
           Miete sowie Saldo alt/neu zählen nach der{" "}

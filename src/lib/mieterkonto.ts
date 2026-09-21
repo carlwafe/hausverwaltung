@@ -2,9 +2,10 @@
 // Zahlung(en) dieses Monats, dazu Sonderbuchungen (Gebühren, Zahlungen darauf) als eigene Zeilen,
 // mit laufendem Saldo und dem Saldo-Übertrag aus dem Vorjahr. Reine Darstellung — der Saldo folgt
 // aus denselben Zahlen wie der Mietsaldo auf der Mietvertragsseite (Zahlungen ./. Soll +
-// Saldovortrag ./. offene Sonderforderung), gespeichert wird nichts. Zahlungen stehen im Monat
-// ihres Buchungsdatums (nicht der Mietperiode), damit der Jahresendsaldo exakt dem
-// datumsbasierten Mietsaldo entspricht.
+// Saldovortrag ./. offene Sonderforderung), gespeichert wird nichts. Mietzahlungen stehen im Monat
+// der Mietperiode, für die sie gedacht sind (periodeMonat/periodeJahr) — dieselbe Rechnung wie in
+// der Jahresübersicht (jahresbericht-mieter.ts), damit beide denselben Saldo zeigen. Sonderbuchungen
+// (Gebühren) stehen im Monat ihres Buchungsdatums.
 import type { SollZeile } from "./soll-ist";
 
 export type MieterkontoZeile = {
@@ -29,17 +30,39 @@ export type MieterkontoJahr = {
   uebertragVorjahr: number;
   sollKaltmieteMonatlich: number;
   sollNebenkostenMonatlich: number;
+  // Offener Saldo der Nebenkostenabrechnung des Vorjahres (positiv = noch auszuzahlendes Guthaben,
+  // negativ = noch einzuziehende Nachzahlung), null = keine Abrechnung vorhanden. Wie in der
+  // Jahresübersicht fließt sie nur in den Saldo am Jahresende ein, nicht in den Übertrag.
+  nebenkostenabrechnungOffen: number | null;
+  saldoInklNebenkostenabrechnung: number;
   zeilen: MieterkontoZeile[];
   summe: { sollKaltmiete: number; sollNebenkosten: number; sollGesamt: number; betrag: number; differenz: number; saldo: number };
 };
 
-type Zahlung = { id: string; datum: Date; betrag: number; verwendungszweck: string | null };
+type Zahlung = {
+  id: string;
+  datum: Date;
+  betrag: number;
+  verwendungszweck: string | null;
+  // Mietperiode, für die gezahlt wurde; fehlt sie, gilt ersatzweise der Monat des Buchungsdatums.
+  periodeMonat?: number | null;
+  periodeJahr?: number | null;
+};
 type Sonder = { id: string; datum: Date; betrag: number; verwendungszweck: string | null; istForderung: boolean };
 
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
 function imZeitraum(datum: Date, ab: Date | null, bis: Date): boolean {
   return (!ab || datum >= ab) && datum <= bis;
+}
+
+const monatsIndex = (jahr: number, monat: number) => jahr * 12 + monat;
+
+/** Monatsindex der Mietperiode einer Zahlung (Jahr*12+Monat). */
+function periodeIndex(z: Zahlung): number {
+  return z.periodeJahr && z.periodeMonat
+    ? monatsIndex(z.periodeJahr, z.periodeMonat)
+    : monatsIndex(z.datum.getFullYear(), z.datum.getMonth() + 1);
 }
 
 /** Jahre, für die das Mieterkonto etwas zeigen kann (aufsteigend). */
@@ -58,16 +81,24 @@ export function baueMieterkontoJahr(input: {
   sonderBuchungen: Sonder[];
   ab: Date | null;
   bis: Date;
+  nebenkostenabrechnungOffen?: number | null;
 }): MieterkontoJahr {
   const { jahr } = input;
-  const zahlungen = input.zahlungen.filter((z) => imZeitraum(z.datum, input.ab, input.bis));
+  // Zahlungen zählen nach ihrer Mietperiode: von der Periode des Stichtags `ab` bis zur Periode von
+  // `bis` (eine im Voraus gezahlte Miete für einen späteren Monat gehört noch nicht dazu).
+  const vonPeriode = input.ab ? monatsIndex(input.ab.getFullYear(), input.ab.getMonth() + 1) : -Infinity;
+  const bisPeriode = monatsIndex(input.bis.getFullYear(), input.bis.getMonth() + 1);
+  const zahlungen = input.zahlungen.filter((z) => {
+    const p = periodeIndex(z);
+    return p >= vonPeriode && p <= bisPeriode;
+  });
   const sonder = input.sonderBuchungen.filter((s) => imZeitraum(s.datum, input.ab, input.bis));
   const jahresanfang = new Date(jahr, 0, 1);
 
   // Saldo-Übertrag: alles vor dem 1.1. des Berichtsjahres.
   let uebertrag = input.saldovortrag;
   for (const s of input.sollZeilen) if (s.jahr < jahr) uebertrag -= s.betrag;
-  for (const z of zahlungen) if (z.datum < jahresanfang) uebertrag += z.betrag;
+  for (const z of zahlungen) if (periodeIndex(z) < monatsIndex(jahr, 1)) uebertrag += z.betrag;
   for (const s of sonder) if (s.datum < jahresanfang) uebertrag += s.istForderung ? -s.betrag : s.betrag;
 
   const zeilen: MieterkontoZeile[] = [];
@@ -77,10 +108,12 @@ export function baueMieterkontoJahr(input: {
 
   const imMonat = <T extends { datum: Date }>(liste: T[], monat: number) =>
     liste.filter((e) => e.datum.getFullYear() === jahr && e.datum.getMonth() + 1 === monat).sort((a, b) => a.datum.getTime() - b.datum.getTime());
+  const zahlungenImMonat = (monat: number) =>
+    zahlungen.filter((z) => periodeIndex(z) === monatsIndex(jahr, monat)).sort((a, b) => a.datum.getTime() - b.datum.getTime());
 
   for (let monat = 1; monat <= 12; monat++) {
     const soll = input.sollZeilen.find((s) => s.jahr === jahr && s.monat === monat);
-    const pays = imMonat(zahlungen, monat);
+    const pays = zahlungenImMonat(monat);
     const sonders = imMonat(sonder, monat);
     if (!soll && pays.length === 0 && sonders.length === 0) continue;
 
@@ -163,6 +196,8 @@ export function baueMieterkontoJahr(input: {
     uebertragVorjahr: uebertrag,
     sollKaltmieteMonatlich: letzteMiete.kalt,
     sollNebenkostenMonatlich: letzteMiete.nk,
+    nebenkostenabrechnungOffen: input.nebenkostenabrechnungOffen ?? null,
+    saldoInklNebenkostenabrechnung: saldo + (input.nebenkostenabrechnungOffen ?? 0),
     zeilen,
     summe,
   };

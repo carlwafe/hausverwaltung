@@ -39,6 +39,7 @@ export default async function MietvertragDetailPage({
         },
         dokumente: { orderBy: { createdAt: "desc" } },
         mieterhoehungen: { orderBy: { gueltigAb: "desc" } },
+        abrechnungspositionen: { select: { saldo: true, abrechnung: { select: { jahr: true } } } },
       },
     }),
     prisma.einheit.findMany({ include: { gebaeude: true } }),
@@ -102,7 +103,14 @@ export default async function MietvertragDetailPage({
   const stichtagAb = objekt?.buchhaltungAb ?? null;
   const zahlungenListe = vertrag.buchungen
     .filter((z) => z.datum)
-    .map((z) => ({ id: z.id, datum: z.datum!, betrag: Number(z.betrag), verwendungszweck: z.verwendungszweck }));
+    .map((z) => ({
+      id: z.id,
+      datum: z.datum!,
+      betrag: Number(z.betrag),
+      verwendungszweck: z.verwendungszweck,
+      periodeMonat: z.periodeMonat,
+      periodeJahr: z.periodeJahr,
+    }));
   const sonderListe = sonderBuchungen
     .filter((b) => b.datum)
     .map((b) => ({
@@ -112,10 +120,25 @@ export default async function MietvertragDetailPage({
       verwendungszweck: b.verwendungszweck,
       istForderung: b.buchungsart.code === "MAHNGEBUEHR",
     }));
+  // Offene Nebenkostenabrechnung des Vorjahres je Jahr (wie in der Jahresübersicht): Saldo der
+  // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Nebenkostenausgleich.
+  const nkAusgleich = await prisma.buchung.findMany({
+    where: { mietvertragId: id, buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
+    select: { jahr: true, betrag: true },
+  });
+  const nkZahlungNachJahr = new Map<number, number>();
+  for (const z of nkAusgleich) {
+    if (z.jahr === null) continue;
+    nkZahlungNachJahr.set(z.jahr, (nkZahlungNachJahr.get(z.jahr) ?? 0) - Number(z.betrag));
+  }
+  const nkOffenFuerJahr = (jahr: number): number | null => {
+    const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
+    return position ? Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0) : null;
+  };
   const letztesJahr = bis.getFullYear();
   const erstesJahr = Math.min(
     letztesJahr,
-    ...zahlungenListe.map((z) => z.datum.getFullYear()),
+    ...zahlungenListe.map((z) => z.periodeJahr ?? z.datum.getFullYear()),
     ...sonderListe.map((b) => b.datum.getFullYear()),
     stichtagAb ? stichtagAb.getFullYear() : letztesJahr,
   );
@@ -133,6 +156,7 @@ export default async function MietvertragDetailPage({
       sonderBuchungen: sonderListe,
       ab: vorStichtag ? null : stichtagAb,
       bis,
+      nebenkostenabrechnungOffen: nkOffenFuerJahr(j),
     });
   }
   const mieterNamenKonto = vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");

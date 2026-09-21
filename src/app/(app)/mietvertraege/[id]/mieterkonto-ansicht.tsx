@@ -175,12 +175,34 @@ export function MieterkontoAnsicht({
           </tbody>
         </table>
       </div>
+      {konto.nebenkostenabrechnungOffen !== null && (
+        <table className="ml-auto mt-3 text-sm">
+          <tbody>
+            <tr>
+              <td className="py-0.5 pr-8 text-neutral-300">
+                Nebenkostenabrechnung {konto.jahr - 1} offen{" "}
+                <span className="text-xs text-neutral-500">
+                  ({konto.nebenkostenabrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
+                </span>
+              </td>
+              <td className="py-0.5 text-right text-neutral-200">{formatEuro(konto.nebenkostenabrechnungOffen)}</td>
+            </tr>
+            <tr className="border-t border-neutral-700 font-medium">
+              <td className="py-1 pr-8 text-white">Saldo inkl. offener Nebenkostenabrechnung</td>
+              <td className={`py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>
+                {formatEuro(konto.saldoInklNebenkostenabrechnung)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
       <div className="mt-2 space-y-0.5 text-xs italic text-neutral-500">
-        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr.</p>
+        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr; die offene Nebenkostenabrechnung des Vorjahres fließt nur in den Saldo am Jahresende ein (wie in der Jahresübersicht).</p>
         <p>Positiver Saldo = Guthaben des Mieters. Negativer Saldo = Mietrückstand.</p>
         <p>
-          Orange Zeilen = Sonderbuchungen (z.B. Rücklastschriftgebühr und die Zahlung darauf). Zahlungen stehen im Monat
-          ihres Buchungsdatums.
+          Orange Zeilen = Sonderbuchungen (z.B. Rücklastschriftgebühr und die Zahlung darauf, im Monat des
+          Buchungsdatums). Mietzahlungen stehen im Monat der Mietperiode, für die sie gezahlt wurden — wie in der
+          Jahresübersicht.
         </p>
       </div>
     </div>

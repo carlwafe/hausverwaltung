@@ -10,6 +10,10 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   // saldoZuStichtag) — eine Miete, die z.B. Ende Dezember schon für den Januar des Folgejahres
   // überwiesen wird, soll den Saldo des laufenden Jahres nicht künstlich ins Plus ziehen.
   zahlungen: { periodeMonat: number; periodeJahr: number; betrag: number }[];
+  // Sonderforderungen (Gebühren) und Zahlungen darauf, nach Buchungsdatum — betrag ist die Wirkung
+  // auf den Saldo (negativ = Gebühr an den Mieter, positiv = Zahlung darauf). Fließt wie beim
+  // Mieterkonto und den Offenen Posten in den Saldo ein, damit alle drei denselben Saldo zeigen.
+  sonderbewegungen: { datum: Date; betrag: number }[];
   // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Berichtsjahr — für
   // "Nebenkostenabrechnung offen (Vorjahr)" wird gezielt die Position des Vorjahres der jeweiligen
   // Abrechnung herausgesucht (siehe nebenkostenabrechnungOffenBetrag), nicht die Bewegung des
@@ -72,7 +76,10 @@ function istNachZuordnung(
 function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltungAb: Date | null): number {
   const soll = berechneSoll(v, bis, buchhaltungAb);
   const ist = istNachZuordnung(v.zahlungen, buchhaltungAb ? periodeVon(buchhaltungAb) : -Infinity, periodeVon(bis));
-  return ist - soll + v.saldovortrag;
+  const sonder = v.sonderbewegungen
+    .filter((s) => (!buchhaltungAb || s.datum >= buchhaltungAb) && s.datum <= bis)
+    .reduce((sum, s) => sum + s.betrag, 0);
+  return ist - soll + v.saldovortrag + sonder;
 }
 
 /**
@@ -132,6 +139,8 @@ export function berechneMieterJahresbericht(
       .filter((z) => z.periodeJahr === jahr && z.periodeJahr * 12 + z.periodeMonat <= saldoNeuBisPeriode)
       .reduce((sum, z) => sum + z.betrag, 0);
     const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v, jahr);
+    // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
+    // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0);
 
     if (
