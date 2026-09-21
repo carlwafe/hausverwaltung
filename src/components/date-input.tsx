@@ -2,6 +2,12 @@
 
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from "react";
 
+function istGueltig(iso: string) {
+  const [j, m, t] = iso.split("-").map(Number);
+  const d = new Date(Date.UTC(j, m - 1, t));
+  return d.getUTCFullYear() === j && d.getUTCMonth() === m - 1 && d.getUTCDate() === t;
+}
+
 function pad2(v: string) {
   return v.padStart(2, "0");
 }
@@ -37,7 +43,11 @@ export function DateInput({
   const monatRef = useRef<HTMLInputElement>(null);
   const jahrRef = useRef<HTMLInputElement>(null);
 
-  const iso = tag && monat && jahr.length === 4 ? `${jahr}-${pad2(monat)}-${pad2(tag)}` : "";
+  // Unvollständige oder unmögliche Eingaben (z.B. 31.02.) werden bewusst als ungültiger Wert
+  // abgeschickt, damit der Server einen Fehler meldet, statt das Datum still zu verwerfen/zu verschieben.
+  const irgendwasEingetragen = tag !== "" || monat !== "" || jahr !== "";
+  const iso = irgendwasEingetragen ? `${jahr.padStart(4, "0")}-${pad2(monat)}-${pad2(tag)}` : "";
+  const ungueltig = irgendwasEingetragen && jahr.length === 4 && !istGueltig(iso);
 
   function handleDigitChange(
     raw: string,
@@ -132,6 +142,7 @@ export function DateInput({
           className={`${segmentClass} w-14`}
         />
       </div>
+      {ungueltig && <p className="mt-1 text-xs text-red-400">Ungültiges Datum</p>}
       <input type="hidden" name={name} value={iso} />
     </div>
   );

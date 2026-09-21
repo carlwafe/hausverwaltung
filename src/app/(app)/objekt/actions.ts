@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { optionalesDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
@@ -13,14 +14,8 @@ const objektSchema = z
     plz: z.string().min(1, "PLZ ist erforderlich"),
     ort: z.string().min(1, "Ort ist erforderlich"),
     beschreibung: z.string().optional(),
-    buchhaltungAb: z
-      .union([z.coerce.date(), z.literal("")])
-      .optional()
-      .transform((v) => (v === "" || v === undefined ? null : v)),
-    kontostandAnkerDatum: z
-      .union([z.coerce.date(), z.literal("")])
-      .optional()
-      .transform((v) => (v === "" || v === undefined ? null : v)),
+    buchhaltungAb: optionalesDatum().transform((v) => v ?? null),
+    kontostandAnkerDatum: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerBetrag: z
       .union([z.coerce.number(), z.literal("")])
       .optional()

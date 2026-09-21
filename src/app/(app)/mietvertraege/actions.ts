@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { storniereBuchung } from "@/lib/buchung-storno";
+import { optionalesDatum, pflichtDatum } from "@/lib/zod-datum";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -23,14 +24,8 @@ const mietvertragSchema = z
     mieterId1: z.string().min(1, "Mieter ist erforderlich"),
     mieterId2: z.string().optional(),
     beginnUnbekannt: z.coerce.boolean().optional(),
-    beginn: z
-      .union([z.coerce.date(), z.literal("")])
-      .optional()
-      .transform((v) => (v === "" || v === undefined ? undefined : v)),
-    ende: z
-      .union([z.coerce.date(), z.literal("")])
-      .optional()
-      .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    beginn: optionalesDatum(),
+    ende: optionalesDatum(),
     kaltmiete: z.coerce.number().positive("Kaltmiete muss größer als 0 sein"),
     nebenkostenVorauszahlung: z.coerce.number().min(0),
     mehrwertsteuer: optionalNonNegativeNumber,
@@ -191,7 +186,7 @@ function revalidateNachMieterhoehung(mietvertragId: string) {
 }
 
 const mieterhoehungSchema = z.object({
-  gueltigAb: z.coerce.date({ error: "Gültig ab ist erforderlich" }),
+  gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
   kaltmiete: z.coerce.number().min(0, "Kaltmiete darf nicht negativ sein"),
   nebenkostenVorauszahlung: z.coerce.number().min(0, "NK-Vorauszahlung darf nicht negativ sein"),
   notizen: z.string().optional(),
@@ -232,7 +227,7 @@ export async function loescheMieterhoehung(id: string) {
 }
 
 const sonderforderungSchema = z.object({
-  datum: z.coerce.date(),
+  datum: pflichtDatum(),
   betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
   verwendungszweck: z.string().min(1, "Bezeichnung ist erforderlich"),
 });

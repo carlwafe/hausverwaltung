@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { parseStrengesDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
@@ -22,7 +23,8 @@ export async function speichereKontostandKontrolle(_prev: string | null, formDat
   });
   if (!parsed.success) return parsed.error.issues.map((i) => i.message).join(", ");
 
-  const datum = new Date(`${parsed.data.datum}T00:00:00Z`);
+  const datum = parseStrengesDatum(parsed.data.datum);
+  if (!datum) return "Ungültiges Datum (z.B. 31.02. gibt es nicht)";
   await prisma.kontostandKontrolle.upsert({
     where: { datum },
     update: { betrag: parsed.data.betrag, notiz: parsed.data.notiz ?? null },

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseStrengesDatum } from "@/lib/zod-datum";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
@@ -360,6 +361,8 @@ export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormDa
   ) {
     throw new Error("Ungültige Eingabe.");
   }
+  const datumWert = parseStrengesDatum(datum);
+  if (!datumWert) throw new Error("Ungültiges Datum.");
   const betrag = typeof betragRaw === "string" ? Number(betragRaw.replace(",", ".")) : NaN;
   if (!Number.isFinite(betrag)) throw new Error("Ungültiger Betrag.");
 
@@ -369,7 +372,7 @@ export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormDa
       mietvertragId,
       buchungsartId: buchungsart.id,
       jahr: Number(jahr),
-      datum: new Date(datum),
+      datum: datumWert,
       betrag: -betrag,
       verwendungszweck: "Manuell erfasst",
     },

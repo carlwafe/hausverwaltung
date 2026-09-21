@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { pflichtDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -14,7 +15,7 @@ async function ladeMietzahlungBuchungsartId(): Promise<string> {
 
 const zahlungSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
-  datum: z.coerce.date({ error: "Datum ist erforderlich" }),
+  datum: pflichtDatum("Datum ist erforderlich"),
   // Nicht auf positiv beschränkt: eine Zahlung kann auch eine Erstattung/Korrektur sein (z.B. eine
   // Rücküberweisung einer Überzahlung), die als negativer Betrag geführt wird — mit .positive()
   // ließ sich eine solche, z.B. per Kontoauszug-Import bereits negativ erfasste Zahlung im

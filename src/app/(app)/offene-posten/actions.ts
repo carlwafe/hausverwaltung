@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseStrengesDatum } from "@/lib/zod-datum";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 
@@ -10,8 +11,8 @@ function parseBisWert(raw: FormDataEntryValue | null): Date | null {
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
   const [, jahr, monat, tag] = match;
-  const datum = new Date(Number(jahr), Number(monat) - 1, Number(tag), 23, 59, 59, 999);
-  return Number.isNaN(datum.getTime()) ? null : datum;
+  if (!parseStrengesDatum(raw)) return null;
+  return new Date(Number(jahr), Number(monat) - 1, Number(tag), 23, 59, 59, 999);
 }
 
 export async function setBuchhaltungBis(formData: FormData): Promise<void> {

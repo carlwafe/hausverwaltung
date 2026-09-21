@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { pflichtDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
@@ -74,7 +75,7 @@ export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie
 
 const kautionsbuchungSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
-  datum: z.string().min(1, "Datum ist erforderlich"),
+  datum: pflichtDatum("Datum ist erforderlich"),
   // Vorzeichen wie bei einer echten Kontobuchung: positiv = eingehend (Einzahlung Mieter,
   // Auflösung), negativ = ausgehend (Anlage, Auszahlung Mieter) — siehe dieselbe Konvention beim
   // CSV-Import in zahlungen-import.ts/kontoauszug-import/actions.ts (commitKautionsbuchungen).
@@ -111,7 +112,7 @@ export async function erstelleKautionsbuchung(_prev: string | null, formData: Fo
 
   await prisma.$transaction(async (tx) => {
     const buchung = await tx.buchung.create({
-      data: { mietvertragId, buchungsartId: buchungsart.id, datum: new Date(datum), betrag, verwendungszweck },
+      data: { mietvertragId, buchungsartId: buchungsart.id, datum, betrag, verwendungszweck },
     });
     if (verknuepfteKostenpositionId) {
       await tx.buchung.update({

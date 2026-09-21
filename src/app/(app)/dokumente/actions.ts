@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseStrengesDatum } from "@/lib/zod-datum";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { speichereDatei, loescheDatei } from "@/lib/storage";
@@ -14,8 +15,7 @@ type UploadZiel =
 // = kein Belegdatum.
 function parseBelegDatum(wert: FormDataEntryValue | string | null): Date | null {
   if (typeof wert !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(wert)) return null;
-  const datum = new Date(`${wert}T00:00:00Z`);
-  return Number.isNaN(datum.getTime()) ? null : datum;
+  return parseStrengesDatum(wert);
 }
 
 // Das "file"-Feld kann mehrfach vorkommen (z.B. mehrere Einheit-Fotos auf einmal, siehe
