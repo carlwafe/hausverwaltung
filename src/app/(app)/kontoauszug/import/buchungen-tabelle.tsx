@@ -142,9 +142,11 @@ type BestehendeSets = {
   bestehendeKautionsbuchungen: Set<string>;
   bestehendeNebenkostenausgleich: Set<string>;
   bestehendeRohdaten: Set<string>;
+  // Bereits als "nicht kategorisiert" gemerkte Buchungen (Datum+Betrag) — zählen wie importiert.
+  gemerkt: Set<string>;
 };
 
-function zuBestehendeSets(sets: BestehendeImportSets): BestehendeSets {
+function zuBestehendeSets(sets: BestehendeImportSets, gemerkt: string[]): BestehendeSets {
   return {
     bestehendeZahlungen: new Set(sets.bestehendeZahlungen),
     bestehendeZahlungenDatumBetrag: new Set(sets.bestehendeZahlungenDatumBetrag),
@@ -153,6 +155,7 @@ function zuBestehendeSets(sets: BestehendeImportSets): BestehendeSets {
     bestehendeKautionsbuchungen: new Set(sets.bestehendeKautionsbuchungen),
     bestehendeNebenkostenausgleich: new Set(sets.bestehendeNebenkostenausgleich),
     bestehendeRohdaten: new Set(sets.bestehendeRohdaten),
+    gemerkt: new Set(gemerkt),
   };
 }
 
@@ -165,6 +168,7 @@ function istBereitsImportiert(
   // Artunabhängig: hängt die Bankzeile schon an irgendeiner aktiven Buchung (auch unter anderer
   // Buchungsart, z.B. nach einer Umbuchung), gilt sie als importiert.
   if (r.rohdatenSchluessel && sets.bestehendeRohdaten.has(r.rohdatenSchluessel)) return true;
+  if (sets.gemerkt.has(datumBetragSchluessel(new Date(r.datum), r.betrag))) return true;
   if (!gruppe) return false;
   const datum = r.datum;
   const betrag = r.betrag;
@@ -250,7 +254,7 @@ export function BuchungenTabelle({
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitBuchungen, null);
-  const bestehendeSets = zuBestehendeSets(bestehendeImportSets);
+  const bestehendeSets = zuBestehendeSets(bestehendeImportSets, bestehendeNichtZugeordnetListe);
   const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
   const [editRows, setEditRows] = useState<BuchungEditRow[]>(() => zeilen.map((r) => toBuchungEditRow(r, bestehendeSets)));
   const [hinweisFilter, setHinweisFilter] = useState<HinweisFilter>("alle");

@@ -168,7 +168,7 @@ export const WASCHGELD_PATTERN = /waschgeld/i;
 // Zahlung/Kostenposition — sonst verfälscht der Betrag dauerhaft die Offene-Posten-Berechnung,
 // die die tatsächliche Abrechnung nie einbezieht.
 export const NEBENKOSTENAUSGLEICH_PATTERN =
-  /bk[\s-]*abr|bk\s*nachzahlung|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
+  /^\s*(rueckueberweisung\s+konto\s+aufgeloest\s+)?\d{4}\.\d+\s*$|bk[\s-]*abr|bk\s*nachzahlung|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
 
 // Eine Kleinreparatur, die laut Mietvertrag vom Mieter direkt getragen wird: der Vermieter zahlt
 // zunächst die Handwerkerrechnung (normale ausgehende Kostenposition unter "Reparaturen"), der
