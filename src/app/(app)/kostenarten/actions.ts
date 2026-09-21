@@ -8,10 +8,7 @@ import { requireEditor } from "@/lib/session";
 
 const VERTEILERSCHLUESSEL = [
   "WOHNFLAECHE",
-  "MITEIGENTUMSANTEIL",
-  "PERSONENZAHL",
   "EINHEITEN",
-  "VERBRAUCH_MANUELL",
   "VORVERTEILT",
 ] as const;
 

@@ -5,10 +5,7 @@ import { runFormAction } from "@/lib/form-utils";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
-  MITEIGENTUMSANTEIL: "Miteigentumsanteil",
-  PERSONENZAHL: "Personenzahl",
   EINHEITEN: "Anzahl Einheiten",
-  VERBRAUCH_MANUELL: "Verbrauch (manuell erfasst)",
   VORVERTEILT: "Extern vorverteilt (z.B. Techem)",
 };
 
@@ -110,21 +107,6 @@ export function KostenartForm({
           ))}
         </select>
       </div>
-
-      {verteilerschluessel === "VERBRAUCH_MANUELL" && (
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="masseinheit">
-            Maßeinheit
-          </label>
-          <input
-            id="masseinheit"
-            name="masseinheit"
-            defaultValue={initial?.masseinheit ?? ""}
-            placeholder="z.B. kWh, m³"
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
-      )}
 
       <div>
         <label
