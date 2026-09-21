@@ -100,42 +100,61 @@ export function baueMieterkontoJahr(input: {
       summe.sollGesamt += soll.betrag;
     }
 
-    if (pays.length === 0) {
-      const differenz = -(soll?.betrag ?? 0);
-      saldo += differenz;
+    // Zahlungen und Sonderbuchungen des Monats in einer gemeinsamen, nach Datum sortierten Reihe
+    // (bei gleichem Datum: Zahlung, dann Gebühr, dann Zahlung auf Gebühren).
+    type Ereignis =
+      | { art: "zahlung"; datum: Date; z: Zahlung }
+      | { art: "sonder"; datum: Date; s: Sonder };
+    const rang = (e: Ereignis) => (e.art === "zahlung" ? 0 : e.s.istForderung ? 1 : 2);
+    const ereignisse: Ereignis[] = [
+      ...pays.map((z): Ereignis => ({ art: "zahlung", datum: z.datum, z })),
+      ...sonders.map((s): Ereignis => ({ art: "sonder", datum: s.datum, s })),
+    ].sort((a, b) => a.datum.getTime() - b.datum.getTime() || rang(a) - rang(b));
+
+    const sollBetrag = soll?.betrag ?? 0;
+    const ersteIstZahlung = ereignisse[0]?.art === "zahlung";
+
+    // Soll-Zeile: mit der ersten Zahlung zusammen, wenn diese das erste Ereignis des Monats ist,
+    // sonst allein (dann folgen Sonderbuchungen vor der ersten Zahlung).
+    if (soll && !ersteIstZahlung) {
+      saldo -= sollBetrag;
       zeilen.push({
-        monat: monatLabel(), sollKaltmiete: sollKalt, sollNebenkosten: sollNk, sollGesamt: soll?.betrag ?? null,
-        buchungsart: "–", datum: null, betrag: null, differenz, saldo,
-        bemerkung: soll ? "noch keine Zahlung" : "", sonderbuchung: false,
+        monat: monatLabel(), sollKaltmiete: sollKalt, sollNebenkosten: sollNk, sollGesamt: soll.betrag,
+        buchungsart: "–", datum: null, betrag: null, differenz: -sollBetrag, saldo,
+        bemerkung: pays.length === 0 ? "noch keine Zahlung" : "", sonderbuchung: false,
       });
-      summe.differenz += differenz;
+      summe.differenz -= sollBetrag;
     }
-    pays.forEach((z, i) => {
-      const sollAnteil = i === 0 ? (soll?.betrag ?? 0) : 0;
-      const differenz = z.betrag - sollAnteil;
-      saldo += differenz;
-      zeilen.push({
-        monat: monatLabel(),
-        sollKaltmiete: i === 0 ? sollKalt : null, sollNebenkosten: i === 0 ? sollNk : null, sollGesamt: i === 0 ? (soll?.betrag ?? null) : null,
-        buchungsart: "Mietzahlung", datum: z.datum, betrag: z.betrag, differenz, saldo,
-        bemerkung: z.verwendungszweck ?? "", href: `/zahlungen/${z.id}`, sonderbuchung: false,
-      });
-      summe.betrag += z.betrag;
-      summe.differenz += differenz;
+
+    ereignisse.forEach((e, i) => {
+      if (e.art === "zahlung") {
+        const z = e.z;
+        const mitSoll = i === 0 && !!soll;
+        const differenz = z.betrag - (mitSoll ? sollBetrag : 0);
+        saldo += differenz;
+        zeilen.push({
+          monat: monatLabel(),
+          sollKaltmiete: mitSoll ? sollKalt : null, sollNebenkosten: mitSoll ? sollNk : null, sollGesamt: mitSoll ? soll!.betrag : null,
+          buchungsart: "Mietzahlung", datum: z.datum, betrag: z.betrag, differenz, saldo,
+          bemerkung: z.verwendungszweck ?? "", href: `/zahlungen/${z.id}`, sonderbuchung: false,
+        });
+        summe.betrag += z.betrag;
+        summe.differenz += differenz;
+      } else {
+        const s = e.s;
+        const differenz = s.istForderung ? -s.betrag : s.betrag;
+        saldo += differenz;
+        zeilen.push({
+          monat: monatLabel(),
+          sollKaltmiete: null, sollNebenkosten: null, sollGesamt: s.istForderung ? s.betrag : null,
+          buchungsart: s.istForderung ? "Gebühr an Mieter" : "Gebühren-Zahlung", datum: s.datum, betrag: s.istForderung ? null : s.betrag,
+          differenz, saldo, bemerkung: s.verwendungszweck ?? "", sonderbuchung: true,
+        });
+        if (s.istForderung) summe.sollGesamt += s.betrag;
+        else summe.betrag += s.betrag;
+        summe.differenz += differenz;
+      }
     });
-    for (const s of sonders) {
-      const differenz = s.istForderung ? -s.betrag : s.betrag;
-      saldo += differenz;
-      zeilen.push({
-        monat: monatLabel(),
-        sollKaltmiete: null, sollNebenkosten: null, sollGesamt: s.istForderung ? s.betrag : null,
-        buchungsart: s.istForderung ? "Gebühr an Mieter" : "Gebühren-Zahlung", datum: s.datum, betrag: s.istForderung ? null : s.betrag,
-        differenz, saldo, bemerkung: s.verwendungszweck ?? "", sonderbuchung: true,
-      });
-      if (s.istForderung) summe.sollGesamt += s.betrag;
-      else summe.betrag += s.betrag;
-      summe.differenz += differenz;
-    }
   }
   summe.saldo = saldo;
 
