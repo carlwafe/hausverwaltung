@@ -167,3 +167,27 @@ export function berechneIst(
     .filter((z) => (!buchhaltungAb || z.datum >= buchhaltungAb) && (!buchhaltungBis || z.datum <= buchhaltungBis))
     .reduce((sum, z) => sum + z.betrag, 0);
 }
+
+/**
+ * Ist nach Mietperiode statt nach Buchungsdatum: eine Zahlung zählt für den Monat, für den sie
+ * gedacht ist (periodeJahr/periodeMonat; fehlt die Periode, gilt der Monat des Buchungsdatums).
+ * Das ist das Gegenstück zum Soll, das ebenfalls monatsweise rechnet — eine Miete für Januar, die
+ * schon am 30.12. überwiesen wird, gehört zum Januar. Der Zeitraum [buchhaltungAb, buchhaltungBis]
+ * wird als Monatsbereich verstanden (angebrochene Monate zählen voll, wie im Soll).
+ */
+export function berechneIstNachPeriode(
+  zahlungen: { datum: Date; betrag: number; periodeMonat?: number | null; periodeJahr?: number | null }[],
+  buchhaltungAb: Date | null = null,
+  buchhaltungBis: Date | null = null,
+): number {
+  const monatsIndex = (d: Date) => d.getFullYear() * 12 + (d.getMonth() + 1);
+  const von = buchhaltungAb ? monatsIndex(buchhaltungAb) : -Infinity;
+  const bis = buchhaltungBis ? monatsIndex(buchhaltungBis) : Infinity;
+  return zahlungen
+    .filter((z) => {
+      const periode =
+        z.periodeJahr && z.periodeMonat ? z.periodeJahr * 12 + z.periodeMonat : monatsIndex(z.datum);
+      return periode >= von && periode <= bis;
+    })
+    .reduce((sum, z) => sum + z.betrag, 0);
+}

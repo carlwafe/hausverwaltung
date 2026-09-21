@@ -7,7 +7,7 @@ import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { berechneSoll, berechneIst, sollAufschluesselung, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { baueMieterkontoJahr } from "@/lib/mieterkonto";
 import { MieterkontoAnsicht } from "./mieterkonto-ansicht";
@@ -84,8 +84,13 @@ export default async function MietvertragDetailPage({
   // erfasst ist (z.B. wenn eine Miete erst im Folgemonat gebucht wurde).
   const bis = objekt?.buchhaltungBis ?? new Date();
   const soll = berechneSoll(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
-  const ist = berechneIst(
-    vertrag.buchungen.map((z) => ({ datum: z.datum!, betrag: Number(z.betrag) })),
+  const ist = berechneIstNachPeriode(
+    vertrag.buchungen.map((z) => ({
+      datum: z.datum!,
+      betrag: Number(z.betrag),
+      periodeMonat: z.periodeMonat,
+      periodeJahr: z.periodeJahr,
+    })),
     objekt?.buchhaltungAb ?? null,
     bis,
   );

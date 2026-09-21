@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { berechneSoll, berechneIst } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode } from "@/lib/soll-ist";
 import { DateInput } from "@/components/date-input";
 import { toDateInputValue } from "@/lib/date-utils";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
@@ -26,13 +26,13 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
 
   const zahlungenRaw = await prisma.buchung.findMany({
     where: { mietvertragId: { in: vertraege.map((v) => v.id) }, buchungsart: { code: "MIETZAHLUNG" } },
-    select: { mietvertragId: true, datum: true, betrag: true },
+    select: { mietvertragId: true, datum: true, betrag: true, periodeMonat: true, periodeJahr: true },
   });
-  const zahlungenNachVertrag = new Map<string, { datum: Date; betrag: number }[]>();
+  const zahlungenNachVertrag = new Map<string, { datum: Date; betrag: number; periodeMonat: number | null; periodeJahr: number | null }[]>();
   for (const z of zahlungenRaw) {
     if (!z.mietvertragId || !z.datum) continue;
     const liste = zahlungenNachVertrag.get(z.mietvertragId) ?? [];
-    liste.push({ datum: z.datum, betrag: Number(z.betrag) });
+    liste.push({ datum: z.datum, betrag: Number(z.betrag), periodeMonat: z.periodeMonat, periodeJahr: z.periodeJahr });
     zahlungenNachVertrag.set(z.mietvertragId, liste);
   }
 
@@ -56,7 +56,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         bis,
         buchhaltungAb,
       );
-      const ist = berechneIst(zahlungenNachVertrag.get(v.id) ?? [], buchhaltungAb, bis);
+      const ist = berechneIstNachPeriode(zahlungenNachVertrag.get(v.id) ?? [], buchhaltungAb, bis);
       const saldovortrag = Number(v.saldovortrag);
       const sonderforderung = sonderforderungen.get(v.id)?.offen ?? 0;
       // Offene Sonderforderungen (z.B. Rücklastschriftgebühren) mindern den Saldo wie ein Rückstand.

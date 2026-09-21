@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { berechneSoll, berechneIst, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
           saldovortrag: true,
           buchungen: {
             where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
-            select: { datum: true, betrag: true },
+            select: { datum: true, betrag: true, periodeMonat: true, periodeJahr: true },
           },
           mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
         },
@@ -83,8 +83,13 @@ export default async function DashboardPage() {
       new Date(),
       buchhaltungAb,
     );
-    const ist = berechneIst(
-      v.buchungen.map((z) => ({ datum: z.datum!, betrag: Number(z.betrag) })),
+    const ist = berechneIstNachPeriode(
+      v.buchungen.map((z) => ({
+        datum: z.datum!,
+        betrag: Number(z.betrag),
+        periodeMonat: z.periodeMonat,
+        periodeJahr: z.periodeJahr,
+      })),
       buchhaltungAb,
     );
     const saldo = ist - soll + Number(v.saldovortrag) - (sonderforderungen.get(v.id)?.offen ?? 0);
