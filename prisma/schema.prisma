@@ -567,6 +567,21 @@ model KontenabgleichVerifikation {
   @@map("kontenabgleich_verifikationen")
 }
 
+// Vom echten Kontoauszug abgelesener Kontostand an einem beliebigen Tag — Kontrollpunkt für den
+// simulierten Kontostand-Verlauf (siehe kontostand/page.tsx): weicht der simulierte Stand an diesem
+// Tag ab, fehlt eine Buchung oder eine ist falsch erfasst. Anders als der Anker (Objekt) rechnet der
+// Verlauf nicht von hier aus, es sind reine Prüfwerte.
+model KontostandKontrolle {
+  id             String   @id @default(cuid())
+  datum          DateTime @unique
+  betrag         Decimal  @db.Decimal(10, 2)
+  notiz          String?
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  @@map("kontostand_kontrollen")
+}
+
 // Eine Abrechnung pro Jahr fürs ganze Objekt (nicht pro Gebäude) — Kosten liegen inzwischen auf
 // drei Ebenen (Objekt gesamt, Haus, einzelnes Gebäude), eine Abrechnung pro Gebäude müsste die
 // anteilig wieder zusammenrechnen. Die Berechnung selbst ordnet jeder Einheit intern korrekt zu,
