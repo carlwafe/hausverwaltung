@@ -337,14 +337,20 @@ export function BuchungenTabelle({
     return r.errors.length === 0 && pflichtfeldErfuellt(gruppe, r);
   }
 
-  const auswaehlbareRows = gefilterteRows.filter(kannAuswaehlen);
-  const alleAusgewaehlt = auswaehlbareRows.length > 0 && auswaehlbareRows.every((r) => r.ausgewaehlt);
+  // Der Alle-auswählen-Haken betrifft nur Zeilen, die sich tatsächlich auswählen lassen: bereits
+  // importierte Zeilen werden unten bei jedem Render wieder abgewählt (sie würden beim Import ohnehin
+  // übersprungen) und dürfen deshalb weder den Haken-Zustand bestimmen noch hier umgeschaltet werden —
+  // sonst bliebe der Haken für immer leer und ein Klick hätte keine sichtbare Wirkung.
+  const auswaehlbareRows = gefilterteRows.filter(
+    (r) => kannAuswaehlen(r) && !istBereitsImportiert(ermittleBuchungsartGruppe(r.buchungsartCode), r, bestehendeSets),
+  );
+  const anzahlAusgewaehlt = auswaehlbareRows.filter((r) => r.ausgewaehlt).length;
+  const alleAusgewaehlt = auswaehlbareRows.length > 0 && anzahlAusgewaehlt === auswaehlbareRows.length;
+  const teilweiseAusgewaehlt = anzahlAusgewaehlt > 0 && !alleAusgewaehlt;
 
   function toggleAll(checked: boolean) {
-    const sichtbareRowNumbers = new Set(gefilterteRows.map((r) => r.rowNumber));
-    setEditRows((rs) =>
-      rs.map((r) => (sichtbareRowNumbers.has(r.rowNumber) && kannAuswaehlen(r) ? { ...r, ausgewaehlt: checked } : r)),
-    );
+    const betroffen = new Set(auswaehlbareRows.map((r) => r.rowNumber));
+    setEditRows((rs) => rs.map((r) => (betroffen.has(r.rowNumber) ? { ...r, ausgewaehlt: checked } : r)));
   }
 
   const importierbareRows = editRows.filter((r) => r.ausgewaehlt && kannAuswaehlen(r));
@@ -443,7 +449,12 @@ export function BuchungenTabelle({
                 <input
                   type="checkbox"
                   checked={alleAusgewaehlt}
+                  ref={(el) => {
+                    if (el) el.indeterminate = teilweiseAusgewaehlt;
+                  }}
+                  disabled={auswaehlbareRows.length === 0}
                   onChange={(e) => toggleAll(e.target.checked)}
+                  title="Alle sichtbaren, noch nicht importierten Zeilen aus-/abwählen"
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
