@@ -347,7 +347,6 @@ model Mietvertrag {
   vorverteilteKostenanteile         VorverteilterKostenanteil[]
   jahresberichtVerifikationen       JahresberichtVerifikation[]
   mieterhoehungen                   Mieterhoehung[]
-  mieterhoehungVorschlaegeVerworfen MieterhoehungVorschlagVerworfen[]
 
   @@map("mietvertraege")
 }
@@ -370,22 +369,6 @@ model Mieterhoehung {
 
   @@unique([mietvertragId, gueltigAb])
   @@map("mieterhoehungen")
-}
-
-// Nutzer hat einen automatisch aus der Zahlungshistorie erkannten Mieterhöhungs-Vorschlag
-// (src/lib/mieterhoehung-erkennung.ts) explizit abgelehnt — reine Existenz der Zeile = verworfen
-// (kein Boolean-Feld nötig), analog zu JahresberichtVerifikation. Anders als ein einfacher Reload
-// soll das dauerhaft gelten, bis der Nutzer es über denselben Toggle wieder rückgängig macht.
-model MieterhoehungVorschlagVerworfen {
-  id            String      @id @default(cuid())
-  mietvertrag   Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
-  mietvertragId String
-  abJahr        Int
-  abMonat       Int
-  erstelltAm    DateTime    @default(now())
-
-  @@unique([mietvertragId, abJahr, abMonat])
-  @@map("mieterhoehung_vorschlaege_verworfen")
 }
 
 model Kaution {
