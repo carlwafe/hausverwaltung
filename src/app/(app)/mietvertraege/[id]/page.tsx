@@ -1,17 +1,16 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MietvertragForm } from "../mietvertrag-form";
 import { toDateInputValue } from "@/lib/date-utils";
 import { updateMietvertrag, deleteMietvertrag, erfasseMieterhoehung, loescheMieterhoehung, erfasseSonderforderung, storniereSonderforderungBuchung } from "../actions";
-import { deleteZahlung } from "../../zahlungen/actions";
 import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { berechneSoll, berechneIst, sollAufschluesselung, ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { baueMieterkonto, type MieterkontoArt } from "@/lib/mieterkonto";
+import { baueMieterkontoJahr } from "@/lib/mieterkonto";
+import { MieterkontoAnsicht } from "./mieterkonto-ansicht";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -20,21 +19,6 @@ function formatEuro(value: number) {
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
 }
-
-const MONATE_KURZ = [
-  "Jan",
-  "Feb",
-  "Mär",
-  "Apr",
-  "Mai",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Okt",
-  "Nov",
-  "Dez",
-];
 
 export default async function MietvertragDetailPage({
   params,
@@ -112,25 +96,46 @@ export default async function MietvertragDetailPage({
     .reduce((sum, b) => sum + (b.buchungsart.code === "MAHNGEBUEHR" ? Number(b.betrag) : -Number(b.betrag)), 0);
   const saldo = ist - soll + saldovortrag - sonderOffenImSaldo;
   const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
-  const sollZeilen = [...sollZeilenAufsteigend].reverse();
-  const mieterkonto = baueMieterkonto({
-    saldovortrag,
-    sollZeilen: sollZeilenAufsteigend,
-    zahlungen: vertrag.buchungen
-      .filter((z) => z.datum)
-      .map((z) => ({ id: z.id, datum: z.datum!, betrag: Number(z.betrag), verwendungszweck: z.verwendungszweck })),
-    sonderBuchungen: sonderBuchungen
-      .filter((b) => b.datum)
-      .map((b) => ({
-        id: b.id,
-        datum: b.datum!,
-        betrag: Number(b.betrag),
-        verwendungszweck: b.verwendungszweck,
-        istForderung: b.buchungsart.code === "MAHNGEBUEHR",
-      })),
-    ab,
-    bis,
-  }).reverse();
+  // Jahre für das Mieterkonto: ab dem ersten Jahr mit Zahlungen (oder dem Stichtag/Soll-Beginn) bis
+  // zum "erfasst bis"-Jahr. Vor dem Buchhaltungs-Stichtag gibt es kein vom System geführtes Soll —
+  // dort wird es zur Darstellung ab Mietbeginn nachgerechnet (Übertrag beginnt bei 0).
+  const stichtagAb = objekt?.buchhaltungAb ?? null;
+  const zahlungenListe = vertrag.buchungen
+    .filter((z) => z.datum)
+    .map((z) => ({ id: z.id, datum: z.datum!, betrag: Number(z.betrag), verwendungszweck: z.verwendungszweck }));
+  const sonderListe = sonderBuchungen
+    .filter((b) => b.datum)
+    .map((b) => ({
+      id: b.id,
+      datum: b.datum!,
+      betrag: Number(b.betrag),
+      verwendungszweck: b.verwendungszweck,
+      istForderung: b.buchungsart.code === "MAHNGEBUEHR",
+    }));
+  const letztesJahr = bis.getFullYear();
+  const erstesJahr = Math.min(
+    letztesJahr,
+    ...zahlungenListe.map((z) => z.datum.getFullYear()),
+    ...sonderListe.map((b) => b.datum.getFullYear()),
+    stichtagAb ? stichtagAb.getFullYear() : letztesJahr,
+  );
+  const sollVollAb = sollAufschluesselung(vertragFuerSollIst, bis, null);
+  const konten: Record<number, ReturnType<typeof baueMieterkontoJahr>> = {};
+  const kontoJahre: number[] = [];
+  for (let j = letztesJahr; j >= erstesJahr; j--) {
+    kontoJahre.push(j);
+    const vorStichtag = stichtagAb !== null && j < stichtagAb.getFullYear();
+    konten[j] = baueMieterkontoJahr({
+      jahr: j,
+      saldovortrag: vorStichtag ? 0 : saldovortrag,
+      sollZeilen: vorStichtag ? sollVollAb.filter((s) => s.jahr >= erstesJahr) : sollZeilenAufsteigend,
+      zahlungen: zahlungenListe,
+      sonderBuchungen: sonderListe,
+      ab: vorStichtag ? null : stichtagAb,
+      bis,
+    });
+  }
+  const mieterNamenKonto = vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
 
   return (
     <div>
@@ -210,160 +215,17 @@ export default async function MietvertragDetailPage({
         </div>
       </div>
 
-      <div className="mb-6">
-        <h2 className="mb-1 text-lg font-medium text-white">Mieterkonto</h2>
-        <p className="mb-3 text-xs text-neutral-500">
-          Alle Bewegungen chronologisch (neueste oben) mit laufendem Saldo — rot = Rückstand, grün = Guthaben. Der
-          oberste Saldo entspricht dem Saldo oben.
-        </p>
-        <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-              <tr>
-                <th className="px-4 py-2">Datum</th>
-                <th className="px-4 py-2">Vorgang</th>
-                <th className="px-4 py-2 text-right">Soll / Forderung</th>
-                <th className="px-4 py-2 text-right">Zahlung</th>
-                <th className="px-4 py-2 text-right">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mieterkonto.map((z, i) => {
-                const istForderung = z.art === "soll" || z.art === "gebuehr";
-                const art: Record<MieterkontoArt, string> = {
-                  vortrag: "text-neutral-400",
-                  soll: "text-white",
-                  gebuehr: "text-amber-400",
-                  zahlung: "text-white",
-                  gebuehrzahlung: "text-white",
-                };
-                return (
-                  <tr key={i} className="border-t border-neutral-800">
-                    <td className="px-4 py-2 text-white">{z.datum ? formatDate(z.datum) : "–"}</td>
-                    <td className={`max-w-[360px] truncate px-4 py-2 ${art[z.art]}`} title={z.text}>
-                      {z.href ? (
-                        <Link href={z.href} className="hover:underline">
-                          {z.text}
-                        </Link>
-                      ) : (
-                        z.text
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-right text-white">{istForderung ? formatEuro(-z.betrag) : ""}</td>
-                    <td className="px-4 py-2 text-right text-white">
-                      {z.art === "zahlung" || z.art === "gebuehrzahlung" ? formatEuro(z.betrag) : ""}
-                    </td>
-                    <td
-                      className={`px-4 py-2 text-right font-medium ${z.saldo < -0.005 ? "text-red-400" : z.saldo > 0.005 ? "text-green-400" : "text-white"}`}
-                    >
-                      {formatEuro(z.saldo)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <h2 className="mb-4 text-lg font-medium text-white">
-            Soll-Aufschlüsselung ({sollZeilen.length})
-          </h2>
-          <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-800">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-                <tr>
-                  <th className="px-4 py-2">Periode</th>
-                  <th className="px-4 py-2">Fällig am</th>
-                  <th className="px-4 py-2">Betrag</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sollZeilen.map((z) => (
-                  <tr key={`${z.jahr}-${z.monat}`} className="border-t border-neutral-800">
-                    <td className="px-4 py-2 text-white">
-                      {MONATE_KURZ[z.monat - 1]} {z.jahr}
-                    </td>
-                    <td className="px-4 py-2 text-white">{formatDate(z.faelligAm)}</td>
-                    <td className="px-4 py-2 text-white">{formatEuro(z.betrag)}</td>
-                  </tr>
-                ))}
-                {sollZeilen.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-neutral-500">
-                      Kein Soll im erfassten Zeitraum.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-medium text-white">
-              Zahlungen ({vertrag.buchungen.length})
-            </h2>
-            <Link
-              href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
-              className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-            >
-              + Zahlung erfassen
-            </Link>
-          </div>
-          <div className="max-h-[520px] overflow-auto rounded-lg border border-neutral-800">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-                <tr>
-                  <th className="px-4 py-2">Datum</th>
-                  <th className="px-4 py-2">Periode</th>
-                  <th className="px-4 py-2">Betrag</th>
-                  <th className="px-4 py-2">Verwendungszweck</th>
-                  <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {vertrag.buchungen.map((z) => (
-                  <tr key={z.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                    <td className="px-4 py-2 text-white">
-                      <Link href={`/zahlungen/${z.id}`} className="hover:underline">
-                        {formatDate(z.datum!)}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2 text-white">
-                      {MONATE_KURZ[z.periodeMonat! - 1]} {z.periodeJahr}
-                    </td>
-                    <td className="px-4 py-2 text-white">{formatEuro(Number(z.betrag))}</td>
-                    <td
-                      className="max-w-[160px] truncate px-4 py-2 text-white"
-                      title={z.verwendungszweck ?? ""}
-                    >
-                      {z.verwendungszweck || "–"}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <DeleteButton
-                        action={deleteZahlung.bind(null, z.id)}
-                        confirmText="Zahlung wirklich löschen?"
-                        label="Löschen"
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {vertrag.buchungen.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
-                      Noch keine Zahlungen erfasst.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <MieterkontoAnsicht
+        mietvertragId={vertrag.id}
+        mieterNamen={mieterNamenKonto}
+        einheit={vertrag.einheit.bezeichnung}
+        jahre={kontoJahre}
+        konten={konten}
+        standardJahr={letztesJahr}
+        stichtagAb={
+          stichtagAb ? { jahr: stichtagAb.getFullYear(), datum: formatDate(stichtagAb) } : null
+        }
+      />
 
       <div className="mt-6 grid grid-cols-2 gap-6">
         <div>
