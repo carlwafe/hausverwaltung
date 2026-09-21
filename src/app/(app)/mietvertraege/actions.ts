@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor, requireUser } from "@/lib/session";
+import { requireEditor } from "@/lib/session";
 import { storniereBuchung } from "@/lib/buchung-storno";
 
 const optionalPositiveNumber = z
@@ -185,7 +185,6 @@ export async function deleteMietvertrag(id: string) {
 function revalidateNachMieterhoehung(mietvertragId: string) {
   revalidatePath(`/mietvertraege/${mietvertragId}`);
   revalidatePath("/mietvertraege");
-  revalidatePath("/mietvertraege/vorschlaege");
   revalidatePath("/offene-posten");
   revalidatePath("/");
   revalidatePath("/jahresuebersicht");
@@ -230,37 +229,6 @@ export async function loescheMieterhoehung(id: string) {
   await requireEditor();
   const mieterhoehung = await prisma.mieterhoehung.delete({ where: { id } });
   revalidateNachMieterhoehung(mieterhoehung.mietvertragId);
-}
-
-/**
- * Markiert/entmarkiert, dass der Nutzer einen automatisch aus der Zahlungshistorie erkannten
- * Mieterhöhungs-Vorschlag (src/lib/mieterhoehung-erkennung.ts) explizit abgelehnt hat — reine
- * Existenz der Zeile, siehe Schema-Kommentar auf MieterhoehungVorschlagVerworfen. Analog zu
- * toggleJahresberichtVerifiziert (src/app/(app)/jahresuebersicht/actions.ts).
- */
-export async function toggleMieterhoehungVorschlagVerworfen(mietvertragId: string, abJahr: number, abMonat: number) {
-  await requireEditor();
-
-  const bestehend = await prisma.mieterhoehungVorschlagVerworfen.findUnique({
-    where: { mietvertragId_abJahr_abMonat: { mietvertragId, abJahr, abMonat } },
-  });
-
-  if (bestehend) {
-    await prisma.mieterhoehungVorschlagVerworfen.delete({ where: { id: bestehend.id } });
-  } else {
-    await prisma.mieterhoehungVorschlagVerworfen.create({ data: { mietvertragId, abJahr, abMonat } });
-  }
-
-  revalidatePath("/mietvertraege/vorschlaege");
-}
-
-// Die Vorschlagsseite berechnet bei jedem Aufruf ohnehin frisch aus der aktuellen Zahlungshistorie
-// (siehe mieterhoehung-erkennung.ts) — dieser Button erzwingt nur den Router-Refresh, falls die
-// Seite z.B. nach einem frischen Kontoauszug-Import schon länger offen war. Kein Editor-Recht
-// nötig, da nichts verändert wird.
-export async function neuBerechnenVorschlaege() {
-  await requireUser();
-  revalidatePath("/mietvertraege/vorschlaege");
 }
 
 const sonderforderungSchema = z.object({
