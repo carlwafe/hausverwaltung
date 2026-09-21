@@ -539,9 +539,17 @@ export default async function JahresuebersichtPage({
             <thead>
               <tr className="border-b border-neutral-800 text-left text-xs text-neutral-400">
                 <th className="px-4 py-2">Mietvertrag</th>
+                <th className="px-4 py-2 text-right" title="Monatliche Kaltmiete, wie sie im letzten Berichtsmonat gilt">
+                  Kaltmiete mtl.
+                </th>
+                <th className="px-4 py-2 text-right" title="Monatliche NK-Vorauszahlung (bei Garagen die Mehrwertsteuer), letzter Berichtsmonat">
+                  NK mtl.
+                </th>
+                <th className="px-4 py-2 text-right">Miete warm mtl.</th>
                 <th className="px-4 py-2 text-right">Saldo alt</th>
                 <th className="px-4 py-2 text-right">Soll Kaltmiete</th>
                 <th className="px-4 py-2 text-right">Soll Nebenkosten</th>
+                <th className="px-4 py-2 text-right">Soll gesamt</th>
                 <th className="px-4 py-2 text-right">Miete</th>
                 <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen (Vorjahr)</th>
                 <th className="px-4 py-2 text-right">Saldo neu</th>
@@ -558,11 +566,15 @@ export default async function JahresuebersichtPage({
                       {z.einheitBezeichnung} – {z.mieterNamen}
                     </Link>
                   </td>
+                  <td className="px-4 py-2 text-right text-neutral-400">{formatEuro(z.kaltmieteMtl)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-400">{formatEuro(z.nebenkostenMtl)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-400">{formatEuro(z.warmMtl)}</td>
                   <td className={`px-4 py-2 text-right ${z.saldoAlt < 0 ? "text-red-400" : "text-neutral-300"}`}>
                     {formatEuro(z.saldoAlt)}
                   </td>
                   <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.sollKaltmiete)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.sollNebenkosten)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(z.soll)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.miete)}</td>
                   <td className="px-4 py-2 text-right text-neutral-300">
                     {z.nebenkostenabrechnungOffen ? formatEuro(z.nebenkostenabrechnungOffen) : "–"}
@@ -583,7 +595,7 @@ export default async function JahresuebersichtPage({
               ))}
               {mieterZeilen.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-4 text-center text-neutral-500">
+                  <td colSpan={12} className="px-4 py-4 text-center text-neutral-500">
                     Keine Mietverträge mit Bewegung in {jahr}.
                   </td>
                 </tr>
@@ -594,6 +606,15 @@ export default async function JahresuebersichtPage({
                 <tr className="border-t border-neutral-800 font-medium">
                   <td className="px-4 py-2 text-white">Summe</td>
                   <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.kaltmieteMtl, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.nebenkostenMtl, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.warmMtl, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoAlt, 0))}
                   </td>
                   <td className="px-4 py-2 text-right text-white">
@@ -601,6 +622,9 @@ export default async function JahresuebersichtPage({
                   </td>
                   <td className="px-4 py-2 text-right text-white">
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.sollNebenkosten, 0))}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">
+                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.soll, 0))}
                   </td>
                   <td className="px-4 py-2 text-right text-white">
                     {formatEuro(mieterZeilen.reduce((s, z) => s + z.miete, 0))}

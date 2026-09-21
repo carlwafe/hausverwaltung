@@ -1,4 +1,4 @@
-import { berechneSoll, berechneSollKaltmiete, type MietvertragFuerSollIst } from "./soll-ist";
+import { berechneSoll, berechneSollKaltmiete, ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "./soll-ist";
 
 export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   id: string;
@@ -28,6 +28,12 @@ export type MieterJahresberichtZeile = {
   mieterNamen: string;
   saldoAlt: number;
   soll: number;
+  // Monatliche Sollwerte, wie sie im letzten Berichtsmonat gelten (nach Mieterhöhungen; bei einem
+  // im Jahr beendeten Vertrag im Monat des Mietendes). nebenkostenMtl enthält wie sollNebenkosten
+  // ggf. die Mehrwertsteuer bei Garagen.
+  kaltmieteMtl: number;
+  nebenkostenMtl: number;
+  warmMtl: number;
   sollKaltmiete: number;
   // Nebenkosten-Anteil von soll (inkl. ggf. Mehrwertsteuer bei Garagen) — soll - sollKaltmiete,
   // damit die Summe beider Spalten immer exakt soll ergibt.
@@ -135,6 +141,10 @@ export function berechneMieterJahresbericht(
     const sollKaltmiete =
       berechneSollKaltmiete(v, saldoNeuBis, buchhaltungAb) - berechneSollKaltmiete(v, saldoAltBis, buchhaltungAb);
     const sollNebenkosten = soll - sollKaltmiete;
+    const letzterMonat = v.ende && v.ende < saldoNeuBis ? v.ende : saldoNeuBis;
+    const mtl = ermittleMieteFuerMonat(v, letzterMonat.getFullYear(), letzterMonat.getMonth() + 1);
+    const kaltmieteMtl = mtl.kaltmiete;
+    const nebenkostenMtl = mtl.nebenkostenVorauszahlung + (v.mehrwertsteuer ?? 0);
     const miete = v.zahlungen
       .filter((z) => z.periodeJahr === jahr && z.periodeJahr * 12 + z.periodeMonat <= saldoNeuBisPeriode)
       .reduce((sum, z) => sum + z.betrag, 0);
@@ -159,6 +169,9 @@ export function berechneMieterJahresbericht(
       mieterNamen: v.mieterNamen,
       saldoAlt,
       soll,
+      kaltmieteMtl,
+      nebenkostenMtl,
+      warmMtl: kaltmieteMtl + nebenkostenMtl,
       sollKaltmiete,
       sollNebenkosten,
       miete,
