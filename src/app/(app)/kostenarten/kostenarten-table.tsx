@@ -10,6 +10,7 @@ const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   EINHEITEN: "Anzahl Einheiten",
   VERBRAUCH_MANUELL: "Verbrauch (manuell)",
   VORVERTEILT: "Extern vorverteilt",
+  IN_ABRECHNUNG_ENTHALTEN: "In Techem-Abrechnung enthalten",
 };
 
 export type KostenartRow = {

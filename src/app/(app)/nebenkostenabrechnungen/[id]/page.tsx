@@ -219,6 +219,17 @@ export default async function NebenkostenabrechnungDetailPage({
         <Kostenuebersicht jahr={abrechnung.jahr} auswahl={uebersichtAuswahl} daten={uebersichtDaten} />
       )}
 
+      {nichtBeruecksichtigt.some((n) => n.grund === "in_abrechnung_enthalten") && (
+        <p className="mb-6 text-xs text-neutral-500">
+          Bereits in der Techem-Abrechnung (Heizkosten pro Mieter) enthalten und deshalb nicht gesondert abgerechnet:{" "}
+          {nichtBeruecksichtigt
+            .filter((n) => n.grund === "in_abrechnung_enthalten")
+            .map((n) => `${n.kostenartName} (${formatEuro(n.summe)})`)
+            .join(", ")}
+          .
+        </p>
+      )}
+
       {nichtBeruecksichtigt.some((n) => n.grund === "kein_verteilerschluessel") && (
         <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">
           <p className="mb-2 text-sm font-medium text-amber-400">

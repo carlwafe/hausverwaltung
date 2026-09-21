@@ -10,7 +10,8 @@ export type VerteilerschluesselTyp =
   | "PERSONENZAHL"
   | "EINHEITEN"
   | "VERBRAUCH_MANUELL"
-  | "VORVERTEILT";
+  | "VORVERTEILT"
+  | "IN_ABRECHNUNG_ENTHALTEN";
 
 export type KostenpositionFuerAbrechnung = {
   betrag: number;
@@ -113,7 +114,11 @@ export type AbrechnungPositionErgebnis = {
   details: KostenanteilDetailEintrag[];
 };
 
-export type AusschlussGrund = "kein_verteilerschluessel" | "unvollstaendige_verbrauchswerte" | "vorverteilt";
+export type AusschlussGrund =
+  | "kein_verteilerschluessel"
+  | "unvollstaendige_verbrauchswerte"
+  | "vorverteilt"
+  | "in_abrechnung_enthalten";
 
 export type NichtBeruecksichtigteKostenart = {
   kostenartName: string;
@@ -167,6 +172,9 @@ function vermerkeAusschluss(
  * Ermittelt, welche Kostenpositionen nicht in die Berechnung einfließen, mit Grund:
  * - "vorverteilt": Verteilerschlüssel VORVERTEILT — wird bewusst nie selbst berechnet (z.B.
  *   Techem-Heizkosten, deren Pro-Mieter-Aufteilung separat importiert wird).
+ * - "in_abrechnung_enthalten": IN_ABRECHNUNG_ENTHALTEN — Kosten stecken schon in den extern
+ *   vorverteilten Beträgen (Techem enthält Heizung, Wasser, Gas und Strom), keine eigene Berechnung
+ *   und keine eigene Eingabe.
  * - "unvollstaendige_verbrauchswerte": VERBRAUCH_MANUELL, aber für mindestens eine Einheit im
  *   betroffenen Kostenpool fehlt ein erfasster Wert für dieses Jahr — die ganze Kostenart wird
  *   dann komplett ausgeschlossen statt die fehlende Einheit stillschweigend zu übergehen (das
@@ -262,6 +270,10 @@ function berechneEinheitAnteile(
   for (const g of gruppen.values()) {
     if (g.verteilerschluessel === "VORVERTEILT") {
       vermerkeAusschluss(nichtBeruecksichtigt, g, "vorverteilt");
+      continue;
+    }
+    if (g.verteilerschluessel === "IN_ABRECHNUNG_ENTHALTEN") {
+      vermerkeAusschluss(nichtBeruecksichtigt, g, "in_abrechnung_enthalten");
       continue;
     }
     if (

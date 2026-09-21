@@ -10,6 +10,7 @@ const VERTEILERSCHLUESSEL = [
   "WOHNFLAECHE",
   "EINHEITEN",
   "VORVERTEILT",
+  "IN_ABRECHNUNG_ENTHALTEN",
 ] as const;
 
 const kostenartSchema = z

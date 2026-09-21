@@ -36,6 +36,10 @@ enum Verteilerschluessel {
   // pro Wohnung liefert) — wird von der Nebenkostenabrechnung-Engine bewusst nie selbst
   // berechnet, die tatsächliche Pro-Mieter-Aufteilung kommt aus einer separaten Quelle.
   VORVERTEILT
+  // Die Kosten dieser Kostenart (z.B. Gas, Allgemeinstrom, Wasser/Abwasser) stecken bereits in den
+  // pro Mieter erfassten Beträgen einer anderen, extern vorverteilten Abrechnung (Techem) — sie
+  // werden weder selbst berechnet noch bekommt die Kostenart eine eigene Eingabetabelle.
+  IN_ABRECHNUNG_ENTHALTEN
 }
 
 enum KautionAnlageform {

@@ -6,7 +6,8 @@ import { runFormAction } from "@/lib/form-utils";
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
   EINHEITEN: "Anzahl Einheiten",
-  VORVERTEILT: "Extern vorverteilt (z.B. Techem)",
+  VORVERTEILT: "Extern vorverteilt (z.B. Techem) — Beträge pro Mieter erfassen",
+  IN_ABRECHNUNG_ENTHALTEN: "Bereits in der Techem-Abrechnung enthalten (keine eigene Eingabe)",
 };
 
 export const BETRKV_NUMMER_LABEL: Record<number, string> = {
