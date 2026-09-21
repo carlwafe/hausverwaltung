@@ -342,7 +342,8 @@ export async function ordneNichtZugeordneteBuchungZu(
         einheitId,
         jahr,
         datum: buchung.datum,
-        betrag: buchung.betrag,
+        // Geparkte Buchungen tragen das Bankvorzeichen, Kostenpositionen das Kostenvorzeichen.
+        betrag: -Number(buchung.betrag),
         empfaenger: buchung.empfaenger,
         verwendungszweck: buchung.verwendungszweck,
         rohdaten: buchung.rohdaten ?? undefined,
