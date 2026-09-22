@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
-import { storniereBuchung } from "@/lib/buchung-storno";
 import { optionalesDatum, pflichtDatum } from "@/lib/zod-datum";
 
 const optionalPositiveNumber = z
@@ -226,35 +225,7 @@ export async function loescheMieterhoehung(id: string) {
   revalidateNachMieterhoehung(mieterhoehung.mietvertragId);
 }
 
-const sonderforderungSchema = z.object({
-  datum: pflichtDatum(),
-  betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
-  verwendungszweck: z.string().min(1, "Bezeichnung ist erforderlich"),
-});
-
-// Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — Forderung auf dem
-// Mietkonto ohne Geldfluss (Buchungsart MAHNGEBUEHR), siehe src/lib/sonderforderungen.ts.
-export async function erfasseSonderforderung(mietvertragId: string, formData: FormData) {
-  await requireEditor();
-  const parsed = sonderforderungSchema.safeParse({
-    datum: formData.get("datum"),
-    betrag: formData.get("betrag"),
-    verwendungszweck: formData.get("verwendungszweck"),
-  });
-  if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
-
-  const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "MAHNGEBUEHR" } });
-  await prisma.buchung.create({
-    data: { mietvertragId, buchungsartId: art.id, ...parsed.data },
-  });
-  revalidatePath(`/mietvertraege/${mietvertragId}`);
-  revalidatePath("/offene-posten");
-}
-
-export async function storniereSonderforderungBuchung(mietvertragId: string, buchungId: string) {
-  await requireEditor();
-  await prisma.$transaction((tx) => storniereBuchung(tx, buchungId));
-  revalidatePath(`/mietvertraege/${mietvertragId}`);
-  revalidatePath("/offene-posten");
-  revalidatePath("/kontostand");
-}
+// Sonderforderungen (Gebühren, Buchungsart MAHNGEBUEHR) werden seit kurzem unter /zahlungen
+// erfasst (siehe createZahlung in zahlungen/actions.ts, Zahlungsart "Gebühr") statt hier separat —
+// die frühere erfasseSonderforderung/storniereSonderforderungBuchung sind entfallen, Stornieren
+// läuft jetzt über deleteZahlung auf der Zahlungs-Detailseite.

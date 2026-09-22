@@ -36,22 +36,53 @@ export function ZahlungForm({
   defaultMietvertragId,
   initial,
   action,
+  zeigeZahlungsartAuswahl,
 }: {
   mietvertraege: Option[];
   defaultMietvertragId?: string;
   initial?: Zahlung;
   action: (formData: FormData) => Promise<void>;
+  // Nur auf /zahlungen/neu: lässt zwischen "Miete" und "Gebühr" wählen (siehe createZahlung) —
+  // beim Bearbeiten einer bestehenden Zahlung ist die Art unveränderlich (Storno-Prinzip), eine
+  // Gebühr hat dort ohnehin eine eigene, einfachere Ansicht statt dieses Formulars.
+  zeigeZahlungsartAuswahl?: boolean;
 }) {
   const [error, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),
     null,
   );
   const [mietvertragId, setMietvertragId] = useState(initial?.mietvertragId ?? defaultMietvertragId ?? "");
+  const [zahlungsart, setZahlungsart] = useState<"MIETZAHLUNG" | "MAHNGEBUEHR">("MIETZAHLUNG");
+  const istGebuehr = Boolean(zeigeZahlungsartAuswahl) && zahlungsart === "MAHNGEBUEHR";
 
   const heute = new Date();
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
+      {zeigeZahlungsartAuswahl && (
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="zahlungsart">
+            Art
+          </label>
+          <select
+            id="zahlungsart"
+            name="zahlungsart"
+            value={zahlungsart}
+            onChange={(e) => setZahlungsart(e.target.value as "MIETZAHLUNG" | "MAHNGEBUEHR")}
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          >
+            <option value="MIETZAHLUNG">Miete</option>
+            <option value="MAHNGEBUEHR">Gebühr (nicht EUR-relevant)</option>
+          </select>
+          {istGebuehr && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — eine reine
+              Forderung auf dem Mietkonto ohne Geldfluss, zählt nicht zu den Mieteinnahmen.
+            </p>
+          )}
+        </div>
+      )}
+
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="mietvertragId">
           Mietvertrag
@@ -70,7 +101,7 @@ export function ZahlungForm({
         <DateInput
           id="datum"
           name="datum"
-          label="Zahlungsdatum"
+          label={istGebuehr ? "Datum" : "Zahlungsdatum"}
           defaultValue={initial?.datum ?? heute.toISOString().slice(0, 10)}
         />
         <div>
@@ -82,6 +113,7 @@ export function ZahlungForm({
             name="betrag"
             type="number"
             step="0.01"
+            min={istGebuehr ? "0.01" : undefined}
             required
             defaultValue={initial?.betrag}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
@@ -89,48 +121,51 @@ export function ZahlungForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="periodeMonat">
-            Für Monat
-          </label>
-          <select
-            id="periodeMonat"
-            name="periodeMonat"
-            defaultValue={initial?.periodeMonat ?? heute.getMonth() + 1}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          >
-            {MONATE.map((name, i) => (
-              <option key={name} value={i + 1}>
-                {name}
-              </option>
-            ))}
-          </select>
+      {!istGebuehr && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="periodeMonat">
+              Für Monat
+            </label>
+            <select
+              id="periodeMonat"
+              name="periodeMonat"
+              defaultValue={initial?.periodeMonat ?? heute.getMonth() + 1}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            >
+              {MONATE.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="periodeJahr">
+              Jahr
+            </label>
+            <input
+              id="periodeJahr"
+              name="periodeJahr"
+              type="number"
+              required
+              defaultValue={initial?.periodeJahr ?? heute.getFullYear()}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="periodeJahr">
-            Jahr
-          </label>
-          <input
-            id="periodeJahr"
-            name="periodeJahr"
-            type="number"
-            required
-            defaultValue={initial?.periodeJahr ?? heute.getFullYear()}
-            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
-      </div>
+      )}
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="verwendungszweck">
-          Verwendungszweck (optional)
+          {istGebuehr ? "Bezeichnung" : "Verwendungszweck (optional)"}
         </label>
         <input
           id="verwendungszweck"
           name="verwendungszweck"
+          required={istGebuehr}
           defaultValue={initial?.verwendungszweck ?? ""}
-          placeholder="z.B. Miete März 2026"
+          placeholder={istGebuehr ? "z.B. Rücklastschriftgebühr 09/2026" : "z.B. Miete März 2026"}
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
       </div>
@@ -142,7 +177,7 @@ export function ZahlungForm({
         disabled={pending}
         className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
       >
-        {pending ? "Speichern…" : initial ? "Speichern" : "Zahlung erfassen"}
+        {pending ? "Speichern…" : initial ? "Speichern" : istGebuehr ? "Gebühr erfassen" : "Zahlung erfassen"}
       </button>
     </form>
   );

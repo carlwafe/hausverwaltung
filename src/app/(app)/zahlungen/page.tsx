@@ -5,7 +5,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
   const zahlungen = await prisma.buchung.findMany({
-    where: { buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG"] } }, ...AKTIVE_BUCHUNG_FILTER },
+    where: { buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG", "MAHNGEBUEHR"] } }, ...AKTIVE_BUCHUNG_FILTER },
     // Bei gleichem Datum (z.B. zwei durch Aufteilung entstandene Zahlungen, siehe
     // aufteilungGruppeId) sonst unbestimmte Reihenfolge — zusätzlich nach Periode absteigend
     // sortiert, damit z.B. "Nov 2025, Okt 2025" statt eines zufällig wirkenden "Okt 2025,
@@ -14,12 +14,12 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true, buchungsart: { select: { code: true } } },
   });
 
-  // mietvertragId/datum sind bei MIETZAHLUNG und SONDERZAHLUNG immer gesetzt, die Periode nur bei
-  // MIETZAHLUNG (siehe pflichtfeldErfuellt in commitBuchungen) — auf DB-Ebene bleiben sie
-  // nullable, weil dasselbe Buchung-Modell auch andere Buchungsarten trägt.
+  // mietvertragId/datum sind bei allen drei Arten immer gesetzt, die Periode nur bei MIETZAHLUNG
+  // (siehe pflichtfeldErfuellt in commitBuchungen) — auf DB-Ebene bleiben sie nullable, weil
+  // dasselbe Buchung-Modell auch andere Buchungsarten trägt.
   return zahlungen.map((z) => ({
     id: z.id,
-    art: z.buchungsart.code === "SONDERZAHLUNG" ? ("SONDERZAHLUNG" as const) : ("MIETZAHLUNG" as const),
+    art: z.buchungsart.code as "MIETZAHLUNG" | "SONDERZAHLUNG" | "MAHNGEBUEHR",
     mietvertragId: z.mietvertragId!,
     datum: z.datum!.toISOString(),
     einheitBezeichnung: z.mietvertrag!.einheit.bezeichnung,
@@ -37,6 +37,12 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
 
 export default async function ZahlungenPage() {
   const zahlungen = await ladeZahlungen();
+  const anzahlGebuehrenZahlungen = zahlungen.filter((z) => z.art === "SONDERZAHLUNG").length;
+  const anzahlGebuehrenForderungen = zahlungen.filter((z) => z.art === "MAHNGEBUEHR").length;
+  const zusatz = [
+    anzahlGebuehrenZahlungen > 0 ? `${anzahlGebuehrenZahlungen} Gebühren-Zahlungen` : null,
+    anzahlGebuehrenForderungen > 0 ? `${anzahlGebuehrenForderungen} Gebühren-Forderungen` : null,
+  ].filter(Boolean);
 
   return (
     <div>
@@ -45,8 +51,7 @@ export default async function ZahlungenPage() {
           <h1 className="text-2xl font-semibold text-white">Zahlungen</h1>
           <p className="text-sm text-neutral-400">
             {zahlungen.length} Zahlungen erfasst
-            {zahlungen.some((z) => z.art === "SONDERZAHLUNG") &&
-              ` (davon ${zahlungen.filter((z) => z.art === "SONDERZAHLUNG").length} Gebühren-Zahlungen)`}
+            {zusatz.length > 0 && ` (davon ${zusatz.join(", ")})`}
           </p>
         </div>
         <div className="flex gap-2">

@@ -26,6 +26,7 @@ export default async function NeueZahlungPage({
         }))}
         defaultMietvertragId={mietvertragId}
         action={createZahlung}
+        zeigeZahlungsartAuswahl
       />
     </div>
   );

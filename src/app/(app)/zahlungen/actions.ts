@@ -8,8 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { storniereBuchung } from "@/lib/buchung-storno";
 
-async function ladeMietzahlungBuchungsartId(): Promise<string> {
-  const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "MIETZAHLUNG" } });
+async function ladeBuchungsartId(code: string): Promise<string> {
+  const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code } });
   return art.id;
 }
 
@@ -28,8 +28,38 @@ const zahlungSchema = z.object({
   verwendungszweck: z.string().optional(),
 });
 
+// Eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) ist keine Miete: kein Geldfluss, keine
+// Mietperiode, dafür eine Pflicht-Bezeichnung (siehe frühere sonderforderungSchema in
+// mietvertraege/actions.ts, hierher übernommen — die Erfassung passiert jetzt einheitlich unter
+// /zahlungen statt nur auf der Mietvertragsseite).
+const gebuehrSchema = z.object({
+  mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
+  datum: pflichtDatum("Datum ist erforderlich"),
+  betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+  verwendungszweck: z.string().min(1, "Bezeichnung ist erforderlich"),
+});
+
 export async function createZahlung(formData: FormData) {
   await requireEditor();
+
+  if (formData.get("zahlungsart") === "MAHNGEBUEHR") {
+    const parsed = gebuehrSchema.safeParse({
+      mietvertragId: formData.get("mietvertragId"),
+      datum: formData.get("datum"),
+      betrag: formData.get("betrag"),
+      verwendungszweck: formData.get("verwendungszweck"),
+    });
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    }
+    const { mietvertragId, ...rest } = parsed.data;
+    const buchungsartId = await ladeBuchungsartId("MAHNGEBUEHR");
+    await prisma.buchung.create({ data: { ...rest, buchungsartId, mietvertragId } });
+    revalidatePath("/zahlungen");
+    revalidatePath("/offene-posten");
+    revalidatePath(`/mietvertraege/${mietvertragId}`);
+    redirect(`/mietvertraege/${mietvertragId}`);
+  }
 
   const parsed = zahlungSchema.safeParse({
     mietvertragId: formData.get("mietvertragId"),
@@ -45,7 +75,7 @@ export async function createZahlung(formData: FormData) {
   }
 
   const { mietvertragId, ...rest } = parsed.data;
-  const buchungsartId = await ladeMietzahlungBuchungsartId();
+  const buchungsartId = await ladeBuchungsartId("MIETZAHLUNG");
 
   await prisma.buchung.create({
     data: { ...rest, buchungsartId, mietvertragId },

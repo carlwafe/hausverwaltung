@@ -38,12 +38,12 @@ const MONATE_KURZ = [
 
 export type ZahlungRow = {
   id: string;
-  art: "MIETZAHLUNG" | "SONDERZAHLUNG";
+  art: "MIETZAHLUNG" | "SONDERZAHLUNG" | "MAHNGEBUEHR";
   mietvertragId: string;
   datum: string;
   einheitBezeichnung: string;
   mieterNamen: string;
-  // Nur bei Mietzahlungen gesetzt (Gebühren-Zahlungen gehören zu keiner Mietperiode).
+  // Nur bei Mietzahlungen gesetzt (Gebühren gehören zu keiner Mietperiode).
   periodeMonat: number | null;
   periodeJahr: number | null;
   betrag: number;
@@ -104,18 +104,31 @@ const columns: Column<ZahlungRow>[] = [
     key: "art",
     label: "Art",
     sortValue: (z) => z.art,
-    searchValue: (z) => (z.art === "SONDERZAHLUNG" ? "Gebühr Sonderzahlung" : "Miete"),
-    render: (z) =>
-      z.art === "SONDERZAHLUNG" ? (
-        <span
-          title="Zahlung des Mieters auf Gebühren (Sonderforderung), keine Miete"
-          className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
-        >
-          Gebühr
-        </span>
-      ) : (
-        <span className="text-xs text-neutral-500">Miete</span>
-      ),
+    searchValue: (z) =>
+      z.art === "SONDERZAHLUNG" ? "Gebühr Sonderzahlung" : z.art === "MAHNGEBUEHR" ? "Gebühr Forderung nicht eur-relevant" : "Miete",
+    render: (z) => {
+      if (z.art === "SONDERZAHLUNG") {
+        return (
+          <span
+            title="Zahlung des Mieters auf Gebühren (Sonderforderung), keine Miete"
+            className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
+          >
+            Gebühr
+          </span>
+        );
+      }
+      if (z.art === "MAHNGEBUEHR") {
+        return (
+          <span
+            title="Gebühr, dem Mieter berechnet — reine Forderung ohne Geldfluss, nicht EUR-relevant"
+            className="rounded-full bg-neutral-700/50 px-2 py-0.5 text-xs text-neutral-300"
+          >
+            Forderung
+          </span>
+        );
+      }
+      return <span className="text-xs text-neutral-500">Miete</span>;
+    },
   },
   {
     key: "betrag",
@@ -153,7 +166,7 @@ const csvSpalten: CsvSpalte<ZahlungRow>[] = [
   { label: "Datum", wert: (z) => formatDatumFuerCsv(z.datum) },
   { label: "Einheit", wert: (z) => z.einheitBezeichnung },
   { label: "Mieter", wert: (z) => z.mieterNamen },
-  { label: "Art", wert: (z) => (z.art === "SONDERZAHLUNG" ? "Gebühr" : "Miete") },
+  { label: "Art", wert: (z) => (z.art === "SONDERZAHLUNG" ? "Gebühr (Zahlung)" : z.art === "MAHNGEBUEHR" ? "Gebühr (Forderung)" : "Miete") },
   {
     label: "Für Periode",
     wert: (z) => (z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : ""),

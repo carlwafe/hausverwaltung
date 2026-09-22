@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { EckdatenSektion } from "../eckdaten-sektion";
 import { toDateInputValue } from "@/lib/date-utils";
-import { updateMietvertrag, deleteMietvertrag, erfasseMieterhoehung, loescheMieterhoehung, erfasseSonderforderung, storniereSonderforderungBuchung } from "../actions";
+import { updateMietvertrag, deleteMietvertrag, erfasseMieterhoehung, loescheMieterhoehung } from "../actions";
 import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegeSektion } from "@/components/belege-sektion";
@@ -54,10 +55,6 @@ export default async function MietvertragDetailPage({
     select: { id: true, datum: true, betrag: true, verwendungszweck: true, buchungsart: { select: { code: true } } },
     orderBy: { datum: "desc" },
   });
-  const sonderOffen = sonderBuchungen.reduce(
-    (sum, b) => sum + (b.buchungsart.code === "MAHNGEBUEHR" ? Number(b.betrag) : -Number(b.betrag)),
-    0,
-  );
   const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
 
   const mieterhoehungen = vertrag.mieterhoehungen.map((m) => ({
@@ -366,75 +363,22 @@ export default async function MietvertragDetailPage({
         }
       />
 
-      <div className="mt-6">
-        <h2 className="mb-1 text-lg font-medium text-white">Sonderforderungen (Gebühren)</h2>
-        <p className="mb-3 text-xs text-neutral-500">
-          Z.B. Rücklastschrift- oder Mahngebühren — im Mietsaldo enthalten. Offen:{" "}
-          <span className={sonderOffen > 0.005 ? "text-amber-400" : "text-green-400"}>
-            {formatEuro(Math.round(sonderOffen * 100) / 100)}
+      {/* Sonderforderungen (Rücklastschrift-/Mahngebühren) werden seit kurzem unter /zahlungen
+          erfasst (Zahlungsart "Gebühr") statt hier separat — sie stehen bereits als amber
+          hervorgehobene Sonderbuchung im Mieterkonto oben, hier nur noch ein kurzer Verweis. */}
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-800 p-4">
+        <p className="text-xs text-neutral-500">
+          Sonderforderungen (Gebühren) stehen als Sonderbuchung im Mieterkonto oben. Offen:{" "}
+          <span className={sonderOffenImSaldo > 0.005 ? "text-amber-400" : "text-green-400"}>
+            {formatEuro(Math.round(sonderOffenImSaldo * 100) / 100)}
           </span>
         </p>
-        <div className="overflow-auto rounded-lg border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-              <tr>
-                <th className="px-4 py-2">Datum</th>
-                <th className="px-4 py-2">Art</th>
-                <th className="px-4 py-2">Betrag</th>
-                <th className="px-4 py-2">Bezeichnung</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {sonderBuchungen.map((b) => (
-                <tr key={b.id} className="border-t border-neutral-800">
-                  <td className="px-4 py-2 text-white">{b.datum ? formatDate(b.datum) : "–"}</td>
-                  <td className="px-4 py-2 text-white">
-                    {b.buchungsart.code === "MAHNGEBUEHR" ? "Forderung" : "Zahlung"}
-                  </td>
-                  <td className="px-4 py-2 text-white">{formatEuro(Number(b.betrag))}</td>
-                  <td className="max-w-[260px] truncate px-4 py-2 text-white" title={b.verwendungszweck ?? ""}>
-                    {b.verwendungszweck || "–"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <DeleteButton
-                      action={storniereSonderforderungBuchung.bind(null, vertrag.id, b.id)}
-                      confirmText="Buchung wirklich stornieren?"
-                      label="Stornieren"
-                    />
-                  </td>
-                </tr>
-              ))}
-              {sonderBuchungen.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-neutral-500">
-                    Keine Sonderforderungen.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <form
-          action={erfasseSonderforderung.bind(null, vertrag.id)}
-          className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-4"
+        <Link
+          href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
+          className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-900"
         >
-          <div>
-            <label className="block text-xs text-neutral-400">Datum</label>
-            <input type="date" name="datum" required className="mt-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white" />
-          </div>
-          <div>
-            <label className="block text-xs text-neutral-400">Betrag</label>
-            <input type="number" step="0.01" min="0.01" name="betrag" required className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white" />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs text-neutral-400">Bezeichnung</label>
-            <input type="text" name="verwendungszweck" required placeholder="z.B. Rücklastschriftgebühr 09/2026" className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white" />
-          </div>
-          <button type="submit" className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900">
-            + Gebühr berechnen
-          </button>
-        </form>
+          + Gebühr erfassen
+        </Link>
       </div>
 
       <div className="mt-6">

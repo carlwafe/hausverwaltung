@@ -17,7 +17,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const [zahlung, vertraege, kostenarten] = await Promise.all([
     prisma.buchung.findUnique({
-      where: { id, buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG"] } } },
+      where: { id, buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG", "MAHNGEBUEHR"] } } },
       include: { mietvertrag: { include: { einheit: true, mieter: true } }, buchungsart: { select: { code: true } } },
     }),
     prisma.mietvertrag.findMany({
@@ -28,6 +28,45 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
   ]);
   if (!zahlung || !zahlung.mietvertrag || !zahlung.datum) notFound();
   vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
+
+  // Gebühren-Forderung (MAHNGEBUEHR): kein Geldfluss, keine Umbuchung möglich (nur zahlungswirksame
+  // Buchungsarten lassen sich umbuchen, siehe aendereBuchungsart) — nur ansehen oder stornieren.
+  if (zahlung.buchungsart.code === "MAHNGEBUEHR") {
+    const mieterNamen = zahlung.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
+    return (
+      <div>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">
+            Gebühren-Forderung — {zahlung.mietvertrag.einheit.bezeichnung} ({mieterNamen})
+          </h1>
+          <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Gebühren-Forderung wirklich stornieren?" />
+        </div>
+        <BuchungsartInfo code="MAHNGEBUEHR" />
+        <div className="max-w-xl space-y-2 rounded-lg border border-neutral-800 p-4 text-sm">
+          <p className="flex justify-between">
+            <span className="text-neutral-400">Datum</span>
+            <span className="text-white">{new Intl.DateTimeFormat("de-DE").format(zahlung.datum)}</span>
+          </p>
+          <p className="flex justify-between">
+            <span className="text-neutral-400">Betrag</span>
+            <span className="text-white">{formatEuro(Number(zahlung.betrag))}</span>
+          </p>
+          <p className="flex justify-between gap-6">
+            <span className="text-neutral-400">Bezeichnung</span>
+            <span className="text-right text-white">{zahlung.verwendungszweck || "–"}</span>
+          </p>
+          <p className="pt-2 text-xs text-neutral-500">
+            Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — eine reine
+            Forderung auf dem{" "}
+            <Link href={`/mietvertraege/${zahlung.mietvertragId}`} className="underline hover:text-white">
+              Mietkonto
+            </Link>{" "}
+            ohne Geldfluss, ausgeglichen erst durch eine Gebühren-Zahlung.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Gebühren-Zahlung (Sonderforderung): keine Mietperiode, keine Aufteilung — nur ansehen,
   // umbuchen oder löschen.

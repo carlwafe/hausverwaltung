@@ -181,7 +181,7 @@ export function baueMieterkontoJahr(input: {
           monat: monatLabel(),
           sollKaltmiete: null, sollNebenkosten: null, sollGesamt: s.istForderung ? s.betrag : null,
           buchungsart: s.istForderung ? "Gebühr an Mieter" : "Gebühren-Zahlung", datum: s.datum, betrag: s.istForderung ? null : s.betrag,
-          differenz, saldo, bemerkung: s.verwendungszweck ?? "", sonderbuchung: true,
+          differenz, saldo, bemerkung: s.verwendungszweck ?? "", href: `/zahlungen/${s.id}`, sonderbuchung: true,
         });
         if (s.istForderung) summe.sollGesamt += s.betrag;
         else summe.betrag += s.betrag;
