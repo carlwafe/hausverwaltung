@@ -19,16 +19,12 @@ const farbeSaldo = (v: number) => (v < -0.005 ? "text-red-400" : v > 0.005 ? "te
  */
 export function MieterkontoAnsicht({
   mietvertragId,
-  mieterNamen,
-  einheit,
   jahre,
   konten,
   standardJahr,
   stichtagAb,
 }: {
   mietvertragId: string;
-  mieterNamen: string;
-  einheit: string;
   // Absteigend sortiert (neuestes Jahr zuerst).
   jahre: number[];
   konten: Record<number, MieterkontoJahr>;
@@ -39,20 +35,6 @@ export function MieterkontoAnsicht({
   const [jahr, setJahr] = useState(jahre.includes(standardJahr) ? standardJahr : jahre[0]);
   const konto = konten[jahr];
   const vorStichtag = stichtagAb !== null && jahr < stichtagAb.jahr;
-
-  const kopf: [string, React.ReactNode][] = [
-    ["Mieter", mieterNamen],
-    ["Einheit", einheit],
-    ["Soll Kaltmiete (mtl.)", formatEuro(konto.sollKaltmieteMonatlich)],
-    ["Soll NK-Vorauszahlung (mtl.)", formatEuro(konto.sollNebenkostenMonatlich)],
-    ["Soll gesamt (mtl.)", formatEuro(konto.sollKaltmieteMonatlich + konto.sollNebenkostenMonatlich)],
-    [
-      "Saldo-Übertrag Vorjahr",
-      <span key="u" className={farbeSaldo(konto.uebertragVorjahr)}>
-        {formatEuro(konto.uebertragVorjahr)}
-      </span>,
-    ],
-  ];
 
   return (
     <div className="mb-8">
@@ -71,6 +53,13 @@ export function MieterkontoAnsicht({
               </option>
             ))}
           </select>
+          {/* Mieter/Einheit/aktuelle Sollwerte stehen bereits in den Vertrags-Eckdaten oben auf der
+              Seite und pro Monat in jeder Tabellenzeile — hier bleibt nur, was sonst nirgends steht:
+              der Startwert der kumulierten Saldo-Spalte. */}
+          <span className="text-sm text-neutral-400">
+            Saldo-Übertrag {jahr - 1}:{" "}
+            <span className={farbeSaldo(konto.uebertragVorjahr)}>{formatEuro(konto.uebertragVorjahr)}</span>
+          </span>
         </div>
         <Link
           href={`/zahlungen/neu?mietvertragId=${mietvertragId}`}
@@ -79,17 +68,6 @@ export function MieterkontoAnsicht({
           + Zahlung erfassen
         </Link>
       </div>
-
-      <table className="mb-5 text-sm">
-        <tbody>
-          {kopf.map(([label, wert]) => (
-            <tr key={label}>
-              <td className="whitespace-nowrap py-1 pr-10 font-medium text-white">{label}:</td>
-              <td className="py-1 text-neutral-200">{wert}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
 
       {vorStichtag && (
         <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">

@@ -164,7 +164,6 @@ export default async function MietvertragDetailPage({
       nebenkostenabrechnungOffen: nkOffenFuerJahr(j),
     });
   }
-  const mieterNamenKonto = vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
 
   const letzteErhoehungText =
     mieterhoehungen.length > 0
@@ -359,8 +358,6 @@ export default async function MietvertragDetailPage({
 
       <MieterkontoAnsicht
         mietvertragId={vertrag.id}
-        mieterNamen={mieterNamenKonto}
-        einheit={vertrag.einheit.bezeichnung}
         jahre={kontoJahre}
         konten={konten}
         standardJahr={letztesJahr}
