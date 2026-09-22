@@ -249,7 +249,7 @@ export default async function MietvertragDetailPage({
         </p>
         <Link
           href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
-          className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-900"
+          className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
         >
           + Gebühr erfassen
         </Link>
