@@ -190,6 +190,7 @@ export default async function NebenkostenabrechnungDetailPage({
       leerstandRoh
         .filter((l) => l.einheit?.gebaeude.hausId === haus!.id)
         .map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
+      positionenFuerUebersicht,
     );
   }
   for (const g of [...gebaeudeInAbrechnung.values()].sort((a, b) =>
@@ -202,6 +203,7 @@ export default async function NebenkostenabrechnungDetailPage({
       leerstandRoh
         .filter((l) => l.einheit?.gebaeudeId === g.id)
         .map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
+      positionenFuerUebersicht,
     );
   }
 

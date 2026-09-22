@@ -13,6 +13,10 @@ export type UebersichtZeile = {
   verteilung: string;
   // "gesamt": Jahresgesamtbetrag der Kostenkreise; "anteil": Anteil des Ausschnitts (volles Jahr).
   basis: number;
+  // Nur bei "anteil": Jahresgesamtbetrag der zugehörigen Kostenkreise über das ganze Objekt — damit
+  // erkennbar bleibt, von welchem Gesamtbetrag der Anteil ein Teil ist (z.B. Haus 2-6 von Heizkosten
+  // Haus 2-12).
+  kreisGesamt: number | null;
   umgelegt: number;
 };
 
@@ -41,7 +45,26 @@ export function baueKostenUebersicht(
   // Beträge, die nicht auf Mieter umgelegt werden (z.B. Techem-Anteil einer leerstehenden Wohnung):
   // zählen zur Basis der Kostenart, aber nie zum umgelegten Betrag.
   leerstand: { kostenartName: string; betrag: number }[] = [],
+  // Alle Positionen der Abrechnung (nicht nur der aktuelle Ausschnitt) — für die Kreis-Gesamtbeträge
+  // bei einem Haus/Gebäude-Ausschnitt. Bei "gesamt" (Objekt gesamt) ungenutzt, da dort ohnehin schon
+  // jede Zeile den vollen Kreis-Betrag zeigt.
+  alle: { einheitId: string; details: KostenanteilDetailEintrag[] }[] = positionen,
 ): Uebersicht {
+  // Jahresgesamtbetrag je Kostenart+Kostenkreis über das ganze Objekt — nur für "anteil" gebraucht.
+  const kreisGesamtMap = new Map<string, number>();
+  if (modus === "anteil") {
+    for (const p of alle) {
+      for (const d of p.details) {
+        const key = `${d.kostenartName}|${d.scopeLabel}`;
+        const aktuell = kreisGesamtMap.get(key) ?? 0;
+        kreisGesamtMap.set(
+          key,
+          d.verteilerschluessel === "VORVERTEILT" ? aktuell + d.gesamtbetragPool : Math.max(aktuell, d.gesamtbetragPool),
+        );
+      }
+    }
+  }
+
   // Stufe 1: je Kostenart+Kostenkreis.
   type Kreis = {
     kostenartName: string;
@@ -49,6 +72,7 @@ export function baueKostenUebersicht(
     verteilerschluessel: string;
     basis: number;
     umgelegt: number;
+    kreisGesamt: number;
   };
   const kreise = new Map<string, Kreis>();
   // Bei "anteil" zählt der Jahresanteil einer Einheit nur einmal, auch wenn sie mehrere Positionen
@@ -65,6 +89,7 @@ export function baueKostenUebersicht(
         verteilerschluessel: d.verteilerschluessel,
         basis: 0,
         umgelegt: 0,
+        kreisGesamt: kreisGesamtMap.get(key) ?? 0,
       };
       if (modus === "gesamt") {
         // Der Kreis-Gesamtbetrag steht in jeder Position des Kreises gleich.
@@ -91,6 +116,10 @@ export function baueKostenUebersicht(
       verteilerschluessel: "VORVERTEILT",
       basis: 0,
       umgelegt: 0,
+      // Leerstand ist ein eigener Pseudo-Kreis ohne Entsprechung in kreisGesamtMap (die nur echte
+      // Kostenkreise aus den Positions-Details kennt) — bleibt bewusst 0, kein Gesamtbetrag zum
+      // Vergleich vorhanden.
+      kreisGesamt: 0,
     };
     k.basis += l.betrag;
     kreise.set(key, k);
@@ -99,12 +128,13 @@ export function baueKostenUebersicht(
   // Stufe 2: je Kostenart über alle Kostenkreise.
   const arten = new Map<
     string,
-    { basis: number; umgelegt: number; kreise: string[]; namen: Set<string>; schluessel: Set<string> }
+    { basis: number; umgelegt: number; kreisGesamt: number; kreise: string[]; namen: Set<string>; schluessel: Set<string> }
   >();
   for (const k of kreise.values()) {
     const name = grundName(k.kostenartName);
-    const a = arten.get(name) ?? { basis: 0, umgelegt: 0, kreise: [], namen: new Set(), schluessel: new Set() };
+    const a = arten.get(name) ?? { basis: 0, umgelegt: 0, kreisGesamt: 0, kreise: [], namen: new Set(), schluessel: new Set() };
     a.basis += k.basis;
+    a.kreisGesamt += k.kreisGesamt;
     a.umgelegt += k.umgelegt;
     a.namen.add(k.kostenartName);
     a.kreise.push(k.kostenartName === name ? k.scopeLabel : k.kostenartName);
@@ -124,6 +154,7 @@ export function baueKostenUebersicht(
       kreiseTitel: [...a.kreise].sort().join("\n"),
       verteilung: [...a.schluessel].join(", "),
       basis: a.basis,
+      kreisGesamt: modus === "anteil" ? a.kreisGesamt : null,
       umgelegt: a.umgelegt,
     }))
     .sort((a, b) => a.kostenartName.localeCompare(b.kostenartName, "de"));
