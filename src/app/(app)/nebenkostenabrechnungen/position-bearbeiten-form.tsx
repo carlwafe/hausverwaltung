@@ -45,72 +45,79 @@ export function PositionBearbeitenForm({
       <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
         Position bearbeiten
       </summary>
-      <form action={formAction} className="mt-2 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-neutral-400">Zeitraum von</label>
-          <input
-            type="date"
-            name="zeitraumVon"
-            required
-            defaultValue={initialZeitraumVon}
-            className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-neutral-400">Zeitraum bis</label>
-          <input
-            type="date"
-            name="zeitraumBis"
-            required
-            defaultValue={initialZeitraumBis}
-            className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-neutral-400">Kostenanteil</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            name="kostenanteil"
-            required
-            value={kostenanteil}
-            onChange={(e) => setKostenanteil(e.target.value)}
-            className="w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-neutral-400">Vorauszahlung</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            name="vorauszahlung"
-            required
-            value={vorauszahlung}
-            onChange={(e) => setVorauszahlung(e.target.value)}
-            className="w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <p className="mb-1 text-neutral-400">Saldo</p>
-          <p className={`px-2 py-1 font-medium ${saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {formatEuro(saldo)}
-          </p>
-        </div>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-white px-3 py-1 font-medium text-black hover:bg-neutral-200 disabled:opacity-40"
-        >
-          {pending ? "Speichere…" : "Speichern"}
-        </button>
+      {/* DeleteButton ist selbst ein <form> — als Kind eines anderen <form> wäre das verschachtelt
+          und damit ungültiges HTML (Hydration-Warnung). Das äußere <div> trägt deshalb das
+          Flex-Layout, das Speichern-<form> bekommt "contents" (nimmt sich selbst optisch raus,
+          seine Kinder bleiben normale Flex-Items), DeleteButton steht als echtes Geschwister
+          daneben — exakt dasselbe Layout wie vorher, nur ohne verschachteltes Formular. */}
+      <div className="mt-2 flex flex-wrap items-end gap-3">
+        <form action={formAction} className="contents">
+          <div>
+            <label className="mb-1 block text-neutral-400">Zeitraum von</label>
+            <input
+              type="date"
+              name="zeitraumVon"
+              required
+              defaultValue={initialZeitraumVon}
+              className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-neutral-400">Zeitraum bis</label>
+            <input
+              type="date"
+              name="zeitraumBis"
+              required
+              defaultValue={initialZeitraumBis}
+              className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-neutral-400">Kostenanteil</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              name="kostenanteil"
+              required
+              value={kostenanteil}
+              onChange={(e) => setKostenanteil(e.target.value)}
+              className="w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-neutral-400">Vorauszahlung</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              name="vorauszahlung"
+              required
+              value={vorauszahlung}
+              onChange={(e) => setVorauszahlung(e.target.value)}
+              className="w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-neutral-400">Saldo</p>
+            <p className={`px-2 py-1 font-medium ${saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {formatEuro(saldo)}
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-md bg-white px-3 py-1 font-medium text-black hover:bg-neutral-200 disabled:opacity-40"
+          >
+            {pending ? "Speichere…" : "Speichern"}
+          </button>
+          {fehler && <p className="w-full text-red-400">{fehler}</p>}
+        </form>
         <DeleteButton
           action={loeschePosition.bind(null, positionId)}
           confirmText="Position wirklich löschen?"
           label="Position löschen"
           size="sm"
         />
-        {fehler && <p className="w-full text-red-400">{fehler}</p>}
-      </form>
+      </div>
     </details>
   );
 }

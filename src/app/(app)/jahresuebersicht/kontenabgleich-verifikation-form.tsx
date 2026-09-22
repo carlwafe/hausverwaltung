@@ -39,29 +39,35 @@ export function KontenabgleichVerifikationForm({
         tatsächlichen, vom Kontoauszug abgelesenen Kontostand zeigt, ob dem Journal wirklich eine
         Buchung fehlt.
       </p>
-      <form action={formAction} className="flex flex-wrap items-end gap-3">
-        <input type="hidden" name="jahr" value={jahr} />
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">
-            Kontostand laut Kontoauszug am 31.12.{jahr}
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            name="kontostandLautBankauszug"
-            value={eingabe}
-            onChange={(e) => setEingabe(e.target.value)}
-            placeholder="z.B. 42000.00"
-            className="w-44 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={pending || eingabe.trim() === ""}
-          className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-40"
-        >
-          {pending ? "Speichere…" : "Speichern"}
-        </button>
+      {/* DeleteButton ist selbst ein <form> — als Kind eines anderen <form> verschachtelt und
+          damit ungültiges HTML (Hydration-Warnung). Das äußere <div> trägt das Flex-Layout, das
+          Speichern-<form> bekommt "contents" (Kinder bleiben normale Flex-Items), DeleteButton
+          steht als echtes Geschwister daneben — gleiches Layout, kein verschachteltes Formular. */}
+      <div className="flex flex-wrap items-end gap-3">
+        <form action={formAction} className="contents">
+          <input type="hidden" name="jahr" value={jahr} />
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400">
+              Kontostand laut Kontoauszug am 31.12.{jahr}
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              name="kontostandLautBankauszug"
+              value={eingabe}
+              onChange={(e) => setEingabe(e.target.value)}
+              placeholder="z.B. 42000.00"
+              className="w-44 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={pending || eingabe.trim() === ""}
+            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-40"
+          >
+            {pending ? "Speichere…" : "Speichern"}
+          </button>
+        </form>
         {gespeicherterWert !== null && (
           <DeleteButton
             action={loescheKontenabgleichVerifikation.bind(null, jahr)}
@@ -70,7 +76,7 @@ export function KontenabgleichVerifikationForm({
             size="sm"
           />
         )}
-      </form>
+      </div>
       {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}
       {differenz !== null && (
         <p
