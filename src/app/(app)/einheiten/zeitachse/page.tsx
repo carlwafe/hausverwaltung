@@ -5,7 +5,7 @@ import { ZeitachseChart, type EinheitZeile } from "./zeitachse-chart";
 async function ladeZeitachseDaten(): Promise<EinheitZeile[]> {
   const einheitenRaw = await prisma.einheit.findMany({
     include: {
-      gebaeude: true,
+      gebaeude: { include: { haus: { include: { gebaeude: true } } } },
       // Anders als auf /einheiten bewusst ALLE Mietverträge (nicht nur AKTIV) — auch beendete
       // und geplante Verträge sind für die Überlappungsprüfung und die historische Übersicht
       // relevant.

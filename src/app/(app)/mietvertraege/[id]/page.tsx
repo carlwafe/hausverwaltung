@@ -43,7 +43,7 @@ export default async function MietvertragDetailPage({
         abrechnungspositionen: { select: { saldo: true, abrechnung: { select: { jahr: true } } } },
       },
     }),
-    prisma.einheit.findMany({ include: { gebaeude: true } }),
+    prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
     prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
   ]);

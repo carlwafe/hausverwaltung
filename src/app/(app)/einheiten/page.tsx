@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
+import { gebaeudeGruppeAnzeige } from "@/lib/gebaeude-gruppen";
 import { EinheitenTable, type EinheitRow } from "./einheiten-table";
 
 async function ladeEinheiten(): Promise<EinheitRow[]> {
   const einheitenRaw = await prisma.einheit.findMany({
     include: {
-      gebaeude: true,
+      gebaeude: { include: { haus: { include: { gebaeude: true } } } },
       mietvertraege: {
         where: { status: "AKTIV" },
         include: { mieter: true },
@@ -14,25 +15,27 @@ async function ladeEinheiten(): Promise<EinheitRow[]> {
     },
   });
 
-  return sortEinheitenNachGebaeude(einheitenRaw).map((e) => ({
-    id: e.id,
-    gebaeudeId: e.gebaeude.id,
-    gebaeudeStrasse: e.gebaeude.strasse,
-    gebaeudeHausnummer: e.gebaeude.hausnummer,
-    bezeichnung: e.bezeichnung,
-    typ: e.typ,
-    etage: e.etage ?? "",
-    wohnflaecheQm: Number(e.wohnflaecheQm),
-    mietvertraege: e.mietvertraege.map((v) => ({
-      id: v.id,
-      mieter: v.mieter.map((m) => ({
-        id: m.id,
-        vorname: m.vorname,
-        nachname: m.nachname,
-        buergergeldEmpfaenger: m.buergergeldEmpfaenger,
+  return sortEinheitenNachGebaeude(einheitenRaw).map((e) => {
+    const gebaeudeGruppe = gebaeudeGruppeAnzeige(e.gebaeude);
+    return {
+      id: e.id,
+      gebaeudeLabel: gebaeudeGruppe.label,
+      gebaeudeHref: gebaeudeGruppe.href,
+      bezeichnung: e.bezeichnung,
+      typ: e.typ,
+      etage: e.etage ?? "",
+      wohnflaecheQm: Number(e.wohnflaecheQm),
+      mietvertraege: e.mietvertraege.map((v) => ({
+        id: v.id,
+        mieter: v.mieter.map((m) => ({
+          id: m.id,
+          vorname: m.vorname,
+          nachname: m.nachname,
+          buergergeldEmpfaenger: m.buergergeldEmpfaenger,
+        })),
       })),
-    })),
-  }));
+    };
+  });
 }
 
 export default async function EinheitenPage() {

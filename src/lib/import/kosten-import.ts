@@ -21,7 +21,7 @@ export type GebaeudeKandidat = {
   label: string;
   strasse: string;
   hausnummer: string;
-  haus: { id: string } | null;
+  haus: { id: string; reihenfolge: number | null } | null;
   kostengruppen: { id: string; bezeichnung: string }[];
 };
 export type EinheitKandidat = { id: string; gebaeudeId: string; bezeichnung: string };

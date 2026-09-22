@@ -223,6 +223,11 @@ model Haus {
   id        String   @id @default(cuid())
   objekt    Objekt   @relation(fields: [objektId], references: [id], onDelete: Cascade)
   objektId  String
+  // Feste Anzeige-Reihenfolge der Häuser, z.B. nach tatsächlicher Lage auf dem Grundstück statt
+  // alphabetisch/numerisch nach Hausnummer (die Häuser liegen nicht der Reihe nach durchnummeriert
+  // — siehe vergleicheHaus in src/lib/gebaeude-gruppen.ts). null = noch keine gesetzt, fällt beim
+  // Sortieren ans Ende (nach der niedrigsten eigenen Hausnummer).
+  reihenfolge Int?
   createdAt DateTime @default(now())
 
   gebaeude  Gebaeude[]

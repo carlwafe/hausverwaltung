@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { GebaeudeForm } from "../gebaeude-form";
 import { updateGebaeude, deleteGebaeude } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
-import { hausLabel } from "@/lib/gebaeude-gruppen";
+import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { KostenTable } from "../../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 
@@ -23,7 +23,7 @@ export default async function GebaeudeDetailPage({
     ladeKosten({ gebaeudeId: id, kostenart: { name: { in: REPARATUR_SANIERUNG_KOSTENART_NAMEN } } }),
   ]);
   if (!gebaeude) notFound();
-  const haeuser = haeuserRaw.map((h) => ({ id: h.id, label: hausLabel(h.gebaeude) }));
+  const haeuser = [...haeuserRaw].sort(vergleicheHaus).map((h) => ({ id: h.id, label: hausLabel(h.gebaeude) }));
 
   return (
     <div>

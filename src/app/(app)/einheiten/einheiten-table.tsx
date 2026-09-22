@@ -10,9 +10,10 @@ const typLabel: Record<string, string> = {
 
 export type EinheitRow = {
   id: string;
-  gebaeudeId: string;
-  gebaeudeStrasse: string;
-  gebaeudeHausnummer: string;
+  // Zeigt das ganze Haus (mehrere Hausnummern desselben Bauwerks), falls zugeordnet, sonst die
+  // einzelne Adresse — siehe gebaeudeGruppeAnzeige in src/lib/gebaeude-gruppen.ts.
+  gebaeudeLabel: string;
+  gebaeudeHref: string;
   bezeichnung: string;
   typ: "WOHNUNG" | "GARAGE";
   etage: string;
@@ -37,11 +38,11 @@ const columns: Column<EinheitRow>[] = [
   {
     key: "gebaeude",
     label: "Gebäude",
-    sortValue: (e) => `${e.gebaeudeStrasse} ${e.gebaeudeHausnummer.padStart(4, "0")}`,
-    searchValue: (e) => `${e.gebaeudeStrasse} ${e.gebaeudeHausnummer}`,
+    sortValue: (e) => e.gebaeudeLabel,
+    searchValue: (e) => e.gebaeudeLabel,
     render: (e) => (
-      <Link href={`/gebaeude/${e.gebaeudeId}`} className="hover:underline">
-        {e.gebaeudeStrasse} {e.gebaeudeHausnummer}
+      <Link href={e.gebaeudeHref} className="hover:underline">
+        {e.gebaeudeLabel}
       </Link>
     ),
   },

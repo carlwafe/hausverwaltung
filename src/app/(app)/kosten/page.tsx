@@ -18,7 +18,7 @@ export default async function KostenPage() {
     prisma.gebaeude.findMany({
       orderBy: [{ strasse: "asc" }, { hausnummer: "asc" }],
       include: {
-        haus: { select: { id: true } },
+        haus: { select: { id: true, reihenfolge: true } },
         kostengruppen: { select: { id: true, bezeichnung: true } },
       },
     }),

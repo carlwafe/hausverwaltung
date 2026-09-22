@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
-import { gebaeudeOderHausLabel, hausLabel } from "@/lib/gebaeude-gruppen";
+import { gebaeudeOderHausLabel, hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
@@ -182,7 +182,7 @@ export default async function NebenkostenabrechnungDetailPage({
   for (const p of abrechnung.positionen) gebaeudeInAbrechnung.set(p.einheit.gebaeude.id, p.einheit.gebaeude);
   const hausListe = new Map<string, (typeof abrechnung.positionen)[number]["einheit"]["gebaeude"]["haus"]>();
   for (const g of gebaeudeInAbrechnung.values()) if (g.haus && g.haus.gebaeude.length > 1) hausListe.set(g.haus.id, g.haus);
-  for (const haus of [...hausListe.values()].sort((a, b) => hausLabel(a!.gebaeude).localeCompare(hausLabel(b!.gebaeude), "de", { numeric: true }))) {
+  for (const haus of [...hausListe.values()].sort((a, b) => vergleicheHaus(a!, b!))) {
     const key = `haus:${haus!.id}`;
     uebersichtAuswahl.push({ value: key, label: hausLabel(haus!.gebaeude), gruppe: "haus" });
     uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.hausId === haus!.id),

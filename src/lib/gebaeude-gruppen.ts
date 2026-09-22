@@ -10,8 +10,15 @@ export type GebaeudeMitGruppen = {
   id: string;
   strasse: string;
   hausnummer: string;
-  haus: { id: string } | null;
+  haus: { id: string; reihenfolge: number | null } | null;
   kostengruppen: { id: string; bezeichnung: string }[];
+};
+
+// Für vergleicheHaus: alles, was ein Haus für die Sortierung braucht — Reihenfolge plus seine
+// Mitglieder-Adressen (für den Fallback ohne gesetzte Reihenfolge).
+export type HausMitReihenfolge = {
+  reihenfolge: number | null;
+  gebaeude: { hausnummer: string }[];
 };
 
 export type EinheitMitAdresse = {
@@ -52,6 +59,64 @@ export function hausLabel(mitglieder: { strasse: string; hausnummer: string }[])
   return `Haus ${sortiert.map((g) => g.hausnummer).join(", ")} (${sortiert[0].strasse})`;
 }
 
+/**
+ * Sortiert Häuser in ihrer tatsächlichen Reihenfolge (Haus.reihenfolge, z.B. nach Lage auf dem
+ * Grundstück) statt alphabetisch/numerisch nach Hausnummer — die Häuser sind nicht der Reihe nach
+ * durchnummeriert (z.B. liegt "Haus 5, 7, 9" nach "Haus 14, 16, 18"). Diese eine Funktion ist die
+ * einzige Stelle, die diese Reihenfolge kennt — jede Seite, die mehrere Häuser aufzählt, sortiert
+ * über sie statt über eine eigene, potenziell alphabetische Sortierung. Ein Haus ohne gesetzte
+ * Reihenfolge (z.B. neu angelegt) fällt ans Ende, untereinander sortiert nach der niedrigsten
+ * eigenen Hausnummer.
+ */
+export function vergleicheHaus(a: HausMitReihenfolge, b: HausMitReihenfolge): number {
+  if (a.reihenfolge !== null && b.reihenfolge !== null) return a.reihenfolge - b.reihenfolge;
+  if (a.reihenfolge !== null) return -1;
+  if (b.reihenfolge !== null) return 1;
+  const minA = Math.min(...a.gebaeude.map((g) => parseInt(g.hausnummer, 10) || 0));
+  const minB = Math.min(...b.gebaeude.map((g) => parseInt(g.hausnummer, 10) || 0));
+  return minA - minB;
+}
+
+/**
+ * Vergleicht zwei Adressen (Gebaeude) nach der Reihenfolge ihres jeweiligen Hauses (siehe
+ * vergleicheHaus) — für Listen, die Adressen/Einheiten mehrerer Häuser gemeinsam anzeigen (z.B.
+ * die Einheiten-Liste, deren Standard-Reihenfolge bisher rein numerisch nach Hausnummer lief und
+ * dadurch nicht der tatsächlichen Haus-Gruppierung folgte). Zwei Adressen desselben Hauses bleiben
+ * gleich (Rückgabe 0) — die Aufrufer sortieren dort selbst weiter nach Hausnummer. Eine Adresse
+ * ohne Haus-Zuordnung fällt hinter alle zugeordneten, sortiert unter sich nach Straße+Hausnummer.
+ */
+export function vergleicheGebaeudeNachHaus(
+  a: { strasse: string; hausnummer: string; haus: HausMitReihenfolge | null },
+  b: { strasse: string; hausnummer: string; haus: HausMitReihenfolge | null },
+): number {
+  if (a.haus && b.haus) return vergleicheHaus(a.haus, b.haus);
+  if (a.haus) return -1;
+  if (b.haus) return 1;
+  const strasseCompare = a.strasse.localeCompare(b.strasse, "de");
+  if (strasseCompare !== 0) return strasseCompare;
+  return Number(a.hausnummer) - Number(b.hausnummer);
+}
+
+/**
+ * Anzeige (Label + Link) für "welchem Gebäude gehört diese Adresse an" — gehört die Adresse zu
+ * einem Haus (mehrere Hausnummern desselben Bauwerks), zeigt es dessen Haus-Label mit Link auf die
+ * Haus-Seite; sonst (noch) keinem Haus zugeordnet, zeigt es die einzelne Adresse mit Link auf ihre
+ * eigene Gebäude-Seite. Eine Stelle für jede Tabelle/Liste, die pro Zeile "das Gebäude" anzeigen
+ * will (z.B. Einheiten-Liste) — verhindert, dass dort versehentlich nur die Hausnummer statt des
+ * ganzen Hauses steht.
+ */
+export function gebaeudeGruppeAnzeige(gebaeude: {
+  id: string;
+  strasse: string;
+  hausnummer: string;
+  haus: { id: string; gebaeude: { strasse: string; hausnummer: string }[] } | null;
+}): { label: string; href: string } {
+  if (gebaeude.haus) {
+    return { label: hausLabel(gebaeude.haus.gebaeude), href: `/haeuser/${gebaeude.haus.id}` };
+  }
+  return { label: `${gebaeude.strasse} ${gebaeude.hausnummer}`, href: `/gebaeude/${gebaeude.id}` };
+}
+
 export function gruppiereGebaeude(
   gebaeude: GebaeudeMitGruppen[],
   einheiten: EinheitMitAdresse[] = [],
@@ -69,11 +134,10 @@ export function gruppiereGebaeude(
     }
   }
 
-  const hausOptionen: GebaeudeAuswahlOption[] = [...hausGruppen.entries()].map(([hausId, liste]) => ({
-    value: hausWert(hausId),
-    label: hausLabel(liste),
-  }));
-  hausOptionen.sort((a, b) => a.label.localeCompare(b.label, "de"));
+  const hausOptionen: GebaeudeAuswahlOption[] = [...hausGruppen.entries()]
+    .map(([hausId, liste]) => ({ hausId, reihenfolge: liste[0].haus!.reihenfolge, gebaeude: liste }))
+    .sort(vergleicheHaus)
+    .map(({ hausId, gebaeude }) => ({ value: hausWert(hausId), label: hausLabel(gebaeude) }));
 
   const kostengruppeOptionen: GebaeudeAuswahlOption[] = [...kostengruppenNamen.entries()]
     .map(([id, bezeichnung]) => ({ value: kostengruppeWert(id), label: bezeichnung }))

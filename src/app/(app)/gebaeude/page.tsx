@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { hausLabel } from "@/lib/gebaeude-gruppen";
+import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { GebaeudeTable, type GebaeudeRow } from "./gebaeude-table";
 
 function ladeGebaeudeRows(gebaeudeRaw: Awaited<ReturnType<typeof ladeGebaeudeRaw>>): GebaeudeRow[] {
@@ -40,6 +40,9 @@ export default async function GebaeudePage() {
   // Hausnummer) flach untereinander zu listen macht das für den Nutzer unnötig unübersichtlich.
   // Diese Seite gruppiert deshalb primär nach Haus; die einzelne Adresse bleibt über die
   // Haus-Detailseite bzw. die ausklappbare Volltabelle unten weiter erreichbar.
+  const hausReihenfolgeById = new Map(
+    gebaeudeRaw.filter((g) => g.haus).map((g) => [g.haus!.id, g.haus!.reihenfolge]),
+  );
   const gruppen = new Map<string, GebaeudeRow[]>();
   const ohneHaus: GebaeudeRow[] = [];
   for (const g of gebaeude) {
@@ -54,11 +57,13 @@ export default async function GebaeudePage() {
   const hausGruppen = [...gruppen.entries()]
     .map(([hausId, mitglieder]) => ({
       hausId,
+      reihenfolge: hausReihenfolgeById.get(hausId) ?? null,
       label: hausLabel(mitglieder),
       einheitenGesamt: mitglieder.reduce((sum, g) => sum + g.einheitenCount, 0),
       mitglieder: mitglieder.sort((a, b) => Number(a.hausnummer) - Number(b.hausnummer)),
+      gebaeude: mitglieder,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label, "de"));
+    .sort(vergleicheHaus);
 
   const gesamtEinheiten = gebaeude.reduce((sum, g) => sum + g.einheitenCount, 0);
 

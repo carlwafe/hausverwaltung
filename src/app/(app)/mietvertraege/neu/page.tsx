@@ -5,7 +5,7 @@ import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 
 export default async function NeuerMietvertragPage() {
   const [einheitenRaw, mieter] = await Promise.all([
-    prisma.einheit.findMany({ include: { gebaeude: true } }),
+    prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
   ]);
   const einheiten = sortEinheitenNachGebaeude(einheitenRaw);
