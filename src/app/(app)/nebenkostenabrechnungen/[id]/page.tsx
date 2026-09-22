@@ -453,19 +453,19 @@ export default async function NebenkostenabrechnungDetailPage({
                   );
                 })()}
               </tr>
-              <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
-                <td colSpan={9} className="px-4 py-2">
-                  <details className="text-xs">
-                    <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
-                      Kostenanteil-Aufschlüsselung {details.length > 0 ? `(${details.length})` : ""}
-                    </summary>
-                    {details.length === 0 ? (
-                      <p className="mt-2 text-neutral-500">
-                        Keine Aufschlüsselung gespeichert — manuell erfasste Position oder vor
-                        Einführung dieser Übersicht berechnet. &quot;Neu berechnen&quot; klicken, um sie
-                        nachzutragen.
-                      </p>
-                    ) : (
+              {/* Aufschlüsselung und Bearbeiten-Formular schließen sich gegenseitig aus: details
+                  ist nur bei einer berechneten Position gefüllt (siehe berechneNebenkostenabrechnung),
+                  bei einer manuell erfassten (fuegePositionManuellHinzu) bleibt es leer — die eine
+                  ist also nur bei "normal" berechneten Abrechnungen sinnvoll (dort soll alles aus
+                  echten Buchungen kommen, nicht von Hand eingetragen werden), das Bearbeiten-
+                  Formular nur bei manuell erstellten Abrechnungen wie 2024. */}
+              {details.length > 0 ? (
+                <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
+                  <td colSpan={9} className="px-4 py-2">
+                    <details className="text-xs">
+                      <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
+                        Kostenanteil-Aufschlüsselung ({details.length})
+                      </summary>
                       <div className="mt-2 overflow-x-auto">
                         <table className="w-full max-w-4xl text-xs">
                           <thead className="text-left text-neutral-500">
@@ -502,19 +502,24 @@ export default async function NebenkostenabrechnungDetailPage({
                           </tfoot>
                         </table>
                       </div>
-                    )}
-                  </details>
-                  {p.mietvertragId && (
-                    <PositionBearbeitenForm
-                      positionId={p.id}
-                      initialZeitraumVon={toDateInputValue(p.zeitraumVon)}
-                      initialZeitraumBis={toDateInputValue(p.zeitraumBis)}
-                      initialKostenanteil={Number(p.kostenanteilGesamt)}
-                      initialVorauszahlung={Number(p.vorauszahlungGesamt)}
-                    />
-                  )}
-                </td>
-              </tr>
+                    </details>
+                  </td>
+                </tr>
+              ) : (
+                p.mietvertragId && (
+                  <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
+                    <td colSpan={9} className="px-4 py-2">
+                      <PositionBearbeitenForm
+                        positionId={p.id}
+                        initialZeitraumVon={toDateInputValue(p.zeitraumVon)}
+                        initialZeitraumBis={toDateInputValue(p.zeitraumBis)}
+                        initialKostenanteil={Number(p.kostenanteilGesamt)}
+                        initialVorauszahlung={Number(p.vorauszahlungGesamt)}
+                      />
+                    </td>
+                  </tr>
+                )
+              )}
               </Fragment>
               );
             })}
