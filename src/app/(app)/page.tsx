@@ -9,10 +9,13 @@ function formatEuro(value: number) {
 }
 
 export default async function DashboardPage() {
-  const [objekt, gebaeudeCount, einheitenCount, aktiveVertraege, abrechenbareVertraege, aktiveKautionen] =
+  const [objekt, gebaeudeGruppen, einheitenCount, aktiveVertraege, abrechenbareVertraege, aktiveKautionen] =
     await Promise.all([
       prisma.objekt.findFirst(),
-      prisma.gebaeude.count(),
+      // "Gebäude" meint hier das physische Bauwerk (mehrere Hausnummern desselben Hauses, z.B.
+      // "Breslauer Str. 2, 4, 6"), nicht die einzelne Adresse — siehe /gebaeude, das aus demselben
+      // Grund nach Haus gruppiert statt alle Adressen flach zu zählen.
+      prisma.gebaeude.groupBy({ by: ["hausId"], where: { hausId: { not: null } } }),
       prisma.einheit.count(),
       prisma.mietvertrag.findMany({
         where: { status: "AKTIV" },
@@ -97,7 +100,7 @@ export default async function DashboardPage() {
   }, 0);
 
   const kacheln = [
-    { label: "Gebäude", value: gebaeudeCount.toString() },
+    { label: "Gebäude", value: gebaeudeGruppen.length.toString() },
     { label: "Einheiten gesamt", value: einheitenCount.toString() },
     { label: "Vermietet", value: belegteEinheiten.toString() },
     { label: "Leerstand", value: leerstand.toString() },

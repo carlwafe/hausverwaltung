@@ -25,6 +25,13 @@ const columns: Column<GebaeudeRow>[] = [
     ),
   },
   {
+    key: "hausnummer",
+    label: "Hausnummer",
+    sortValue: (g) => (Number.isNaN(Number(g.hausnummer)) ? g.hausnummer : Number(g.hausnummer)),
+    searchValue: (g) => g.hausnummer,
+    render: (g) => g.hausnummer,
+  },
+  {
     key: "haus",
     label: "Haus",
     sortValue: (g) => g.haus ?? "",
@@ -37,13 +44,6 @@ const columns: Column<GebaeudeRow>[] = [
       ) : (
         "–"
       ),
-  },
-  {
-    key: "hausnummer",
-    label: "Hausnummer",
-    sortValue: (g) => (Number.isNaN(Number(g.hausnummer)) ? g.hausnummer : Number(g.hausnummer)),
-    searchValue: (g) => g.hausnummer,
-    render: (g) => g.hausnummer,
   },
   {
     key: "einheiten",
