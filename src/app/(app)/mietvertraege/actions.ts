@@ -165,7 +165,9 @@ export async function updateMietvertrag(id: string, formData: FormData) {
   revalidatePath(`/mietvertraege/${id}`);
   revalidatePath("/offene-posten");
   revalidatePath("/");
-  redirect("/mietvertraege");
+  // Zurück auf die Detailseite (nicht mehr die Liste) — passend zum Bearbeiten auf einer eigenen
+  // Unterseite: nach dem Speichern soll man das Ergebnis direkt sehen, nicht erst wieder suchen.
+  redirect(`/mietvertraege/${id}`);
 }
 
 export async function deleteMietvertrag(id: string) {
