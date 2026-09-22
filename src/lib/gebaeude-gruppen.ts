@@ -52,11 +52,18 @@ export function einheitWert(id: string): string {
   return `${EINHEIT_PREFIX}${id}`;
 }
 
-/** Anzeige-Label für ein Haus anhand seiner aktuellen Mitglieder, z.B. "Haus 2, 4, 6 (Breslauer Str.)". */
+/**
+ * Anzeige-Label für ein Haus anhand seiner aktuellen Mitglieder, z.B. "Haus 2, 4, 6" — ohne
+ * Straßenname, der ist bei mehreren Hausnummern ohnehin implizit (in der App bisher immer
+ * dieselbe Straße) und machte das Label unnötig lang. Ein Haus mit nur einer Adresse (z.B. die
+ * Garagen) zeigt stattdessen direkt die Adresse selbst, z.B. "Koenigsberger Strasse G" — "Haus G"
+ * wäre hier weder kürzer noch verständlicher.
+ */
 export function hausLabel(mitglieder: { strasse: string; hausnummer: string }[]): string {
   if (mitglieder.length === 0) return "Haus (noch ohne Adressen)";
+  if (mitglieder.length === 1) return `${mitglieder[0].strasse} ${mitglieder[0].hausnummer}`;
   const sortiert = [...mitglieder].sort((a, b) => parseInt(a.hausnummer, 10) - parseInt(b.hausnummer, 10));
-  return `Haus ${sortiert.map((g) => g.hausnummer).join(", ")} (${sortiert[0].strasse})`;
+  return `Haus ${sortiert.map((g) => g.hausnummer).join(", ")}`;
 }
 
 /**
