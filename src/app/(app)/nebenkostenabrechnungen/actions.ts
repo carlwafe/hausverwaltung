@@ -14,13 +14,22 @@ import {
   type MietvertragFuerAbrechnung,
   type VerbrauchswertFuerAbrechnung,
   type VorverteilterKostenanteilFuerAbrechnung,
+  type TechemAllgemeinstromAbzugFuerAbrechnung,
 } from "@/lib/nebenkostenabrechnung";
 
 // Auch von der Detailseite genutzt (für die live geprüfte "nicht berücksichtigt"-Anzeige und die
 // vorverteilten Kostenarten), nicht nur beim eigentlichen Berechnen/Neu-Berechnen.
 export async function ladeBerechnungsdaten(jahr: number) {
-  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw, vorverteilteAnteileRaw, wohnflaecheKorrekturenRaw] =
-    await Promise.all([
+  const [
+    kostenpositionenRaw,
+    einheitenRaw,
+    mietvertraegeRaw,
+    verbrauchswerteRaw,
+    vorverteilteAnteileRaw,
+    wohnflaecheKorrekturenRaw,
+    techemAllgemeinstromAnteileRaw,
+    allgemeinstromKostenart,
+  ] = await Promise.all([
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, jahr, kostenart: { umlagefaehig: true }, ...AKTIVE_BUCHUNG_FILTER },
         include: {
@@ -42,6 +51,8 @@ export async function ladeBerechnungsdaten(jahr: number) {
       // zählt die mit dem kleinsten bisJahr >= jahr (die "näheste" noch gültige historische
       // Korrektur). In der Praxis kommt bislang immer höchstens eine pro Einheit vor.
       prisma.wohnflaecheKorrektur.findMany({ where: { bisJahr: { gte: jahr } }, orderBy: { bisJahr: "asc" } }),
+      prisma.techemAllgemeinstromAnteil.findMany({ where: { jahr } }),
+      prisma.kostenart.findFirst({ where: { name: "Allgemeinstrom" } }),
     ]);
   const wohnflaecheKorrekturNachEinheit = new Map<string, number>();
   for (const k of wohnflaecheKorrekturenRaw) {
@@ -102,7 +113,33 @@ export async function ladeBerechnungsdaten(jahr: number) {
     betrag: Number(v.betrag),
   }));
 
-  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile };
+  // Scope der jeweiligen Techem-Kostenart wird — wie bei der Anzeige der vorverteilten
+  // Kostenarten (siehe [id]/page.tsx) — aus deren jüngster Kostenposition abgeleitet, nicht neu
+  // modelliert. Ohne bekannte Allgemeinstrom-Kostenart oder ohne ermittelbaren Scope bleibt der
+  // Eintrag wirkungslos, statt die Berechnung zum Absturz zu bringen.
+  const technischerAbzug: TechemAllgemeinstromAbzugFuerAbrechnung[] = allgemeinstromKostenart
+    ? (
+        await Promise.all(
+          techemAllgemeinstromAnteileRaw.map(async (a) => {
+            const juengste = await prisma.buchung.findFirst({
+              where: { buchungsart: { code: "KOSTENPOSITION" }, kostenartId: a.kostenartId },
+              orderBy: { datum: "desc" },
+              select: { gebaeudeId: true, hausId: true, kostengruppeId: true },
+            });
+            if (!juengste) return null;
+            return {
+              zielKostenartId: allgemeinstromKostenart.id,
+              gebaeudeId: juengste.gebaeudeId,
+              hausId: juengste.hausId,
+              kostengruppeId: juengste.kostengruppeId,
+              betrag: Number(a.betrag),
+            };
+          }),
+        )
+      ).filter((a): a is TechemAllgemeinstromAbzugFuerAbrechnung => a !== null)
+    : [];
+
+  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug };
 }
 
 export async function createAbrechnung(formData: FormData) {
@@ -117,7 +154,7 @@ export async function createAbrechnung(formData: FormData) {
     throw new Error(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
-  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile } =
+  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
     await ladeBerechnungsdaten(jahr);
   const ergebnis = berechneNebenkostenabrechnung(
     jahr,
@@ -126,6 +163,7 @@ export async function createAbrechnung(formData: FormData) {
     mietvertraege,
     verbrauchswerte,
     vorverteilteAnteile,
+    technischerAbzug,
   );
 
   const abrechnung = await prisma.nebenkostenabrechnung.create({
@@ -320,7 +358,7 @@ export async function ladeNebenkostenausgleichSummen(
 export async function neuBerechnen(id: string) {
   await requireEditor();
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
-  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile } =
+  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
     await ladeBerechnungsdaten(abrechnung.jahr);
   const ergebnis = berechneNebenkostenabrechnung(
     abrechnung.jahr,
@@ -329,6 +367,7 @@ export async function neuBerechnen(id: string) {
     mietvertraege,
     verbrauchswerte,
     vorverteilteAnteile,
+    technischerAbzug,
   );
 
   await prisma.$transaction(async (tx) => {
@@ -461,6 +500,43 @@ export async function speichereVorverteilteKostenanteile(formData: FormData) {
       data: leerstand.map((l) => ({ kostenartId, jahr, einheitId: l.einheitId, betrag: l.betrag, notiz: l.notiz })),
     }),
   ]);
+
+  const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
+  if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);
+}
+
+// Erfasst, wie viel einer Techem-Gesamtabrechnung (VORVERTEILT-Kostenart, z.B. "Heizkosten Haus
+// 2-12") tatsächlich bereits verrechneter Allgemeinstrom ist — wird bei der Berechnung vom
+// gleich-scopeten Allgemeinstrom-Pool abgezogen (siehe TechemAllgemeinstromAnteil im Schema und
+// berechneEinheitAnteile). Wirkt wie die anderen Vorverteilt-Eingaben erst nach "Neu berechnen".
+export async function speichereTechemAllgemeinstromAnteil(formData: FormData) {
+  await requireEditor();
+
+  const jahr = Number(formData.get("jahr"));
+  if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
+    throw new Error("Ungültiges Jahr.");
+  }
+  const kostenartId = String(formData.get("kostenartId") ?? "");
+  if (!kostenartId) {
+    throw new Error("Bitte eine Kostenart auswählen.");
+  }
+
+  const roh = formData.get("betrag");
+  const text = typeof roh === "string" ? roh.trim().replace(",", ".") : "";
+
+  if (text === "") {
+    await prisma.techemAllgemeinstromAnteil.deleteMany({ where: { kostenartId, jahr } });
+  } else {
+    const betrag = Number(text);
+    if (!Number.isFinite(betrag) || betrag < 0) {
+      throw new Error(`Ungültiger Betrag: "${text}".`);
+    }
+    await prisma.techemAllgemeinstromAnteil.upsert({
+      where: { kostenartId_jahr: { kostenartId, jahr } },
+      create: { kostenartId, jahr, betrag },
+      update: { betrag },
+    });
+  }
 
   const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
   if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);

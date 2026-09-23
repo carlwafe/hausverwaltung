@@ -495,10 +495,11 @@ model Kostenart {
   vertraglicheGrundlage       String?
   createdAt                   DateTime             @default(now())
 
-  buchungen                 Buchung[]
-  verbrauchswerte           Verbrauchswert[]
-  vorverteilteKostenanteile VorverteilterKostenanteil[]
-  vorverteilteLeerstaende   VorverteilterLeerstand[]
+  buchungen                    Buchung[]
+  verbrauchswerte              Verbrauchswert[]
+  vorverteilteKostenanteile    VorverteilterKostenanteil[]
+  vorverteilteLeerstaende      VorverteilterLeerstand[]
+  techemAllgemeinstromAnteile  TechemAllgemeinstromAnteil[]
 
   @@map("kostenarten")
 }
@@ -546,6 +547,28 @@ model VorverteilterKostenanteil {
 
   @@unique([mietvertragId, kostenartId, jahr])
   @@map("vorverteilte_kostenanteile")
+}
+
+// Ein Teil der externen Gesamtabrechnung einer VORVERTEILT-Kostenart (z.B. "Heizkosten Haus
+// 2-12") ist in Wahrheit bereits verrechneter Allgemeinstrom (z.B. Betriebsstrom der
+// Heizungsanlage) — dieser Betrag wird vom separat erfassten Allgemeinstrom-Kostenkreis
+// desselben Gebäude-/Haus-/Kostengruppen-Scopes und Jahres abgezogen, bevor dieser nach
+// Wohnfläche verteilt wird. Ohne diesen Abzug würde derselbe Strombetrag doppelt umgelegt: einmal
+// via Techem pro Mieter, einmal zusätzlich über den Allgemeinstrom-Pool. kostenartId verweist auf
+// die Techem-Kostenart (nicht auf Allgemeinstrom selbst) — die Ziel-Kostenart und ihr Scope werden
+// zur Berechnungszeit aus der jüngsten Kostenposition dieser Techem-Kostenart abgeleitet (siehe
+// ladeBerechnungsdaten), analog zu VorverteilterKostenanteil.
+model TechemAllgemeinstromAnteil {
+  id          String    @id @default(cuid())
+  kostenart   Kostenart @relation(fields: [kostenartId], references: [id], onDelete: Cascade)
+  kostenartId String
+  jahr        Int
+  betrag      Decimal   @db.Decimal(10, 2)
+  notizen     String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([kostenartId, jahr])
+  @@map("techem_allgemeinstrom_anteile")
 }
 
 // Ein Betrag aus der externen Gesamtabrechnung (Techem), der NICHT auf einen Mieter umgelegt wird —

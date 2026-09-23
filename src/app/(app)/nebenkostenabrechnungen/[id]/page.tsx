@@ -20,6 +20,7 @@ import {
 import { ManuellePositionForm } from "../manuelle-position-form";
 import { PositionBearbeitenForm } from "../position-bearbeiten-form";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
+import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -75,6 +76,7 @@ export default async function NebenkostenabrechnungDetailPage({
     leerstandRoh,
     nebenkostenausgleichSummen,
     kostengruppenRoh,
+    techemAllgemeinstromAnteileRoh,
   ] = await Promise.all([
     ladeBerechnungsdaten(abrechnung.jahr),
     prisma.mietvertrag.findMany({
@@ -98,6 +100,7 @@ export default async function NebenkostenabrechnungDetailPage({
       abrechnung.positionen.map((p) => p.mietvertragId),
     ),
     prisma.kostengruppe.findMany({ orderBy: { bezeichnung: "asc" } }),
+    prisma.techemAllgemeinstromAnteil.findMany({ where: { jahr: abrechnung.jahr } }),
   ]);
   const mietvertragKandidaten = mietvertraegeRoh.map((v) => ({
     id: v.id,
@@ -115,6 +118,9 @@ export default async function NebenkostenabrechnungDetailPage({
   // Kostenposition dieser Kostenart abgeleitet (dieselbe Kostenart wird bisher immer konsistent
   // für denselben Gebäude-/Haus-/Kostengruppen-Scope gebucht).
   const wohnungenRoh = einheiten.filter((e) => e.typ === "WOHNUNG");
+  const techemAllgemeinstromAnteileById = new Map(
+    techemAllgemeinstromAnteileRoh.map((a) => [a.kostenartId, Number(a.betrag)]),
+  );
   const vorverteilteGruppen = await Promise.all(
     vorverteilteKostenarten.map(async (k) => {
       const juengste = await prisma.buchung.findFirst({
@@ -338,15 +344,21 @@ export default async function NebenkostenabrechnungDetailPage({
             damit er in den Kostenanteil einfließt.
           </p>
           {vorverteilteGruppen.map((g) => (
-            <VorverteilteKostenanteileForm
-              key={g.kostenartId}
-              jahr={abrechnung.jahr}
-              kostenartId={g.kostenartId}
-              kostenartName={g.kostenartName}
-              zeilen={g.zeilen}
-              leerstand={g.leerstand}
-              einheiten={g.einheitOptionen}
-            />
+            <div key={g.kostenartId} className="mb-4">
+              <VorverteilteKostenanteileForm
+                jahr={abrechnung.jahr}
+                kostenartId={g.kostenartId}
+                kostenartName={g.kostenartName}
+                zeilen={g.zeilen}
+                leerstand={g.leerstand}
+                einheiten={g.einheitOptionen}
+              />
+              <TechemAllgemeinstromForm
+                jahr={abrechnung.jahr}
+                kostenartId={g.kostenartId}
+                betrag={techemAllgemeinstromAnteileById.get(g.kostenartId) ?? null}
+              />
+            </div>
           ))}
           {(() => {
             const mieter = vorverteilteKostenanteileRoh.reduce((s, v) => s + Number(v.betrag), 0);

@@ -78,6 +78,20 @@ export type VorverteilterKostenanteilFuerAbrechnung = {
   betrag: number;
 };
 
+// Ein Teil der Gesamtabrechnung einer VORVERTEILT-Kostenart (z.B. "Heizkosten Haus 2-12") ist in
+// Wahrheit bereits verrechneter Allgemeinstrom — wird vom Pool der zielKostenartId (in der Praxis
+// immer "Allgemeinstrom") mit demselben Scope abgezogen, bevor dieser Pool nach Wohnfläche/
+// Einheiten/Verbrauch verteilt wird (siehe TechemAllgemeinstromAnteil in schema.prisma). Der
+// Scope wird von der aufrufenden Server Action aus der jüngsten Kostenposition der
+// Techem-Kostenart abgeleitet — die Engine selbst kennt keine Kostenart-Namen.
+export type TechemAllgemeinstromAbzugFuerAbrechnung = {
+  zielKostenartId: string;
+  gebaeudeId: string | null;
+  hausId: string | null;
+  kostengruppeId: string | null;
+  betrag: number;
+};
+
 // Ein vollständig nachvollziehbarer Beleg-Eintrag für eine einzelne Kostenart innerhalb einer
 // Position: der Gesamtbetrag dieser Kostenart in ihrem Kostenkreis (z.B. "Grundsteuer Haus 5, 7, 9"
 // für das ganze Jahr), die Verteilungsbasis (z.B. Wohnfläche der Einheit von der Gesamtwohnfläche
@@ -191,7 +205,7 @@ export function ermittleNichtBeruecksichtigteKostenarten(
   einheiten: EinheitFuerAbrechnung[],
   verbrauchswerte: VerbrauchswertFuerAbrechnung[],
 ): NichtBeruecksichtigteKostenart[] {
-  return berechneEinheitAnteile(jahr, kostenpositionen, einheiten, verbrauchswerte).nichtBeruecksichtigt;
+  return berechneEinheitAnteile(jahr, kostenpositionen, einheiten, verbrauchswerte, []).nichtBeruecksichtigt;
 }
 
 // Gruppiert Kostenpositionen nach Kostenart+Kostenkreis (Gebäude/Haus/Kostengruppe/Objekt), damit
@@ -265,6 +279,7 @@ function berechneEinheitAnteile(
   kostenpositionen: KostenpositionFuerAbrechnung[],
   einheiten: EinheitFuerAbrechnung[],
   verbrauchswerte: VerbrauchswertFuerAbrechnung[],
+  technischerAbzug: TechemAllgemeinstromAbzugFuerAbrechnung[],
 ): {
   anteilProEinheit: Map<string, number>;
   detailsProEinheit: Map<string, KostenanteilJahrDetail[]>;
@@ -316,12 +331,27 @@ function berechneEinheitAnteile(
     const pool = ermittlePool(g.scope, wohnungen);
     if (pool.length === 0) continue;
 
+    // Ein Teil dieser Kostenart+Kreis-Summe kann bereits über eine Techem-Gesamtabrechnung
+    // desselben Scopes als Allgemeinstrom verrechnet worden sein (siehe
+    // TechemAllgemeinstromAbzugFuerAbrechnung) — wird vor der Verteilung abgezogen, damit dieser
+    // Betrag nicht zusätzlich auf die Mieter umgelegt wird.
+    const abzug = technischerAbzug
+      .filter(
+        (a) =>
+          a.zielKostenartId === g.kostenartId &&
+          a.gebaeudeId === g.scope.gebaeudeId &&
+          a.hausId === g.scope.hausId &&
+          a.kostengruppeId === g.scope.kostengruppeId,
+      )
+      .reduce((s, a) => s + a.betrag, 0);
+    const effektiverBetrag = g.betrag - abzug;
+
     if (g.verteilerschluessel === "WOHNFLAECHE") {
       const verteilerschluessel = g.verteilerschluessel;
       const gesamtflaeche = pool.reduce((s, e) => s + e.wohnflaecheQm, 0);
       if (gesamtflaeche <= 0) continue;
       const centAnteile = verteileRestcent(
-        Math.round(g.betrag * 100),
+        Math.round(effektiverBetrag * 100),
         pool.map((e) => e.wohnflaecheQm),
       );
       pool.forEach((e, i) => {
@@ -332,7 +362,7 @@ function berechneEinheitAnteile(
           kostenartName: g.kostenartName,
           scopeLabel: g.scopeLabel,
           verteilerschluessel,
-          gesamtbetragPool: g.betrag,
+          gesamtbetragPool: effektiverBetrag,
           einheitMasswert: e.wohnflaecheQm,
           poolMasswert: gesamtflaeche,
           masseinheit: "m²",
@@ -342,7 +372,7 @@ function berechneEinheitAnteile(
     } else if (g.verteilerschluessel === "EINHEITEN") {
       const verteilerschluessel = g.verteilerschluessel;
       const centAnteile = verteileRestcent(
-        Math.round(g.betrag * 100),
+        Math.round(effektiverBetrag * 100),
         pool.map(() => 1),
       );
       pool.forEach((e, i) => {
@@ -353,7 +383,7 @@ function berechneEinheitAnteile(
           kostenartName: g.kostenartName,
           scopeLabel: g.scopeLabel,
           verteilerschluessel,
-          gesamtbetragPool: g.betrag,
+          gesamtbetragPool: effektiverBetrag,
           einheitMasswert: 1,
           poolMasswert: pool.length,
           masseinheit: "Einheiten",
@@ -384,7 +414,7 @@ function berechneEinheitAnteile(
       if (gesamtwert <= 0) continue;
       const verteilerschluessel = g.verteilerschluessel;
       const centAnteile = verteileRestcent(
-        Math.round(g.betrag * 100),
+        Math.round(effektiverBetrag * 100),
         pool.map((e) => werteProEinheit.get(e.id) ?? 0),
       );
       pool.forEach((e, i) => {
@@ -396,7 +426,7 @@ function berechneEinheitAnteile(
           kostenartName: g.kostenartName,
           scopeLabel: g.scopeLabel,
           verteilerschluessel,
-          gesamtbetragPool: g.betrag,
+          gesamtbetragPool: effektiverBetrag,
           einheitMasswert: wert,
           poolMasswert: gesamtwert,
           masseinheit: g.masseinheit ?? "",
@@ -426,12 +456,14 @@ export function berechneNebenkostenabrechnung(
   mietvertraege: MietvertragFuerAbrechnung[],
   verbrauchswerte: VerbrauchswertFuerAbrechnung[] = [],
   vorverteilteAnteile: VorverteilterKostenanteilFuerAbrechnung[] = [],
+  technischerAbzug: TechemAllgemeinstromAbzugFuerAbrechnung[] = [],
 ): AbrechnungErgebnis {
   const { anteilProEinheit, detailsProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(
     jahr,
     kostenpositionen,
     einheiten,
     verbrauchswerte,
+    technischerAbzug,
   );
 
   const jahresanfang = new Date(Date.UTC(jahr, 0, 1));
