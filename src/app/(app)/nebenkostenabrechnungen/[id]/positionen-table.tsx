@@ -25,6 +25,17 @@ function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
   return `${formatZahl(d.einheitMasswert)} von ${formatZahl(d.poolMasswert)} ${d.masseinheit}`.trim();
 }
 
+// Summe der Restcent-Ausgleiche (±0,01 € je Kostenart, siehe verteileRestcent) dieser Position,
+// auf den abgerechneten Zeitraum skaliert wie der Anteil selbst. Cent-genau gerundet.
+function restcentSumme(details: KostenanteilDetailEintrag[]): number {
+  const summe = details.reduce((s, d) => {
+    if (!d.restcent) return s;
+    const zeit = d.anteilJahr !== 0 ? d.anteilZeitraum / d.anteilJahr : 1;
+    return s + d.restcent * zeit;
+  }, 0);
+  return Math.round(summe * 100) / 100;
+}
+
 export type PositionRow = {
   id: string;
   einheitId: string;
@@ -89,6 +100,26 @@ const columns: Column<PositionRow>[] = [
     align: "right",
     sortValue: (p) => p.kostenanteilGesamt,
     render: (p) => formatEuro(p.kostenanteilGesamt),
+  },
+  {
+    key: "restcent",
+    label: "Restcent",
+    align: "right",
+    sortValue: (p) => restcentSumme(p.details),
+    render: (p) => {
+      const r = restcentSumme(p.details);
+      const kostenarten = p.details.filter((d) => d.restcent).map((d) => d.kostenartName);
+      if (r === 0 && kostenarten.length === 0) return <span className="text-neutral-600">–</span>;
+      return (
+        <span
+          title={`Restcent-Ausgleich bei: ${kostenarten.join(", ")}`}
+          className={`rounded px-1.5 py-0.5 text-xs ${r >= 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}
+        >
+          {r > 0 ? "+" : ""}
+          {formatEuro(r)}
+        </span>
+      );
+    },
   },
   {
     key: "vorauszahlung",
@@ -182,7 +213,17 @@ export function PositionenTable({ rows }: { rows: PositionRow[] }) {
                             <td className="py-1 pr-3 text-right text-neutral-300">{formatEuro(d.gesamtbetragPool)}</td>
                             <td className="py-1 pr-3 text-neutral-500">{formatVerteilungsbasis(d)}</td>
                             <td className="py-1 pr-3 text-right text-neutral-300">{formatEuro(d.anteilJahr)}</td>
-                            <td className="py-1 pr-3 text-right text-white">{formatEuro(d.anteilZeitraum)}</td>
+                            <td className="py-1 pr-3 text-right text-white">
+                              {formatEuro(d.anteilZeitraum)}
+                              {d.restcent ? (
+                                <span
+                                  title="Restcent-Ausgleich: dieser Anteil wurde um einen Cent angepasst, damit die Summe aller Mieter exakt dem Gesamtbetrag entspricht"
+                                  className="ml-1.5 rounded bg-amber-500/10 px-1 text-amber-400"
+                                >
+                                  {d.restcent > 0 ? "+" : "−"}0,01
+                                </span>
+                              ) : null}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

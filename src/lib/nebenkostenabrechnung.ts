@@ -110,6 +110,10 @@ export type KostenanteilDetailEintrag = {
   masseinheit: string;
   anteilJahr: number;
   anteilZeitraum: number;
+  // Um wie viel Euro (±0,01) der Restcent-Ausgleich (siehe verteileRestcent) den Jahresanteil dieser
+  // Einheit verändert hat: +0,01 = hat einen Restcent bekommen. Fehlt bei älteren gespeicherten
+  // Abrechnungen (vor dem nächsten "Neu berechnen") und bei vorverteilten Beträgen.
+  restcent?: number;
 };
 
 // Wie KostenanteilDetailEintrag, aber noch ohne Zeitanteil-Prorata — wird pro Einheit für das
@@ -245,9 +249,14 @@ function gruppenSchluessel(
 // `gesamtCent` — anders als bei unabhängigem Runden jedes Anteils für sich, wo sich Rundungsfehler
 // über viele Einheiten/Kostenarten zu einer Differenz zum tatsächlich gebuchten Betrag aufsummieren
 // können.
-function verteileRestcent(gesamtCent: number, gewichte: number[]): number[] {
+// Gibt zusätzlich je Empfänger zurück, um wie viele Cent der Ausgleichsschritt seinen gerundeten Anteil
+// verändert hat (+1 = hat einen Restcent bekommen, −1 = einen abgegeben, sonst 0).
+function verteileRestcent(gesamtCent: number, gewichte: number[]): { cents: number[]; ausgleich: number[] } {
   const gewichtSumme = gewichte.reduce((s, g) => s + g, 0);
-  if (gewichtSumme <= 0 || gewichte.length === 0) return gewichte.map(() => 0);
+  if (gewichtSumme <= 0 || gewichte.length === 0) {
+    const nullen = gewichte.map(() => 0);
+    return { cents: nullen, ausgleich: [...nullen] };
+  }
 
   const rohAnteile = gewichte.map((g) => (gesamtCent * g) / gewichtSumme);
   const basis = rohAnteile.map((a) => Math.round(a));
@@ -261,7 +270,7 @@ function verteileRestcent(gesamtCent: number, gewichte: number[]): number[] {
     ergebnis[reste[k].i] += diff > 0 ? 1 : -1;
     diff += diff > 0 ? -1 : 1;
   }
-  return ergebnis;
+  return { cents: ergebnis, ausgleich: ergebnis.map((e, i) => e - basis[i]) };
 }
 
 function pushDetail(
@@ -350,7 +359,7 @@ function berechneEinheitAnteile(
       const verteilerschluessel = g.verteilerschluessel;
       const gesamtflaeche = pool.reduce((s, e) => s + e.wohnflaecheQm, 0);
       if (gesamtflaeche <= 0) continue;
-      const centAnteile = verteileRestcent(
+      const { cents: centAnteile, ausgleich } = verteileRestcent(
         Math.round(effektiverBetrag * 100),
         pool.map((e) => e.wohnflaecheQm),
       );
@@ -367,11 +376,12 @@ function berechneEinheitAnteile(
           poolMasswert: gesamtflaeche,
           masseinheit: "m²",
           anteilJahr: anteil,
+          restcent: ausgleich[i] / 100,
         });
       });
     } else if (g.verteilerschluessel === "EINHEITEN") {
       const verteilerschluessel = g.verteilerschluessel;
-      const centAnteile = verteileRestcent(
+      const { cents: centAnteile, ausgleich } = verteileRestcent(
         Math.round(effektiverBetrag * 100),
         pool.map(() => 1),
       );
@@ -388,6 +398,7 @@ function berechneEinheitAnteile(
           poolMasswert: pool.length,
           masseinheit: "Einheiten",
           anteilJahr: anteil,
+          restcent: ausgleich[i] / 100,
         });
       });
     } else {
@@ -413,7 +424,7 @@ function berechneEinheitAnteile(
       const gesamtwert = [...werteProEinheit.values()].reduce((s, w) => s + w, 0);
       if (gesamtwert <= 0) continue;
       const verteilerschluessel = g.verteilerschluessel;
-      const centAnteile = verteileRestcent(
+      const { cents: centAnteile, ausgleich } = verteileRestcent(
         Math.round(effektiverBetrag * 100),
         pool.map((e) => werteProEinheit.get(e.id) ?? 0),
       );
@@ -431,6 +442,7 @@ function berechneEinheitAnteile(
           poolMasswert: gesamtwert,
           masseinheit: g.masseinheit ?? "",
           anteilJahr: anteil,
+          restcent: ausgleich[i] / 100,
         });
       });
     }
