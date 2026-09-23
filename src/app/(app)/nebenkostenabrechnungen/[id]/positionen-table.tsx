@@ -30,6 +30,10 @@ export type PositionRow = {
   einheitId: string;
   einheitBezeichnung: string;
   gebaeudeLabel: string;
+  // Numerischer Schlüssel für die tatsächliche Haus-Reihenfolge (z.B. "Haus 2, 4, 6" vor "Haus 8,
+  // 10, 12" statt alphabetisch "Haus 11, 13, 15" zuerst) — siehe vergleicheHaus in
+  // gebaeude-gruppen.ts, hier als einfacher Sortierwert für DataTable vorberechnet.
+  gebaeudeSortSchluessel: number;
   mieterNamen: string;
   zeitraumVon: string; // ISO
   zeitraumBis: string; // ISO
@@ -62,7 +66,7 @@ const columns: Column<PositionRow>[] = [
   {
     key: "gebaeude",
     label: "Gebäude",
-    sortValue: (p) => p.gebaeudeLabel,
+    sortValue: (p) => p.gebaeudeSortSchluessel,
     searchValue: (p) => p.gebaeudeLabel,
     render: (p) => p.gebaeudeLabel,
   },

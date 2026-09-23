@@ -400,6 +400,8 @@ export default async function NebenkostenabrechnungDetailPage({
             einheitId: p.einheitId,
             einheitBezeichnung: p.einheit.bezeichnung,
             gebaeudeLabel: gebaeudeOderHausLabel(p.einheit.gebaeude, p.einheit.gebaeude.haus),
+            gebaeudeSortSchluessel:
+              (p.einheit.gebaeude.haus?.reihenfolge ?? 999) * 1000 + Number(p.einheit.gebaeude.hausnummer),
             mieterNamen: p.mietvertrag
               ? p.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")
               : "–",
