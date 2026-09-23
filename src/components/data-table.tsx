@@ -173,7 +173,7 @@ export function DataTable<T extends { id: string }>({
             <select
               value={selectFilterValue}
               onChange={(e) => setSelectFilterValue(e.target.value)}
-              className="rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-neutral-400"
+              className="w-full max-w-xs rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
             >
               <option value="">{selectFilter.placeholder ?? `Alle (${selectFilter.label})`}</option>
               {selectFilter.options.map((o) => (
