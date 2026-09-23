@@ -22,7 +22,12 @@ export async function ladeKosten(where: {
 } = {}): Promise<KostenpositionRow[]> {
   const positionen = await prisma.buchung.findMany({
     where: { ...where, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
-    orderBy: [{ jahr: "desc" }, { erstelltAm: "desc" }],
+    // Nach Buchungsdatum statt Erfassungsdatum sortiert — sonst springt eine Position beim
+    // Aufteilen oder Bearbeiten (Storno + Neuanlage, siehe hebeAufteilungAuf/
+    // updateKostenposition) an den Anfang der Liste, obwohl sich ihr eigentliches Datum nicht
+    // geändert hat. Positionen ohne Datum (nur manuell erfasste kennen kein genaues
+    // Buchungsdatum, nur das Jahr) fallen ans Ende, sortiert nach Erfassungsdatum.
+    orderBy: [{ jahr: "desc" }, { datum: { sort: "desc", nulls: "last" } }, { erstelltAm: "desc" }],
     include: {
       kostenart: true,
       gebaeude: true,
