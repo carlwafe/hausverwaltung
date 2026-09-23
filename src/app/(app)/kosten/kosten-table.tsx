@@ -149,6 +149,10 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionRow[]>([]);
   const [pending, startTransition] = useTransition();
 
+  const kostenartOptionen = [...new Set(rows.map((r) => r.kostenartName))]
+    .sort((a, b) => a.localeCompare(b, "de"))
+    .map((name) => ({ value: name, label: name }));
+
   function loeschen() {
     if (ausgewaehlt.length === 0) return;
     if (
@@ -200,6 +204,12 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         selectable
         onSelectionChange={setAusgewaehlt}
         dateValue={(k) => k.datum}
+        selectFilter={{
+          label: "Kostenart",
+          value: (k) => k.kostenartName,
+          options: kostenartOptionen,
+          placeholder: "Alle Kostenarten",
+        }}
         renderExpanded={(k, colSpan) =>
           k.rohdaten ? (
             <RohdatenZeile

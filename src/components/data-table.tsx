@@ -36,6 +36,7 @@ export function DataTable<T extends { id: string }>({
   rowId,
   renderExpanded,
   dateValue,
+  selectFilter,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -62,10 +63,21 @@ export function DataTable<T extends { id: string }>({
    * Jahr kennen) verschwinden dabei, sobald von/bis aktiv gefiltert wird — ein unbekanntes Datum
    * lässt sich nicht als "im Zeitraum" bestätigen. */
   dateValue?: (row: T) => string | null;
+  /** Zusätzliches Dropdown zum Vorfiltern auf einen exakten Wert (z.B. Kostenart) — ergänzt die
+   * freie Text-Suche um eine schnelle Eingrenzung, ohne den Suchbegriff tippen zu müssen. Die
+   * Optionen werden vom Aufrufer übergeben (typischerweise aus den vorhandenen Zeilen abgeleitet),
+   * "" (Platzhalter-Option) bedeutet "kein Filter". */
+  selectFilter?: {
+    label: string;
+    value: (row: T) => string;
+    options: { value: string; label: string }[];
+    placeholder?: string;
+  };
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
   const [bis, setBis] = useState("");
+  const [selectFilterValue, setSelectFilterValue] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -90,8 +102,11 @@ export function DataTable<T extends { id: string }>({
         return true;
       });
     }
+    if (selectFilter && selectFilterValue) {
+      ergebnis = ergebnis.filter((r) => selectFilter.value(r) === selectFilterValue);
+    }
     return ergebnis;
-  }, [rows, query, columns, hatSuche, dateValue, von, bis]);
+  }, [rows, query, columns, hatSuche, dateValue, von, bis, selectFilter, selectFilterValue]);
 
   const sortiert = useMemo(() => {
     if (!sortKey) return gefiltert;
@@ -143,7 +158,7 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div>
-      {(hatSuche || dateValue) && (
+      {(hatSuche || dateValue || selectFilter) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {hatSuche && (
             <input
@@ -153,6 +168,20 @@ export function DataTable<T extends { id: string }>({
               placeholder={searchPlaceholder}
               className="w-full max-w-xs rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
             />
+          )}
+          {selectFilter && (
+            <select
+              value={selectFilterValue}
+              onChange={(e) => setSelectFilterValue(e.target.value)}
+              className="rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-neutral-400"
+            >
+              <option value="">{selectFilter.placeholder ?? `Alle (${selectFilter.label})`}</option>
+              {selectFilter.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           )}
           {dateValue && (
             <div className="flex items-center gap-2 text-sm text-neutral-400">
