@@ -74,6 +74,7 @@ export default async function NebenkostenabrechnungDetailPage({
     vorverteilteKostenanteileRoh,
     leerstandRoh,
     nebenkostenausgleichSummen,
+    kostengruppenRoh,
   ] = await Promise.all([
     ladeBerechnungsdaten(abrechnung.jahr),
     prisma.mietvertrag.findMany({
@@ -96,6 +97,7 @@ export default async function NebenkostenabrechnungDetailPage({
       abrechnung.jahr,
       abrechnung.positionen.map((p) => p.mietvertragId),
     ),
+    prisma.kostengruppe.findMany({ orderBy: { bezeichnung: "asc" } }),
   ]);
   const mietvertragKandidaten = mietvertraegeRoh.map((v) => ({
     id: v.id,
@@ -203,6 +205,29 @@ export default async function NebenkostenabrechnungDetailPage({
       "anteil",
       leerstandRoh
         .filter((l) => l.einheit?.gebaeudeId === g.id)
+        .map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
+      positionenFuerUebersicht,
+    );
+  }
+
+  // Kostengruppen: frei zusammengestellte Gebäudegruppen über Haus-Grenzen hinweg (z.B. "Haus
+  // 2-12" für einen gemeinsam abgerechneten Versorger-Anschluss mehrerer Häuser) — als weitere
+  // Filter-Ebene neben Haus/Gebäude, nur wenn mindestens eine Einheit dieser Abrechnung zu ihr
+  // gehört (eine Einheit gehört über ihr Gebäude ggf. zu mehreren Kostengruppen gleichzeitig,
+  // siehe EinheitFuerAbrechnung.kostengruppenIds).
+  const einheitenById = new Map(einheiten.map((e) => [e.id, e]));
+  for (const kg of kostengruppenRoh) {
+    const positionenDieserKostengruppe = positionenFuerUebersicht.filter((p) =>
+      einheitenById.get(p.einheitId)?.kostengruppenIds.includes(kg.id),
+    );
+    if (positionenDieserKostengruppe.length === 0) continue;
+    const key = `kostengruppe:${kg.id}`;
+    uebersichtAuswahl.push({ value: key, label: kg.bezeichnung, gruppe: "kostengruppe" });
+    uebersichtDaten[key] = baueKostenUebersicht(
+      positionenDieserKostengruppe,
+      "anteil",
+      leerstandRoh
+        .filter((l) => l.einheitId && einheitenById.get(l.einheitId)?.kostengruppenIds.includes(kg.id))
         .map((l) => ({ kostenartName: l.kostenart.name, betrag: Number(l.betrag) })),
       positionenFuerUebersicht,
     );

@@ -7,7 +7,11 @@ function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-export type UebersichtAuswahl = { value: string; label: string; gruppe: "objekt" | "haus" | "gebaeude" };
+export type UebersichtAuswahl = {
+  value: string;
+  label: string;
+  gruppe: "objekt" | "haus" | "gebaeude" | "kostengruppe";
+};
 
 /**
  * Kostenaufschlüsselung gesamt mit Auswahl Objekt / Haus / Gebäude. Alle Ansichten kommen fertig
@@ -54,6 +58,15 @@ export function Kostenuebersicht({
           {gruppe("gebaeude").length > 0 && (
             <optgroup label="Gebäude">
               {gruppe("gebaeude").map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {gruppe("kostengruppe").length > 0 && (
+            <optgroup label="Kostengruppe">
+              {gruppe("kostengruppe").map((a) => (
                 <option key={a.value} value={a.value}>
                   {a.label}
                 </option>
