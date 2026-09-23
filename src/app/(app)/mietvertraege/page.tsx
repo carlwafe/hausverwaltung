@@ -1,41 +1,51 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { MietvertraegeTable, type VertragRow } from "./mietvertraege-table";
-import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
+import { gebaeudeGruppeAnzeige } from "@/lib/gebaeude-gruppen";
 
 async function ladeVertraege(): Promise<VertragRow[]> {
-  const vertraege = await prisma.mietvertrag.findMany({
+  const vertraegeRaw = await prisma.mietvertrag.findMany({
     include: {
-      einheit: true,
+      einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
     },
   });
 
-  return vertraege
-    .map((v) => {
-      const aktuelleMiete = ermittleAktuelleMiete({
-        kaltmiete: Number(v.kaltmiete),
-        nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-        mieterhoehungen: v.mieterhoehungen.map((m) => ({
-          gueltigAb: m.gueltigAb,
-          kaltmiete: Number(m.kaltmiete),
-          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
-        })),
-      });
-      return {
-        id: v.id,
-        einheitBezeichnung: v.einheit.bezeichnung,
-        mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-        beginn: v.beginn ? v.beginn.toISOString() : null,
-        ende: v.ende ? v.ende.toISOString() : null,
-        kaltmiete: aktuelleMiete.kaltmiete,
-        nebenkostenVorauszahlung: aktuelleMiete.nebenkostenVorauszahlung,
-        status: v.status,
-      };
-    })
-    .sort((a, b) => vergleicheEinheitBezeichnung(a.einheitBezeichnung, b.einheitBezeichnung));
+  // sortEinheitenNachGebaeude braucht nur `bezeichnung`+`gebaeude` auf oberster Ebene — hier aus
+  // der Einheit des jeweiligen Mietvertrags gespiegelt, damit die Standard-Sortierung derselben
+  // "wie auf dem Grundstück"-Reihenfolge folgt wie auf /einheiten (erst Haus-Gruppe, dann
+  // Hausnummer, dann Bezeichnung).
+  const vertraege = sortEinheitenNachGebaeude(
+    vertraegeRaw.map((v) => ({ ...v, bezeichnung: v.einheit.bezeichnung, gebaeude: v.einheit.gebaeude })),
+  );
+
+  return vertraege.map((v) => {
+    const aktuelleMiete = ermittleAktuelleMiete({
+      kaltmiete: Number(v.kaltmiete),
+      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+      mieterhoehungen: v.mieterhoehungen.map((m) => ({
+        gueltigAb: m.gueltigAb,
+        kaltmiete: Number(m.kaltmiete),
+        nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+      })),
+    });
+    const gebaeudeGruppe = gebaeudeGruppeAnzeige(v.einheit.gebaeude);
+    return {
+      id: v.id,
+      gebaeudeLabel: gebaeudeGruppe.label,
+      gebaeudeHref: gebaeudeGruppe.href,
+      einheitBezeichnung: v.einheit.bezeichnung,
+      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      beginn: v.beginn ? v.beginn.toISOString() : null,
+      ende: v.ende ? v.ende.toISOString() : null,
+      kaltmiete: aktuelleMiete.kaltmiete,
+      nebenkostenVorauszahlung: aktuelleMiete.nebenkostenVorauszahlung,
+      status: v.status,
+    };
+  });
 }
 
 export default async function MietvertraegePage() {

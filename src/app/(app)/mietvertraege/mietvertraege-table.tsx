@@ -27,6 +27,8 @@ const statusColor: Record<string, string> = {
 
 export type VertragRow = {
   id: string;
+  gebaeudeLabel: string;
+  gebaeudeHref: string;
   einheitBezeichnung: string;
   mieterNamen: string;
   beginn: string | null;
@@ -37,6 +39,17 @@ export type VertragRow = {
 };
 
 const columns: Column<VertragRow>[] = [
+  {
+    key: "gebaeude",
+    label: "Gebäude",
+    sortValue: (v) => v.gebaeudeLabel,
+    searchValue: (v) => v.gebaeudeLabel,
+    render: (v) => (
+      <Link href={v.gebaeudeHref} className="hover:underline">
+        {v.gebaeudeLabel}
+      </Link>
+    ),
+  },
   {
     key: "einheit",
     label: "Einheit",
