@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-input";
 import { useActionState, useState, useTransition } from "react";
 import { DeleteButton } from "./delete-button";
 import { aendereBelegDatum, deleteDokument } from "@/app/(app)/dokumente/actions";
@@ -32,15 +33,15 @@ function BelegDatumFeld({ id, wert, revalidatePath }: { id: string; wert: Date |
   const [aktuell, setAktuell] = useState(zuInputWert(wert));
   const [pending, startTransition] = useTransition();
   return (
-    <input
-      type="date"
+    <DateInput
       value={aktuell}
       disabled={pending}
-      onChange={(e) => {
-        setAktuell(e.target.value);
-        startTransition(() => aendereBelegDatum(id, e.target.value, revalidatePath));
+      size="sm"
+      onChange={(iso) => {
+        if (iso === aktuell) return;
+        setAktuell(iso);
+        startTransition(() => aendereBelegDatum(id, iso, revalidatePath));
       }}
-      className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs text-white outline-none focus:border-neutral-400 disabled:opacity-50"
     />
   );
 }
@@ -128,11 +129,7 @@ export function BelegeSektion({
       <form action={formAction} className="flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs text-neutral-400">Belegdatum (optional)</label>
-          <input
-            type="date"
-            name="belegDatum"
-            className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
-          />
+          <DateInput name="belegDatum" size="sm" />
         </div>
         <input
           type="file"

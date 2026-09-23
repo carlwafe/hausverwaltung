@@ -1,14 +1,19 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
+import { DateInput } from "@/components/date-input";
 import { speichereKontostandKontrolle } from "./actions";
 
 /** Formular: Kontostand laut Kontoauszug an einem Tag eintragen (Kontrollpunkt). */
 export function KontostandKontrolleForm() {
   const formRef = useRef<HTMLFormElement>(null);
+  const [datumKey, setDatumKey] = useState(0);
   const [fehler, formAction, pending] = useActionState(async (prev: string | null, formData: FormData) => {
     const ergebnis = await speichereKontostandKontrolle(prev, formData);
-    if (ergebnis === null) formRef.current?.reset();
+    if (ergebnis === null) {
+      formRef.current?.reset();
+      setDatumKey((k) => k + 1);
+    }
     return ergebnis;
   }, null);
   const feld =
@@ -18,7 +23,7 @@ export function KontostandKontrolleForm() {
     <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3">
       <div>
         <label className="mb-1 block text-xs text-neutral-400">Datum des Kontoauszugs</label>
-        <input type="date" name="datum" required className={feld} />
+        <DateInput key={datumKey} name="datum" required size="sm" />
       </div>
       <div>
         <label className="mb-1 block text-xs text-neutral-400">Kontostand laut Kontoauszug (€)</label>

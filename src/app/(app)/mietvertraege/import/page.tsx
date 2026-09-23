@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-input";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { previewImport, commitImport, type PreviewResult } from "./actions";
@@ -227,19 +228,17 @@ export default function MietvertraegeImportPage() {
                             ))}
                       </td>
                       <td className="px-3 py-1.5">
-                        <input
-                          type="date"
+                        <DateInput
                           value={r.beginnEdit}
-                          onChange={(e) => updateRow(i, { beginnEdit: e.target.value })}
-                          className="w-32 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                          onChange={(iso) => updateRow(i, { beginnEdit: iso })}
+                          size="sm"
                         />
                       </td>
                       <td className="px-3 py-1.5">
-                        <input
-                          type="date"
+                        <DateInput
                           value={r.endeEdit}
-                          onChange={(e) => updateRow(i, { endeEdit: e.target.value })}
-                          className="w-32 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                          onChange={(iso) => updateRow(i, { endeEdit: iso })}
+                          size="sm"
                         />
                       </td>
                       <td className="px-3 py-1.5">

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-input";
 import { useActionState, useState } from "react";
 import { DeleteButton } from "@/components/delete-button";
 import { bearbeitePosition, loeschePosition } from "./actions";
@@ -54,23 +55,11 @@ export function PositionBearbeitenForm({
         <form action={formAction} className="contents">
           <div>
             <label className="mb-1 block text-neutral-400">Zeitraum von</label>
-            <input
-              type="date"
-              name="zeitraumVon"
-              required
-              defaultValue={initialZeitraumVon}
-              className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-            />
+            <DateInput name="zeitraumVon" required size="sm" defaultValue={initialZeitraumVon} />
           </div>
           <div>
             <label className="mb-1 block text-neutral-400">Zeitraum bis</label>
-            <input
-              type="date"
-              name="zeitraumBis"
-              required
-              defaultValue={initialZeitraumBis}
-              className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-            />
+            <DateInput name="zeitraumBis" required size="sm" defaultValue={initialZeitraumBis} />
           </div>
           <div>
             <label className="mb-1 block text-neutral-400">Kostenanteil</label>

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-input";
 import { useState, useTransition } from "react";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { erstelleKautionsbuchung } from "./actions";
@@ -97,18 +98,7 @@ export function NeueKautionsbuchungForm({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs text-neutral-400" htmlFor="datum">
-              Datum
-            </label>
-            <input
-              id="datum"
-              name="datum"
-              type="date"
-              required
-              value={datum}
-              onChange={(e) => setDatum(e.target.value)}
-              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            />
+            <DateInput id="datum" name="datum" label="Datum" labelClassName="text-xs font-normal text-neutral-400" required value={datum} onChange={setDatum} />
           </div>
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="betrag">

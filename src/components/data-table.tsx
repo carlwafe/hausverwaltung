@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { DateInput } from "@/components/date-input";
 
 /** Wird an render() gereicht, für Spalten, die einen Auf-/Zuklapp-Bereich unter der Zeile steuern
  * (siehe `renderExpanded` an DataTable) — z.B. ein Rohdaten-Toggle. */
@@ -83,6 +84,7 @@ export function DataTable<T extends { id: string }>({
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
   const [bis, setBis] = useState("");
+  const [datumResetZaehler, setDatumResetZaehler] = useState(0);
   const [selectFilterValue, setSelectFilterValue] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -209,30 +211,21 @@ export function DataTable<T extends { id: string }>({
           )}
           {dateValue && (
             <div className="flex items-center gap-2 text-sm text-neutral-400">
-              <label className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5">
                 von
-                <input
-                  type="date"
-                  value={von}
-                  onChange={(e) => setVon(e.target.value)}
-                  className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
-                />
-              </label>
-              <label className="flex items-center gap-1.5">
+                <DateInput key={`von-${datumResetZaehler}`} value={von} onChange={setVon} size="sm" />
+              </div>
+              <div className="flex items-center gap-1.5">
                 bis
-                <input
-                  type="date"
-                  value={bis}
-                  onChange={(e) => setBis(e.target.value)}
-                  className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
-                />
-              </label>
+                <DateInput key={`bis-${datumResetZaehler}`} value={bis} onChange={setBis} size="sm" />
+              </div>
               {(von || bis) && (
                 <button
                   type="button"
                   onClick={() => {
                     setVon("");
                     setBis("");
+                    setDatumResetZaehler((z) => z + 1);
                   }}
                   className="text-xs text-neutral-500 underline hover:text-white"
                 >

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-input";
 import { useActionState, useState } from "react";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { toDateInputValue } from "@/lib/date-utils";
@@ -75,22 +76,20 @@ export function ManuellePositionForm({
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs text-neutral-400">Zeitraum von</label>
-            <input
-              type="date"
+            <DateInput
               name="zeitraumVon"
               required
+              size="sm"
               defaultValue={toDateInputValue(new Date(Date.UTC(jahr, 0, 1)))}
-              className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs text-neutral-400">Zeitraum bis</label>
-            <input
-              type="date"
+            <DateInput
               name="zeitraumBis"
               required
+              size="sm"
               defaultValue={toDateInputValue(new Date(Date.UTC(jahr, 11, 31)))}
-              className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
             />
           </div>
           <div>

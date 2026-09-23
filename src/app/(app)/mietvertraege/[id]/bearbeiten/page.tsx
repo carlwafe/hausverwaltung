@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateInput } from "@/components/date-input";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MietvertragForm } from "../../mietvertrag-form";
@@ -148,12 +149,9 @@ export default async function MietvertragBearbeitenPage({
         >
           <div>
             <label className="block text-xs text-neutral-400">Gültig ab</label>
-            <input
-              type="date"
-              name="gueltigAb"
-              required
-              className="mt-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-            />
+            <div className="mt-1">
+              <DateInput name="gueltigAb" required />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-neutral-400">Kaltmiete</label>

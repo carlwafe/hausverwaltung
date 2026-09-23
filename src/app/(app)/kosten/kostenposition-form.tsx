@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-input";
 import { useActionState, useState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
@@ -126,16 +127,12 @@ export function KostenpositionForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="datum">
-            Datum (optional)
-          </label>
-          <input
+          <DateInput
             id="datum"
             name="datum"
-            type="date"
+            label="Datum (optional)"
             disabled={istImportiert}
             defaultValue={initial?.datum ?? ""}
-            className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400 disabled:opacity-50"
           />
           {istImportiert && (
             <p className="mt-1 text-xs text-neutral-500">
