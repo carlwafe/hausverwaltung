@@ -12,6 +12,7 @@ import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
 import { ladeEinheitenFuerAuswahl } from "../einheiten-liste";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -51,7 +52,11 @@ export default async function KostenpositionDetailPage({
   const [aufteilungGeschwisterRaw, virtuelleKautionBuchung] = await Promise.all([
     kostenposition.aufteilungGruppeId
       ? prisma.buchung.findMany({
-          where: { aufteilungGruppeId: kostenposition.aufteilungGruppeId, buchungsart: { code: "KOSTENPOSITION" } },
+          where: {
+            aufteilungGruppeId: kostenposition.aufteilungGruppeId,
+            buchungsart: { code: "KOSTENPOSITION" },
+            ...AKTIVE_BUCHUNG_FILTER,
+          },
           include: { kostenart: true },
           orderBy: { erstelltAm: "asc" },
         })

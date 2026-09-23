@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
-import { storniereBuchung } from "@/lib/buchung-storno";
+import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeBuchungsartId(code: string): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code } });
@@ -328,11 +328,19 @@ export async function teileZahlungAuf(
 // Mietvertrag/der Periode der Zahlung, von der aus die Aktion aufgerufen wurde.
 export async function hebeZahlungAufteilungAuf(zahlungId: string) {
   await requireEditor();
-  const zahlung = await prisma.buchung.findUnique({ where: { id: zahlungId } });
+  const zahlung = await prisma.buchung.findFirst({ where: { id: zahlungId, ...AKTIVE_BUCHUNG_FILTER } });
   if (!zahlung) throw new Error("Zahlung nicht gefunden.");
   if (!zahlung.aufteilungGruppeId) throw new Error("Diese Zahlung ist nicht Teil einer Aufteilung.");
 
-  const gruppe = await prisma.buchung.findMany({ where: { aufteilungGruppeId: zahlung.aufteilungGruppeId } });
+  // Nur die noch aktiven Teile — ein einzelner Teil kann seit dem Aufteilen bereits bearbeitet
+  // worden sein (Storno + Neuanlage), wodurch die alte, jetzt stornierte Version weiterhin
+  // dieselbe aufteilungGruppeId trägt. Ohne diesen Filter würde ihr Betrag doppelt in die Summe
+  // einfließen UND storniereBuchung beim erneuten Stornieren dieser bereits stornierten Zeile
+  // einen Fehler werfen, der die ganze Transaktion abbricht (siehe hebeAufteilungAuf in
+  // kosten/actions.ts, derselbe Bug).
+  const gruppe = await prisma.buchung.findMany({
+    where: { aufteilungGruppeId: zahlung.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
+  });
   const summe = gruppe.reduce((sum, z) => sum + Number(z.betrag), 0);
   const betroffeneMietvertraege = new Set(gruppe.map((z) => z.mietvertragId));
 

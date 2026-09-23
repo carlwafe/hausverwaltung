@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
 import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -116,12 +117,20 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
   const aufteilungGruppeId = zahlung.aufteilungGruppeId;
   const [aufteilungGeschwisterRaw, aufteilungKostenRaw] = await Promise.all([
     prisma.buchung.findMany({
-      where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__", buchungsart: { code: "MIETZAHLUNG" } },
+      where: {
+        aufteilungGruppeId: aufteilungGruppeId ?? "__keine__",
+        buchungsart: { code: "MIETZAHLUNG" },
+        ...AKTIVE_BUCHUNG_FILTER,
+      },
       include: { mietvertrag: { include: { einheit: true, mieter: true } } },
       orderBy: { erstelltAm: "asc" },
     }),
     prisma.buchung.findMany({
-      where: { aufteilungGruppeId: aufteilungGruppeId ?? "__keine__", buchungsart: { code: "KOSTENPOSITION" } },
+      where: {
+        aufteilungGruppeId: aufteilungGruppeId ?? "__keine__",
+        buchungsart: { code: "KOSTENPOSITION" },
+        ...AKTIVE_BUCHUNG_FILTER,
+      },
       include: { kostenart: true },
       orderBy: { erstelltAm: "asc" },
     }),

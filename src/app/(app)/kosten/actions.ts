@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
-import { storniereBuchung } from "@/lib/buchung-storno";
+import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -259,14 +259,29 @@ export async function teileKostenpositionAuf(
 // die neue Position.
 export async function hebeAufteilungAuf(positionId: string) {
   await requireEditor();
-  const position = await prisma.buchung.findUnique({ where: { id: positionId } });
+  const position = await prisma.buchung.findFirst({ where: { id: positionId, ...AKTIVE_BUCHUNG_FILTER } });
   if (!position) throw new Error("Kostenposition nicht gefunden.");
   if (!position.aufteilungGruppeId) throw new Error("Diese Position ist nicht Teil einer Aufteilung.");
 
+  // Nur die noch aktiven Teile — ein einzelner Teil kann seit dem Aufteilen bereits bearbeitet
+  // worden sein (Storno + Neuanlage, siehe updateKostenposition), wodurch die alte, jetzt
+  // stornierte Version weiterhin dieselbe aufteilungGruppeId trägt. Ohne diesen Filter würde ihr
+  // Betrag doppelt in die Summe einfließen UND storniereBuchung beim erneuten Stornieren dieser
+  // bereits stornierten Zeile einen Fehler werfen, der die ganze Transaktion abbricht.
   const gruppe = await prisma.buchung.findMany({
-    where: { aufteilungGruppeId: position.aufteilungGruppeId },
+    where: { aufteilungGruppeId: position.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
   });
   const summe = gruppe.reduce((sum, p) => sum + Number(p.betrag), 0);
+
+  // Belege können auch an einer inzwischen bearbeiteten (stornierten) früheren Version eines
+  // Teils hängen (updateKostenposition hängt Belege bislang nicht um) — deshalb hier bewusst über
+  // alle jemals zu dieser Gruppe gehörenden Buchungen gesucht, nicht nur die aktuell aktiven.
+  const alleGruppenMitgliederIds = (
+    await prisma.buchung.findMany({
+      where: { aufteilungGruppeId: position.aufteilungGruppeId },
+      select: { id: true },
+    })
+  ).map((b) => b.id);
 
   await prisma.$transaction(async (tx) => {
     const neu = await tx.buchung.create({
@@ -287,7 +302,7 @@ export async function hebeAufteilungAuf(positionId: string) {
       },
     });
     await tx.dokument.updateMany({
-      where: { buchungId: { in: gruppe.map((p) => p.id) } },
+      where: { buchungId: { in: alleGruppenMitgliederIds } },
       data: { buchungId: neu.id },
     });
     for (const teil of gruppe) {
