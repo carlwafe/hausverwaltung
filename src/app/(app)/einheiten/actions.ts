@@ -69,3 +69,44 @@ export async function deleteEinheit(id: string) {
   revalidatePath("/einheiten");
   redirect("/einheiten");
 }
+
+const wohnflaecheKorrekturSchema = z.object({
+  bisJahr: z.coerce.number().int().min(2000).max(2100),
+  wohnflaecheQm: z.coerce.number().positive("Wohnfläche muss größer als 0 sein"),
+  notizen: z.string().optional(),
+});
+
+// Rückwirkende Korrektur für Jahre, in denen die Nebenkostenabrechnung mit einer anderen (z.B.
+// historisch falsch eingetragenen) Wohnfläche gerechnet wurde als der heute in Einheit.wohnflaecheQm
+// hinterlegte, korrekte Wert — siehe WohnflaecheKorrektur und ladeBerechnungsdaten in
+// nebenkostenabrechnungen/actions.ts.
+export async function erfasseWohnflaecheKorrektur(
+  einheitId: string,
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireEditor();
+  const parsed = wohnflaecheKorrekturSchema.safeParse({
+    bisJahr: formData.get("bisJahr"),
+    wohnflaecheQm: formData.get("wohnflaecheQm"),
+    notizen: formData.get("notizen") || undefined,
+  });
+  if (!parsed.success) return parsed.error.issues.map((i) => i.message).join(", ");
+
+  try {
+    await prisma.wohnflaecheKorrektur.create({ data: { einheitId, ...parsed.data } });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Unique constraint")) {
+      return "Für dieses Jahr existiert bereits eine Korrektur.";
+    }
+    throw err;
+  }
+  revalidatePath(`/einheiten/${einheitId}`);
+  return null;
+}
+
+export async function loescheWohnflaecheKorrektur(einheitId: string, id: string) {
+  await requireEditor();
+  await prisma.wohnflaecheKorrektur.delete({ where: { id } });
+  revalidatePath(`/einheiten/${einheitId}`);
+}

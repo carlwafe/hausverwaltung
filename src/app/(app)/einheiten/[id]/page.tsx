@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { EinheitForm } from "../einheit-form";
-import { updateEinheit, deleteEinheit } from "../actions";
+import { updateEinheit, deleteEinheit, loescheWohnflaecheKorrektur } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
 import { FotosSektion } from "@/components/fotos-sektion";
 import { uploadDokument } from "../../dokumente/actions";
 import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
 import { KostenTable } from "../../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
+import { WohnflaecheKorrekturForm } from "../wohnflaeche-korrektur-form";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -32,7 +33,7 @@ export default async function EinheitDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [einheit, gebaeudeRaw, mietvertraege, fotos, kosten] = await Promise.all([
+  const [einheit, gebaeudeRaw, mietvertraege, fotos, kosten, wohnflaecheKorrekturen] = await Promise.all([
     prisma.einheit.findUnique({ where: { id } }),
     prisma.gebaeude.findMany(),
     prisma.mietvertrag.findMany({
@@ -46,6 +47,10 @@ export default async function EinheitDetailPage({
       select: { id: true, dateiname: true },
     }),
     ladeKosten({ einheitId: id, kostenart: { name: { in: REPARATUR_SANIERUNG_KOSTENART_NAMEN } } }),
+    prisma.wohnflaecheKorrektur.findMany({
+      where: { einheitId: id },
+      orderBy: { bisJahr: "desc" },
+    }),
   ]);
   if (!einheit) notFound();
   const gebaeude = sortByStrasseUndHausnummer(gebaeudeRaw);
@@ -130,6 +135,52 @@ export default async function EinheitDetailPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-4 text-lg font-medium text-white">
+          Wohnfläche-Korrekturen (Nebenkostenabrechnung)
+        </h2>
+        <p className="mb-3 text-sm text-neutral-400">
+          Aktuelle Wohnfläche: {einheit.wohnflaecheQm.toString()} qm. Für Abrechnungsjahre bis
+          einschließlich dem hier eingetragenen &bdquo;Bis Jahr&ldquo; wird stattdessen die hier
+          hinterlegte (historische) Wohnfläche für die Nebenkostenabrechnung verwendet.
+        </p>
+        <div className="rounded-lg border border-neutral-800">
+          <table className="w-full text-sm">
+            <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+              <tr>
+                <th className="px-4 py-2">Bis Jahr</th>
+                <th className="px-4 py-2">Wohnfläche (qm)</th>
+                <th className="px-4 py-2">Notizen</th>
+                <th className="px-4 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {wohnflaecheKorrekturen.map((k) => (
+                <tr key={k.id} className="border-t border-neutral-800">
+                  <td className="px-4 py-2 text-white">{k.bisJahr}</td>
+                  <td className="px-4 py-2 text-white">{k.wohnflaecheQm.toString()}</td>
+                  <td className="px-4 py-2 text-neutral-400">{k.notizen || "–"}</td>
+                  <td className="px-4 py-2 text-right">
+                    <DeleteButton
+                      size="sm"
+                      action={loescheWohnflaecheKorrektur.bind(null, id, k.id)}
+                    />
+                  </td>
+                </tr>
+              ))}
+              {wohnflaecheKorrekturen.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
+                    Keine Korrekturen erfasst.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <WohnflaecheKorrekturForm einheitId={id} />
       </div>
 
       <div className="mt-8">
