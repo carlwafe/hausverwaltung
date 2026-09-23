@@ -294,9 +294,32 @@ model Einheit {
   dokumente                       Dokument[]
   buchungen                       Buchung[]
   vorverteilteLeerstaende         VorverteilterLeerstand[]
+  wohnflaecheKorrekturen          WohnflaecheKorrektur[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
+}
+
+// Rückwirkende Korrektur der Wohnfläche für einzelne, bereits abgerechnete Jahre — z.B. wenn bei
+// der Anlage des Objekts eine falsche qm-Zahl eingetragen wurde. Einheit.wohnflaecheQm trägt ab
+// sofort den richtigen Wert; diese Tabelle hält den (falschen) historischen Wert fest, mit dem die
+// Nebenkostenabrechnung tatsächlich gerechnet wurde — nur damit ein erneutes "Neu berechnen" eines
+// alten Jahres dasselbe Ergebnis wie damals liefert, statt die Vergangenheit rückwirkend mit dem
+// neuen Wert umzuschreiben (der Eigentümer hatte dadurch keinen finanziellen Nachteil, nur die
+// Kostenverteilung zwischen den Mietern war in den betroffenen Jahren leicht verschoben).
+model WohnflaecheKorrektur {
+  id            String   @id @default(cuid())
+  einheit       Einheit  @relation(fields: [einheitId], references: [id], onDelete: Cascade)
+  einheitId     String
+  // Gilt für Abrechnungsjahre bis einschließlich diesem Jahr — ab dem Folgejahr zählt wieder
+  // Einheit.wohnflaecheQm.
+  bisJahr       Int
+  wohnflaecheQm Decimal  @db.Decimal(8, 2)
+  notizen       String?
+  createdAt     DateTime @default(now())
+
+  @@unique([einheitId, bisJahr])
+  @@map("wohnflaeche_korrekturen")
 }
 
 model Mieter {

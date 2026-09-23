@@ -19,7 +19,7 @@ import {
 // Auch von der Detailseite genutzt (für die live geprüfte "nicht berücksichtigt"-Anzeige und die
 // vorverteilten Kostenarten), nicht nur beim eigentlichen Berechnen/Neu-Berechnen.
 export async function ladeBerechnungsdaten(jahr: number) {
-  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw, vorverteilteAnteileRaw] =
+  const [kostenpositionenRaw, einheitenRaw, mietvertraegeRaw, verbrauchswerteRaw, vorverteilteAnteileRaw, wohnflaecheKorrekturenRaw] =
     await Promise.all([
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, jahr, kostenart: { umlagefaehig: true }, ...AKTIVE_BUCHUNG_FILTER },
@@ -37,7 +37,18 @@ export async function ladeBerechnungsdaten(jahr: number) {
       }),
       prisma.verbrauchswert.findMany({ where: { jahr } }),
       prisma.vorverteilterKostenanteil.findMany({ where: { jahr }, include: { kostenart: true } }),
+      // Rückwirkende Wohnfläche-Korrekturen (siehe WohnflaecheKorrektur) — nur die, die für dieses
+      // Abrechnungsjahr noch gelten (bisJahr >= jahr); ist für eine Einheit mehr als eine gesetzt,
+      // zählt die mit dem kleinsten bisJahr >= jahr (die "näheste" noch gültige historische
+      // Korrektur). In der Praxis kommt bislang immer höchstens eine pro Einheit vor.
+      prisma.wohnflaecheKorrektur.findMany({ where: { bisJahr: { gte: jahr } }, orderBy: { bisJahr: "asc" } }),
     ]);
+  const wohnflaecheKorrekturNachEinheit = new Map<string, number>();
+  for (const k of wohnflaecheKorrekturenRaw) {
+    if (!wohnflaecheKorrekturNachEinheit.has(k.einheitId)) {
+      wohnflaecheKorrekturNachEinheit.set(k.einheitId, Number(k.wohnflaecheQm));
+    }
+  }
 
   // Die where-Klausel oben filtert bereits auf kostenart: { umlagefaehig: true } — kostenart ist
   // für jede zurückgegebene Zeile also real vorhanden, auch wenn die Relation im Schema (anders
@@ -63,7 +74,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     gebaeudeId: e.gebaeudeId,
     hausId: e.gebaeude.hausId,
     kostengruppenIds: e.gebaeude.kostengruppen.map((kg) => kg.id),
-    wohnflaecheQm: Number(e.wohnflaecheQm),
+    wohnflaecheQm: wohnflaecheKorrekturNachEinheit.get(e.id) ?? Number(e.wohnflaecheQm),
   }));
   const mietvertraege: MietvertragFuerAbrechnung[] = mietvertraegeRaw.map((m) => ({
     id: m.id,
