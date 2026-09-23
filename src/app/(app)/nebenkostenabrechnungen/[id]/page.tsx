@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
+import { SubmitButton } from "@/components/submit-button";
 import { gebaeudeOderHausLabel, hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
@@ -221,20 +222,20 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
         <div className="flex items-center gap-2">
           <form action={neuBerechnenAction}>
-            <button
-              type="submit"
+            <SubmitButton
+              pendingLabel="Berechne…"
               className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
             >
               Neu berechnen
-            </button>
+            </SubmitButton>
           </form>
           <form action={naechsterStatusAction}>
-            <button
-              type="submit"
+            <SubmitButton
+              pendingLabel="Speichere…"
               className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
             >
               Als {STATUS_LABEL[naechsterStatus]} markieren
-            </button>
+            </SubmitButton>
           </form>
           <DeleteButton
             action={deleteAbrechnung.bind(null, id)}
