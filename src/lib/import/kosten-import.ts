@@ -426,7 +426,7 @@ function ermittleGebaeudeVorschlag(
 
       // Manche Versorger (z.B. ein Allgemeinstrom-Zähler, der mehrere Hausnummern gemeinsam
       // versorgt — teils ein ganzes "Haus", teils sogar eine noch größere, freie Kostengruppe
-      // über mehrere Häuser hinweg wie "Haus 2-12 (Techem)") bebuchen ihren Abschlag trotzdem nur
+      // über mehrere Häuser hinweg wie "Haus 2-12") bebuchen ihren Abschlag trotzdem nur
       // unter einer "repräsentativen" Einzeladresse — der Buchungstext nennt dann fälschlich nur
       // ein Gebäude, obwohl tatsächlich der größere Kreis gemeint ist. Erkennbar daran, dass für
       // denselben Empfänger und dieselbe Kostenart in der Historie bereits ausschließlich auf
