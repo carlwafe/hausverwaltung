@@ -392,6 +392,11 @@ function ermittleGebaeudeVorschlag(
   historie: EmpfaengerHistorie[],
   mandatsref: string | null,
   einheiten: EinheitKandidat[] = [],
+  // Bereits ermittelte Kostenart dieser Zeile (siehe ermittleKostenartVorschlag, wird vor diesem
+  // Aufruf berechnet) — nur für den Haus-statt-Einzeladresse-Abgleich unten gebraucht, um die
+  // Historie auf dieselbe Kostenart einzugrenzen (derselbe Empfänger bucht oft mehrere
+  // Kostenarten/Häuser, siehe dort).
+  kostenartId: string | null = null,
 ): string | null | undefined {
   const textLeicht = stripStrassenwort(text).toLowerCase();
   const strassen = [
@@ -417,7 +422,34 @@ function ermittleGebaeudeVorschlag(
     });
     if (adressTreffer.length === 1) {
       const einheitId = ermittleEinheitVorschlagViaWhg(textLeicht, adressTreffer[0].id, einheiten);
-      return einheitId ? einheitWert(einheitId) : gebaeudeWert(adressTreffer[0].id);
+      if (einheitId) return einheitWert(einheitId);
+
+      // Manche Versorger (z.B. ein Allgemeinstrom-Zähler, der ein ganzes Haus mit mehreren
+      // Hausnummern gemeinsam versorgt) bebuchen ihren Abschlag trotzdem nur unter einer
+      // "repräsentativen" Einzeladresse — der Buchungstext nennt dann fälschlich nur ein Gebäude,
+      // obwohl tatsächlich das ganze Haus gemeint ist. Erkennbar daran, dass für denselben
+      // Empfänger und dieselbe Kostenart in der Historie bereits ausschließlich auf Haus-Ebene
+      // (nie auf diese oder eine andere Einzeladresse) gebucht wurde — nur dann wird das Haus
+      // statt der textlich erkannten Einzeladresse vorgeschlagen, sonst bleibt es beim
+      // Normalfall (echte, auf genau dieses Gebäude bezogene Kosten, z.B. eine
+      // Handwerkerrechnung für eine einzelne Adresse).
+      const hausId = adressTreffer[0].haus?.id;
+      if (hausId && kostenartId) {
+        // Auf die Historie zu genau dieser Adresse ODER ihrem Haus eingegrenzt (nicht einfach
+        // "alle Buchungen desselben Empfängers+Kostenart" — sonst würden Zählpunkte ganz anderer
+        // Häuser desselben Versorgers die Prüfung verwässern, siehe Beispiel Stadtwerke oben).
+        const gebaeudeWertHier = gebaeudeWert(adressTreffer[0].id);
+        const hausWertHier = hausWert(hausId);
+        const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie).filter(
+          (t) =>
+            t.kostenartId === kostenartId &&
+            (t.gebaeudeAuswahl === gebaeudeWertHier || t.gebaeudeAuswahl === hausWertHier),
+        );
+        if (treffer.length > 0 && treffer.every((t) => t.gebaeudeAuswahl === hausWertHier)) {
+          return hausWertHier;
+        }
+      }
+      return gebaeudeWert(adressTreffer[0].id);
     }
     // Mehrdeutig (mehrere Adressen im Text) — nicht ermittelbar, nicht "sicher kein Gebäude".
     if (adressTreffer.length > 1) return undefined;
@@ -599,6 +631,7 @@ export function mapKostenRows(
             historie,
             mandatsref,
             einheitKandidaten,
+            vorgeschlageneKostenartId,
           );
       // Ein Mieter-Absender hat naturgemäß keine Empfänger-Historie als Kosten-Empfänger, aus der
       // sich sonst eine Kostenart ableiten ließe — bei einer erkannten Kleinreparatur-Erstattung
