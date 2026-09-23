@@ -222,6 +222,34 @@ function gruppenSchluessel(
   return `${kp.kostenartId}|${scope}`;
 }
 
+// Verteilt einen Gesamtbetrag (in Cent, kann auch negativ sein — z.B. bei einer Gutschrift) exakt
+// auf mehrere Empfänger nach Gewichten — Restwertverfahren ("größte Reste"): jeder Empfänger
+// bekommt zunächst seinen auf den nächsten Cent gerundeten Anteil, danach wird die verbleibende
+// Differenz (durch das Runden entstanden, ganzzahlig und betragsmäßig kleiner als die Anzahl der
+// Empfänger) einzeln an die Empfänger mit dem größten Rundungsrest verteilt bzw. von ihnen
+// abgezogen. Ergebnis: die Summe aller zurückgegebenen Cent-Beträge entspricht immer exakt
+// `gesamtCent` — anders als bei unabhängigem Runden jedes Anteils für sich, wo sich Rundungsfehler
+// über viele Einheiten/Kostenarten zu einer Differenz zum tatsächlich gebuchten Betrag aufsummieren
+// können.
+function verteileRestcent(gesamtCent: number, gewichte: number[]): number[] {
+  const gewichtSumme = gewichte.reduce((s, g) => s + g, 0);
+  if (gewichtSumme <= 0 || gewichte.length === 0) return gewichte.map(() => 0);
+
+  const rohAnteile = gewichte.map((g) => (gesamtCent * g) / gewichtSumme);
+  const basis = rohAnteile.map((a) => Math.round(a));
+  let diff = gesamtCent - basis.reduce((s, b) => s + b, 0);
+
+  const reste = rohAnteile.map((a, i) => ({ i, rest: a - basis[i] }));
+  reste.sort((a, b) => (diff > 0 ? b.rest - a.rest : a.rest - b.rest));
+
+  const ergebnis = [...basis];
+  for (let k = 0; k < reste.length && diff !== 0; k++) {
+    ergebnis[reste[k].i] += diff > 0 ? 1 : -1;
+    diff += diff > 0 ? -1 : 1;
+  }
+  return ergebnis;
+}
+
 function pushDetail(
   detailsProEinheit: Map<string, KostenanteilJahrDetail[]>,
   einheitId: string,
@@ -289,39 +317,49 @@ function berechneEinheitAnteile(
     if (pool.length === 0) continue;
 
     if (g.verteilerschluessel === "WOHNFLAECHE") {
+      const verteilerschluessel = g.verteilerschluessel;
       const gesamtflaeche = pool.reduce((s, e) => s + e.wohnflaecheQm, 0);
       if (gesamtflaeche <= 0) continue;
-      for (const e of pool) {
-        const anteil = g.betrag * (e.wohnflaecheQm / gesamtflaeche);
+      const centAnteile = verteileRestcent(
+        Math.round(g.betrag * 100),
+        pool.map((e) => e.wohnflaecheQm),
+      );
+      pool.forEach((e, i) => {
+        const anteil = centAnteile[i] / 100;
         anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteil);
         pushDetail(detailsProEinheit, e.id, {
           kostenartId: g.kostenartId,
           kostenartName: g.kostenartName,
           scopeLabel: g.scopeLabel,
-          verteilerschluessel: g.verteilerschluessel,
+          verteilerschluessel,
           gesamtbetragPool: g.betrag,
           einheitMasswert: e.wohnflaecheQm,
           poolMasswert: gesamtflaeche,
           masseinheit: "m²",
           anteilJahr: anteil,
         });
-      }
+      });
     } else if (g.verteilerschluessel === "EINHEITEN") {
-      const anteilProKopf = g.betrag / pool.length;
-      for (const e of pool) {
-        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteilProKopf);
+      const verteilerschluessel = g.verteilerschluessel;
+      const centAnteile = verteileRestcent(
+        Math.round(g.betrag * 100),
+        pool.map(() => 1),
+      );
+      pool.forEach((e, i) => {
+        const anteil = centAnteile[i] / 100;
+        anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteil);
         pushDetail(detailsProEinheit, e.id, {
           kostenartId: g.kostenartId,
           kostenartName: g.kostenartName,
           scopeLabel: g.scopeLabel,
-          verteilerschluessel: g.verteilerschluessel,
+          verteilerschluessel,
           gesamtbetragPool: g.betrag,
           einheitMasswert: 1,
           poolMasswert: pool.length,
           masseinheit: "Einheiten",
-          anteilJahr: anteilProKopf,
+          anteilJahr: anteil,
         });
-      }
+      });
     } else {
       // VERBRAUCH_MANUELL: Werte pro Einheit für diese Kostenart+Jahr nachschlagen. Fehlt auch
       // nur einer im Pool, wird die ganze Kostenart ausgeschlossen (siehe Doku oben) statt
@@ -344,22 +382,27 @@ function berechneEinheitAnteile(
       }
       const gesamtwert = [...werteProEinheit.values()].reduce((s, w) => s + w, 0);
       if (gesamtwert <= 0) continue;
-      for (const e of pool) {
+      const verteilerschluessel = g.verteilerschluessel;
+      const centAnteile = verteileRestcent(
+        Math.round(g.betrag * 100),
+        pool.map((e) => werteProEinheit.get(e.id) ?? 0),
+      );
+      pool.forEach((e, i) => {
         const wert = werteProEinheit.get(e.id) ?? 0;
-        const anteil = g.betrag * (wert / gesamtwert);
+        const anteil = centAnteile[i] / 100;
         anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteil);
         pushDetail(detailsProEinheit, e.id, {
           kostenartId: g.kostenartId,
           kostenartName: g.kostenartName,
           scopeLabel: g.scopeLabel,
-          verteilerschluessel: g.verteilerschluessel,
+          verteilerschluessel,
           gesamtbetragPool: g.betrag,
           einheitMasswert: wert,
           poolMasswert: gesamtwert,
           masseinheit: g.masseinheit ?? "",
           anteilJahr: anteil,
         });
-      }
+      });
     }
   }
 
