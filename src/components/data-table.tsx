@@ -170,18 +170,36 @@ export function DataTable<T extends { id: string }>({
             />
           )}
           {selectFilter && (
-            <select
-              value={selectFilterValue}
-              onChange={(e) => setSelectFilterValue(e.target.value)}
-              className="w-full max-w-xs rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
-            >
-              <option value="">{selectFilter.placeholder ?? `Alle (${selectFilter.label})`}</option>
-              {selectFilter.options.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            // Eigener Pfeil statt der nativen Browser-Chevron: die native Darstellung von
+            // <select> weicht je nach Browser/Betriebssystem in ihrem intrinsischen Mindestmaß
+            // von einem <input> ab (v.a. bei langen <option>-Texten) und ließ sich mit
+            // Breiten-Klassen allein nicht zuverlässig exakt an das Suchfeld angleichen —
+            // appearance-none entfernt die native Darstellung komplett, wodurch das Feld exakt
+            // wie das Suchfeld daneben aus denselben Box-Maßen (Breite, Höhe, Padding) besteht.
+            <div className="relative w-full max-w-xs sm:w-72">
+              <select
+                value={selectFilterValue}
+                onChange={(e) => setSelectFilterValue(e.target.value)}
+                className="w-full appearance-none rounded-md border border-neutral-700 bg-neutral-950 py-2 pl-3 pr-8 text-sm text-white outline-none focus:border-neutral-400"
+              >
+                <option value="">{selectFilter.placeholder ?? `Alle (${selectFilter.label})`}</option>
+                {selectFilter.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400"
+              >
+                <path d="M5.5 7.5L10 12l4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
           )}
           {dateValue && (
             <div className="flex items-center gap-2 text-sm text-neutral-400">
