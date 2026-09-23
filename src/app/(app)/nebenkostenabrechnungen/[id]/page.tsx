@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -7,8 +6,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { gebaeudeOderHausLabel, hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
+import { PositionenTable } from "./positionen-table";
 import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
-import { toDateInputValue } from "@/lib/date-utils";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import {
   deleteAbrechnung,
@@ -18,7 +17,6 @@ import {
   setAbrechnungStatus,
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
-import { PositionBearbeitenForm } from "../position-bearbeiten-form";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
 import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
 
@@ -28,19 +26,6 @@ function formatEuro(value: number) {
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
-}
-
-function formatZahl(n: number) {
-  return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(n);
-}
-
-// Beschreibt die Verteilungsbasis eines Kostenanteil-Beleg-Eintrags für die Anzeige, z.B.
-// "35,20 von 420,50 m²" (WOHNFLAECHE), "1 von 12 Einheiten" (EINHEITEN), "180 von 950 kWh"
-// (VERBRAUCH_MANUELL) oder "extern vorverteilt" (VORVERTEILT).
-function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
-  if (d.verteilerschluessel === "VORVERTEILT") return "extern vorverteilt";
-  if (d.verteilerschluessel === "EINHEITEN") return `1 von ${formatZahl(d.poolMasswert)} Einheiten`;
-  return `${formatZahl(d.einheitMasswert)} von ${formatZahl(d.poolMasswert)} ${d.masseinheit}`.trim();
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -405,174 +390,33 @@ export default async function NebenkostenabrechnungDetailPage({
         ist, falls einer offen ist; ist er 0, gilt die Position als erledigt.
       </p>
 
-      <div className="overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Einheit</th>
-              <th className="px-4 py-2">Gebäude</th>
-              <th className="px-4 py-2">Mieter</th>
-              <th className="px-4 py-2">Zeitraum</th>
-              <th className="px-4 py-2 text-right">Kostenanteil</th>
-              <th className="px-4 py-2 text-right">Vorauszahlung</th>
-              <th className="px-4 py-2 text-right">Saldo</th>
-              <th className="px-4 py-2">Rückzahlung/Gutschrift</th>
-              <th className="px-4 py-2">Saldo nach Gutschrift</th>
-            </tr>
-          </thead>
-          <tbody>
-            {abrechnung.positionen.map((p) => {
-              const details = ((p.details as KostenanteilDetailEintrag[] | null) ?? []).slice().sort((a, b) =>
-                a.kostenartName.localeCompare(b.kostenartName, "de"),
-              );
-              const summeDetails = details.reduce((s, d) => s + d.anteilZeitraum, 0);
-              return (
-              <Fragment key={p.id}>
-              <tr className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
-                    {p.einheit.bezeichnung}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-neutral-300">
-                  {gebaeudeOderHausLabel(p.einheit.gebaeude, p.einheit.gebaeude.haus)}
-                </td>
-                <td className="px-4 py-2 text-neutral-300">
-                  {p.mietvertrag
-                    ? p.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")
-                    : "–"}
-                </td>
-                <td className="px-4 py-2 text-neutral-300">
-                  {formatDate(p.zeitraumVon)} – {formatDate(p.zeitraumBis)}
-                </td>
-                <td className="px-4 py-2 text-right text-white">
-                  {formatEuro(Number(p.kostenanteilGesamt))}
-                </td>
-                <td className="px-4 py-2 text-right text-white">
-                  {formatEuro(Number(p.vorauszahlungGesamt))}
-                </td>
-                <td
-                  className={`px-4 py-2 text-right font-medium ${
-                    Number(p.saldo) >= 0 ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {formatEuro(Number(p.saldo))}
-                  {Number(p.saldo) >= 0 ? " (Guthaben)" : " (Nachzahlung)"}
-                </td>
-                {(() => {
-                  const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
-                  const gutschriftSumme = eintrag?.summe ?? 0;
-                  const saldoNachGutschrift = Number(p.saldo) - gutschriftSumme;
-                  const erledigt = Math.abs(saldoNachGutschrift) < 0.01;
-                  return (
-                    <>
-                      <td className="px-4 py-2 text-neutral-300">
-                        {eintrag ? (
-                          <>
-                            <span className="text-white">{formatEuro(eintrag.summe)}</span>
-                            <span className="ml-1 text-xs text-neutral-500">
-                              ({formatDate(eintrag.juengstesDatum)})
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-neutral-500">–</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-neutral-300">
-                        {erledigt ? (
-                          <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">
-                            erledigt
-                          </span>
-                        ) : (
-                          <span className={Number(saldoNachGutschrift) >= 0 ? "text-green-400" : "text-red-400"}>
-                            {formatEuro(saldoNachGutschrift)}
-                          </span>
-                        )}
-                      </td>
-                    </>
-                  );
-                })()}
-              </tr>
-              {/* Aufschlüsselung und Bearbeiten-Formular schließen sich gegenseitig aus: details
-                  ist nur bei einer berechneten Position gefüllt (siehe berechneNebenkostenabrechnung),
-                  bei einer manuell erfassten (fuegePositionManuellHinzu) bleibt es leer — die eine
-                  ist also nur bei "normal" berechneten Abrechnungen sinnvoll (dort soll alles aus
-                  echten Buchungen kommen, nicht von Hand eingetragen werden), das Bearbeiten-
-                  Formular nur bei manuell erstellten Abrechnungen wie 2024. */}
-              {details.length > 0 ? (
-                <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
-                  <td colSpan={9} className="px-4 py-2">
-                    <details className="text-xs">
-                      <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
-                        Kostenanteil-Aufschlüsselung ({details.length})
-                      </summary>
-                      <div className="mt-2 overflow-x-auto">
-                        <table className="w-full max-w-4xl text-xs">
-                          <thead className="text-left text-neutral-500">
-                            <tr>
-                              <th className="py-1 pr-3">Kostenart</th>
-                              <th className="py-1 pr-3">Kostenkreis</th>
-                              <th className="py-1 pr-3 text-right">Gesamt (Jahr)</th>
-                              <th className="py-1 pr-3">Verteilung</th>
-                              <th className="py-1 pr-3 text-right">Anteil (volles Jahr)</th>
-                              <th className="py-1 pr-3 text-right">Anteil (Zeitraum)</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {details.map((d, i) => (
-                              <tr key={i} className="border-t border-neutral-800">
-                                <td className="py-1 pr-3 text-neutral-300">{d.kostenartName}</td>
-                                <td className="py-1 pr-3 text-neutral-500">{d.scopeLabel}</td>
-                                <td className="py-1 pr-3 text-right text-neutral-300">
-                                  {formatEuro(d.gesamtbetragPool)}
-                                </td>
-                                <td className="py-1 pr-3 text-neutral-500">{formatVerteilungsbasis(d)}</td>
-                                <td className="py-1 pr-3 text-right text-neutral-300">{formatEuro(d.anteilJahr)}</td>
-                                <td className="py-1 pr-3 text-right text-white">{formatEuro(d.anteilZeitraum)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t border-neutral-800 font-medium">
-                              <td colSpan={5} className="py-1 pr-3 text-right text-neutral-400">
-                                Summe Aufschlüsselung
-                              </td>
-                              <td className="py-1 pr-3 text-right text-white">{formatEuro(summeDetails)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </details>
-                  </td>
-                </tr>
-              ) : (
-                p.mietvertragId && (
-                  <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
-                    <td colSpan={9} className="px-4 py-2">
-                      <PositionBearbeitenForm
-                        positionId={p.id}
-                        initialZeitraumVon={toDateInputValue(p.zeitraumVon)}
-                        initialZeitraumBis={toDateInputValue(p.zeitraumBis)}
-                        initialKostenanteil={Number(p.kostenanteilGesamt)}
-                        initialVorauszahlung={Number(p.vorauszahlungGesamt)}
-                      />
-                    </td>
-                  </tr>
-                )
-              )}
-              </Fragment>
-              );
-            })}
-            {abrechnung.positionen.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-neutral-500">
-                  Keine Positionen vorhanden.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <PositionenTable
+        rows={abrechnung.positionen.map((p) => {
+          const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
+          const gutschriftSumme = eintrag?.summe ?? 0;
+          const saldoNachGutschrift = Number(p.saldo) - gutschriftSumme;
+          return {
+            id: p.id,
+            einheitId: p.einheitId,
+            einheitBezeichnung: p.einheit.bezeichnung,
+            gebaeudeLabel: gebaeudeOderHausLabel(p.einheit.gebaeude, p.einheit.gebaeude.haus),
+            mieterNamen: p.mietvertrag
+              ? p.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")
+              : "–",
+            zeitraumVon: p.zeitraumVon.toISOString(),
+            zeitraumBis: p.zeitraumBis.toISOString(),
+            kostenanteilGesamt: Number(p.kostenanteilGesamt),
+            vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+            saldo: Number(p.saldo),
+            gutschriftSumme: eintrag ? eintrag.summe : null,
+            gutschriftDatum: eintrag ? eintrag.juengstesDatum.toISOString() : null,
+            saldoNachGutschrift,
+            erledigt: Math.abs(saldoNachGutschrift) < 0.01,
+            mietvertragId: p.mietvertragId,
+            details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
+          };
+        })}
+      />
 
       <ManuellePositionForm
         abrechnungId={id}

@@ -35,6 +35,7 @@ export function DataTable<T extends { id: string }>({
   rowClassName,
   rowId,
   renderExpanded,
+  renderBelow,
   dateValue,
   selectFilter,
 }: {
@@ -58,6 +59,11 @@ export function DataTable<T extends { id: string }>({
    * tatsächliche Spaltenzahl inkl. Auswahl-Spalte) wird von DataTable mitgegeben, siehe
    * RohdatenZeile. */
   renderExpanded?: (row: T, colSpan: number) => React.ReactNode;
+  /** Wie renderExpanded, aber immer sichtbar statt hinter einem Auf-/Zuklapp-Zustand — für Inhalte,
+   * die ihr eigenes natives Auf-/Zuklappen mitbringen (z.B. ein <details>-Element) oder generell
+   * zu jeder Zeile gehören (z.B. ein Bearbeiten-Formular). Element muss selbst ein <tr> sein,
+   * colSpan wie bei renderExpanded. */
+  renderBelow?: (row: T, colSpan: number) => React.ReactNode;
   /** ISO-Datum (oder null) einer Zeile — wenn gesetzt, werden zusätzlich zur Suche zwei
    * Von/Bis-Datumsfelder angezeigt. Zeilen ohne Datum (z.B. manuell erfasste Kosten, die nur ein
    * Jahr kennen) verschwinden dabei, sobald von/bis aktiv gefiltert wird — ein unbekanntes Datum
@@ -308,6 +314,7 @@ export function DataTable<T extends { id: string }>({
                     ))}
                   </tr>
                   {expanded && renderExpanded && renderExpanded(row, columns.length + (selectable ? 1 : 0))}
+                  {renderBelow && renderBelow(row, columns.length + (selectable ? 1 : 0))}
                 </Fragment>
               );
             })}
