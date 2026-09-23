@@ -424,29 +424,33 @@ function ermittleGebaeudeVorschlag(
       const einheitId = ermittleEinheitVorschlagViaWhg(textLeicht, adressTreffer[0].id, einheiten);
       if (einheitId) return einheitWert(einheitId);
 
-      // Manche Versorger (z.B. ein Allgemeinstrom-Zähler, der ein ganzes Haus mit mehreren
-      // Hausnummern gemeinsam versorgt) bebuchen ihren Abschlag trotzdem nur unter einer
-      // "repräsentativen" Einzeladresse — der Buchungstext nennt dann fälschlich nur ein Gebäude,
-      // obwohl tatsächlich das ganze Haus gemeint ist. Erkennbar daran, dass für denselben
-      // Empfänger und dieselbe Kostenart in der Historie bereits ausschließlich auf Haus-Ebene
-      // (nie auf diese oder eine andere Einzeladresse) gebucht wurde — nur dann wird das Haus
-      // statt der textlich erkannten Einzeladresse vorgeschlagen, sonst bleibt es beim
-      // Normalfall (echte, auf genau dieses Gebäude bezogene Kosten, z.B. eine
-      // Handwerkerrechnung für eine einzelne Adresse).
-      const hausId = adressTreffer[0].haus?.id;
-      if (hausId && kostenartId) {
-        // Auf die Historie zu genau dieser Adresse ODER ihrem Haus eingegrenzt (nicht einfach
-        // "alle Buchungen desselben Empfängers+Kostenart" — sonst würden Zählpunkte ganz anderer
-        // Häuser desselben Versorgers die Prüfung verwässern, siehe Beispiel Stadtwerke oben).
+      // Manche Versorger (z.B. ein Allgemeinstrom-Zähler, der mehrere Hausnummern gemeinsam
+      // versorgt — teils ein ganzes "Haus", teils sogar eine noch größere, freie Kostengruppe
+      // über mehrere Häuser hinweg wie "Haus 2-12 (Techem)") bebuchen ihren Abschlag trotzdem nur
+      // unter einer "repräsentativen" Einzeladresse — der Buchungstext nennt dann fälschlich nur
+      // ein Gebäude, obwohl tatsächlich der größere Kreis gemeint ist. Erkennbar daran, dass für
+      // denselben Empfänger und dieselbe Kostenart in der Historie bereits ausschließlich auf
+      // dieser breiteren Ebene (nie auf diese oder eine andere Einzeladresse) gebucht wurde — nur
+      // dann wird der Kreis statt der textlich erkannten Einzeladresse vorgeschlagen, sonst bleibt
+      // es beim Normalfall (echte, auf genau dieses Gebäude bezogene Kosten, z.B. eine
+      // Handwerkerrechnung für eine einzelne Adresse). Kostengruppen zuerst geprüft (spezifischer,
+      // freiwillig zusammengestellt), das Haus als schwächerer Fallback.
+      if (kostenartId) {
         const gebaeudeWertHier = gebaeudeWert(adressTreffer[0].id);
-        const hausWertHier = hausWert(hausId);
         const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie).filter(
-          (t) =>
-            t.kostenartId === kostenartId &&
-            (t.gebaeudeAuswahl === gebaeudeWertHier || t.gebaeudeAuswahl === hausWertHier),
+          (t) => t.kostenartId === kostenartId,
         );
-        if (treffer.length > 0 && treffer.every((t) => t.gebaeudeAuswahl === hausWertHier)) {
-          return hausWertHier;
+        const breitereKreiseWerte = [
+          ...adressTreffer[0].kostengruppen.map((kg) => kostengruppeWert(kg.id)),
+          ...(adressTreffer[0].haus ? [hausWert(adressTreffer[0].haus.id)] : []),
+        ];
+        for (const kreisWert of breitereKreiseWerte) {
+          const relevanteTreffer = treffer.filter(
+            (t) => t.gebaeudeAuswahl === gebaeudeWertHier || t.gebaeudeAuswahl === kreisWert,
+          );
+          if (relevanteTreffer.length > 0 && relevanteTreffer.every((t) => t.gebaeudeAuswahl === kreisWert)) {
+            return kreisWert;
+          }
         }
       }
       return gebaeudeWert(adressTreffer[0].id);
