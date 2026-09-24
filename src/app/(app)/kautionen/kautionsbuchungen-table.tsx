@@ -86,6 +86,15 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
   const [pending, startTransition] = useTransition();
   if (k.einbehalt) {
     const { status, nkJahr, gebucht } = k.einbehalt;
+    // Verrechnung mit einer NK-Abrechnung: ein unstrittiger Einbehalt mit Abrechnungsjahr — hat
+    // keinen Streit-Status, den man hier umstellen müsste.
+    if (nkJahr) {
+      return (
+        <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400">
+          Verrechnung mit NK-Abrechnung {nkJahr}
+        </span>
+      );
+    }
     return (
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">Einbehalt</span>
@@ -111,11 +120,6 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
             ohne Buchung
           </span>
         )}
-        {nkJahr && (
-          <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400">
-            verrechnet mit NK-Abrechnung {nkJahr}
-          </span>
-        )}
       </div>
     );
   }
@@ -137,6 +141,10 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
       ))}
     </select>
   );
+}
+
+function kategorieText(k: KautionsbuchungRow) {
+  return k.einbehalt?.nkJahr ? `Verrechnung mit NK-Abrechnung ${k.einbehalt.nkJahr}` : KATEGORIE_LABEL[k.kategorie];
 }
 
 const columns: Column<KautionsbuchungRow>[] = [
@@ -176,8 +184,8 @@ const columns: Column<KautionsbuchungRow>[] = [
   {
     key: "kategorie",
     label: "Kategorie",
-    sortValue: (k) => KATEGORIE_LABEL[k.kategorie],
-    searchValue: (k) => KATEGORIE_LABEL[k.kategorie],
+    sortValue: kategorieText,
+    searchValue: kategorieText,
     render: (k) => (
       <div className="flex items-center gap-1.5">
         <KategorieZelle k={k} />

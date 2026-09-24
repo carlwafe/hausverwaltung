@@ -22,7 +22,11 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "SONSTIGES", label: "Sonstiges (z.B. Korrektur)" },
   {
     value: "EINBEHALT",
-    label: "Einbehalt (Kaution einbehalten, z.B. für Schaden oder Verrechnung mit der NK-Abrechnung)",
+    label: "Einbehalt (Kaution einbehalten, z.B. für einen Schaden)",
+  },
+  {
+    value: "VERRECHNUNG_NK",
+    label: "Verrechnung mit NK-Abrechnung (Kaution mit einer Nachzahlung verrechnet)",
   },
   {
     value: "VIRTUELLE_AUSZAHLUNG",
@@ -62,18 +66,26 @@ export function NeueKautionsbuchungForm({
   const gutschriftenAmTag = datum ? virtuelleGutschriften.filter((g) => g.datumISO === datum) : [];
 
   const istEinbehalt = kategorie === "EINBEHALT";
+  const istNkVerrechnung = kategorie === "VERRECHNUNG_NK";
+  // Beide erzeugen intern einen KautionEinbehalt — die Verrechnung ist ein unstrittiger Einbehalt
+  // mit Bezug auf ein Abrechnungsjahr.
+  const erzeugtEinbehalt = istEinbehalt || istNkVerrechnung;
 
   function submit(formData: FormData) {
     startTransition(async () => {
       // Ein Einbehalt ist keine einzelne Kontobuchung, sondern ein begründeter Posten mit
       // Streit-Status (erzeugt bei UNSTRITTIG/STRITTIG_BESTAETIGT selbst die Journal-Buchung) —
       // deshalb eigene Action, aber derselbe Eingabeweg.
-      if (istEinbehalt) {
-        formData.set("positionText", String(formData.get("verwendungszweck") ?? ""));
+      if (erzeugtEinbehalt) {
+        const text = String(formData.get("verwendungszweck") ?? "").trim();
+        formData.set(
+          "positionText",
+          text || `Verrechnung mit Nebenkostenabrechnung ${formData.get("nkJahr") ?? ""}`.trim(),
+        );
         formData.set("betrag", String(Math.abs(Number(formData.get("betrag")))));
-        formData.set("status", einbehaltStatus);
+        formData.set("status", istNkVerrechnung ? "UNSTRITTIG" : einbehaltStatus);
       }
-      const ergebnis = istEinbehalt
+      const ergebnis = erzeugtEinbehalt
         ? await erfasseKautionEinbehalt(null, formData)
         : await erstelleKautionsbuchung(null, formData);
       if (ergebnis) {
@@ -135,7 +147,7 @@ export function NeueKautionsbuchungForm({
               type="number"
               step="0.01"
               required
-              placeholder={istEinbehalt ? "einbehaltener Betrag, z.B. 302" : "z.B. -519 für ausgehend"}
+              placeholder={erzeugtEinbehalt ? "einbehaltener Betrag, z.B. 302" : "z.B. -519 für ausgehend"}
               className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
@@ -182,38 +194,39 @@ export function NeueKautionsbuchungForm({
           </div>
         )}
         {istEinbehalt && (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs text-neutral-400" htmlFor="einbehalt-status">
-                Status
-              </label>
-              <select
-                id="einbehalt-status"
-                value={einbehaltStatus}
-                onChange={(e) => setEinbehaltStatus(e.target.value)}
-                className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
-              >
-                {EINBEHALT_STATUS_OPTIONEN.map((o) => (
-                  <option key={o.value} value={o.value} className="bg-neutral-900 text-white">
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-neutral-400" htmlFor="nkJahr">
-                Mit NK-Abrechnung verrechnet (Jahr, optional)
-              </label>
-              <input
-                id="nkJahr"
-                name="nkJahr"
-                type="number"
-                min="2000"
-                max="2100"
-                placeholder="z.B. 2025"
-                className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
-              />
-            </div>
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400" htmlFor="einbehalt-status">
+              Status
+            </label>
+            <select
+              id="einbehalt-status"
+              value={einbehaltStatus}
+              onChange={(e) => setEinbehaltStatus(e.target.value)}
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            >
+              {EINBEHALT_STATUS_OPTIONEN.map((o) => (
+                <option key={o.value} value={o.value} className="bg-neutral-900 text-white">
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {istNkVerrechnung && (
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400" htmlFor="nkJahr">
+              Abrechnungsjahr der Nebenkostenabrechnung
+            </label>
+            <input
+              id="nkJahr"
+              name="nkJahr"
+              type="number"
+              min="2000"
+              max="2100"
+              required
+              placeholder="z.B. 2025"
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
           </div>
         )}
         <div>
