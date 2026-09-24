@@ -4,7 +4,6 @@ import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 import { PositionBearbeitenForm } from "../position-bearbeiten-form";
-import { NachzahlungVerrechnenForm } from "../nachzahlung-verrechnen-form";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { toDateInputValue } from "@/lib/date-utils";
 
@@ -55,11 +54,10 @@ export type PositionRow = {
   gutschriftSumme: number | null;
   gutschriftDatum: string | null; // ISO
   saldoNachGutschrift: number;
-  // Anteil der Gutschrift/Begleichung, der als Forderung aufs Mieterkonto verrechnet wurde (statt
-  // per Überweisung), und noch offene Nachzahlung (positiv), die sich so verrechnen ließe.
+  // Anteil der Gutschrift/Begleichung, der aufs Mieterkonto verrechnet wurde (statt per
+  // Überweisung), und noch offene Nachzahlung (positiv).
   verrechnetSumme: number;
   kautionSumme: number;
-  offeneNachzahlung: number;
   erledigt: boolean;
   mietvertragId: string | null;
   details: KostenanteilDetailEintrag[];
@@ -207,15 +205,10 @@ export function PositionenTable({ rows }: { rows: PositionRow[] }) {
         // manuell erfassten (fuegePositionManuellHinzu) bleibt es leer — die eine ist also nur bei
         // "normal" berechneten Abrechnungen sinnvoll, das Bearbeiten-Formular nur bei manuell
         // erstellten Abrechnungen wie 2024.
-        const verrechnen =
-          p.offeneNachzahlung > 0.005 && p.mietvertragId ? (
-            <NachzahlungVerrechnenForm positionId={p.id} offen={p.offeneNachzahlung} />
-          ) : null;
         if (details.length > 0) {
           return (
             <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
               <td colSpan={colSpan} className="px-4 py-2">
-                {verrechnen}
                 <details className="text-xs">
                   <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
                     Kostenanteil-Aufschlüsselung ({details.length})
@@ -273,7 +266,6 @@ export function PositionenTable({ rows }: { rows: PositionRow[] }) {
         return (
           <tr key={`${p.id}-details`} className="border-t border-neutral-800 bg-neutral-950/40">
             <td colSpan={colSpan} className="px-4 py-2">
-              {verrechnen}
               <PositionBearbeitenForm
                 positionId={p.id}
                 initialZeitraumVon={toDateInputValue(p.zeitraumVon)}

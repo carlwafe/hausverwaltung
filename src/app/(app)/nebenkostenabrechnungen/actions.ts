@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -379,48 +379,6 @@ export async function ladeNebenkostenausgleichSummen(
     }
   }
   return ergebnis;
-}
-
-// Verrechnet die noch offene Nachzahlung einer Position als datierte Forderung aufs Mieterkonto (so
-// wie es ein Verwalter tut, der die Nachzahlung nicht einzieht, sondern dem Mieterkonto belastet):
-// eine Sonderforderung (MAHNGEBUEHR) über den offenen Betrag, die die Position als beglichen
-// markiert und im Mieterkonto als Forderung an diesem Datum erscheint. Rückgängig: die Forderung
-// unter "Zahlungen" stornieren — die Position gilt dann wieder als offen.
-export async function verrechneNachzahlungAlsForderung(positionId: string, formData: FormData) {
-  await requireEditor();
-  const datum = parseStrengesDatum(String(formData.get("datum") ?? ""));
-  if (!datum) throw new Error("Bitte ein gültiges Datum eintragen.");
-
-  const position = await prisma.nebenkostenabrechnungPosition.findUniqueOrThrow({
-    where: { id: positionId },
-    include: { abrechnung: true },
-  });
-  if (!position.mietvertragId) throw new Error("Die Position hat keinen Mietvertrag.");
-  const jahr = position.abrechnung.jahr;
-
-  const summen = await ladeNebenkostenausgleichSummen(jahr, [position.mietvertragId]);
-  const offen = Math.round((Number(position.saldo) - (summen.get(position.mietvertragId)?.summe ?? 0)) * 100) / 100;
-  if (offen >= -0.005) throw new Error("Für diese Position gibt es keine offene Nachzahlung.");
-
-  const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "MAHNGEBUEHR" } });
-  await prisma.buchung.create({
-    data: {
-      mietvertragId: position.mietvertragId,
-      buchungsartId: buchungsart.id,
-      datum,
-      betrag: -offen,
-      verwendungszweck: `Nachzahlung Nebenkostenabrechnung ${jahr}`,
-      jahr,
-      bezugTyp: NK_VERRECHNUNG_BEZUG,
-      bezugId: position.id,
-    },
-  });
-
-  revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
-  revalidatePath(`/mietvertraege/${position.mietvertragId}`);
-  revalidatePath("/jahresuebersicht");
-  revalidatePath("/zahlungen");
-  revalidatePath("/offene-posten");
 }
 
 // Löscht alle Positionen und erzeugt sie mit dem aktuellen Kostenstand neu — z.B. wenn nach dem

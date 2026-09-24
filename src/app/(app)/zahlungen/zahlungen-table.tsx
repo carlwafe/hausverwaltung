@@ -52,7 +52,15 @@ export type ZahlungRow = {
   importBatchId: string | null;
   importDateiname: string | null;
   aufteilungGruppeId: string | null;
+  // Abrechnungsjahr, falls diese Forderung/Gutschrift eine Nebenkostenabrechnung aufs Mieterkonto
+  // verrechnet (nur bei art MAHNGEBUEHR), sonst null.
+  nkJahr: number | null;
 };
+
+function artText(z: ZahlungRow) {
+  if (z.nkJahr !== null) return `Verrechnung Nebenkostenabrechnung ${z.nkJahr}`;
+  return z.art === "SONDERZAHLUNG" ? "Gebühr (Zahlung)" : z.art === "MAHNGEBUEHR" ? "Gebühr (Forderung)" : "Miete";
+}
 
 const columns: Column<ZahlungRow>[] = [
   {
@@ -105,7 +113,13 @@ const columns: Column<ZahlungRow>[] = [
     label: "Art",
     sortValue: (z) => z.art,
     searchValue: (z) =>
-      z.art === "SONDERZAHLUNG" ? "Gebühr Sonderzahlung" : z.art === "MAHNGEBUEHR" ? "Gebühr Forderung nicht eur-relevant" : "Miete",
+      z.nkJahr !== null
+        ? `Verrechnung Nebenkostenabrechnung ${z.nkJahr} nicht eur-relevant`
+        : z.art === "SONDERZAHLUNG"
+          ? "Gebühr Sonderzahlung"
+          : z.art === "MAHNGEBUEHR"
+            ? "Gebühr Forderung nicht eur-relevant"
+            : "Miete",
     render: (z) => {
       if (z.art === "SONDERZAHLUNG") {
         return (
@@ -114,6 +128,16 @@ const columns: Column<ZahlungRow>[] = [
             className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
           >
             Gebühr
+          </span>
+        );
+      }
+      if (z.nkJahr !== null) {
+        return (
+          <span
+            title="Nebenkostenabrechnung aufs Mieterkonto verrechnet — ohne Geldfluss, nicht EUR-relevant"
+            className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400"
+          >
+            NK-Verrechnung {z.nkJahr}
           </span>
         );
       }
@@ -166,7 +190,7 @@ const csvSpalten: CsvSpalte<ZahlungRow>[] = [
   { label: "Datum", wert: (z) => formatDatumFuerCsv(z.datum) },
   { label: "Einheit", wert: (z) => z.einheitBezeichnung },
   { label: "Mieter", wert: (z) => z.mieterNamen },
-  { label: "Art", wert: (z) => (z.art === "SONDERZAHLUNG" ? "Gebühr (Zahlung)" : z.art === "MAHNGEBUEHR" ? "Gebühr (Forderung)" : "Miete") },
+  { label: "Art", wert: artText },
   {
     label: "Für Periode",
     wert: (z) => (z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : ""),

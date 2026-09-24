@@ -7,6 +7,8 @@ import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 
 type Option = { id: string; label: string };
 
+type Zahlungsart = "MIETZAHLUNG" | "MAHNGEBUEHR" | "NK_VERRECHNUNG";
+
 const MONATE = [
   "Januar",
   "Februar",
@@ -52,8 +54,12 @@ export function ZahlungForm({
     null,
   );
   const [mietvertragId, setMietvertragId] = useState(initial?.mietvertragId ?? defaultMietvertragId ?? "");
-  const [zahlungsart, setZahlungsart] = useState<"MIETZAHLUNG" | "MAHNGEBUEHR">("MIETZAHLUNG");
+  const [zahlungsart, setZahlungsart] = useState<Zahlungsart>("MIETZAHLUNG");
   const istGebuehr = Boolean(zeigeZahlungsartAuswahl) && zahlungsart === "MAHNGEBUEHR";
+  // Verrechnung einer Nebenkostenabrechnung aufs Mieterkonto (Nachzahlung als Forderung, Guthaben
+  // als Gutschrift) — wie eine Gebühr ein reiner Mieterkonto-Posten ohne Geldfluss.
+  const istNkVerrechnung = Boolean(zeigeZahlungsartAuswahl) && zahlungsart === "NK_VERRECHNUNG";
+  const keineMietzahlung = istGebuehr || istNkVerrechnung;
 
   const heute = new Date();
 
@@ -68,16 +74,25 @@ export function ZahlungForm({
             id="zahlungsart"
             name="zahlungsart"
             value={zahlungsart}
-            onChange={(e) => setZahlungsart(e.target.value as "MIETZAHLUNG" | "MAHNGEBUEHR")}
+            onChange={(e) => setZahlungsart(e.target.value as Zahlungsart)}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           >
             <option value="MIETZAHLUNG">Miete</option>
             <option value="MAHNGEBUEHR">Gebühr (nicht EUR-relevant)</option>
+            <option value="NK_VERRECHNUNG">Verrechnung Nebenkostenabrechnung (nicht EUR-relevant)</option>
           </select>
           {istGebuehr && (
             <p className="mt-1 text-xs text-neutral-500">
               Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — eine reine
               Forderung auf dem Mietkonto ohne Geldfluss, zählt nicht zu den Mieteinnahmen.
+            </p>
+          )}
+          {istNkVerrechnung && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Verrechnet das Ergebnis einer Nebenkostenabrechnung mit dem Mieterkonto statt per
+              Überweisung: eine Nachzahlung als positive Forderung, ein Guthaben als negative
+              Gutschrift. Ohne Geldfluss, zählt nicht zu den Mieteinnahmen — die passende
+              Abrechnung gilt danach automatisch als erledigt.
             </p>
           )}
         </div>
@@ -101,7 +116,7 @@ export function ZahlungForm({
         <DateInput
           id="datum"
           name="datum"
-          label={istGebuehr ? "Datum" : "Zahlungsdatum"}
+          label={keineMietzahlung ? "Datum" : "Zahlungsdatum"}
           defaultValue={initial?.datum ?? heute.toISOString().slice(0, 10)}
         />
         <div>
@@ -114,6 +129,7 @@ export function ZahlungForm({
             type="number"
             step="0.01"
             min={istGebuehr ? "0.01" : undefined}
+            placeholder={istNkVerrechnung ? "+ Nachzahlung / − Guthaben" : undefined}
             required
             defaultValue={initial?.betrag}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
@@ -121,7 +137,25 @@ export function ZahlungForm({
         </div>
       </div>
 
-      {!istGebuehr && (
+      {istNkVerrechnung && (
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="nkJahr">
+            Abrechnungsjahr der Nebenkostenabrechnung
+          </label>
+          <input
+            id="nkJahr"
+            name="nkJahr"
+            type="number"
+            min="2000"
+            max="2100"
+            required
+            defaultValue={heute.getFullYear() - 1}
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
+      )}
+
+      {!keineMietzahlung && (
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="periodeMonat">
@@ -158,14 +192,20 @@ export function ZahlungForm({
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="verwendungszweck">
-          {istGebuehr ? "Bezeichnung" : "Verwendungszweck (optional)"}
+          {istGebuehr ? "Bezeichnung" : istNkVerrechnung ? "Bezeichnung (optional)" : "Verwendungszweck (optional)"}
         </label>
         <input
           id="verwendungszweck"
           name="verwendungszweck"
           required={istGebuehr}
           defaultValue={initial?.verwendungszweck ?? ""}
-          placeholder={istGebuehr ? "z.B. Rücklastschriftgebühr 09/2026" : "z.B. Miete März 2026"}
+          placeholder={
+            istGebuehr
+              ? "z.B. Rücklastschriftgebühr 09/2026"
+              : istNkVerrechnung
+                ? "z.B. Nachzahlung Nebenkostenabrechnung 2025"
+                : "z.B. Miete März 2026"
+          }
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
       </div>
@@ -177,7 +217,15 @@ export function ZahlungForm({
         disabled={pending}
         className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
       >
-        {pending ? "Speichern…" : initial ? "Speichern" : istGebuehr ? "Gebühr erfassen" : "Zahlung erfassen"}
+        {pending
+          ? "Speichern…"
+          : initial
+            ? "Speichern"
+            : istGebuehr
+              ? "Gebühr erfassen"
+              : istNkVerrechnung
+                ? "Verrechnung erfassen"
+                : "Zahlung erfassen"}
       </button>
     </form>
   );

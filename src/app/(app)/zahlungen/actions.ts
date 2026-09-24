@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 
 async function ladeBuchungsartId(code: string): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code } });
@@ -39,8 +40,54 @@ const gebuehrSchema = z.object({
   verwendungszweck: z.string().min(1, "Bezeichnung ist erforderlich"),
 });
 
+// Verrechnung einer Nebenkostenabrechnung aufs Mieterkonto: wie eine Gebühr eine MAHNGEBUEHR-
+// Buchung (Forderung, kein Geldfluss, nicht EÜR-relevant), aber mit Abrechnungsjahr und Bezug auf
+// die Nebenkostenabrechnung — darüber gilt die Position des Mietvertrags für dieses Jahr als
+// beglichen (siehe NK_AUSGLEICH_ODER_VERRECHNUNG). Positiv = Nachzahlung (Mieter schuldet),
+// negativ = Guthaben (Gutschrift aufs Mieterkonto).
+const nkVerrechnungSchema = z.object({
+  mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
+  datum: pflichtDatum("Datum ist erforderlich"),
+  betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
+  nkJahr: z.coerce.number().int().min(2000).max(2100),
+  verwendungszweck: z.string().optional(),
+});
+
 export async function createZahlung(formData: FormData) {
   await requireEditor();
+
+  if (formData.get("zahlungsart") === "NK_VERRECHNUNG") {
+    const parsed = nkVerrechnungSchema.safeParse({
+      mietvertragId: formData.get("mietvertragId"),
+      datum: formData.get("datum"),
+      betrag: formData.get("betrag"),
+      nkJahr: formData.get("nkJahr"),
+      verwendungszweck: formData.get("verwendungszweck") || undefined,
+    });
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    }
+    const { mietvertragId, nkJahr, verwendungszweck, ...rest } = parsed.data;
+    const buchungsartId = await ladeBuchungsartId("MAHNGEBUEHR");
+    await prisma.buchung.create({
+      data: {
+        ...rest,
+        mietvertragId,
+        buchungsartId,
+        jahr: nkJahr,
+        bezugTyp: NK_VERRECHNUNG_BEZUG,
+        verwendungszweck:
+          verwendungszweck ??
+          `${rest.betrag > 0 ? "Nachzahlung" : "Guthaben"} Nebenkostenabrechnung ${nkJahr}`,
+      },
+    });
+    revalidatePath("/zahlungen");
+    revalidatePath("/offene-posten");
+    revalidatePath("/jahresuebersicht");
+    revalidatePath("/nebenkostenabrechnungen", "layout");
+    revalidatePath(`/mietvertraege/${mietvertragId}`);
+    redirect(`/mietvertraege/${mietvertragId}`);
+  }
 
   if (formData.get("zahlungsart") === "MAHNGEBUEHR") {
     const parsed = gebuehrSchema.safeParse({

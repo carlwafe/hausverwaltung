@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
 import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
+import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
 function formatEuro(value: number) {
@@ -33,14 +34,16 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
   // Gebühren-Forderung (MAHNGEBUEHR): kein Geldfluss, keine Umbuchung möglich (nur zahlungswirksame
   // Buchungsarten lassen sich umbuchen, siehe aendereBuchungsart) — nur ansehen oder stornieren.
   if (zahlung.buchungsart.code === "MAHNGEBUEHR") {
+    const nkJahr = zahlung.bezugTyp === NK_VERRECHNUNG_BEZUG ? zahlung.jahr : null;
     const mieterNamen = zahlung.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
     return (
       <div>
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">
-            Gebühren-Forderung — {zahlung.mietvertrag.einheit.bezeichnung} ({mieterNamen})
+            {nkJahr ? `Verrechnung Nebenkostenabrechnung ${nkJahr}` : "Gebühren-Forderung"} —{" "}
+            {zahlung.mietvertrag.einheit.bezeichnung} ({mieterNamen})
           </h1>
-          <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Gebühren-Forderung wirklich stornieren?" />
+          <DeleteButton action={deleteZahlung.bind(null, id)} confirmText={nkJahr ? "Verrechnung wirklich stornieren?" : "Gebühren-Forderung wirklich stornieren?"} />
         </div>
         <BuchungsartInfo code="MAHNGEBUEHR" />
         <div className="max-w-xl space-y-2 rounded-lg border border-neutral-800 p-4 text-sm">
@@ -57,12 +60,15 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
             <span className="text-right text-white">{zahlung.verwendungszweck || "–"}</span>
           </p>
           <p className="pt-2 text-xs text-neutral-500">
-            Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — eine reine
-            Forderung auf dem{" "}
+            {nkJahr
+              ? "Verrechnet das Ergebnis der Nebenkostenabrechnung mit dem"
+              : "Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — eine reine Forderung auf dem"}{" "}
             <Link href={`/mietvertraege/${zahlung.mietvertragId}`} className="underline hover:text-white">
               Mietkonto
             </Link>{" "}
-            ohne Geldfluss, ausgeglichen erst durch eine Gebühren-Zahlung.
+            {nkJahr
+              ? `— ohne Geldfluss. Die Abrechnung ${nkJahr} gilt dadurch als erledigt; zum Rückgängigmachen diese Verrechnung stornieren.`
+              : "ohne Geldfluss, ausgeglichen erst durch eine Gebühren-Zahlung."}
           </p>
         </div>
       </div>

@@ -415,7 +415,6 @@ export default async function NebenkostenabrechnungDetailPage({
             saldoNachGutschrift,
             verrechnetSumme: eintrag ? eintrag.davonVerrechnet : 0,
             kautionSumme: eintrag ? eintrag.davonKaution : 0,
-            offeneNachzahlung: saldoNachGutschrift < -0.005 ? -saldoNachGutschrift : 0,
             erledigt: Math.abs(saldoNachGutschrift) < 0.01,
             mietvertragId: p.mietvertragId,
             details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
