@@ -59,6 +59,9 @@ export type PositionRow = {
   // Überweisung), und noch offene Nachzahlung (positiv).
   verrechnetSumme: number;
   kautionSumme: number;
+  auszahlungDatum: string | null; // ISO
+  verrechnetDatum: string | null; // ISO
+  kautionDatum: string | null; // ISO
   erledigt: boolean;
   mietvertragId: string | null;
   abrechnungId: string;
@@ -153,33 +156,50 @@ const columns: Column<PositionRow>[] = [
     key: "gutschrift",
     label: "Rückzahlung/Gutschrift",
     sortValue: (p) => p.gutschriftSumme ?? 0,
-    render: (p) =>
-      p.gutschriftSumme !== null ? (
-        <>
-          <span className="text-white">{formatEuro(p.gutschriftSumme)}</span>
-          {p.gutschriftDatum && (
-            <span className="ml-1 text-xs text-neutral-500">({formatDate(p.gutschriftDatum)})</span>
-          )}
-          {p.kautionSumme !== 0 && (
-            <span
-              title="Nachzahlung wurde mit der Kaution verrechnet (Einbehalt unter Kautionen)"
-              className="ml-1.5 rounded bg-sky-500/10 px-1.5 py-0.5 text-xs text-sky-400"
-            >
-              mit Kaution verrechnet
-            </span>
-          )}
-          {p.verrechnetSumme !== 0 && (
-            <span
-              title="Nachzahlung wurde als Forderung aufs Mieterkonto verrechnet (Buchung unter Zahlungen)"
-              className="ml-1.5 rounded bg-sky-500/10 px-1.5 py-0.5 text-xs text-sky-400"
-            >
-              als Forderung verrechnet
-            </span>
-          )}
-        </>
-      ) : (
-        <span className="text-neutral-500">–</span>
-      ),
+    render: (p) => {
+      if (p.gutschriftSumme === null) return <span className="text-neutral-500">–</span>;
+      // Gesamtsumme in Auszahlung/Einzug und die beiden Verrechnungsarten aufgeteilt.
+      const ausgezahlt = Math.round((p.gutschriftSumme - p.verrechnetSumme - p.kautionSumme) * 100) / 100;
+      const teile: { key: string; betrag: number; label: string; datum: string | null; title: string; farbe: string }[] = [
+        {
+          key: "auszahlung",
+          betrag: ausgezahlt,
+          label: ausgezahlt >= 0 ? "ausgezahlt" : "eingezogen",
+          datum: p.auszahlungDatum,
+          title: "Tatsächliche Kontobewegung (Nebenkostenausgleich)",
+          farbe: "bg-green-500/10 text-green-400",
+        },
+        {
+          key: "verrechnet",
+          betrag: p.verrechnetSumme,
+          label: "verrechnet",
+          datum: p.verrechnetDatum,
+          title: "Auf das Mieterkonto verrechnet, ohne Kontobewegung (Buchung unter Zahlungen)",
+          farbe: "bg-sky-500/10 text-sky-400",
+        },
+        {
+          key: "kaution",
+          betrag: p.kautionSumme,
+          label: "mit Kaution verrechnet",
+          datum: p.kautionDatum,
+          title: "Mit der Kaution verrechnet (Einbehalt unter Kautionen)",
+          farbe: "bg-sky-500/10 text-sky-400",
+        },
+      ].filter((t) => Math.abs(t.betrag) >= 0.005);
+      return (
+        <div className="space-y-0.5">
+          {teile.map((t) => (
+            <div key={t.key} className="whitespace-nowrap">
+              <span className="text-white">{formatEuro(t.betrag)}</span>
+              <span title={t.title} className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${t.farbe}`}>
+                {t.label}
+              </span>
+              {t.datum && <span className="ml-1 text-xs text-neutral-500">({formatDate(t.datum)})</span>}
+            </div>
+          ))}
+        </div>
+      );
+    },
   },
   {
     key: "saldoNachGutschrift",

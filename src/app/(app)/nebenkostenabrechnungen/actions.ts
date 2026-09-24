@@ -347,10 +347,24 @@ export async function loeschePosition(positionId: string) {
 // eines separat gepflegten Felds auf der Position. Vorzeichen gedreht (wie überall in diesem
 // Modul): eine ausgehende Guthaben-Auszahlung (negativer Rohbetrag) wird zu einem positiven, mit
 // saldo direkt vergleichbaren Wert, eine eingehende Nachzahlung zu einem negativen.
+export type NkAusgleichSumme = {
+  // Gesamtsumme aller Begleichungen (Auszahlung + Verrechnungen).
+  summe: number;
+  juengstesDatum: Date;
+  // Auf das Mieterkonto verrechneter Anteil (MAHNGEBUEHR) und mit der Kaution verrechneter Anteil
+  // (KAUTION_EINBEHALT); der Rest ist tatsächlich ausgezahlt/eingezogen (NEBENKOSTENAUSGLEICH).
+  davonVerrechnet: number;
+  davonKaution: number;
+  // Jüngstes Datum je Art, damit die Anzeige Auszahlung und Verrechnung getrennt datieren kann.
+  datumAuszahlung: Date | null;
+  datumVerrechnet: Date | null;
+  datumKaution: Date | null;
+};
+
 export async function ladeNebenkostenausgleichSummen(
   jahr: number,
   mietvertragIds: (string | null)[],
-): Promise<Map<string, { summe: number; juengstesDatum: Date; davonVerrechnet: number; davonKaution: number }>> {
+): Promise<Map<string, NkAusgleichSumme>> {
   const ids = [...new Set(mietvertragIds.filter((id): id is string => id !== null))];
   if (ids.length === 0) return new Map();
 
@@ -361,22 +375,35 @@ export async function ladeNebenkostenausgleichSummen(
     select: { mietvertragId: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
   });
 
-  const ergebnis = new Map<string, { summe: number; juengstesDatum: Date; davonVerrechnet: number; davonKaution: number }>();
+  const spaeter = (a: Date | null, b: Date) => (a && a > b ? a : b);
+  const ergebnis = new Map<string, NkAusgleichSumme>();
   for (const z of zahlungen) {
     if (!z.datum) continue;
     const mietvertragId = z.mietvertragId as string;
-    const bisher = ergebnis.get(mietvertragId);
+    const eintrag =
+      ergebnis.get(mietvertragId) ??
+      {
+        summe: 0,
+        juengstesDatum: z.datum,
+        davonVerrechnet: 0,
+        davonKaution: 0,
+        datumAuszahlung: null,
+        datumVerrechnet: null,
+        datumKaution: null,
+      };
     const betrag = nkBegleichung(z.buchungsart.code, Number(z.betrag));
-    const verrechnet = z.buchungsart.code === "MAHNGEBUEHR" ? betrag : 0;
-    const kaution = z.buchungsart.code === "KAUTION_EINBEHALT" ? betrag : 0;
-    if (!bisher) {
-      ergebnis.set(mietvertragId, { summe: betrag, juengstesDatum: z.datum, davonVerrechnet: verrechnet, davonKaution: kaution });
+    eintrag.summe += betrag;
+    if (z.datum > eintrag.juengstesDatum) eintrag.juengstesDatum = z.datum;
+    if (z.buchungsart.code === "MAHNGEBUEHR") {
+      eintrag.davonVerrechnet += betrag;
+      eintrag.datumVerrechnet = spaeter(eintrag.datumVerrechnet, z.datum);
+    } else if (z.buchungsart.code === "KAUTION_EINBEHALT") {
+      eintrag.davonKaution += betrag;
+      eintrag.datumKaution = spaeter(eintrag.datumKaution, z.datum);
     } else {
-      bisher.summe += betrag;
-      bisher.davonVerrechnet += verrechnet;
-      bisher.davonKaution += kaution;
-      if (z.datum > bisher.juengstesDatum) bisher.juengstesDatum = z.datum;
+      eintrag.datumAuszahlung = spaeter(eintrag.datumAuszahlung, z.datum);
     }
+    ergebnis.set(mietvertragId, eintrag);
   }
   return ergebnis;
 }
