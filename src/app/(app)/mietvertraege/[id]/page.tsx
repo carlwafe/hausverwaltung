@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG } from "@/lib/nk-verrechnung";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { EckdatenSektion } from "../eckdaten-sektion";
@@ -118,7 +119,7 @@ export default async function MietvertragDetailPage({
   // Offene Nebenkostenabrechnung des Vorjahres je Jahr (wie in der Jahresübersicht): Saldo der
   // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Nebenkostenausgleich.
   const nkAusgleich = await prisma.buchung.findMany({
-    where: { mietvertragId: id, buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
+    where: { mietvertragId: id, ...NK_AUSGLEICH_ODER_VERRECHNUNG, ...AKTIVE_BUCHUNG_FILTER },
     select: { jahr: true, betrag: true },
   });
   const nkZahlungNachJahr = new Map<number, number>();

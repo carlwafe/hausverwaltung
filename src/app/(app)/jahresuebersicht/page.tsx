@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG } from "@/lib/nk-verrechnung";
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { VerifikationsStern } from "./verifikations-stern";
@@ -202,7 +203,7 @@ async function ladeMieterZeilen(jahr: number) {
     // der Abrechnungs-Detailseite) — ersetzt das frühere, direkt auf der Position gepflegte
     // beglichenBetrag.
     prisma.buchung.findMany({
-      where: { mietvertragId: { in: mietvertragIds }, buchungsart: { code: "NEBENKOSTENAUSGLEICH" } },
+      where: { mietvertragId: { in: mietvertragIds }, ...NK_AUSGLEICH_ODER_VERRECHNUNG, ...AKTIVE_BUCHUNG_FILTER },
       select: { mietvertragId: true, jahr: true, betrag: true },
     }),
     prisma.buchung.findMany({
