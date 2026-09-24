@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -262,6 +263,17 @@ export async function hebeAufteilungAuf(positionId: string) {
   const position = await prisma.buchung.findFirst({ where: { id: positionId, ...AKTIVE_BUCHUNG_FILTER } });
   if (!position) throw new Error("Kostenposition nicht gefunden.");
   if (!position.aufteilungGruppeId) throw new Error("Diese Position ist nicht Teil einer Aufteilung.");
+
+  // Stammt die Aufteilung aus einer Zahlung (Miete + Kosten), wird die ursprüngliche Zahlung
+  // wiederhergestellt statt die Teile fälschlich zu einer einzigen Kostenposition zu addieren.
+  if (await istGemischteAufteilung(position.aufteilungGruppeId)) {
+    const mietvertraege = await hebeZahlungAufteilungAuf(position.aufteilungGruppeId, position.id);
+    revalidatePath("/kosten");
+    revalidatePath("/zahlungen");
+    revalidatePath("/offene-posten");
+    for (const id of mietvertraege) revalidatePath(`/mietvertraege/${id}`);
+    redirect("/kosten");
+  }
 
   // Nur die noch aktiven Teile — ein einzelner Teil kann seit dem Aufteilen bereits bearbeitet
   // worden sein (Storno + Neuanlage, siehe updateKostenposition), wodurch die alte, jetzt

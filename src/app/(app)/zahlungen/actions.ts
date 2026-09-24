@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { hebeZahlungAufteilungAuf as hebeZahlungAufteilungAufLib } from "@/lib/aufteilung-aufheben";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 
 async function ladeBuchungsartId(code: string): Promise<string> {
@@ -379,37 +380,10 @@ export async function hebeZahlungAufteilungAuf(zahlungId: string) {
   if (!zahlung) throw new Error("Zahlung nicht gefunden.");
   if (!zahlung.aufteilungGruppeId) throw new Error("Diese Zahlung ist nicht Teil einer Aufteilung.");
 
-  // Nur die noch aktiven Teile — ein einzelner Teil kann seit dem Aufteilen bereits bearbeitet
-  // worden sein (Storno + Neuanlage), wodurch die alte, jetzt stornierte Version weiterhin
-  // dieselbe aufteilungGruppeId trägt. Ohne diesen Filter würde ihr Betrag doppelt in die Summe
-  // einfließen UND storniereBuchung beim erneuten Stornieren dieser bereits stornierten Zeile
-  // einen Fehler werfen, der die ganze Transaktion abbricht (siehe hebeAufteilungAuf in
-  // kosten/actions.ts, derselbe Bug).
-  const gruppe = await prisma.buchung.findMany({
-    where: { aufteilungGruppeId: zahlung.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
-  });
-  const summe = gruppe.reduce((sum, z) => sum + Number(z.betrag), 0);
-  const betroffeneMietvertraege = new Set(gruppe.map((z) => z.mietvertragId));
-
-  await prisma.$transaction(async (tx) => {
-    await tx.buchung.create({
-      data: {
-        mietvertragId: zahlung.mietvertragId,
-        buchungsartId: zahlung.buchungsartId,
-        datum: zahlung.datum,
-        betrag: summe,
-        periodeMonat: zahlung.periodeMonat,
-        periodeJahr: zahlung.periodeJahr,
-        verwendungszweck: zahlung.verwendungszweck,
-        rohdaten: zahlung.rohdaten ?? undefined,
-        importBatchId: zahlung.importBatchId,
-      },
-    });
-    for (const teil of gruppe) {
-      await storniereBuchung(tx, teil.id);
-    }
-  });
-
+  // Kostenpositionen aus einer gemischten Aufteilung (Miete + Kosten) gehören ebenfalls zur Gruppe
+  // und gehen mit umgekehrtem Vorzeichen in die Summe ein — Details siehe aufteilung-aufheben.ts.
+  const betroffeneMietvertraege = await hebeZahlungAufteilungAufLib(zahlung.aufteilungGruppeId, zahlung.id);
+  revalidatePath("/kosten");
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
   for (const mietvertragId of betroffeneMietvertraege) revalidatePath(`/mietvertraege/${mietvertragId}`);
