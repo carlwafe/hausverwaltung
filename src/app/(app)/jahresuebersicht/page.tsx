@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { NK_AUSGLEICH_ODER_VERRECHNUNG } from "@/lib/nk-verrechnung";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { VerifikationsStern } from "./verifikations-stern";
@@ -204,7 +204,7 @@ async function ladeMieterZeilen(jahr: number) {
     // beglichenBetrag.
     prisma.buchung.findMany({
       where: { mietvertragId: { in: mietvertragIds }, ...NK_AUSGLEICH_ODER_VERRECHNUNG, ...AKTIVE_BUCHUNG_FILTER },
-      select: { mietvertragId: true, jahr: true, betrag: true },
+      select: { mietvertragId: true, jahr: true, betrag: true, buchungsart: { select: { code: true } } },
     }),
     prisma.buchung.findMany({
       where: {
@@ -235,7 +235,7 @@ async function ladeMieterZeilen(jahr: number) {
   for (const z of nebenkostenausgleichZahlungen) {
     if (!z.mietvertragId || z.jahr === null) continue;
     const key = `${z.mietvertragId}|${z.jahr}`;
-    zahlungSummenMap.set(key, (zahlungSummenMap.get(key) ?? 0) - Number(z.betrag));
+    zahlungSummenMap.set(key, (zahlungSummenMap.get(key) ?? 0) + nkBegleichung(z.buchungsart.code, Number(z.betrag)));
   }
 
   const vertraege: MietvertragFuerJahresbericht[] = vertraegeRaw.map((v) => ({

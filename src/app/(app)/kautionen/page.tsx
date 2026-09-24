@@ -247,7 +247,8 @@ async function ladeKautionEinbehalte(): Promise<KautionEinbehaltRow[]> {
     positionText: e.positionText,
     betrag: Number(e.betrag),
     status: e.status,
-    erstelltAm: e.erstelltAm.toISOString(),
+    erstelltAm: (e.datum ?? e.erstelltAm).toISOString(),
+    nkJahr: e.bezugTyp === "Nebenkostenabrechnung" && e.bezugId ? Number(e.bezugId) : null,
     gebucht: e.buchungId !== null,
   }));
 }

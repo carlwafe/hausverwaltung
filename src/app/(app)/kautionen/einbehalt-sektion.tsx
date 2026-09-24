@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
+import { DateInput } from "@/components/date-input";
 import { DeleteButton } from "@/components/delete-button";
 import {
   erfasseKautionEinbehalt,
@@ -41,6 +42,8 @@ export type KautionEinbehaltRow = {
   betrag: number;
   status: KautionEinbehaltStatus;
   erstelltAm: string;
+  // Abrechnungsjahr der Nebenkostenabrechnung, mit der dieser Einbehalt verrechnet wurde.
+  nkJahr: number | null;
   // Zurückbehaltungsrecht: nur unstrittige/bestätigte Einbehalte erzeugen eine echte
   // KAUTION_EINBEHALT-Buchung (siehe synchronisiereKautionEinbehaltBuchung in actions.ts) — ein
   // strittig offener/verworfener Einbehalt bleibt ohne Kontowirkung.
@@ -53,7 +56,14 @@ function EinbehaltZeile({ zeile }: { zeile: KautionEinbehaltRow }) {
       <td className="px-3 py-1.5 text-white">
         {zeile.einheitBezeichnung} – {zeile.mieterNamen}
       </td>
-      <td className="px-3 py-1.5 text-neutral-300">{zeile.positionText}</td>
+      <td className="px-3 py-1.5 text-neutral-300">
+        {zeile.positionText}
+        {zeile.nkJahr && (
+          <span className="ml-1.5 rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400">
+            verrechnet mit NK-Abrechnung {zeile.nkJahr}
+          </span>
+        )}
+      </td>
       <td className="px-3 py-1.5 text-white">{formatEuro(zeile.betrag)}</td>
       <td className="px-3 py-1.5 text-neutral-400">{formatDate(zeile.erstelltAm)}</td>
       <td className="px-3 py-1.5">
@@ -153,6 +163,21 @@ export function EinbehaltSektion({
           />
         </div>
         <div>
+          <label className="mb-1 block text-xs text-neutral-400">Datum (optional, sonst heute)</label>
+          <DateInput name="datum" size="sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-neutral-400">Mit NK-Abrechnung verrechnet (Jahr)</label>
+          <input
+            type="number"
+            name="nkJahr"
+            min="2000"
+            max="2100"
+            placeholder="z.B. 2025"
+            className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
+        <div>
           <label className="mb-1 block text-xs text-neutral-400">Status</label>
           <select
             name="status"
@@ -184,7 +209,7 @@ export function EinbehaltSektion({
               <th className="px-3 py-2">Mietvertrag</th>
               <th className="px-3 py-2">Begründung</th>
               <th className="px-3 py-2">Betrag</th>
-              <th className="px-3 py-2">Erfasst am</th>
+              <th className="px-3 py-2">Datum</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Aktion</th>
             </tr>

@@ -58,6 +58,7 @@ export type PositionRow = {
   // Anteil der Gutschrift/Begleichung, der als Forderung aufs Mieterkonto verrechnet wurde (statt
   // per Überweisung), und noch offene Nachzahlung (positiv), die sich so verrechnen ließe.
   verrechnetSumme: number;
+  kautionSumme: number;
   offeneNachzahlung: number;
   erledigt: boolean;
   mietvertragId: string | null;
@@ -154,6 +155,14 @@ const columns: Column<PositionRow>[] = [
           <span className="text-white">{formatEuro(p.gutschriftSumme)}</span>
           {p.gutschriftDatum && (
             <span className="ml-1 text-xs text-neutral-500">({formatDate(p.gutschriftDatum)})</span>
+          )}
+          {p.kautionSumme !== 0 && (
+            <span
+              title="Nachzahlung wurde mit der Kaution verrechnet (Einbehalt unter Kautionen)"
+              className="ml-1.5 rounded bg-sky-500/10 px-1.5 py-0.5 text-xs text-sky-400"
+            >
+              mit Kaution verrechnet
+            </span>
           )}
           {p.verrechnetSumme !== 0 && (
             <span

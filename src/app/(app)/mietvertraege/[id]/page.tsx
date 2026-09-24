@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { NK_AUSGLEICH_ODER_VERRECHNUNG } from "@/lib/nk-verrechnung";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { EckdatenSektion } from "../eckdaten-sektion";
@@ -120,12 +120,12 @@ export default async function MietvertragDetailPage({
   // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Nebenkostenausgleich.
   const nkAusgleich = await prisma.buchung.findMany({
     where: { mietvertragId: id, ...NK_AUSGLEICH_ODER_VERRECHNUNG, ...AKTIVE_BUCHUNG_FILTER },
-    select: { jahr: true, betrag: true },
+    select: { jahr: true, betrag: true, buchungsart: { select: { code: true } } },
   });
   const nkZahlungNachJahr = new Map<number, number>();
   for (const z of nkAusgleich) {
     if (z.jahr === null) continue;
-    nkZahlungNachJahr.set(z.jahr, (nkZahlungNachJahr.get(z.jahr) ?? 0) - Number(z.betrag));
+    nkZahlungNachJahr.set(z.jahr, (nkZahlungNachJahr.get(z.jahr) ?? 0) + nkBegleichung(z.buchungsart.code, Number(z.betrag)));
   }
   const nkOffenFuerJahr = (jahr: number): number | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);

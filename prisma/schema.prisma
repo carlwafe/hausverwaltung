@@ -449,9 +449,13 @@ model KautionEinbehalt {
   kautionId         String
   positionText      String
   betrag            Decimal                @db.Decimal(10, 2)
-  // Optionaler Bezug, z.B. auf eine offene NebenkostenabrechnungPosition.
+  // Optionaler Bezug: bezugTyp "Nebenkostenabrechnung" + bezugId = Abrechnungsjahr heißt, der
+  // Einbehalt wurde mit der NK-Abrechnung dieses Jahres verrechnet (deckt eine Nachzahlung, siehe
+  // nk-verrechnung.ts).
   bezugTyp          String?
   bezugId           String?
+  // Wann der Einbehalt wirksam wurde — Buchungsdatum der KAUTION_EINBEHALT-Buchung; null = Erfassungsdatum.
+  datum             DateTime?
   status            KautionEinbehaltStatus @default(STRITTIG_OFFEN)
   belegId           String?
   erstelltAm        DateTime               @default(now())

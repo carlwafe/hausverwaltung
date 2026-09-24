@@ -1,7 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { pflichtDatum } from "@/lib/zod-datum";
+import { pflichtDatum, parseStrengesDatum } from "@/lib/zod-datum";
+import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
@@ -140,6 +141,10 @@ const einbehaltSchema = z.object({
   positionText: z.string().min(1, "Begründung ist erforderlich"),
   betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
   status: z.enum(EINBEHALT_STATUS_WERTE),
+  // Optional: Datum, an dem der Einbehalt wirksam wurde (sonst heute), und das Abrechnungsjahr der
+  // Nebenkostenabrechnung, mit der er verrechnet wurde (deckt deren Nachzahlung).
+  datum: z.string().optional(),
+  nkJahr: z.coerce.number().int().min(2000).max(2100).optional(),
 });
 
 // Zurückbehaltungsrecht: nur ein unstrittiger oder bestätigter Einbehalt darf eine echte Buchung
@@ -163,6 +168,9 @@ async function synchronisiereKautionEinbehaltBuchung(
     betrag: Prisma.Decimal;
     status: KautionEinbehaltStatus;
     buchungId: string | null;
+    bezugTyp: string | null;
+    bezugId: string | null;
+    datum: Date | null;
   },
 ): Promise<void> {
   const soll = sollBuchungExistieren(einbehalt.status);
@@ -176,10 +184,13 @@ async function synchronisiereKautionEinbehaltBuchung(
       data: {
         mietvertragId: kaution.mietvertragId,
         buchungsartId: buchungsart.id,
-        datum: new Date(),
+        datum: einbehalt.datum ?? new Date(),
         betrag: -Number(einbehalt.betrag),
         verwendungszweck: einbehalt.positionText,
-        bezugTyp: "KautionEinbehalt",
+        // Mit einer NK-Abrechnung verrechnet: das Abrechnungsjahr steht in jahr, dann zählt diese
+        // Buchung als Begleichung der Position (siehe nk-verrechnung.ts).
+        jahr: einbehalt.bezugTyp === NK_VERRECHNUNG_BEZUG && einbehalt.bezugId ? Number(einbehalt.bezugId) : null,
+        bezugTyp: KAUTION_EINBEHALT_BEZUG,
         bezugId: einbehalt.id,
       },
     });
@@ -201,11 +212,15 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
     positionText: formData.get("positionText"),
     betrag: formData.get("betrag"),
     status: formData.get("status"),
+    datum: formData.get("datum") || undefined,
+    nkJahr: formData.get("nkJahr") || undefined,
   });
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
-  const { mietvertragId, positionText, betrag, status } = parsed.data;
+  const { mietvertragId, positionText, betrag, status, nkJahr } = parsed.data;
+  const datum = parsed.data.datum ? parseStrengesDatum(parsed.data.datum) : null;
+  if (parsed.data.datum && !datum) return "Ungültiges Datum (z.B. 31.02. gibt es nicht).";
 
   const kaution = await prisma.kaution.findUnique({ where: { mietvertragId }, select: { id: true } });
   if (!kaution) {
@@ -214,13 +229,23 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
 
   await prisma.$transaction(async (tx) => {
     const einbehalt = await tx.kautionEinbehalt.create({
-      data: { kautionId: kaution.id, positionText, betrag, status },
+      data: {
+        kautionId: kaution.id,
+        positionText,
+        betrag,
+        status,
+        datum,
+        bezugTyp: nkJahr ? NK_VERRECHNUNG_BEZUG : null,
+        bezugId: nkJahr ? String(nkJahr) : null,
+      },
     });
     await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
   });
 
   revalidatePath("/kautionen");
   revalidatePath("/jahresuebersicht");
+  revalidatePath("/nebenkostenabrechnungen", "layout");
+  revalidatePath(`/mietvertraege/${mietvertragId}`);
   return null;
 }
 

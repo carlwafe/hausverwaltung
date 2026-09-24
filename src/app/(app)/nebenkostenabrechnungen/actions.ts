@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -350,7 +350,7 @@ export async function loeschePosition(positionId: string) {
 export async function ladeNebenkostenausgleichSummen(
   jahr: number,
   mietvertragIds: (string | null)[],
-): Promise<Map<string, { summe: number; juengstesDatum: Date; davonVerrechnet: number }>> {
+): Promise<Map<string, { summe: number; juengstesDatum: Date; davonVerrechnet: number; davonKaution: number }>> {
   const ids = [...new Set(mietvertragIds.filter((id): id is string => id !== null))];
   if (ids.length === 0) return new Map();
 
@@ -361,18 +361,20 @@ export async function ladeNebenkostenausgleichSummen(
     select: { mietvertragId: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
   });
 
-  const ergebnis = new Map<string, { summe: number; juengstesDatum: Date; davonVerrechnet: number }>();
+  const ergebnis = new Map<string, { summe: number; juengstesDatum: Date; davonVerrechnet: number; davonKaution: number }>();
   for (const z of zahlungen) {
     if (!z.datum) continue;
     const mietvertragId = z.mietvertragId as string;
     const bisher = ergebnis.get(mietvertragId);
-    const betrag = -Number(z.betrag);
+    const betrag = nkBegleichung(z.buchungsart.code, Number(z.betrag));
     const verrechnet = z.buchungsart.code === "MAHNGEBUEHR" ? betrag : 0;
+    const kaution = z.buchungsart.code === "KAUTION_EINBEHALT" ? betrag : 0;
     if (!bisher) {
-      ergebnis.set(mietvertragId, { summe: betrag, juengstesDatum: z.datum, davonVerrechnet: verrechnet });
+      ergebnis.set(mietvertragId, { summe: betrag, juengstesDatum: z.datum, davonVerrechnet: verrechnet, davonKaution: kaution });
     } else {
       bisher.summe += betrag;
       bisher.davonVerrechnet += verrechnet;
+      bisher.davonKaution += kaution;
       if (z.datum > bisher.juengstesDatum) bisher.juengstesDatum = z.datum;
     }
   }
