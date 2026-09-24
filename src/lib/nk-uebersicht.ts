@@ -11,6 +11,12 @@ export type UebersichtZeile = {
   kreise: string;
   kreiseTitel: string;
   verteilung: string;
+  // Wohnfläche des ganzen Kostenkreises bzw. der Teil davon, der zum Ausschnitt gehört (jede
+  // Einheit nur einmal, auch bei Mieterwechsel). null bei Kostenarten ohne Wohnflächen-Verteilung
+  // — dort steht stattdessen masseText (z.B. "extern vorverteilt").
+  qmKreis: number | null;
+  qmAnteil: number | null;
+  masseText: string | null;
   // "gesamt": Jahresgesamtbetrag der Kostenkreise; "anteil": Anteil des Ausschnitts (volles Jahr).
   basis: number;
   // Nur bei "anteil": Jahresgesamtbetrag der zugehörigen Kostenkreise über das ganze Objekt — damit
@@ -73,11 +79,14 @@ export function baueKostenUebersicht(
     basis: number;
     umgelegt: number;
     kreisGesamt: number;
+    qmKreis: number;
+    qmAnteil: number;
   };
   const kreise = new Map<string, Kreis>();
   // Bei "anteil" zählt der Jahresanteil einer Einheit nur einmal, auch wenn sie mehrere Positionen
   // (Mieterwechsel) hat — extern vorverteilte Beträge sind dagegen je Mietvertrag einzeln.
   const gezaehlt = new Set<string>();
+  const qmGezaehlt = new Set<string>();
 
   for (const p of positionen) {
     for (const d of p.details) {
@@ -90,7 +99,17 @@ export function baueKostenUebersicht(
         basis: 0,
         umgelegt: 0,
         kreisGesamt: kreisGesamtMap.get(key) ?? 0,
+        qmKreis: 0,
+        qmAnteil: 0,
       };
+      if (d.verteilerschluessel === "WOHNFLAECHE") {
+        k.qmKreis = Math.max(k.qmKreis, d.poolMasswert);
+        const qmEinmal = `${p.einheitId}|${key}`;
+        if (!qmGezaehlt.has(qmEinmal)) {
+          qmGezaehlt.add(qmEinmal);
+          k.qmAnteil += d.einheitMasswert;
+        }
+      }
       if (modus === "gesamt") {
         // Der Kreis-Gesamtbetrag steht in jeder Position des Kreises gleich.
         k.basis = vorverteilt ? k.basis + d.gesamtbetragPool : Math.max(k.basis, d.gesamtbetragPool);
@@ -120,6 +139,8 @@ export function baueKostenUebersicht(
       // Kostenkreise aus den Positions-Details kennt) — bleibt bewusst 0, kein Gesamtbetrag zum
       // Vergleich vorhanden.
       kreisGesamt: 0,
+      qmKreis: 0,
+      qmAnteil: 0,
     };
     k.basis += l.betrag;
     kreise.set(key, k);
@@ -128,11 +149,31 @@ export function baueKostenUebersicht(
   // Stufe 2: je Kostenart über alle Kostenkreise.
   const arten = new Map<
     string,
-    { basis: number; umgelegt: number; kreisGesamt: number; kreise: string[]; namen: Set<string>; schluessel: Set<string> }
+    {
+      basis: number;
+      umgelegt: number;
+      kreisGesamt: number;
+      qmKreis: number;
+      qmAnteil: number;
+      kreise: string[];
+      namen: Set<string>;
+      schluessel: Set<string>;
+    }
   >();
   for (const k of kreise.values()) {
     const name = grundName(k.kostenartName);
-    const a = arten.get(name) ?? { basis: 0, umgelegt: 0, kreisGesamt: 0, kreise: [], namen: new Set(), schluessel: new Set() };
+    const a = arten.get(name) ?? {
+      basis: 0,
+      umgelegt: 0,
+      kreisGesamt: 0,
+      qmKreis: 0,
+      qmAnteil: 0,
+      kreise: [],
+      namen: new Set(),
+      schluessel: new Set(),
+    };
+    a.qmKreis += k.qmKreis;
+    a.qmAnteil += k.qmAnteil;
     a.basis += k.basis;
     a.kreisGesamt += k.kreisGesamt;
     a.umgelegt += k.umgelegt;
@@ -153,6 +194,11 @@ export function baueKostenUebersicht(
             : `${a.kreise.length} Kostenkreise`,
       kreiseTitel: [...a.kreise].sort().join("\n"),
       verteilung: [...a.schluessel].join(", "),
+      // Wohnflächen-Kostenarten zeigen m², alle anderen ihre Verteilungsart als Text (z.B.
+      // "extern vorverteilt" bei den Techem-Heizkosten).
+      qmKreis: a.schluessel.has(VERTEILUNG_LABEL.WOHNFLAECHE) ? a.qmKreis : null,
+      qmAnteil: a.schluessel.has(VERTEILUNG_LABEL.WOHNFLAECHE) ? a.qmAnteil : null,
+      masseText: a.schluessel.has(VERTEILUNG_LABEL.WOHNFLAECHE) ? null : [...a.schluessel].join(", "),
       basis: a.basis,
       kreisGesamt: modus === "anteil" ? a.kreisGesamt : null,
       umgelegt: a.umgelegt,

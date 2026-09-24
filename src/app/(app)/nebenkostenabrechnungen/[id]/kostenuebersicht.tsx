@@ -3,6 +3,10 @@
 import { useState } from "react";
 import type { Uebersicht } from "@/lib/nk-uebersicht";
 
+function formatQm(value: number) {
+  return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value)} m²`;
+}
+
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
@@ -84,7 +88,9 @@ export function Kostenuebersicht({
           </>
         ) : (
           <>
-            Anteil dieses Hauses/Gebäudes an den Kostenarten der Abrechnung {jahr}. &bdquo;Kostenkreis gesamt&ldquo; ist der
+            Anteil dieses Hauses/Gebäudes an den Kostenarten der Abrechnung {jahr}. &bdquo;m² Kostenkreis gesamt&ldquo; ist die Wohnfläche des
+            ganzen Kostenkreises, &bdquo;m² Anteil&ldquo; der Teil davon in diesem Haus/Gebäude (bei extern vorverteilten
+            Kosten steht statt der m² ein Hinweis). &bdquo;Kostenkreis gesamt&ldquo; ist der
             Jahresbetrag des ganzen Kostenkreises (z.B. Heizkosten Haus 2-12 für alle Häuser darin), &bdquo;Anteil&ldquo;
             der auf dieses Haus/Gebäude entfallende Teil, &bdquo;Auf Mieter umgelegt&ldquo; der davon tatsächlich
             abgerechnete Betrag. Einheiten, die im ganzen Jahr keinen Mietvertrag hatten, sind darin nicht enthalten.
@@ -97,7 +103,8 @@ export function Kostenuebersicht({
             <tr>
               <th className="px-4 py-2">Kostenart</th>
               <th className="px-4 py-2">{gesamtModus ? "Kostenkreise" : "Anteil an Kostenkreis"}</th>
-              <th className="px-4 py-2">Verteilung</th>
+              <th className="px-4 py-2 text-right">m² Kostenkreis gesamt</th>
+              <th className="px-4 py-2 text-right">m² Anteil</th>
               {!gesamtModus && <th className="px-4 py-2 text-right">Kostenkreis gesamt</th>}
               <th className="px-4 py-2 text-right">{gesamtModus ? "Gesamt (Jahr)" : "Anteil (volles Jahr)"}</th>
               <th className="px-4 py-2 text-right">Auf Mieter umgelegt</th>
@@ -113,7 +120,20 @@ export function Kostenuebersicht({
                   <td className="px-4 py-2 text-neutral-400" title={z.kreiseTitel}>
                     {z.kreise}
                   </td>
-                  <td className="px-4 py-2 text-neutral-400">{z.verteilung}</td>
+                  {z.masseText !== null ? (
+                    <td colSpan={2} className="px-4 py-2 text-center text-neutral-400">
+                      {z.masseText}
+                    </td>
+                  ) : (
+                    <>
+                      <td className="px-4 py-2 text-right text-neutral-400">
+                        {z.qmKreis !== null ? formatQm(z.qmKreis) : ""}
+                      </td>
+                      <td className="px-4 py-2 text-right text-neutral-300">
+                        {z.qmAnteil !== null ? formatQm(z.qmAnteil) : ""}
+                      </td>
+                    </>
+                  )}
                   {!gesamtModus && (
                     <td className="px-4 py-2 text-right text-neutral-500">
                       {z.kreisGesamt !== null ? formatEuro(z.kreisGesamt) : ""}
@@ -129,7 +149,7 @@ export function Kostenuebersicht({
             })}
             {u.zeilen.length === 0 && (
               <tr>
-                <td colSpan={gesamtModus ? 6 : 7} className="px-4 py-6 text-center text-neutral-500">
+                <td colSpan={gesamtModus ? 7 : 8} className="px-4 py-6 text-center text-neutral-500">
                   Keine Kostenaufschlüsselung für diese Auswahl.
                 </td>
               </tr>
@@ -137,7 +157,7 @@ export function Kostenuebersicht({
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-neutral-700 bg-neutral-900 font-medium">
-              <td className="px-4 py-2 text-white" colSpan={gesamtModus ? 3 : 4}>
+              <td className="px-4 py-2 text-white" colSpan={gesamtModus ? 4 : 5}>
                 Summe
               </td>
               <td className="px-4 py-2 text-right text-white">{formatEuro(u.summe.basis)}</td>
