@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { speichereJahresberichtKommentar } from "./actions";
 
-// Speichert beim Verlassen des Felds (bzw. Enter), nur bei tatsächlicher Änderung.
+// Mehrzeilig (Enter = Zeilenumbruch), wächst mit dem Inhalt mit. Speichert beim Verlassen des Felds,
+// nur bei tatsächlicher Änderung.
 export function KommentarFeld({
   mietvertragId,
   jahr,
@@ -16,6 +17,15 @@ export function KommentarFeld({
   const [wert, setWert] = useState(kommentar);
   const [gespeichert, setGespeichert] = useState(kommentar);
   const [isPending, startTransition] = useTransition();
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  // Höhe an den Inhalt anpassen (mindestens zwei Zeilen, per rows).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [wert]);
 
   function speichern() {
     if (wert.trim() === gespeichert.trim()) return;
@@ -26,18 +36,16 @@ export function KommentarFeld({
   }
 
   return (
-    <input
-      type="text"
+    <textarea
+      ref={ref}
+      rows={2}
       value={wert}
       onChange={(e) => setWert(e.target.value)}
       onBlur={speichern}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-      }}
       disabled={isPending}
       placeholder="Kommentar…"
       maxLength={300}
-      className="w-56 rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50"
+      className="block w-56 resize-none rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50"
     />
   );
 }
