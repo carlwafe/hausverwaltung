@@ -6,7 +6,6 @@ import {
   type KautionBuchungKategorie,
 } from "./kautionsbuchungen-table";
 import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
-import { EinbehaltSektion, type KautionEinbehaltRow } from "./einbehalt-sektion";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 
@@ -173,7 +172,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
 async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
   const buchungen = await prisma.buchung.findMany({
     // KAUTION_EINBEHALT bewusst ausgeschlossen — diese Buchungen werden ausschließlich über die
-    // Einbehalt-Sektion (KautionEinbehalt.buchungId) verwaltet; würde man sie hier zusätzlich zum
+    // Einbehalt-Zeilen (ladeKautionEinbehalte, KautionEinbehalt.buchungId) verwaltet; würde man sie hier zusätzlich zum
     // Bearbeiten/Löschen anbieten, liefe das an synchronisiereKautionEinbehaltBuchung vorbei und
     // hinterließe eine verwaiste buchungId auf der KautionEinbehalt-Zeile.
     where: { buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } }, ...AKTIVE_BUCHUNG_FILTER },
@@ -216,6 +215,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
       id: kp.id,
       label: `${kp.kostenart?.name ?? "?"} (${formatEuro(Number(kp.betrag))})`,
     })),
+    einbehalt: null,
   }));
 }
 
@@ -234,7 +234,9 @@ async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string;
   }));
 }
 
-async function ladeKautionEinbehalte(): Promise<KautionEinbehaltRow[]> {
+// Einbehalte erscheinen als Zeilen in der Kautionsbuchungen-Tabelle (Betrag mit Buchungsvorzeichen,
+// also negativ) — auch strittige ohne Journalbuchung, damit sie dort verwaltet werden können.
+async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
   const einbehalte = await prisma.kautionEinbehalt.findMany({
     orderBy: { erstelltAm: "desc" },
     include: { kaution: { include: { mietvertrag: { include: { einheit: true, mieter: true } } } } },
@@ -244,12 +246,20 @@ async function ladeKautionEinbehalte(): Promise<KautionEinbehaltRow[]> {
     mietvertragId: e.kaution.mietvertragId,
     einheitBezeichnung: e.kaution.mietvertrag.einheit.bezeichnung,
     mieterNamen: e.kaution.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
-    positionText: e.positionText,
-    betrag: Number(e.betrag),
-    status: e.status,
-    erstelltAm: (e.datum ?? e.erstelltAm).toISOString(),
-    nkJahr: e.bezugTyp === "Nebenkostenabrechnung" && e.bezugId ? Number(e.bezugId) : null,
-    gebucht: e.buchungId !== null,
+    datum: (e.datum ?? e.erstelltAm).toISOString(),
+    betrag: -Number(e.betrag),
+    empfaenger: null,
+    verwendungszweck: e.positionText,
+    rohdaten: null,
+    importBatchId: null,
+    importDateiname: null,
+    kategorie: "EINBEHALT" as const,
+    verknuepfteKostenpositionen: [],
+    einbehalt: {
+      status: e.status,
+      nkJahr: e.bezugTyp === "Nebenkostenabrechnung" && e.bezugId ? Number(e.bezugId) : null,
+      gebucht: e.buchungId !== null,
+    },
   }));
 }
 
@@ -274,6 +284,7 @@ export default async function KautionenPage() {
     ladeVirtuelleGutschriften(),
     ladeKautionEinbehalte(),
   ]);
+  const alleBuchungen = [...kautionsbuchungen, ...kautionEinbehalte].sort((a, b) => b.datum.localeCompare(a.datum));
   const offen = kautionen.filter((k) => k.status !== "ERLEDIGT");
   const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
   // Für die Verbindlichkeiten-Summe zählt bei einer bereits aufgelösten Kaution nur noch der
@@ -317,13 +328,11 @@ export default async function KautionenPage() {
 
       <div className="mt-10">
         <h2 className="mb-4 text-lg font-medium text-white">
-          Kautionsbuchungen ({kautionsbuchungen.length})
+          Kautionsbuchungen ({alleBuchungen.length})
         </h2>
         <NeueKautionsbuchungForm mietvertraege={mietvertraege} virtuelleGutschriften={virtuelleGutschriften} />
-        <KautionsbuchungenTable rows={kautionsbuchungen} />
+        <KautionsbuchungenTable rows={alleBuchungen} />
       </div>
-
-      <EinbehaltSektion rows={kautionEinbehalte} />
     </div>
   );
 }
