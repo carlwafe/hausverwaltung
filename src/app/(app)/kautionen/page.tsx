@@ -323,7 +323,7 @@ export default async function KautionenPage() {
         <KautionsbuchungenTable rows={kautionsbuchungen} />
       </div>
 
-      <EinbehaltSektion rows={kautionEinbehalte} mietvertragKandidaten={mietvertraege} />
+      <EinbehaltSektion rows={kautionEinbehalte} />
     </div>
   );
 }

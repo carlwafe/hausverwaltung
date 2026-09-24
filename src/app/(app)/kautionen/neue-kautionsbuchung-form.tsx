@@ -3,9 +3,16 @@
 import { DateInput } from "@/components/date-input";
 import { useState, useTransition } from "react";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
-import { erstelleKautionsbuchung } from "./actions";
+import { erstelleKautionsbuchung, erfasseKautionEinbehalt } from "./actions";
 
 type VirtuelleGutschrift = { id: string; label: string; datumISO: string | null };
+
+const EINBEHALT_STATUS_OPTIONEN: { value: string; label: string }[] = [
+  { value: "UNSTRITTIG", label: "Unstrittig" },
+  { value: "STRITTIG_OFFEN", label: "Strittig — offen" },
+  { value: "STRITTIG_BESTAETIGT", label: "Strittig — bestätigt" },
+  { value: "STRITTIG_VERWORFEN", label: "Strittig — verworfen" },
+];
 
 const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "EINZAHLUNG_MIETER", label: "Einzahlung Mieter (eingehend)" },
@@ -13,6 +20,10 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "AUFLOESUNG", label: "Auflösung vom Kautionskonto (eingehend)" },
   { value: "AUSZAHLUNG_MIETER", label: "Auszahlung Mieter (ausgehend)" },
   { value: "SONSTIGES", label: "Sonstiges (z.B. Korrektur)" },
+  {
+    value: "EINBEHALT",
+    label: "Einbehalt (Kaution einbehalten, z.B. für Schaden oder Verrechnung mit der NK-Abrechnung)",
+  },
   {
     value: "VIRTUELLE_AUSZAHLUNG",
     label: "Virtuelle Auszahlung (kein Kontofluss, bereits über eine Kostenposition gebucht)",
@@ -40,6 +51,7 @@ export function NeueKautionsbuchungForm({
   const [datum, setDatum] = useState("");
   const [kategorie, setKategorie] = useState("");
   const [kostenpositionId, setKostenpositionId] = useState("");
+  const [einbehaltStatus, setEinbehaltStatus] = useState("UNSTRITTIG");
   const [fehler, setFehler] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -49,9 +61,21 @@ export function NeueKautionsbuchungForm({
   // solange das Datum noch nicht ausgefüllt ist).
   const gutschriftenAmTag = datum ? virtuelleGutschriften.filter((g) => g.datumISO === datum) : [];
 
+  const istEinbehalt = kategorie === "EINBEHALT";
+
   function submit(formData: FormData) {
     startTransition(async () => {
-      const ergebnis = await erstelleKautionsbuchung(null, formData);
+      // Ein Einbehalt ist keine einzelne Kontobuchung, sondern ein begründeter Posten mit
+      // Streit-Status (erzeugt bei UNSTRITTIG/STRITTIG_BESTAETIGT selbst die Journal-Buchung) —
+      // deshalb eigene Action, aber derselbe Eingabeweg.
+      if (istEinbehalt) {
+        formData.set("positionText", String(formData.get("verwendungszweck") ?? ""));
+        formData.set("betrag", String(Math.abs(Number(formData.get("betrag")))));
+        formData.set("status", einbehaltStatus);
+      }
+      const ergebnis = istEinbehalt
+        ? await erfasseKautionEinbehalt(null, formData)
+        : await erstelleKautionsbuchung(null, formData);
       if (ergebnis) {
         setFehler(ergebnis);
         return;
@@ -61,6 +85,7 @@ export function NeueKautionsbuchungForm({
       setDatum("");
       setKategorie("");
       setKostenpositionId("");
+      setEinbehaltStatus("UNSTRITTIG");
       setOffen(false);
     });
   }
@@ -81,7 +106,7 @@ export function NeueKautionsbuchungForm({
     <div className="mb-4 rounded-lg border border-neutral-800 p-4">
       <p className="mb-3 text-sm font-medium text-white">Kautionsbuchung manuell hinzufügen</p>
       <p className="mb-3 text-xs text-neutral-500">
-        Für Fälle ohne eigene Kontobuchung — z.B. ein einbehaltener Kautionsrest, der anderweitig
+        Auch für Fälle ohne eigene Kontobuchung — z.B. ein einbehaltener Kautionsrest, der anderweitig
         verrechnet wurde (Reparaturkosten, Verrechnung in der Nebenkostenabrechnung).
       </p>
       <form action={submit} className="space-y-3">
@@ -110,7 +135,7 @@ export function NeueKautionsbuchungForm({
               type="number"
               step="0.01"
               required
-              placeholder="z.B. -519 für ausgehend"
+              placeholder={istEinbehalt ? "einbehaltener Betrag, z.B. 302" : "z.B. -519 für ausgehend"}
               className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
@@ -156,13 +181,49 @@ export function NeueKautionsbuchungForm({
             />
           </div>
         )}
+        {istEinbehalt && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400" htmlFor="einbehalt-status">
+                Status
+              </label>
+              <select
+                id="einbehalt-status"
+                value={einbehaltStatus}
+                onChange={(e) => setEinbehaltStatus(e.target.value)}
+                className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+              >
+                {EINBEHALT_STATUS_OPTIONEN.map((o) => (
+                  <option key={o.value} value={o.value} className="bg-neutral-900 text-white">
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400" htmlFor="nkJahr">
+                Mit NK-Abrechnung verrechnet (Jahr, optional)
+              </label>
+              <input
+                id="nkJahr"
+                name="nkJahr"
+                type="number"
+                min="2000"
+                max="2100"
+                placeholder="z.B. 2025"
+                className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+              />
+            </div>
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs text-neutral-400" htmlFor="verwendungszweck">
-            Notiz (optional)
+            {istEinbehalt ? "Begründung" : "Notiz (optional)"}
           </label>
           <textarea
             id="verwendungszweck"
             name="verwendungszweck"
+            required={istEinbehalt}
             rows={2}
             placeholder="z.B. 119 € Briefkasten-Reparatur, 400 € verrechnet in BK-Abrechnung 2025"
             className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"

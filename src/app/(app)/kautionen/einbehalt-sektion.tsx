@@ -1,11 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
-import { DateInput } from "@/components/date-input";
 import { DeleteButton } from "@/components/delete-button";
 import {
-  erfasseKautionEinbehalt,
   aendereKautionEinbehaltStatus,
   loescheKautionEinbehalt,
   type KautionEinbehaltStatus,
@@ -112,95 +108,18 @@ function EinbehaltZeile({ zeile }: { zeile: KautionEinbehaltRow }) {
  */
 export function EinbehaltSektion({
   rows,
-  mietvertragKandidaten,
 }: {
   rows: KautionEinbehaltRow[];
-  mietvertragKandidaten: { id: string; label: string }[];
 }) {
-  const [mietvertragId, setMietvertragId] = useState("");
-  const [status, setStatus] = useState<KautionEinbehaltStatus>("STRITTIG_OFFEN");
-  const [fehler, formAction, pending] = useActionState(erfasseKautionEinbehalt, null);
-
   return (
     <div className="mt-10">
       <h2 className="mb-1 text-lg font-medium text-white">Kaution-Einbehalte ({rows.length})</h2>
       <p className="mb-4 text-sm text-neutral-400">
         Begründete Einzelposten für einen einbehaltenen Kautionsanteil, mit Streit-Status —
         solange ein Einbehalt &bdquo;strittig, offen&ldquo; ist, gilt das Zurückbehaltungsrecht:
-        er zählt nicht als endgültig einbehalten.
+        er zählt nicht als endgültig einbehalten. Neue Einbehalte werden oben über
+        &bdquo;Kautionsbuchung manuell hinzufügen…&ldquo; (Kategorie &bdquo;Einbehalt&ldquo;) erfasst.
       </p>
-
-      <form action={formAction} className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-4">
-        <input type="hidden" name="mietvertragId" value={mietvertragId} />
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Mietvertrag</label>
-          <MietvertragAuswahl
-            kandidaten={mietvertragKandidaten}
-            value={mietvertragId}
-            onChange={setMietvertragId}
-            leerLabel="– wählen –"
-            size="md"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Begründung</label>
-          <input
-            type="text"
-            name="positionText"
-            required
-            placeholder="z.B. Schadensersatz Parkett Wohnzimmer"
-            className="w-64 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Betrag</label>
-          <input
-            type="number"
-            name="betrag"
-            step="0.01"
-            required
-            className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Datum (optional, sonst heute)</label>
-          <DateInput name="datum" size="sm" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Mit NK-Abrechnung verrechnet (Jahr)</label>
-          <input
-            type="number"
-            name="nkJahr"
-            min="2000"
-            max="2100"
-            placeholder="z.B. 2025"
-            className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Status</label>
-          <select
-            name="status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as KautionEinbehaltStatus)}
-            className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
-          >
-            {(Object.keys(STATUS_LABEL) as KautionEinbehaltStatus[]).map((s) => (
-              <option key={s} value={s} className="bg-neutral-900">
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="submit"
-          disabled={pending || !mietvertragId}
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-40"
-        >
-          {pending ? "Speichere…" : "Einbehalt erfassen"}
-        </button>
-        {fehler && <p className="w-full text-sm text-red-400">{fehler}</p>}
-      </form>
 
       <div className="overflow-x-auto rounded-lg border border-neutral-800">
         <table className="w-full text-sm">
