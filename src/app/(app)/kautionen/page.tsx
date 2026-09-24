@@ -8,6 +8,7 @@ import {
 import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { KAUTION_EINBEHALT_BEZUG } from "@/lib/nk-verrechnung";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -44,7 +45,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     }),
     prisma.buchung.findMany({
       where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
-      select: { mietvertragId: true, betrag: true, buchungsart: { select: { code: true } } },
+      select: { mietvertragId: true, betrag: true, jahr: true, bezugTyp: true, buchungsart: { select: { code: true } } },
     }),
   ]);
 
@@ -54,11 +55,11 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   // Betrag) summieren sich hier automatisch.
   const summenProMietvertrag = new Map<
     string,
-    { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number }
+    { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number }
   >();
   for (const b of buchungen) {
     const key = b.mietvertragId!;
-    const eintrag = summenProMietvertrag.get(key) ?? { einzahlung: 0, anlage: 0, aufgeloest: 0, ausgezahlt: 0 };
+    const eintrag = summenProMietvertrag.get(key) ?? { einzahlung: 0, anlage: 0, aufgeloest: 0, ausgezahlt: 0, verrechnet: 0 };
     const betrag = Number(b.betrag);
     const code = b.buchungsart.code;
     if (code === "KAUTION_EINZAHLUNG") eintrag.einzahlung += betrag;
@@ -76,6 +77,12 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // der Kosten-Seite, jetzt Buchung.bezugId).
     else if (code === "KAUTION_AUSZAHLUNG" || code === "KAUTION_VIRTUELLE_AUSZAHLUNG")
       eintrag.ausgezahlt += Math.abs(betrag);
+    // Mit der Nebenkostenabrechnung verrechneter Einbehalt (KAUTION_EINBEHALT mit Abrechnungsjahr,
+    // siehe NK_VERRECHNUNG_BEZUG): der Betrag ist dem Kautionsrest ebenfalls entzogen und mindert
+    // deshalb "Einbehalten". Ein einfacher Einbehalt ohne Abrechnungsjahr bleibt dagegen Teil des
+    // einbehaltenen Restbetrags.
+    else if (code === "KAUTION_EINBEHALT" && b.bezugTyp === KAUTION_EINBEHALT_BEZUG && b.jahr !== null)
+      eintrag.verrechnet += Math.abs(betrag);
     summenProMietvertrag.set(key, eintrag);
   }
 
@@ -83,9 +90,9 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   // vorliegt, aber nie eine "Einzahlung Mieter"-Buchung erfasst wurde — typischerweise, weil die
   // tatsächliche Einzahlung fälschlich als normale Zahlung statt als Kautionsbuchung importiert
   // wurde. Ohne diese Warnung fällt so ein Fall sonst nur auf, wenn man gezielt danach sucht.
-  function warnungFuer(summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number } | undefined): string | null {
+  function warnungFuer(summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number } | undefined): string | null {
     if (!summen || summen.einzahlung > 0) return null;
-    if (summen.anlage === 0 && summen.aufgeloest === 0 && summen.ausgezahlt === 0) return null;
+    if (summen.anlage === 0 && summen.aufgeloest === 0 && summen.ausgezahlt === 0 && summen.verrechnet === 0) return null;
     return "Keine Einzahlung des Mieters in den Kautionsbuchungen gefunden — vermutlich wurde die tatsächliche Einzahlung fälschlich als normale Zahlung importiert.";
   }
 
@@ -95,9 +102,10 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const einzahlungSumme = summen && summen.einzahlung > 0 ? summen.einzahlung : null;
     const aufgeloest = summen?.aufgeloest ?? 0;
     const ausgezahlt = summen?.ausgezahlt ?? 0;
+    const verrechnet = summen?.verrechnet ?? 0;
     // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
     // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
-    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt) * 100) / 100 : null;
+    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt - verrechnet) * 100) / 100 : null;
     const status: KautionRow["status"] =
       aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
 
@@ -113,6 +121,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       zinssatz: k.zinssatz ? Number(k.zinssatz) : null,
       aufgeloest,
       ausgezahlt,
+      verrechnet,
       einbehalten,
       status,
       warnung: warnungFuer(summen),
@@ -135,7 +144,8 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const summen = summenProMietvertrag.get(v.id)!;
     const aufgeloest = summen.aufgeloest;
     const ausgezahlt = summen.ausgezahlt;
-    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt) * 100) / 100 : null;
+    const verrechnet = summen.verrechnet;
+    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt - verrechnet) * 100) / 100 : null;
     const status: KautionRow["status"] =
       aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
 
@@ -154,6 +164,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       zinssatz: null,
       aufgeloest,
       ausgezahlt,
+      verrechnet,
       einbehalten,
       status,
       warnung:
