@@ -54,6 +54,12 @@ export type MietvertragFuerAbrechnung = {
   // Historie von Mieterhöhungen, siehe MietvertragFuerSollIst.mieterhoehungen in soll-ist.ts —
   // leeres Array = unverändert wie bisher (Basiswert gilt die ganze Laufzeit).
   mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
+  // Tatsächliche Mietzahlungen dieses Mietvertrags nach Mietperiode (Monat, für den sie gedacht
+  // sind). Ist das Feld gesetzt, zählt als Vorauszahlung nur, was wirklich gezahlt wurde — höchstens
+  // das NK-Vorauszahlungs-Soll: LEAST(Zahlungseingänge, NK-Soll). Nebenkosten werden vor der
+  // Kaltmiete getilgt (§ 366 Abs. 2 BGB), ein kleiner Rückstand bleibt also ein Kaltmieten-Rückstand
+  // und kürzt die Vorauszahlung nicht. Fehlt das Feld, gilt das volle Soll.
+  zahlungen?: { jahr: number; monat: number; betrag: number }[];
 };
 
 // Ein erfasster Ablesewert (z.B. Zählerstand-Differenz) für eine Einheit, Kostenart und Jahr —
@@ -504,7 +510,12 @@ export function berechneNebenkostenabrechnung(
       const vorverteilterAnteil = vorverteilteEintraege.reduce((s, v) => s + v.betrag, 0);
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
-      const vorauszahlungGesamt = round2(vorauszahlungFuerZeitraum(mv, von, bis));
+      const vorauszahlungSoll = vorauszahlungFuerZeitraum(mv, von, bis);
+      const vorauszahlungGesamt = round2(
+        mv.zahlungen
+          ? Math.min(Math.max(zahlungseingangImZeitraum(mv.zahlungen, von, bis), 0), vorauszahlungSoll)
+          : vorauszahlungSoll,
+      );
 
       // Vollständige Belegkette für diese Position: pro Kostenart der Jahresgesamtbetrag ihres
       // Kostenkreises, die Verteilungsbasis und der daraus resultierende, zeitanteilig auf diesen
@@ -570,6 +581,23 @@ function nkVorauszahlungFuerDatum(
     }
   }
   return aktuell;
+}
+
+// Summe der Zahlungen, deren Mietperiode in einen Monat von [von, bis] fällt (angebrochene Monate
+// zählen voll, wie beim Soll in vorauszahlungFuerZeitraum).
+function zahlungseingangImZeitraum(
+  zahlungen: { jahr: number; monat: number; betrag: number }[],
+  von: Date,
+  bis: Date,
+): number {
+  const ab = von.getUTCFullYear() * 12 + von.getUTCMonth();
+  const bisIdx = bis.getUTCFullYear() * 12 + bis.getUTCMonth();
+  return zahlungen
+    .filter((z) => {
+      const idx = z.jahr * 12 + (z.monat - 1);
+      return idx >= ab && idx <= bisIdx;
+    })
+    .reduce((s, z) => s + z.betrag, 0);
 }
 
 /**

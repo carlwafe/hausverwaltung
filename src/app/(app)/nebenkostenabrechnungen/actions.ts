@@ -29,6 +29,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     wohnflaecheKorrekturenRaw,
     techemAllgemeinstromAnteileRaw,
     allgemeinstromKostenart,
+    mietzahlungenRaw,
   ] = await Promise.all([
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, jahr, kostenart: { umlagefaehig: true }, ...AKTIVE_BUCHUNG_FILTER },
@@ -53,7 +54,30 @@ export async function ladeBerechnungsdaten(jahr: number) {
       prisma.wohnflaecheKorrektur.findMany({ where: { bisJahr: { gte: jahr } }, orderBy: { bisJahr: "asc" } }),
       prisma.techemAllgemeinstromAnteil.findMany({ where: { jahr } }),
       prisma.kostenart.findFirst({ where: { name: "Allgemeinstrom" } }),
+      // Mietzahlungen für Monate dieses Jahres (nach Mietperiode; fehlt sie, gilt der Monat des
+      // Buchungsdatums) — Grundlage der Vorauszahlung: LEAST(Zahlungseingänge, NK-Soll).
+      prisma.buchung.findMany({
+        where: {
+          buchungsart: { code: "MIETZAHLUNG" },
+          mietvertragId: { not: null },
+          OR: [
+            { periodeJahr: jahr },
+            { periodeJahr: null, datum: { gte: new Date(Date.UTC(jahr, 0, 1)), lt: new Date(Date.UTC(jahr + 1, 0, 1)) } },
+          ],
+          ...AKTIVE_BUCHUNG_FILTER,
+        },
+        select: { mietvertragId: true, betrag: true, datum: true, periodeJahr: true, periodeMonat: true },
+      }),
     ]);
+  const zahlungenNachVertrag = new Map<string, { jahr: number; monat: number; betrag: number }[]>();
+  for (const z of mietzahlungenRaw) {
+    const jahrZ = z.periodeJahr ?? z.datum?.getUTCFullYear();
+    const monatZ = z.periodeJahr && z.periodeMonat ? z.periodeMonat : z.datum ? z.datum.getUTCMonth() + 1 : null;
+    if (!z.mietvertragId || !jahrZ || !monatZ) continue;
+    const liste = zahlungenNachVertrag.get(z.mietvertragId) ?? [];
+    liste.push({ jahr: jahrZ, monat: monatZ, betrag: Number(z.betrag) });
+    zahlungenNachVertrag.set(z.mietvertragId, liste);
+  }
   const wohnflaecheKorrekturNachEinheit = new Map<string, number>();
   for (const k of wohnflaecheKorrekturenRaw) {
     if (!wohnflaecheKorrekturNachEinheit.has(k.einheitId)) {
@@ -93,6 +117,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     beginn: m.beginn,
     ende: m.ende,
     nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+    zahlungen: zahlungenNachVertrag.get(m.id) ?? [],
     mieterhoehungen: m.mieterhoehungen.map((mh) => ({
       gueltigAb: mh.gueltigAb,
       kaltmiete: Number(mh.kaltmiete),
