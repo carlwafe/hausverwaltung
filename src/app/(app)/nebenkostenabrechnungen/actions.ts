@@ -627,6 +627,31 @@ export async function speichereNkKommentar(abrechnungId: string, mietvertragId: 
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
 }
 
+// Vergleichsrechnung "wie der Verwalter": abweichende Gesamtwohnfläche eines Kostenkreises. Wirkt nur
+// auf die Simulation auf der Abrechnungsseite, nicht auf die gespeicherten Positionen.
+export async function speichereQmAbweichung(abrechnungId: string, formData: FormData) {
+  await requireEditor();
+  const kreis = String(formData.get("kostenkreis") ?? "");
+  const trenner = kreis.indexOf("|");
+  if (trenner < 1) throw new Error("Bitte einen Kostenkreis wählen.");
+  const kostenartId = kreis.slice(0, trenner);
+  const scopeLabel = kreis.slice(trenner + 1);
+  const qmGesamt = Number(String(formData.get("qmGesamt") ?? "").replace(",", "."));
+  if (!Number.isFinite(qmGesamt) || qmGesamt <= 0) throw new Error("Bitte eine Fläche größer als 0 eintragen.");
+  await prisma.nebenkostenQmAbweichung.upsert({
+    where: { abrechnungId_kostenartId_scopeLabel: { abrechnungId, kostenartId, scopeLabel } },
+    create: { abrechnungId, kostenartId, scopeLabel, qmGesamt },
+    update: { qmGesamt },
+  });
+  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+}
+
+export async function loescheQmAbweichung(id: string, abrechnungId: string) {
+  await requireEditor();
+  await prisma.nebenkostenQmAbweichung.delete({ where: { id } });
+  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+}
+
 export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL") {
   await requireEditor();
   await prisma.nebenkostenabrechnung.update({ where: { id }, data: { status } });

@@ -125,6 +125,10 @@ export type KostenanteilDetailEintrag = {
 // Wie KostenanteilDetailEintrag, aber noch ohne Zeitanteil-Prorata — wird pro Einheit für das
 // ganze Jahr ermittelt (berechneEinheitAnteile), dann pro Mietvertrag/Zeitraum skaliert
 // (berechneNebenkostenabrechnung).
+// Abweichende Gesamtwohnfläche eines Kostenkreises (Kostenart + Kostenkreis-Bezeichnung), z.B. um die
+// Rechnung eines Verwalters nachzustellen, der eine falsche Fläche angesetzt hat.
+export type QmAbweichungFuerAbrechnung = { kostenartId: string; scopeLabel: string; qmGesamt: number };
+
 type KostenanteilJahrDetail = Omit<KostenanteilDetailEintrag, "anteilZeitraum">;
 
 export type AbrechnungPositionErgebnis = {
@@ -295,6 +299,7 @@ function berechneEinheitAnteile(
   einheiten: EinheitFuerAbrechnung[],
   verbrauchswerte: VerbrauchswertFuerAbrechnung[],
   technischerAbzug: TechemAllgemeinstromAbzugFuerAbrechnung[],
+  qmAbweichungen: QmAbweichungFuerAbrechnung[] = [],
 ): {
   anteilProEinheit: Map<string, number>;
   detailsProEinheit: Map<string, KostenanteilJahrDetail[]>;
@@ -363,12 +368,22 @@ function berechneEinheitAnteile(
 
     if (g.verteilerschluessel === "WOHNFLAECHE") {
       const verteilerschluessel = g.verteilerschluessel;
-      const gesamtflaeche = pool.reduce((s, e) => s + e.wohnflaecheQm, 0);
-      if (gesamtflaeche <= 0) continue;
-      const { cents: centAnteile, ausgleich } = verteileRestcent(
-        Math.round(effektiverBetrag * 100),
-        pool.map((e) => e.wohnflaecheQm),
-      );
+      const tatsaechlicheFlaeche = pool.reduce((s, e) => s + e.wohnflaecheQm, 0);
+      if (tatsaechlicheFlaeche <= 0) continue;
+      const abweichung = qmAbweichungen.find((a) => a.kostenartId === g.kostenartId && a.scopeLabel === g.scopeLabel);
+      const gesamtflaeche = abweichung?.qmGesamt ?? tatsaechlicheFlaeche;
+      // Mit abweichender Gesamtfläche geht die Verteilung nicht mehr auf den Cent auf (die Anteile
+      // summieren sich nicht zum Kreisbetrag) — genau das ist der Fehler, der hier nachgestellt
+      // wird, deshalb kein Restcent-Ausgleich.
+      const { cents: centAnteile, ausgleich } = abweichung
+        ? {
+            cents: pool.map((e) => Math.round(((effektiverBetrag * e.wohnflaecheQm) / gesamtflaeche) * 100)),
+            ausgleich: pool.map(() => 0),
+          }
+        : verteileRestcent(
+            Math.round(effektiverBetrag * 100),
+            pool.map((e) => e.wohnflaecheQm),
+          );
       pool.forEach((e, i) => {
         const anteil = centAnteile[i] / 100;
         anteilProEinheit.set(e.id, (anteilProEinheit.get(e.id) ?? 0) + anteil);
@@ -475,6 +490,7 @@ export function berechneNebenkostenabrechnung(
   verbrauchswerte: VerbrauchswertFuerAbrechnung[] = [],
   vorverteilteAnteile: VorverteilterKostenanteilFuerAbrechnung[] = [],
   technischerAbzug: TechemAllgemeinstromAbzugFuerAbrechnung[] = [],
+  qmAbweichungen: QmAbweichungFuerAbrechnung[] = [],
 ): AbrechnungErgebnis {
   const { anteilProEinheit, detailsProEinheit, nichtBeruecksichtigt } = berechneEinheitAnteile(
     jahr,
@@ -482,6 +498,7 @@ export function berechneNebenkostenabrechnung(
     einheiten,
     verbrauchswerte,
     technischerAbzug,
+    qmAbweichungen,
   );
 
   const jahresanfang = new Date(Date.UTC(jahr, 0, 1));

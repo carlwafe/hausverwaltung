@@ -65,6 +65,9 @@ export type PositionRow = {
   erledigt: boolean;
   mietvertragId: string | null;
   abrechnungId: string;
+  // Kostenanteil mit den vom Verwalter angesetzten Gesamtflächen (Vergleichsrechnung, siehe
+  // QmAbweichungen); null = keine Abweichung eingetragen.
+  kostenanteilSimuliert: number | null;
   // Manuelle Prüfnotizen (siehe NebenkostenabrechnungPruefung): Stern = Berechnung stimmt mit der
   // des Verwalters überein, dazu ein kurzer Kommentar.
   stimmtMitVerwalter: boolean;
@@ -113,6 +116,27 @@ const columns: Column<PositionRow>[] = [
     align: "right",
     sortValue: (p) => p.kostenanteilGesamt,
     render: (p) => formatEuro(p.kostenanteilGesamt),
+  },
+  {
+    key: "kostenanteilSimuliert",
+    label: "Kostenanteil wie Verwalter",
+    align: "right",
+    sortValue: (p) => (p.kostenanteilSimuliert !== null ? p.kostenanteilSimuliert - p.kostenanteilGesamt : 0),
+    render: (p) => {
+      if (p.kostenanteilSimuliert === null) return <span className="text-neutral-600">–</span>;
+      const diff = Math.round((p.kostenanteilSimuliert - p.kostenanteilGesamt) * 100) / 100;
+      return (
+        <span className="whitespace-nowrap">
+          <span className="text-white">{formatEuro(p.kostenanteilSimuliert)}</span>
+          {diff !== 0 && (
+            <span className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${diff > 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}>
+              {diff > 0 ? "+" : ""}
+              {formatEuro(diff)}
+            </span>
+          )}
+        </span>
+      );
+    },
   },
   {
     key: "restcent",

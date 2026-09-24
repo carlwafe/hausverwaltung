@@ -7,7 +7,8 @@ import { gebaeudeOderHausLabel, hausLabel, vergleicheHaus } from "@/lib/gebaeude
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
 import { PositionenTable } from "./positionen-table";
-import { ermittleNichtBeruecksichtigteKostenarten } from "@/lib/nebenkostenabrechnung";
+import { QmAbweichungen, type QmKostenkreis, type QmAbweichungZeile } from "./qm-abweichungen";
+import { ermittleNichtBeruecksichtigteKostenarten, berechneNebenkostenabrechnung } from "@/lib/nebenkostenabrechnung";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import {
   deleteAbrechnung,
@@ -43,6 +44,7 @@ export default async function NebenkostenabrechnungDetailPage({
     where: { id },
     include: {
       pruefungen: true,
+      qmAbweichungen: { include: { kostenart: { select: { name: true } } } },
       positionen: {
         include: {
           einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
@@ -56,7 +58,7 @@ export default async function NebenkostenabrechnungDetailPage({
   const pruefungen = new Map(abrechnung.pruefungen.map((p) => [p.mietvertragId, p]));
 
   const [
-    { kostenpositionen, einheiten, verbrauchswerte },
+    { kostenpositionen, einheiten, verbrauchswerte, mietvertraege: mietvertraegeEngine, vorverteilteAnteile, technischerAbzug },
     mietvertraegeRoh,
     vorverteilteKostenarten,
     vorverteilteKostenanteileRoh,
@@ -149,6 +151,46 @@ export default async function NebenkostenabrechnungDetailPage({
       return { kostenartId: k.id, kostenartName: k.name, zeilen, leerstand, einheitOptionen };
     }),
   );
+
+  // Vergleichsrechnung "wie der Verwalter" mit dessen abweichenden Gesamtflächen (nichts wird
+  // gespeichert): Kostenanteil je Mietvertrag+Einheit.
+  const qmAbweichungenEngine = abrechnung.qmAbweichungen.map((a) => ({
+    kostenartId: a.kostenartId,
+    scopeLabel: a.scopeLabel,
+    qmGesamt: Number(a.qmGesamt),
+  }));
+  const simulierterKostenanteil = new Map<string, number>();
+  if (qmAbweichungenEngine.length > 0) {
+    const sim = berechneNebenkostenabrechnung(
+      abrechnung.jahr,
+      kostenpositionen,
+      einheiten,
+      mietvertraegeEngine,
+      verbrauchswerte,
+      vorverteilteAnteile,
+      technischerAbzug,
+      qmAbweichungenEngine,
+    );
+    for (const p of sim.positionen) simulierterKostenanteil.set(`${p.mietvertragId}|${p.einheitId}`, p.kostenanteilGesamt);
+  }
+  // Wählbare Kostenkreise (nur Wohnflächen-Verteilung) aus den gespeicherten Aufschlüsselungen.
+  const kreisMap = new Map<string, QmKostenkreis>();
+  for (const p of abrechnung.positionen) {
+    for (const d of (p.details as KostenanteilDetailEintrag[] | null) ?? []) {
+      if (d.verteilerschluessel !== "WOHNFLAECHE") continue;
+      const value = `${d.kostenartId}|${d.scopeLabel}`;
+      if (!kreisMap.has(value)) {
+        kreisMap.set(value, { value, label: `${d.kostenartName} — ${d.scopeLabel}`, qmEcht: d.poolMasswert });
+      }
+    }
+  }
+  const qmKostenkreise = [...kreisMap.values()].sort((a, b) => a.label.localeCompare(b.label, "de"));
+  const qmAbweichungZeilen: QmAbweichungZeile[] = abrechnung.qmAbweichungen.map((a) => ({
+    id: a.id,
+    label: `${a.kostenart.name} — ${a.scopeLabel}`,
+    qmEcht: kreisMap.get(`${a.kostenartId}|${a.scopeLabel}`)?.qmEcht ?? null,
+    qmVerwalter: Number(a.qmGesamt),
+  }));
 
   const summeKostenanteil = abrechnung.positionen.reduce((s, p) => s + Number(p.kostenanteilGesamt), 0);
   const summeVorauszahlung = abrechnung.positionen.reduce((s, p) => s + Number(p.vorauszahlungGesamt), 0);
@@ -423,12 +465,17 @@ export default async function NebenkostenabrechnungDetailPage({
             erledigt: Math.abs(saldoNachGutschrift) < 0.01,
             mietvertragId: p.mietvertragId,
             abrechnungId: id,
+            kostenanteilSimuliert: p.mietvertragId
+              ? (simulierterKostenanteil.get(`${p.mietvertragId}|${p.einheitId}`) ?? null)
+              : null,
             stimmtMitVerwalter: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.stimmtMitVerwalter ?? false) : false,
             kommentar: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.kommentar ?? "") : "",
             details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
           };
         })}
       />
+
+      <QmAbweichungen abrechnungId={id} kostenkreise={qmKostenkreise} abweichungen={qmAbweichungZeilen} />
 
       <ManuellePositionForm
         abrechnungId={id}

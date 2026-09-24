@@ -506,6 +506,7 @@ model Kostenart {
   vorverteilteKostenanteile   VorverteilterKostenanteil[]
   vorverteilteLeerstaende     VorverteilterLeerstand[]
   techemAllgemeinstromAnteile TechemAllgemeinstromAnteil[]
+  nebenkostenQmAbweichungen   NebenkostenQmAbweichung[]
 
   @@map("kostenarten")
 }
@@ -669,8 +670,9 @@ model Nebenkostenabrechnung {
   status     AbrechnungStatus @default(ENTWURF)
   erstelltAm DateTime         @default(now())
 
-  positionen NebenkostenabrechnungPosition[]
-  pruefungen NebenkostenabrechnungPruefung[]
+  positionen     NebenkostenabrechnungPosition[]
+  pruefungen     NebenkostenabrechnungPruefung[]
+  qmAbweichungen NebenkostenQmAbweichung[]
 
   @@map("nebenkostenabrechnungen")
 }
@@ -714,6 +716,24 @@ model NebenkostenabrechnungPruefung {
 
   @@unique([abrechnungId, mietvertragId])
   @@map("nebenkostenabrechnung_pruefungen")
+}
+
+// Vom Verwalter verwendete (abweichende, meist fehlerhafte) Gesamtwohnfläche eines Kostenkreises —
+// nur für die Vergleichsrechnung "wie der Verwalter" auf der Abrechnungsseite. Beeinflusst die echte,
+// gespeicherte Abrechnung nicht. Der Kostenkreis wird über Kostenart + Bezeichnung (scopeLabel,
+// z.B. "Haus 11, 13, 15") identifiziert, wie sie auch in der Aufschlüsselung der Positionen stehen.
+model NebenkostenQmAbweichung {
+  id             String                @id @default(cuid())
+  abrechnung     Nebenkostenabrechnung @relation(fields: [abrechnungId], references: [id], onDelete: Cascade)
+  abrechnungId   String
+  kostenart      Kostenart             @relation(fields: [kostenartId], references: [id], onDelete: Cascade)
+  kostenartId    String
+  scopeLabel     String
+  qmGesamt       Decimal               @db.Decimal(10, 3)
+  aktualisiertAm DateTime              @updatedAt
+
+  @@unique([abrechnungId, kostenartId, scopeLabel])
+  @@map("nebenkosten_qm_abweichungen")
 }
 
 model Dokument {
