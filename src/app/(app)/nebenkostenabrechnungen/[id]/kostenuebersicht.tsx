@@ -103,12 +103,12 @@ export function Kostenuebersicht({
             <tr>
               <th className="px-4 py-2">Kostenart</th>
               <th className="px-4 py-2">{gesamtModus ? "Kostenkreise" : "Anteil an Kostenkreis"}</th>
-              <th className="px-4 py-2 text-right">m² Kostenkreis gesamt</th>
-              <th className="px-4 py-2 text-right">m² Anteil</th>
-              {!gesamtModus && <th className="px-4 py-2 text-right">Kostenkreis gesamt</th>}
-              <th className="px-4 py-2 text-right">{gesamtModus ? "Gesamt (Jahr)" : "Anteil (volles Jahr)"}</th>
-              <th className="px-4 py-2 text-right">Auf Mieter umgelegt</th>
-              <th className="px-4 py-2 text-right">Nicht umgelegt</th>
+              <th className="whitespace-nowrap px-4 py-2 text-right">m² Kostenkreis gesamt</th>
+              <th className="whitespace-nowrap px-4 py-2 text-right">m² Anteil</th>
+              {!gesamtModus && <th className="whitespace-nowrap px-4 py-2 text-right">Kostenkreis gesamt</th>}
+              <th className="whitespace-nowrap px-4 py-2 text-right">{gesamtModus ? "Gesamt (Jahr)" : "Anteil (volles Jahr)"}</th>
+              <th className="whitespace-nowrap px-4 py-2 text-right">Auf Mieter umgelegt</th>
+              <th className="whitespace-nowrap px-4 py-2 text-right">Nicht umgelegt</th>
             </tr>
           </thead>
           <tbody>
@@ -121,15 +121,15 @@ export function Kostenuebersicht({
                     {z.kreise}
                   </td>
                   {z.masseText !== null ? (
-                    <td colSpan={2} className="px-4 py-2 text-center text-neutral-400">
+                    <td colSpan={2} className="whitespace-nowrap px-4 py-2 text-center text-neutral-400">
                       {z.masseText}
                     </td>
                   ) : (
                     <>
-                      <td className="px-4 py-2 text-right text-neutral-400">
+                      <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-400">
                         {z.qmKreis !== null ? formatQm(z.qmKreis) : ""}
                       </td>
-                      <td className="px-4 py-2 text-right text-neutral-300">
+                      <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-300">
                         {z.qmAnteil !== null ? formatQm(z.qmAnteil) : ""}
                       </td>
                     </>
