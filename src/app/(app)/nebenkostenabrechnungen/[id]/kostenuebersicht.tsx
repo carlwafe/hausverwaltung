@@ -103,7 +103,7 @@ export function Kostenuebersicht({
             <tr>
               <th className="px-4 py-2">Kostenart</th>
               <th className="px-4 py-2">{gesamtModus ? "Kostenkreise" : "Anteil an Kostenkreis"}</th>
-              <th className="whitespace-nowrap px-4 py-2 text-right">m² Kostenkreis gesamt</th>
+              <th className="w-32 px-4 py-2 text-right leading-tight">m² Kostenkreis gesamt</th>
               <th className="whitespace-nowrap px-4 py-2 text-right">m² Anteil</th>
               {!gesamtModus && <th className="whitespace-nowrap px-4 py-2 text-right">Kostenkreis gesamt</th>}
               <th className="whitespace-nowrap px-4 py-2 text-right">{gesamtModus ? "Gesamt (Jahr)" : "Anteil (volles Jahr)"}</th>
