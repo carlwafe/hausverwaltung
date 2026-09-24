@@ -504,7 +504,7 @@ export function berechneNebenkostenabrechnung(
       const vorverteilterAnteil = vorverteilteEintraege.reduce((s, v) => s + v.betrag, 0);
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
-      const vorauszahlungGesamt = round2(vorauszahlungFuerZeitraum(mv, von, bis, tageGesamt));
+      const vorauszahlungGesamt = round2(vorauszahlungFuerZeitraum(mv, von, bis));
 
       // Vollständige Belegkette für diese Position: pro Kostenart der Jahresgesamtbetrag ihres
       // Kostenkreises, die Verteilungsbasis und der daraus resultierende, zeitanteilig auf diesen
@@ -573,32 +573,35 @@ function nkVorauszahlungFuerDatum(
 }
 
 /**
- * Segment-Summe der NK-Vorauszahlung über [von, bis]: der Zeitraum wird an jedem (auf
- * Monatsanfang normierten) gueltigAb einer Mieterhöhung, das in (von, bis] fällt, in
- * Teilabschnitte zerlegt — pro Abschnitt gilt die zu dessen Start passende NK-Vorauszahlung, mit
- * derselben Tagesanteil-Formel wie bisher. Ohne Mieterhöhung im Zeitraum ergibt das exakt einen
- * Abschnitt über den vollen Zeitraum — reine Verallgemeinerung, kein Verhaltensunterschied im
- * Normalfall.
+ * NK-Vorauszahlung über [von, bis], monatsweise gerechnet: jeder ganz abgedeckte Kalendermonat zählt
+ * mit dem vollen Monatsbetrag, ein nur angebrochener Monat (Ein-/Auszug mitten im Monat)
+ * tagesanteilig an seiner eigenen Länge. So ergibt z.B. ein Einzug zum 1.8. bei 200 € genau
+ * 5 × 200 € = 1.000 € bis Jahresende (tagesgenau über das ganze Jahr gerechnet wären es 1.006,03 €).
+ * Der Monatsbetrag richtet sich nach der zu Monatsbeginn geltenden Mieterhöhung — Mieterhöhungen
+ * gelten "ab diesem Monat" (siehe ersterTagDesMonats), also für den ganzen Monat. Die Kostenanteile
+ * bleiben davon unberührt tagesgenau (Zeitanteil).
  */
 function vorauszahlungFuerZeitraum(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "mieterhoehungen">,
   von: Date,
   bis: Date,
-  tageGesamt: number,
 ): number {
-  const breakpoints = [...new Set((mv.mieterhoehungen ?? []).map((mh) => ersterTagDesMonats(mh.gueltigAb).getTime()))]
-    .map((t) => new Date(t))
-    .filter((d) => d > von && d <= bis)
-    .sort((a, b) => a.getTime() - b.getTime());
-
-  const grenzen = [von, ...breakpoints, new Date(bis.getTime() + MS_PRO_TAG)];
   let summe = 0;
-  for (let i = 0; i < grenzen.length - 1; i++) {
-    const segStart = grenzen[i];
-    const segEnde = new Date(grenzen[i + 1].getTime() - MS_PRO_TAG);
-    const rate = nkVorauszahlungFuerDatum(mv, segStart);
-    const tage = tageZwischen(segStart, segEnde);
-    summe += ((rate * 12) / tageGesamt) * tage;
+  let jahr = von.getUTCFullYear();
+  let monat = von.getUTCMonth();
+  while (Date.UTC(jahr, monat, 1) <= bis.getTime()) {
+    const monatsStart = new Date(Date.UTC(jahr, monat, 1));
+    const monatsEnde = new Date(Date.UTC(jahr, monat + 1, 0));
+    const ueberlappVon = von > monatsStart ? von : monatsStart;
+    const ueberlappBis = bis < monatsEnde ? bis : monatsEnde;
+    const tageImMonat = monatsEnde.getUTCDate();
+    const anteil = tageZwischen(ueberlappVon, ueberlappBis) / tageImMonat;
+    summe += nkVorauszahlungFuerDatum(mv, monatsStart) * anteil;
+    monat += 1;
+    if (monat > 11) {
+      monat = 0;
+      jahr += 1;
+    }
   }
   return summe;
 }
