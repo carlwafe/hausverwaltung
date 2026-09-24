@@ -376,6 +376,7 @@ model Mietvertrag {
   jahresberichtVerifikationen     JahresberichtVerifikation[]
   nebenkostenabrechnungPruefungen NebenkostenabrechnungPruefung[]
   mieterhoehungen                 Mieterhoehung[]
+  jahresberichtKommentars         JahresberichtKommentar[]
 
   @@map("mietvertraege")
 }
@@ -612,6 +613,21 @@ model JahresberichtVerifikation {
 
   @@unique([mietvertragId, jahr])
   @@map("jahresbericht_verifikationen")
+}
+
+// Kurzer, frei eingegebener Kommentar pro Mietvertrag und Berichtsjahr in der Mieter-Tabelle der
+// Jahresübersicht. Eigene Tabelle statt Feld an JahresberichtVerifikation, weil dort schon die
+// bloße Existenz einer Zeile "verifiziert" bedeutet.
+model JahresberichtKommentar {
+  id             String      @id @default(cuid())
+  mietvertrag    Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId  String
+  jahr           Int
+  kommentar      String
+  aktualisiertAm DateTime    @updatedAt
+
+  @@unique([mietvertragId, jahr])
+  @@map("jahresbericht_kommentare")
 }
 
 // Der manuell vom echten Kontoauszug abgelesene Kontostand zum 31.12. eines Jahres — die externe

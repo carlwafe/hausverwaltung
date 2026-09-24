@@ -3,6 +3,7 @@ import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnu
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { VerifikationsStern } from "./verifikations-stern";
+import { KommentarFeld } from "./kommentar-feld";
 import { berechneMieterJahresbericht, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
@@ -278,14 +279,16 @@ export default async function JahresuebersichtPage({
   const { jahr: jahrParam } = await searchParams;
   const jahr = Number(jahrParam) || new Date().getFullYear();
 
-  const [daten, mieterZeilen, verifikationen, kontenabgleich, kontenabgleichVerifikation] = await Promise.all([
+  const [daten, mieterZeilen, verifikationen, kommentare, kontenabgleich, kontenabgleichVerifikation] = await Promise.all([
     ladeJahresuebersicht(jahr),
     ladeMieterZeilen(jahr),
     prisma.jahresberichtVerifikation.findMany({ where: { jahr }, select: { mietvertragId: true } }),
+    prisma.jahresberichtKommentar.findMany({ where: { jahr }, select: { mietvertragId: true, kommentar: true } }),
     ladeKontenabgleich(jahr),
     prisma.kontenabgleichVerifikation.findUnique({ where: { jahr }, select: { kontostandLautBankauszug: true } }),
   ]);
   const verifizierteIds = new Set(verifikationen.map((v) => v.mietvertragId));
+  const kommentarNachMietvertrag = new Map(kommentare.map((k) => [k.mietvertragId, k.kommentar]));
 
   return (
     <div>
@@ -557,6 +560,7 @@ export default async function JahresuebersichtPage({
                 <th className="px-4 py-2 text-center" title="Stimmt mit dem vorhandenen Jahresbericht des früheren Verwalters überein">
                   ✓
                 </th>
+                <th className="px-4 py-2">Kommentar</th>
               </tr>
             </thead>
             <tbody>
@@ -592,11 +596,18 @@ export default async function JahresuebersichtPage({
                       verifiziert={verifizierteIds.has(z.mietvertragId)}
                     />
                   </td>
+                  <td className="px-4 py-2">
+                    <KommentarFeld
+                      mietvertragId={z.mietvertragId}
+                      jahr={jahr}
+                      kommentar={kommentarNachMietvertrag.get(z.mietvertragId) ?? ""}
+                    />
+                  </td>
                 </tr>
               ))}
               {mieterZeilen.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-4 text-center text-neutral-500">
+                  <td colSpan={13} className="px-4 py-4 text-center text-neutral-500">
                     Keine Mietverträge mit Bewegung in {jahr}.
                   </td>
                 </tr>
