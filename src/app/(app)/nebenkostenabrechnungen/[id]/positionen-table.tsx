@@ -28,6 +28,13 @@ function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
 
 // Summe der Restcent-Ausgleiche (±0,01 € je Kostenart, siehe verteileRestcent) dieser Position,
 // auf den abgerechneten Zeitraum skaliert wie der Anteil selbst. Cent-genau gerundet.
+// Saldo nach Gutschrift mit dem Kostenanteil der Vergleichsrechnung "wie Verwalter" (Vorauszahlung und
+// Rückzahlung/Gutschrift unverändert); null, solange keine abweichende Fläche eingetragen ist.
+function saldoNachGutschriftVerwalter(p: PositionRow): number | null {
+  if (p.kostenanteilSimuliert === null) return null;
+  return Math.round((p.vorauszahlungGesamt - p.kostenanteilSimuliert - (p.gutschriftSumme ?? 0)) * 100) / 100;
+}
+
 function restcentSumme(details: KostenanteilDetailEintrag[]): number {
   const summe = details.reduce((s, d) => {
     if (!d.restcent) return s;
@@ -237,6 +244,22 @@ const columns: Column<PositionRow>[] = [
           {formatEuro(p.saldoNachGutschrift)}
         </span>
       ),
+  },
+  {
+    key: "saldoNachGutschriftVerwalter",
+    label: "Saldo nach Gutschrift wie Verwalter",
+    align: "right",
+    sortValue: (p) => saldoNachGutschriftVerwalter(p) ?? 0,
+    render: (p) => {
+      const saldo = saldoNachGutschriftVerwalter(p);
+      if (saldo === null) return <span className="text-neutral-600">–</span>;
+      if (Math.abs(saldo) < 0.01) {
+        return <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>;
+      }
+      return (
+        <span className={`whitespace-nowrap ${saldo >= 0 ? "text-green-400" : "text-red-400"}`}>{formatEuro(saldo)}</span>
+      );
+    },
   },
   {
     key: "verwalter",
