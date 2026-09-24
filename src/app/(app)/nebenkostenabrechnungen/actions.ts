@@ -574,6 +574,32 @@ export async function speichereTechemAllgemeinstromAnteil(formData: FormData) {
   if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);
 }
 
+// Stern "Berechnung stimmt mit der des Verwalters überein" pro Mietvertrag einer Abrechnung.
+export async function toggleNkVerwalterAbgleich(abrechnungId: string, mietvertragId: string) {
+  await requireEditor();
+  const bestehend = await prisma.nebenkostenabrechnungPruefung.findUnique({
+    where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },
+  });
+  await prisma.nebenkostenabrechnungPruefung.upsert({
+    where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },
+    create: { abrechnungId, mietvertragId, stimmtMitVerwalter: true },
+    update: { stimmtMitVerwalter: !(bestehend?.stimmtMitVerwalter ?? false) },
+  });
+  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+}
+
+// Kurzer, frei eingegebener Kommentar pro Mietvertrag einer Abrechnung (leer = entfernt).
+export async function speichereNkKommentar(abrechnungId: string, mietvertragId: string, kommentar: string) {
+  await requireEditor();
+  const text = kommentar.trim() || null;
+  await prisma.nebenkostenabrechnungPruefung.upsert({
+    where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },
+    create: { abrechnungId, mietvertragId, kommentar: text },
+    update: { kommentar: text },
+  });
+  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+}
+
 export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL") {
   await requireEditor();
   await prisma.nebenkostenabrechnung.update({ where: { id }, data: { status } });

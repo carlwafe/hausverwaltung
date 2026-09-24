@@ -6,6 +6,7 @@ import { einheitSortSchluessel } from "@/lib/einheit-sort";
 import { PositionBearbeitenForm } from "../position-bearbeiten-form";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { toDateInputValue } from "@/lib/date-utils";
+import { VerwalterAbgleichStern, KommentarFeld } from "./pruefung-zellen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -60,6 +61,11 @@ export type PositionRow = {
   kautionSumme: number;
   erledigt: boolean;
   mietvertragId: string | null;
+  abrechnungId: string;
+  // Manuelle Prüfnotizen (siehe NebenkostenabrechnungPruefung): Stern = Berechnung stimmt mit der
+  // des Verwalters überein, dazu ein kurzer Kommentar.
+  stimmtMitVerwalter: boolean;
+  kommentar: string;
   details: KostenanteilDetailEintrag[];
 };
 
@@ -186,6 +192,33 @@ const columns: Column<PositionRow>[] = [
         <span className={p.saldoNachGutschrift >= 0 ? "text-green-400" : "text-red-400"}>
           {formatEuro(p.saldoNachGutschrift)}
         </span>
+      ),
+  },
+  {
+    key: "verwalter",
+    label: "★ Verwalter",
+    sortValue: (p) => (p.stimmtMitVerwalter ? 1 : 0),
+    render: (p) =>
+      p.mietvertragId ? (
+        <VerwalterAbgleichStern
+          abrechnungId={p.abrechnungId}
+          mietvertragId={p.mietvertragId}
+          stimmt={p.stimmtMitVerwalter}
+        />
+      ) : (
+        <span className="text-neutral-600">–</span>
+      ),
+  },
+  {
+    key: "kommentar",
+    label: "Kommentar",
+    sortValue: (p) => p.kommentar,
+    searchValue: (p) => p.kommentar,
+    render: (p) =>
+      p.mietvertragId ? (
+        <KommentarFeld abrechnungId={p.abrechnungId} mietvertragId={p.mietvertragId} kommentar={p.kommentar} />
+      ) : (
+        <span className="text-neutral-600">–</span>
       ),
   },
 ];

@@ -42,6 +42,7 @@ export default async function NebenkostenabrechnungDetailPage({
   const abrechnung = await prisma.nebenkostenabrechnung.findUnique({
     where: { id },
     include: {
+      pruefungen: true,
       positionen: {
         include: {
           einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
@@ -52,6 +53,7 @@ export default async function NebenkostenabrechnungDetailPage({
     },
   });
   if (!abrechnung) notFound();
+  const pruefungen = new Map(abrechnung.pruefungen.map((p) => [p.mietvertragId, p]));
 
   const [
     { kostenpositionen, einheiten, verbrauchswerte },
@@ -417,6 +419,9 @@ export default async function NebenkostenabrechnungDetailPage({
             kautionSumme: eintrag ? eintrag.davonKaution : 0,
             erledigt: Math.abs(saldoNachGutschrift) < 0.01,
             mietvertragId: p.mietvertragId,
+            abrechnungId: id,
+            stimmtMitVerwalter: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.stimmtMitVerwalter ?? false) : false,
+            kommentar: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.kommentar ?? "") : "",
             details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
           };
         })}

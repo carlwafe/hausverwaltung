@@ -290,6 +290,7 @@ model Einheit {
 
   mietvertraege                   Mietvertrag[]
   nebenkostenabrechnungPositionen NebenkostenabrechnungPosition[]
+  nebenkostenabrechnungPruefungen NebenkostenabrechnungPruefung[]
   verbrauchswerte                 Verbrauchswert[]
   dokumente                       Dokument[]
   buchungen                       Buchung[]
@@ -653,6 +654,7 @@ model Nebenkostenabrechnung {
   erstelltAm DateTime         @default(now())
 
   positionen NebenkostenabrechnungPosition[]
+  pruefungen NebenkostenabrechnungPruefung[]
 
   @@map("nebenkostenabrechnungen")
 }
@@ -678,6 +680,24 @@ model NebenkostenabrechnungPosition {
 
   @@unique([abrechnungId, einheitId, mietvertragId])
   @@map("nebenkostenabrechnung_positionen")
+}
+
+// Manuelle Prüfnotizen zu einer Abrechnung je Mietvertrag: ob die Berechnung mit der des
+// bisherigen Verwalters übereinstimmt (Stern) plus ein kurzer Kommentar. Bewusst an
+// Abrechnung+Mietvertrag statt an der Position, weil "Neu berechnen" die Positionen löscht und neu
+// anlegt (neue Ids) — so bleiben Stern und Kommentar dabei erhalten.
+model NebenkostenabrechnungPruefung {
+  id                 String                @id @default(cuid())
+  abrechnung         Nebenkostenabrechnung @relation(fields: [abrechnungId], references: [id], onDelete: Cascade)
+  abrechnungId       String
+  mietvertrag        Mietvertrag           @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId      String
+  stimmtMitVerwalter Boolean               @default(false)
+  kommentar          String?
+  aktualisiertAm     DateTime              @updatedAt
+
+  @@unique([abrechnungId, mietvertragId])
+  @@map("nebenkostenabrechnung_pruefungen")
 }
 
 model Dokument {
