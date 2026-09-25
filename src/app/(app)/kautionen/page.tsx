@@ -230,19 +230,24 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
   }));
 }
 
-// Kandidaten für die Verknüpfung einer neuen virtuellen Auszahlung mit ihrer Gegenbuchung — nur
-// Gutschriften (negativer Betrag) kommen als Gegenbuchung infrage.
+// Kandidaten für die Verknüpfung einer neuen virtuellen Auszahlung: entweder bereits vorhandene
+// Gutschriften (negativer Betrag, die Gegenbuchung existiert schon) oder die bezahlte Rechnung
+// selbst (positiver Betrag, z.B. die Reparatur, die mit der Kaution verrechnet wurde) — dann legt
+// das Speichern die Gegenbuchung automatisch an.
 async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string; datumISO: string | null }[]> {
   const positionen = await prisma.buchung.findMany({
-    where: { buchungsart: { code: "KOSTENPOSITION" }, betrag: { lt: 0 }, ...AKTIVE_BUCHUNG_FILTER },
-    orderBy: { erstelltAm: "desc" },
+    where: { buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
+    orderBy: [{ datum: "desc" }, { erstelltAm: "desc" }],
     include: { kostenart: true },
   });
-  return positionen.map((k) => ({
-    id: k.id,
-    label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart?.name ?? "?"} — ${formatEuro(Number(k.betrag))}${k.bezugTyp === "Buchung" ? " (bereits verknüpft)" : ""}`,
-    datumISO: k.datum ? k.datum.toISOString().slice(0, 10) : null,
-  }));
+  return positionen.map((k) => {
+    const betrag = Number(k.betrag);
+    return {
+      id: k.id,
+      label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart?.name ?? "?"} — ${formatEuro(betrag)} ${betrag < 0 ? "(Gutschrift)" : "(Rechnung)"}${k.empfaenger ? ` — ${k.empfaenger}` : ""}${k.bezugTyp === "Buchung" ? " (bereits verknüpft)" : ""}`,
+      datumISO: k.datum ? k.datum.toISOString().slice(0, 10) : null,
+    };
+  });
 }
 
 // Einbehalte erscheinen als Zeilen in der Kautionsbuchungen-Tabelle (Betrag mit Buchungsvorzeichen,

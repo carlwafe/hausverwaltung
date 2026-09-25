@@ -181,7 +181,9 @@ export function NeueKautionsbuchungForm({
               Verknüpfte Kostenposition (optional)
             </label>
             <p className="mb-1 text-xs text-neutral-500">
-              Zeigt zunächst nur Gutschriften vom selben Tag — zum Suchen einfach tippen.
+              Die bezahlte Rechnung (z.B. die Reparatur) wählen — die Gutschrift als Gegenbuchung legt das
+              System an. Eine bereits vorhandene Gutschrift lässt sich ebenfalls wählen. Zeigt zunächst nur
+              Kosten vom selben Tag, zum Suchen einfach tippen.
             </p>
             <MietvertragAuswahl
               kandidaten={virtuelleGutschriften}

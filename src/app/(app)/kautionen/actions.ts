@@ -116,10 +116,39 @@ export async function erstelleKautionsbuchung(_prev: string | null, formData: Fo
       data: { mietvertragId, buchungsartId: buchungsart.id, datum, betrag, verwendungszweck },
     });
     if (verknuepfteKostenpositionId) {
-      await tx.buchung.update({
-        where: { id: verknuepfteKostenpositionId },
-        data: { bezugTyp: "Buchung", bezugId: buchung.id },
-      });
+      const kosten = await tx.buchung.findUniqueOrThrow({ where: { id: verknuepfteKostenpositionId } });
+      if (Number(kosten.betrag) < 0) {
+        // Gegenbuchung (Gutschrift) existiert schon — nur verknüpfen.
+        await tx.buchung.update({
+          where: { id: verknuepfteKostenpositionId },
+          data: { bezugTyp: "Buchung", bezugId: buchung.id },
+        });
+      } else {
+        // Die bezahlte Rechnung selbst wurde gewählt (z.B. Reparatur, mit der Kaution verrechnet):
+        // die Gutschrift als Gegenbuchung legt das System an, die Rechnung bleibt unverändert. So
+        // hebt sich die Ausgabe in Kontostand, Jahresübersicht und Nebenkostenabrechnung auf.
+        const gutschriftBetrag = Math.abs(betrag);
+        if (gutschriftBetrag > Number(kosten.betrag) + 0.005) {
+          throw new Error("Der Kautionsbetrag ist größer als die gewählte Rechnung.");
+        }
+        await tx.buchung.create({
+          data: {
+            buchungsartId: kosten.buchungsartId,
+            kostenartId: kosten.kostenartId,
+            gebaeudeId: kosten.gebaeudeId,
+            hausId: kosten.hausId,
+            kostengruppeId: kosten.kostengruppeId,
+            einheitId: kosten.einheitId,
+            betrag: -gutschriftBetrag,
+            jahr: kosten.jahr,
+            datum: kosten.datum,
+            empfaenger: kosten.empfaenger,
+            verwendungszweck: `Verrechnet mit Kaution: ${kosten.verwendungszweck ?? ""}`.trim(),
+            bezugTyp: "Buchung",
+            bezugId: buchung.id,
+          },
+        });
+      }
     }
   });
 
