@@ -9,11 +9,22 @@ import { spawnSync } from "child_process";
 const MAX_VERSUCHE = 5;
 const PAUSE_SEKUNDEN = 8;
 
+// Migrationen laufen bevorzugt über Neons direkten Endpunkt (Host ohne "-pooler") statt über den
+// Connection-Pooler: `prisma migrate deploy` hält während der Migration eine Postgres-Advisory-Lock.
+// Über den Pooler (pgbouncer) bleibt sie bei einem abgebrochenen Versuch auf einer im Pool
+// zurückbleibenden Verbindung hängen und blockiert danach jeden weiteren Build (P1002), bis die
+// Verbindung von Hand beendet wird. Eine direkte Verbindung endet mit dem Prozess und gibt die Sperre
+// automatisch frei. Nur die letzten beiden Versuche fallen auf die ursprüngliche URL zurück.
+const urspruenglicheUrl = process.env.DATABASE_URL ?? "";
+const direkteUrl = urspruenglicheUrl.replace("-pooler", "");
+const direktVerfuegbar = direkteUrl !== urspruenglicheUrl;
+
 for (let versuch = 1; versuch <= MAX_VERSUCHE; versuch++) {
-  console.log(`prisma migrate deploy — Versuch ${versuch}/${MAX_VERSUCHE}`);
+  const direkt = direktVerfuegbar && versuch <= MAX_VERSUCHE - 2;
+  console.log(`prisma migrate deploy — Versuch ${versuch}/${MAX_VERSUCHE} (${direkt ? "direkte Verbindung" : "Standard-URL"})`);
   const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
     stdio: "inherit",
-    env: process.env,
+    env: { ...process.env, DATABASE_URL: direkt ? direkteUrl : urspruenglicheUrl },
   });
 
   if (result.status === 0) {
