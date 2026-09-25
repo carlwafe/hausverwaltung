@@ -138,6 +138,10 @@ export type AbrechnungPositionErgebnis = {
   zeitraumBis: Date;
   kostenanteilGesamt: number;
   vorauszahlungGesamt: number;
+  // Teil von vorauszahlungGesamt, der aus Monaten außerhalb des Mietzeitraums stammt (z.B. Miete, die
+  // nach Vertragsende noch für einen weiteren Monat gezahlt wurde) — der NK-Anteil dieser Zahlung
+  // zählt als Vorauszahlung; 0 = keine solche Zahlung.
+  vorauszahlungAusserhalb: number;
   saldo: number;
   details: KostenanteilDetailEintrag[];
 };
@@ -528,10 +532,15 @@ export function berechneNebenkostenabrechnung(
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
       const vorauszahlungSoll = vorauszahlungFuerZeitraum(mv, von, bis);
+      const zahlungseingang = mv.zahlungen ? zahlungseingangImZeitraum(mv.zahlungen, von, bis) : null;
+      // Wurde für einen Monat des Abrechnungsjahres gezahlt, der außerhalb des Mietzeitraums liegt
+      // (z.B. Miete für November trotz Vertragsende im August), zählt der NK-Anteil dieser Zahlung
+      // (höchstens das NK-Soll des Monats) ebenfalls als Vorauszahlung.
+      const ausserhalb = mv.zahlungen ? nkAnteilAusserhalb(mv, mv.zahlungen, jahr, von, bis) : 0;
       const vorauszahlungGesamt = round2(
-        mv.zahlungen
-          ? Math.min(Math.max(zahlungseingangImZeitraum(mv.zahlungen, von, bis), 0), vorauszahlungSoll)
-          : vorauszahlungSoll,
+        (zahlungseingang !== null
+          ? Math.min(Math.max(zahlungseingang, 0), vorauszahlungSoll)
+          : vorauszahlungSoll) + ausserhalb,
       );
 
       // Vollständige Belegkette für diese Position: pro Kostenart der Jahresgesamtbetrag ihres
@@ -563,6 +572,7 @@ export function berechneNebenkostenabrechnung(
         zeitraumBis: bis,
         kostenanteilGesamt,
         vorauszahlungGesamt,
+        vorauszahlungAusserhalb: round2(ausserhalb),
         saldo: round2(vorauszahlungGesamt - kostenanteilGesamt),
         details,
       });
@@ -602,6 +612,28 @@ function nkVorauszahlungFuerDatum(
 
 // Summe der Zahlungen, deren Mietperiode in einen Monat von [von, bis] fällt (angebrochene Monate
 // zählen voll, wie beim Soll in vorauszahlungFuerZeitraum).
+// NK-Anteil der Zahlungen für Monate des Jahres, die außerhalb von [von, bis] liegen: je Monat die
+// (netto) gezahlte Summe, höchstens das NK-Soll dieses Monats.
+function nkAnteilAusserhalb(
+  mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "mieterhoehungen">,
+  zahlungen: { jahr: number; monat: number; betrag: number }[],
+  jahr: number,
+  von: Date,
+  bis: Date,
+): number {
+  const ab = von.getUTCFullYear() * 12 + von.getUTCMonth();
+  const bisIdx = bis.getUTCFullYear() * 12 + bis.getUTCMonth();
+  let summe = 0;
+  for (let monat = 1; monat <= 12; monat++) {
+    const idx = jahr * 12 + (monat - 1);
+    if (idx >= ab && idx <= bisIdx) continue;
+    const gezahlt = zahlungen.filter((z) => z.jahr === jahr && z.monat === monat).reduce((s, z) => s + z.betrag, 0);
+    if (gezahlt <= 0) continue;
+    summe += Math.min(gezahlt, nkVorauszahlungFuerDatum(mv, new Date(Date.UTC(jahr, monat - 1, 1))));
+  }
+  return summe;
+}
+
 function zahlungseingangImZeitraum(
   zahlungen: { jahr: number; monat: number; betrag: number }[],
   von: Date,
@@ -631,6 +663,11 @@ function vorauszahlungFuerZeitraum(
   von: Date,
   bis: Date,
 ): number {
+  return sollFuerZeitraum(von, bis, (monatsStart) => nkVorauszahlungFuerDatum(mv, monatsStart));
+}
+
+// Summe eines Monatsbetrags über den Zeitraum, angebrochene Monate anteilig nach Tagen.
+function sollFuerZeitraum(von: Date, bis: Date, betragFuerMonat: (monatsStart: Date) => number): number {
   let summe = 0;
   let jahr = von.getUTCFullYear();
   let monat = von.getUTCMonth();
@@ -641,7 +678,7 @@ function vorauszahlungFuerZeitraum(
     const ueberlappBis = bis < monatsEnde ? bis : monatsEnde;
     const tageImMonat = monatsEnde.getUTCDate();
     const anteil = tageZwischen(ueberlappVon, ueberlappBis) / tageImMonat;
-    summe += nkVorauszahlungFuerDatum(mv, monatsStart) * anteil;
+    summe += betragFuerMonat(monatsStart) * anteil;
     monat += 1;
     if (monat > 11) {
       monat = 0;
