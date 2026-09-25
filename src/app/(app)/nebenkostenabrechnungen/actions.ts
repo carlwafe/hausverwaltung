@@ -56,7 +56,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
       prisma.techemAllgemeinstromAnteil.findMany({ where: { jahr } }),
       prisma.kostenart.findFirst({ where: { name: "Allgemeinstrom" } }),
       // Mietzahlungen für Monate dieses Jahres (nach Mietperiode; fehlt sie, gilt der Monat des
-      // Buchungsdatums) — Grundlage der Vorauszahlung: LEAST(Zahlungseingänge, NK-Soll).
+      // Buchungsdatums) — Grundlage der Vorauszahlung: je Monat erst Kaltmiete, Rest = NK-Anteil.
       prisma.buchung.findMany({
         where: {
           buchungsart: { code: "MIETZAHLUNG" },
@@ -118,6 +118,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     beginn: m.beginn,
     ende: m.ende,
     nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+    kaltmiete: Number(m.kaltmiete),
     zahlungen: zahlungenNachVertrag.get(m.id) ?? [],
     mieterhoehungen: m.mieterhoehungen.map((mh) => ({
       gueltigAb: mh.gueltigAb,
