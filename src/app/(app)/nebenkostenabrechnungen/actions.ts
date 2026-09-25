@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -31,6 +31,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     techemAllgemeinstromAnteileRaw,
     allgemeinstromKostenart,
     mietzahlungenRaw,
+    rueckstandVerrechnungenRaw,
   ] = await Promise.all([
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, jahr, kostenart: { umlagefaehig: true }, ...AKTIVE_BUCHUNG_FILTER },
@@ -69,7 +70,27 @@ export async function ladeBerechnungsdaten(jahr: number) {
         },
         select: { mietvertragId: true, betrag: true, datum: true, periodeJahr: true, periodeMonat: true },
       }),
+      // Als Verrechnung erfasstes Guthaben dieses Abrechnungsjahres, mit dem ein Mietrückstand
+      // ausgeglichen wurde (negative Gebühr/Gutschrift aufs Mieterkonto, siehe NK_VERRECHNUNG_BEZUG).
+      prisma.buchung.findMany({
+        where: {
+          buchungsart: { code: "MAHNGEBUEHR" },
+          bezugTyp: NK_VERRECHNUNG_BEZUG,
+          jahr,
+          betrag: { lt: 0 },
+          mietvertragId: { not: null },
+          ...AKTIVE_BUCHUNG_FILTER,
+        },
+        select: { mietvertragId: true, betrag: true },
+      }),
     ]);
+  const rueckstandVerrechnetNachVertrag = new Map<string, number>();
+  for (const r of rueckstandVerrechnungenRaw) {
+    rueckstandVerrechnetNachVertrag.set(
+      r.mietvertragId!,
+      (rueckstandVerrechnetNachVertrag.get(r.mietvertragId!) ?? 0) + Math.abs(Number(r.betrag)),
+    );
+  }
   const zahlungenNachVertrag = new Map<string, { jahr: number; monat: number; betrag: number }[]>();
   for (const z of mietzahlungenRaw) {
     const jahrZ = z.periodeJahr ?? z.datum?.getUTCFullYear();
@@ -119,6 +140,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     ende: m.ende,
     nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
     kaltmiete: Number(m.kaltmiete),
+    rueckstandVerrechnet: rueckstandVerrechnetNachVertrag.get(m.id) ?? 0,
     zahlungen: zahlungenNachVertrag.get(m.id) ?? [],
     mieterhoehungen: m.mieterhoehungen.map((mh) => ({
       gueltigAb: mh.gueltigAb,
