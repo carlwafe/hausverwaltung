@@ -23,6 +23,7 @@ Es gibt keine Testsuite. Verifiziert wird über `tsc`, `eslint`, `next build` un
 
 - Nach jeder Schema-Änderung `prisma generate` ausführen **und den Dev-Server neu starten** (bei Fehlern wie "Unknown field … for include" oder komischem Verhalten: laufenden `next dev` beenden, `.next` löschen, neu starten — der Server hält sonst den alten Prisma-Client).
 - `tsx` lädt keine `.env`-Dateien selbst: vorher `set -a; . ./.env; set +a` (lokale DB `mietverwaltung_eutin`) bzw. `. ./.env.prod-admin.local` (Produktion, Neon) sourcen. Produktion-Skripte nur lesend, außer der Nutzer hat die konkrete Änderung ausdrücklich beauftragt.
+- Die `.env*`-Dateien sind git-ignoriert und liegen nur im Hauptordner `/Users/felixwaller/Claude Projects/Neuer Ordner/`. Neue Sitzungen/Worktrees (`.claude/worktrees/…`) haben sie nicht und erreichen daher die (Produktions-)DB nicht: Dateien von dort kopieren (`.worktreeinclude` listet sie für neue Worktrees) oder direkt per absolutem Pfad sourcen, z.B. `set -a; . "/Users/felixwaller/Claude Projects/Neuer Ordner/.env.prod-admin.local"; set +a`. Der Ordner `/Users/felixwaller/qwer/Neuer Ordner` ist kein Repo (enthält nur `src`) — im Hauptordner arbeiten.
 - Temporäre Skripte gehören nach `scripts-tmp/` (nicht committen; `git add -A src prisma` statt `git add -A`).
 
 ## Deployment
