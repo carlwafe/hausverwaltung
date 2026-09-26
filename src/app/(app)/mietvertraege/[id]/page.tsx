@@ -1,18 +1,39 @@
 import { notFound } from "next/navigation";
-import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
+import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { EckdatenSektion } from "../eckdaten-sektion";
 import { uploadDokument } from "../../dokumente/actions";
 import { BelegeSektion } from "@/components/belege-sektion";
-import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAktuelleMiete, ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { baueMieterkontoJahr } from "@/lib/mieterkonto";
-import { MieterkontoAnsicht } from "./mieterkonto-ansicht";
+import { baueKautionskonto } from "@/lib/kautionskonto";
+import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
+import { MietvertragReiter } from "./mietvertrag-reiter";
+import type { NkJahrDaten } from "./nebenkosten-ansicht";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
+
+const ANLAGEFORM_LABEL: Record<string, string> = {
+  KAUTIONSKONTO: "Kautionskonto",
+  SPARBUCH: "Sparbuch",
+  BUERGSCHAFT: "Bürgschaft",
+  BAR: "Bar",
+};
+
+// Art der Erledigung / Weg je Buchungsart, die eine NK-Abrechnung begleicht (siehe nk-verrechnung.ts).
+const NK_ERLEDIGUNG: Record<string, { art: string; weg: string }> = {
+  NEBENKOSTENAUSGLEICH: { art: "Auszahlung / Zahlung", weg: "Banküberweisung (Nebenkostenausgleich)" },
+  MAHNGEBUEHR: { art: "Verrechnung mit Miete", weg: "Forderung im Mieterkonto" },
+  KAUTION_EINBEHALT: { art: "Verrechnung mit Kaution", weg: "Einbehalt aus der Kaution" },
+};
+
+// Warme Betriebskosten (Heizung, Warmwasser, verbundene Anlagen — BetrKV § 2 Nr. 4–6).
+const istWarmeKostenart = (k: { name: string; betrKvNummer: number | null }) =>
+  (k.betrKvNummer !== null && [4, 5, 6].includes(k.betrKvNummer)) || /heiz|warmwasser/i.test(k.name);
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -30,14 +51,24 @@ export default async function MietvertragDetailPage({
       include: {
         einheit: true,
         mieter: true,
-        kaution: true,
+        kaution: { include: { einbehalte: true } },
         buchungen: {
           where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
           orderBy: { datum: "desc" },
         },
         dokumente: { orderBy: { createdAt: "desc" } },
         mieterhoehungen: { orderBy: { gueltigAb: "desc" } },
-        abrechnungspositionen: { select: { saldo: true, abrechnung: { select: { jahr: true } } } },
+        abrechnungspositionen: {
+          select: {
+            zeitraumVon: true,
+            zeitraumBis: true,
+            kostenanteilGesamt: true,
+            vorauszahlungGesamt: true,
+            saldo: true,
+            details: true,
+            abrechnung: { select: { id: true, jahr: true, status: true } },
+          },
+        },
       },
     }),
     prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
@@ -120,13 +151,87 @@ export default async function MietvertragDetailPage({
   // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Nebenkostenausgleich.
   const nkAusgleich = await prisma.buchung.findMany({
     where: { mietvertragId: id, ...NK_AUSGLEICH_ODER_VERRECHNUNG, ...AKTIVE_BUCHUNG_FILTER },
-    select: { jahr: true, betrag: true, buchungsart: { select: { code: true } } },
+    select: { jahr: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
+    orderBy: { datum: "asc" },
   });
   const nkZahlungNachJahr = new Map<number, number>();
   for (const z of nkAusgleich) {
     if (z.jahr === null) continue;
     nkZahlungNachJahr.set(z.jahr, (nkZahlungNachJahr.get(z.jahr) ?? 0) + nkBegleichung(z.buchungsart.code, Number(z.betrag)));
   }
+  // Monatliche NK-Vorauszahlung nach einer Abrechnung: die erste Mieterhöhung nach Jahresende, sonst
+  // der im Januar des Folgejahres geltende Betrag — null, wenn der Vertrag bis dahin endet.
+  const neueVorauszahlungNach = (jahr: number): NkJahrDaten["neueVorauszahlung"] => {
+    const jahresende = new Date(jahr, 11, 31, 23, 59, 59);
+    if (vertrag.ende && vertrag.ende <= jahresende) return null;
+    const naechste = [...mieterhoehungen].reverse().find((m) => m.gueltigAb > jahresende);
+    if (naechste && (!vertrag.ende || naechste.gueltigAb <= vertrag.ende))
+      return { ab: naechste.gueltigAb, betrag: naechste.nebenkostenVorauszahlung };
+    return { ab: null, betrag: ermittleMieteFuerMonat(vertragFuerSollIst, jahr + 1, 1).nebenkostenVorauszahlung };
+  };
+  // Reiter "Nebenkostenabrechnung": je Abrechnungsjahr die Position dieses Vertrags mit
+  // Aufschlüsselung und den Buchungen, die sie begleichen (gleiche Zuordnung über Mietvertrag+Jahr).
+  const kostenarten = await prisma.kostenart.findMany({ select: { id: true, name: true, betrKvNummer: true } });
+  const warmeKostenartIds = kostenarten.filter(istWarmeKostenart).map((k) => k.id);
+  const nkDaten: Record<number, NkJahrDaten> = {};
+  for (const p of vertrag.abrechnungspositionen) {
+    const j = p.abrechnung.jahr;
+    nkDaten[j] = {
+      jahr: j,
+      abrechnungId: p.abrechnung.id,
+      abrechnungStatus: p.abrechnung.status,
+      zeitraumVon: p.zeitraumVon,
+      zeitraumBis: p.zeitraumBis,
+      kostenanteilGesamt: Number(p.kostenanteilGesamt),
+      vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+      saldo: Number(p.saldo),
+      details: Array.isArray(p.details) ? (p.details as unknown as KostenanteilDetailEintrag[]) : [],
+      warmeKostenartIds,
+      erledigungen: nkAusgleich
+        .filter((z) => z.jahr === j)
+        .map((z) => ({
+          datum: z.datum,
+          art: NK_ERLEDIGUNG[z.buchungsart.code]?.art ?? z.buchungsart.code,
+          weg: NK_ERLEDIGUNG[z.buchungsart.code]?.weg ?? "",
+          betrag: nkBegleichung(z.buchungsart.code, Number(z.betrag)),
+        })),
+      neueVorauszahlung: neueVorauszahlungNach(j),
+    };
+  }
+  const nkJahre = Object.keys(nkDaten)
+    .map(Number)
+    .sort((a, b) => b - a);
+
+  // Reiter "Kautionsabrechnung": alle Kautionsbuchungen des Vertrags (Einbehalte kommen aus den
+  // KautionEinbehalt-Zeilen, damit auch strittige ohne Journalbuchung erscheinen).
+  const kautionBuchungen = await prisma.buchung.findMany({
+    where: {
+      mietvertragId: id,
+      buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } },
+      ...AKTIVE_BUCHUNG_FILTER,
+    },
+    select: { id: true, datum: true, betrag: true, verwendungszweck: true, buchungsart: { select: { code: true, bezeichnung: true } } },
+    orderBy: { datum: "asc" },
+  });
+  const kautionskonto = baueKautionskonto({
+    sollBetrag: vertrag.kaution ? Number(vertrag.kaution.betrag) : null,
+    bewegungen: kautionBuchungen.map((b) => ({
+      id: b.id,
+      datum: b.datum,
+      code: b.buchungsart.code,
+      bezeichnung: b.buchungsart.bezeichnung,
+      betrag: Number(b.betrag),
+      verwendungszweck: b.verwendungszweck,
+    })),
+    einbehalte: (vertrag.kaution?.einbehalte ?? []).map((e) => ({
+      id: e.id,
+      datum: e.datum ?? e.erstelltAm,
+      positionText: e.positionText,
+      betrag: Number(e.betrag),
+      status: e.status,
+      nkJahr: e.bezugTyp === NK_VERRECHNUNG_BEZUG && e.bezugId ? Number(e.bezugId) : null,
+    })),
+  });
   const nkOffenFuerJahr = (jahr: number): number | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
     return position ? Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0) : null;
@@ -228,14 +333,28 @@ export default async function MietvertragDetailPage({
         </div>
       </div>
 
-      <MieterkontoAnsicht
+      <MietvertragReiter
         mietvertragId={vertrag.id}
-        jahre={kontoJahre}
+        kontoJahre={kontoJahre}
         konten={konten}
-        standardJahr={letztesJahr}
+        standardKontoJahr={letztesJahr}
         stichtagAb={
           stichtagAb ? { jahr: stichtagAb.getFullYear(), datum: formatDate(stichtagAb) } : null
         }
+        nkJahre={nkJahre}
+        nkDaten={nkDaten}
+        kaution={{
+          konto: kautionskonto,
+          anlageform: vertrag.kaution ? ANLAGEFORM_LABEL[vertrag.kaution.anlageform] ?? vertrag.kaution.anlageform : null,
+          zinssatz: vertrag.kaution?.zinssatz ? Number(vertrag.kaution.zinssatz) : null,
+          mietende: vertrag.ende,
+        }}
+        kopf={{
+          mieter: vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+          einheit: vertrag.einheit.bezeichnung,
+          wohnflaeche: Number(vertrag.einheit.wohnflaecheQm),
+          mietbeginn: vertrag.beginn,
+        }}
       />
 
       {/* Sonderforderungen (Rücklastschrift-/Mahngebühren) werden seit kurzem unter /zahlungen

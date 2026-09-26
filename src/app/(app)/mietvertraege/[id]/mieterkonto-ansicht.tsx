@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import type { MieterkontoJahr } from "@/lib/mieterkonto";
 
 function formatEuro(value: number) {
@@ -13,54 +12,33 @@ function formatDate(d: Date) {
 const farbeSaldo = (v: number) => (v < -0.005 ? "text-red-400" : v > 0.005 ? "text-green-400" : "text-white");
 
 /**
- * Mieterkonto eines Mietvertrags mit Jahresauswahl per Dropdown. Alle Jahre kommen fertig
- * berechnet vom Server, der Wechsel passiert nur im Browser — kein Neuladen, kein Springen nach
- * oben.
+ * Mieterkonto eines Mietvertrags für ein Jahr. Alle Jahre kommen fertig berechnet vom Server, die
+ * Jahresauswahl sitzt in der Reiterleiste (MietvertragReiter) — der Wechsel passiert nur im Browser.
  */
 export function MieterkontoAnsicht({
   mietvertragId,
-  jahre,
-  konten,
-  standardJahr,
+  jahr,
+  konto,
   stichtagAb,
 }: {
   mietvertragId: string;
-  // Absteigend sortiert (neuestes Jahr zuerst).
-  jahre: number[];
-  konten: Record<number, MieterkontoJahr>;
-  standardJahr: number;
+  jahr: number;
+  konto: MieterkontoJahr;
   // Jahr des Buchhaltungs-Stichtags: davor ist der Übertrag reine Darstellung (beginnt bei 0).
   stichtagAb: { jahr: number; datum: string } | null;
 }) {
-  const [jahr, setJahr] = useState(jahre.includes(standardJahr) ? standardJahr : jahre[0]);
-  const konto = konten[jahr];
   const vorStichtag = stichtagAb !== null && jahr < stichtagAb.jahr;
 
   return (
-    <div className="mb-8">
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-medium text-white">Mieterkonto</h2>
-          <select
-            value={jahr}
-            onChange={(e) => setJahr(Number(e.target.value))}
-            aria-label="Jahr wählen"
-            className="rounded-md border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm font-medium text-white outline-none focus:border-neutral-400"
-          >
-            {jahre.map((j) => (
-              <option key={j} value={j}>
-                {j}
-              </option>
-            ))}
-          </select>
-          {/* Mieter/Einheit/aktuelle Sollwerte stehen bereits in den Vertrags-Eckdaten oben auf der
-              Seite und pro Monat in jeder Tabellenzeile — hier bleibt nur, was sonst nirgends steht:
-              der Startwert der kumulierten Saldo-Spalte. */}
-          <span className="text-sm text-neutral-400">
-            Saldo-Übertrag {jahr - 1}:{" "}
-            <span className={farbeSaldo(konto.uebertragVorjahr)}>{formatEuro(konto.uebertragVorjahr)}</span>
-          </span>
-        </div>
+        {/* Mieter/Einheit/aktuelle Sollwerte stehen bereits in den Vertrags-Eckdaten oben auf der
+            Seite und pro Monat in jeder Tabellenzeile — hier bleibt nur, was sonst nirgends steht:
+            der Startwert der kumulierten Saldo-Spalte. */}
+        <span className="text-sm text-neutral-400">
+          Saldo-Übertrag {jahr - 1}:{" "}
+          <span className={farbeSaldo(konto.uebertragVorjahr)}>{formatEuro(konto.uebertragVorjahr)}</span>
+        </span>
         <Link
           href={`/zahlungen/neu?mietvertragId=${mietvertragId}`}
           className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
