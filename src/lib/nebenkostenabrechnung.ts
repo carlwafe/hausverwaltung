@@ -51,12 +51,12 @@ export type MietvertragFuerAbrechnung = {
   beginn: Date | null; // null = unbekannt, wird wie ein beliebig weit zurückliegendes Datum behandelt
   ende: Date | null;
   nebenkostenVorauszahlung: number;
-  // Basis-Kaltmiete (vor Mieterhöhungen) — nötig, um eine Zahlung monatsweise erst auf die Kaltmiete
-  // und nur den Rest auf die NK-Vorauszahlung anzurechnen. Fehlt sie, gilt 0 (alles zählt als NK).
+  // Basis-Kaltmiete (vor Mieterhöhungen). Für die Vorauszahlung ohne Belang, seit Zahlungen je Monat
+  // zuerst auf die NK-Vorauszahlung angerechnet werden (siehe zahlungen). Fehlt sie, gilt 0.
   kaltmiete?: number;
   // Guthaben dieser Abrechnung, das mit einem Mietrückstand auf dem Mieterkonto verrechnet wurde
-  // (positiver Betrag). Der Rückstand gilt damit als beglichen: zuerst der fehlende Kaltmiete-Teil,
-  // der Rest als nachträglich gezahlte NK-Vorauszahlung — sonst würde der Rückstand doppelt
+  // (positiver Betrag). Der Rückstand gilt damit als beglichen: zuerst als nachträglich gezahlte
+  // NK-Vorauszahlung, erst der Rest auf den fehlenden Kaltmiete-Teil — sonst würde der Rückstand doppelt
   // berücksichtigt (einmal als gekürzte Vorauszahlung, einmal als verrechneter Betrag).
   rueckstandVerrechnet?: number;
   // Historie von Mieterhöhungen, siehe MietvertragFuerSollIst.mieterhoehungen in soll-ist.ts —
@@ -64,9 +64,10 @@ export type MietvertragFuerAbrechnung = {
   mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
   // Tatsächliche Mietzahlungen dieses Mietvertrags nach Mietperiode (Monat, für den sie gedacht
   // sind). Ist das Feld gesetzt, zählt als Vorauszahlung nur, was wirklich gezahlt wurde: je Monat
-  // wird die Zahlung zuerst auf die Kaltmiete angerechnet, nur der Rest zählt als NK-Vorauszahlung
-  // (höchstens das NK-Soll des Monats). Ein Monat mit Rückstand kürzt so die Vorauszahlung um den
-  // fehlenden NK-Anteil. Fehlt das Feld, gilt das volle Soll.
+  // wird die Zahlung zuerst auf die NK-Vorauszahlung angerechnet (höchstens das NK-Soll des Monats),
+  // erst der Rest auf die Kaltmiete (§ 366 Abs. 2 BGB: NK-Vorauszahlung ist die weniger sichere
+  // Forderung). Nur ein Monat, in dem weniger als das NK-Soll gezahlt wurde, kürzt die Vorauszahlung.
+  // Fehlt das Feld, gilt das volle Soll.
   zahlungen?: { jahr: number; monat: number; betrag: number }[];
 };
 
@@ -540,11 +541,11 @@ export function berechneNebenkostenabrechnung(
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
       const vorauszahlungSoll = vorauszahlungFuerZeitraum(mv, von, bis);
-      // Zahlung je Monat zuerst auf die Kaltmiete, nur der Rest zählt als NK-Vorauszahlung.
+      // Zahlung je Monat zuerst auf die NK-Vorauszahlung, erst der Rest auf die Kaltmiete.
       const zahlungsanteil = mv.zahlungen ? nkAnteilImZeitraum(mv, mv.zahlungen, von, bis) : null;
-      // Mit Guthaben verrechneter Mietrückstand: erst die fehlende Kaltmiete, der Rest gilt als gezahlte NK.
+      // Mit Guthaben verrechneter Mietrückstand: gilt zuerst als gezahlte NK, der Rest deckt die fehlende Kaltmiete.
       const ausRueckstandVerrechnung = zahlungsanteil
-        ? Math.min(zahlungsanteil.nkFehlbetrag, Math.max(0, (mv.rueckstandVerrechnet ?? 0) - zahlungsanteil.kaltFehlbetrag))
+        ? Math.min(zahlungsanteil.nkFehlbetrag, Math.max(0, mv.rueckstandVerrechnet ?? 0))
         : 0;
       const vorauszahlungImZeitraum = zahlungsanteil ? zahlungsanteil.nk + ausRueckstandVerrechnung : vorauszahlungSoll;
       // Wurde für einen Monat des Abrechnungsjahres gezahlt, der außerhalb des Mietzeitraums liegt
@@ -622,16 +623,15 @@ function nkVorauszahlungFuerDatum(
 
 // Summe der Zahlungen, deren Mietperiode in einen Monat von [von, bis] fällt (angebrochene Monate
 // zählen voll, wie beim Soll in vorauszahlungFuerZeitraum).
-// NK-Anteil der Zahlungen innerhalb von [von, bis], monatsweise: je Monat die (netto) gezahlte Summe
-// abzüglich Kaltmiete, höchstens das NK-Soll — angebrochene Monate anteilig nach Tagen.
+// NK-Anteil der Zahlungen innerhalb von [von, bis], monatsweise: je Monat die (netto) gezahlte Summe,
+// höchstens das NK-Soll (NK vor Kaltmiete) — angebrochene Monate anteilig nach Tagen.
 function nkAnteilImZeitraum(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "kaltmiete" | "mieterhoehungen">,
   zahlungen: { jahr: number; monat: number; betrag: number }[],
   von: Date,
   bis: Date,
-): { nk: number; kaltFehlbetrag: number; nkFehlbetrag: number } {
+): { nk: number; nkFehlbetrag: number } {
   let nkSumme = 0;
-  let kaltFehlbetrag = 0;
   let nkFehlbetrag = 0;
   let jahr = von.getUTCFullYear();
   let monat = von.getUTCMonth();
@@ -644,23 +644,21 @@ function nkAnteilImZeitraum(
     const gezahlt = zahlungen
       .filter((z) => z.jahr === jahr && z.monat === monat + 1)
       .reduce((s, z) => s + z.betrag, 0);
-    const kalt = kaltmieteFuerDatum(mv, monatsStart) * anteil;
     const nk = nkVorauszahlungFuerDatum(mv, monatsStart) * anteil;
-    const nkAnteil = Math.min(Math.max(gezahlt - kalt, 0), nk);
+    const nkAnteil = Math.min(Math.max(gezahlt, 0), nk);
     nkSumme += nkAnteil;
     nkFehlbetrag += nk - nkAnteil;
-    kaltFehlbetrag += Math.max(kalt - Math.max(gezahlt, 0), 0);
     monat += 1;
     if (monat > 11) {
       monat = 0;
       jahr += 1;
     }
   }
-  return { nk: nkSumme, kaltFehlbetrag, nkFehlbetrag };
+  return { nk: nkSumme, nkFehlbetrag };
 }
 
 // NK-Anteil der Zahlungen für Monate des Jahres, die außerhalb von [von, bis] liegen: je Monat die
-// (netto) gezahlte Summe abzüglich Kaltmiete, höchstens das NK-Soll dieses Monats.
+// (netto) gezahlte Summe, höchstens das NK-Soll dieses Monats (NK vor Kaltmiete).
 function nkAnteilAusserhalb(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "kaltmiete" | "mieterhoehungen">,
   zahlungen: { jahr: number; monat: number; betrag: number }[],
@@ -677,7 +675,7 @@ function nkAnteilAusserhalb(
     const gezahlt = zahlungen.filter((z) => z.jahr === jahr && z.monat === monat).reduce((s, z) => s + z.betrag, 0);
     if (gezahlt <= 0) continue;
     const monatsStart = new Date(Date.UTC(jahr, monat - 1, 1));
-    summe += Math.min(Math.max(gezahlt - kaltmieteFuerDatum(mv, monatsStart), 0), nkVorauszahlungFuerDatum(mv, monatsStart));
+    summe += Math.min(gezahlt, nkVorauszahlungFuerDatum(mv, monatsStart));
   }
   return summe;
 }
@@ -691,19 +689,6 @@ function nkAnteilAusserhalb(
  * gelten "ab diesem Monat" (siehe ersterTagDesMonats), also für den ganzen Monat. Die Kostenanteile
  * bleiben davon unberührt tagesgenau (Zeitanteil).
  */
-function kaltmieteFuerDatum(mv: Pick<MietvertragFuerAbrechnung, "kaltmiete" | "mieterhoehungen">, datum: Date): number {
-  let aktuell = mv.kaltmiete ?? 0;
-  let bestesGueltigAb: Date | null = null;
-  for (const mh of mv.mieterhoehungen ?? []) {
-    const gueltigAb = ersterTagDesMonats(mh.gueltigAb);
-    if (gueltigAb <= datum && (!bestesGueltigAb || gueltigAb > bestesGueltigAb)) {
-      bestesGueltigAb = gueltigAb;
-      aktuell = mh.kaltmiete;
-    }
-  }
-  return aktuell;
-}
-
 function vorauszahlungFuerZeitraum(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "mieterhoehungen">,
   von: Date,
