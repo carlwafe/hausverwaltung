@@ -6,6 +6,11 @@ const STATUS_LABEL: Record<string, string> = {
   BEENDET: "Beendet",
 };
 
+const ZAHLUNGSWEG_LABEL: Record<string, string> = {
+  LASTSCHRIFT: "SEPA-Lastschrift",
+  UEBERWEISUNG: "Überweisung / Dauerauftrag",
+};
+
 const ANLAGEFORM_LABEL: Record<string, string> = {
   KAUTIONSKONTO: "Kautionskonto",
   SPARBUCH: "Sparbuch",
@@ -39,6 +44,7 @@ export function EckdatenSektion({
   mehrwertsteuerText,
   status,
   saldovortragText,
+  zahlungsweg,
   kaution,
   letzteErhoehungText,
 }: {
@@ -52,6 +58,7 @@ export function EckdatenSektion({
   mehrwertsteuerText: string | null;
   status: string;
   saldovortragText: string;
+  zahlungsweg: string | null;
   kaution: { betragText: string; anlageform: string; zinssatzText: string; einzahlungUnbekannt: boolean } | null;
   // Fliesstext-Hinweis auf die letzte Mieterhöhung (z.B. "Miete zuletzt zum 1.5.2026 auf 620,00 €
   // erhöht") — die volle Historie/Erfassung steht auf der Bearbeiten-Unterseite.
@@ -80,6 +87,7 @@ export function EckdatenSektion({
           {mehrwertsteuerText && <Feld label="Mehrwertsteuer" value={mehrwertsteuerText} />}
           <Feld label="Status" value={STATUS_LABEL[status] ?? status} />
           <Feld label="Saldovortrag" value={saldovortragText} />
+          <Feld label="Zahlungsweg" value={zahlungsweg ? ZAHLUNGSWEG_LABEL[zahlungsweg] ?? zahlungsweg : "nicht erfasst"} />
           {kaution && (
             <>
               <Feld label="Kaution" value={kaution.betragText} />

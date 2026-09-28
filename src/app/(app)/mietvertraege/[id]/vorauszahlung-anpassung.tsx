@@ -39,6 +39,8 @@ export type VorauszahlungBriefDaten = {
   mehrwertsteuer: number;
   // Mindestens ein Mieter bezieht Bürgergeld → Hinweis, das Schreiben ans Jobcenter weiterzuleiten.
   jobcenter: boolean;
+  // Aus dem Mietvertrag; null = nicht erfasst → Lastschrift vorbelegt (zahlen die meisten).
+  zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
 };
 
 const eingabeKlasse =
@@ -71,8 +73,7 @@ export function VorauszahlungAnpassung({
   const [zuschlagGrund, setZuschlagGrund] = useState(STANDARD_ZUSCHLAG_GRUND);
   const [absender, setAbsender] = useState("");
   const [anrede, setAnrede] = useState("Sehr geehrte Damen und Herren,");
-  // Steht nicht in den Stammdaten; die meisten Mieter zahlen per Lastschrift.
-  const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG">("LASTSCHRIFT");
+  const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG">(brief.zahlungsweg ?? "LASTSCHRIFT");
   const [betragEigen, setBetragEigen] = useState<string | null>(null);
   const [gespeichert, setGespeichert] = useState(false);
 
@@ -238,6 +239,7 @@ export function VorauszahlungAnpassung({
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="nk-zahlungsweg">
               Zahlungsweg des Mieters
+              {!brief.zahlungsweg && " (im Vertrag nicht erfasst)"}
             </label>
             <select
               id="nk-zahlungsweg"

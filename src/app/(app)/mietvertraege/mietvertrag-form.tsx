@@ -24,6 +24,7 @@ type Initial = {
   kautionZinssatz?: string;
   kautionEinzahlungUnbekannt?: boolean;
   saldovortrag?: string;
+  zahlungsweg?: string;
 };
 
 export function MietvertragForm({
@@ -65,6 +66,7 @@ export function MietvertragForm({
     initial?.kautionEinzahlungUnbekannt ?? false,
   );
   const [saldovortrag, setSaldovortrag] = useState(initial?.saldovortrag ?? "0");
+  const [zahlungsweg, setZahlungsweg] = useState(initial?.zahlungsweg ?? "");
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
@@ -221,6 +223,23 @@ export function MietvertragForm({
           <option value="AKTIV">Aktiv</option>
           <option value="GEPLANT">Geplant</option>
           <option value="BEENDET">Beendet</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="zahlungsweg">
+          Zahlungsweg
+        </label>
+        <select
+          id="zahlungsweg"
+          name="zahlungsweg"
+          value={zahlungsweg}
+          onChange={(e) => setZahlungsweg(e.target.value)}
+          className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        >
+          <option value="">– nicht erfasst –</option>
+          <option value="LASTSCHRIFT">SEPA-Lastschrift</option>
+          <option value="UEBERWEISUNG">Überweisung / Dauerauftrag</option>
         </select>
       </div>
 

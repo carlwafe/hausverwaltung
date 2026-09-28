@@ -35,6 +35,7 @@ const mietvertragSchema = z
     kautionZinssatz: optionalNonNegativeNumber,
     kautionEinzahlungUnbekannt: z.coerce.boolean().optional(),
     saldovortrag: z.coerce.number().optional().default(0),
+    zahlungsweg: z.enum(["LASTSCHRIFT", "UEBERWEISUNG"]).optional(),
   })
   .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
     message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
@@ -66,6 +67,7 @@ async function parseForm(formData: FormData) {
     kautionZinssatz: formData.get("kautionZinssatz") || "",
     kautionEinzahlungUnbekannt: formData.get("kautionEinzahlungUnbekannt") === "on",
     saldovortrag: formData.get("saldovortrag") || "0",
+    zahlungsweg: formData.get("zahlungsweg") || undefined,
   });
 
   if (!parsed.success) {
@@ -102,6 +104,7 @@ export async function createMietvertrag(formData: FormData) {
       mehrwertsteuer: data.mehrwertsteuer,
       status: data.status,
       saldovortrag: data.saldovortrag,
+      zahlungsweg: data.zahlungsweg ?? null,
       ...(data.kautionBetrag !== undefined
         ? {
             kaution: {
@@ -144,6 +147,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
         mehrwertsteuer: data.mehrwertsteuer ?? null,
         status: data.status,
         saldovortrag: data.saldovortrag,
+        zahlungsweg: data.zahlungsweg ?? null,
       },
     });
 

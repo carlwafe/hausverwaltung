@@ -58,6 +58,13 @@ enum KautionStatus {
   ZURUECKGEZAHLT
 }
 
+// Wie der Mieter die Miete zahlt — steuert u.a. den Text im Schreiben zur Anpassung der
+// NK-Vorauszahlung (Lastschrift: Vorabankündigung statt Bitte um Dauerauftrags-Änderung).
+enum Zahlungsweg {
+  LASTSCHRIFT
+  UEBERWEISUNG
+}
+
 enum AbrechnungStatus {
   ENTWURF
   FINAL
@@ -366,6 +373,8 @@ model Mietvertrag {
   // soll + saldovortrag), ohne dass das betreffende Altjahr selbst nachgebildet werden muss.
   // Negativ = Rückstand, positiv = Guthaben — gleiche Vorzeichenlogik wie der Saldo selbst.
   saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
+  // null = nicht erfasst.
+  zahlungsweg              Zahlungsweg?
   createdAt                DateTime          @default(now())
 
   kaution                         Kaution?

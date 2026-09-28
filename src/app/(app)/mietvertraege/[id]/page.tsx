@@ -286,6 +286,7 @@ export default async function MietvertragDetailPage({
         mehrwertsteuerText={vertrag.mehrwertsteuer ? formatEuro(Number(vertrag.mehrwertsteuer)) : null}
         status={vertrag.status}
         saldovortragText={formatEuro(saldovortrag)}
+        zahlungsweg={vertrag.zahlungsweg}
         kaution={
           vertrag.kaution
             ? {
@@ -354,6 +355,7 @@ export default async function MietvertragDetailPage({
           vertrag: vertragFuerSollIst,
           mehrwertsteuer: vertragFuerSollIst.mehrwertsteuer,
           jobcenter: vertrag.mieter.some((m) => m.buergergeldEmpfaenger),
+          zahlungsweg: vertrag.zahlungsweg,
         }}
         kaution={{
           konto: kautionskonto,
