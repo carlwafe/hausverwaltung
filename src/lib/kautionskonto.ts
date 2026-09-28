@@ -31,7 +31,7 @@ export type KautionEinbehaltEingabe = {
   datum: Date;
   positionText: string;
   betrag: number; // positiv
-  status: "UNSTRITTIG" | "STRITTIG_OFFEN" | "STRITTIG_BESTAETIGT" | "STRITTIG_VERWORFEN" | "VERRECHNET";
+  status: "UNSTRITTIG" | "STRITTIG_OFFEN" | "STRITTIG_BESTAETIGT" | "STRITTIG_VERWORFEN";
   nkJahr: number | null;
 };
 
@@ -94,7 +94,6 @@ const EINBEHALT_STATUS_TEXT: Record<KautionEinbehaltEingabe["status"], string> =
   STRITTIG_OFFEN: "strittig, offen",
   STRITTIG_BESTAETIGT: "strittig, bestätigt",
   STRITTIG_VERWORFEN: "verworfen",
-  VERRECHNET: "mit Rechnung verrechnet",
 };
 
 function formatDatum(d: Date) {
@@ -161,8 +160,6 @@ export function baueKautionskonto(input: {
 
   const einbehaltePositionen: KautionEinbehaltPosten[] = [];
   for (const e of input.einbehalte) {
-    // In eine virtuelle Auszahlung umgewandelt — die steht schon als eigene Bewegung im Konto.
-    if (e.status === "VERRECHNET") continue;
     const nk = e.nkJahr !== null ? `mit Nebenkostenabrechnung ${e.nkJahr} verrechnet` : undefined;
     const statusText = EINBEHALT_STATUS_TEXT[e.status];
     const bezug = [nk ?? "", `erfasst ${formatDatum(e.datum)}`].filter(Boolean).join(" · ");

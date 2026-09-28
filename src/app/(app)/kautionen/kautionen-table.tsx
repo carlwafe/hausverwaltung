@@ -16,7 +16,7 @@ const ANLAGEFORM_LABEL: Record<string, string> = {
 
 const STATUS_LABEL = {
   AKTIV: "Aktiv",
-  AUFGELOEST: "Aufgelöst, Rest offen",
+  AUFGELOEST: "Aufgelöst",
   ERLEDIGT: "Erledigt",
 } as const;
 
