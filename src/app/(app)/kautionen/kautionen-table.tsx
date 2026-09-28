@@ -19,12 +19,15 @@ const ANLAGEFORM_LABEL: Record<string, string> = {
 const STATUS_LABEL = {
   AKTIV: "Aktiv",
   AUFGELOEST: "Aufgelöst, Rest offen",
+  // Mehr ausgezahlt als eingenommen (z.B. Kaution doppelt überwiesen) — Rückforderung offen.
+  UEBERZAHLT: "Überzahlt",
   ERLEDIGT: "Erledigt",
 } as const;
 
 const STATUS_FARBE: Record<keyof typeof STATUS_LABEL, string> = {
   AKTIV: "bg-green-500/10 text-green-400",
   AUFGELOEST: "bg-amber-500/10 text-amber-400",
+  UEBERZAHLT: "bg-red-500/10 text-red-400",
   ERLEDIGT: "bg-neutral-800 text-neutral-300",
 };
 
@@ -202,7 +205,9 @@ const columns: Column<KautionRow>[] = [
       r.offen === null ? (
         "–"
       ) : (
-        <span className={r.offen > 0.005 ? "text-amber-400" : "text-neutral-500"}>{formatEuro(r.offen)}</span>
+        <span className={r.offen > 0.005 ? "text-amber-400" : r.offen < -0.005 ? "text-red-400" : "text-neutral-500"}>
+          {formatEuro(r.offen)}
+        </span>
       ),
   },
   {
@@ -240,6 +245,7 @@ export function KautionenTable({ rows }: { rows: KautionRow[] }) {
         options: [
           { value: "AKTIV", label: "Aktiv" },
           { value: "AUFGELOEST", label: "Offen (aufgelöst, Rest offen)" },
+          { value: "UEBERZAHLT", label: "Überzahlt" },
           { value: "ERLEDIGT", label: "Erledigt" },
         ],
       }}

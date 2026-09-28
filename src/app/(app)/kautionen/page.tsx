@@ -26,7 +26,15 @@ const ANLAGEFORM_LABEL: Record<string, string> = {
 // Einzahlung-Mieter-Buchungen, oder "Einbehalten" gegen 0 beim Erledigt-Status).
 const TOLERANZ = 0.01;
 
-const STATUS_SORT: Record<KautionRow["status"], number> = { AKTIV: 0, AUFGELOEST: 1, ERLEDIGT: 2 };
+const STATUS_SORT: Record<KautionRow["status"], number> = { AKTIV: 0, UEBERZAHLT: 1, AUFGELOEST: 2, ERLEDIGT: 3 };
+
+// Status aus dem offenen Rest einer aufgelösten Kaution: ~0 erledigt, positiv noch offen, negativ
+// überzahlt (mehr an den Mieter geflossen als die Kaution hergab).
+function statusAusRest(aufgeloest: number, rest: number | null): KautionRow["status"] {
+  if (aufgeloest === 0 || rest === null) return "AKTIV";
+  if (rest < -TOLERANZ) return "UEBERZAHLT";
+  return rest <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+}
 
 // Kehrt KATEGORIE_ZU_CODE aus actions.ts um — kann von dort nicht importiert werden ("use server"-
 // Dateien dürfen nur async-Funktionen exportieren), deshalb hier dupliziert.
@@ -138,8 +146,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // unbegründeter Rest lässt den Fall offen.
     const pauschalEinbehalten = k.einbehalte.reduce((s, e) => s + Number(e.betrag), 0);
     const offen = einbehalten !== null ? Math.round((einbehalten - pauschalEinbehalten) * 100) / 100 : null;
-    const status: KautionRow["status"] =
-      aufgeloest === 0 ? "AKTIV" : offen !== null && offen <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+    const status = statusAusRest(aufgeloest, offen);
 
     return {
       id: k.id,
@@ -182,8 +189,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const ausgezahlt = summen.ausgezahlt;
     const verrechnet = summen.verrechnet;
     const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100 : null;
-    const status: KautionRow["status"] =
-      aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+    const status = statusAusRest(aufgeloest, einbehalten);
 
     return {
       id: `verwaist-${v.id}`,
@@ -346,14 +352,15 @@ export default async function KautionenPage() {
   const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
   // Für die Verbindlichkeiten-Summe zählt bei einer bereits aufgelösten Kaution nur noch der
   // tatsächlich einbehaltene Rest, nicht mehr der ursprüngliche Gesamtbetrag.
-  const summeOffen = offen.reduce((s, k) => s + (k.offen ?? k.betrag), 0);
+  // Eine Überzahlung ist eine Forderung an den Mieter, keine negative Verbindlichkeit.
+  const summeOffen = offen.reduce((s, k) => s + Math.max(0, k.offen ?? k.betrag), 0);
 
   // Zeilen ohne eigenen Kaution-Stammdatensatz (anlageform === null, siehe warnungFuer) haben
   // keine echte Anlageform und fließen hier bewusst nicht mit ein — sie stehen ohnehin schon per
   // Warnsymbol sichtbar in der Tabelle.
   const summeJeAnlageform = offen.reduce<Record<string, number>>((acc, k) => {
     if (!k.anlageform) return acc;
-    acc[k.anlageform] = (acc[k.anlageform] ?? 0) + (k.offen ?? k.betrag);
+    acc[k.anlageform] = (acc[k.anlageform] ?? 0) + Math.max(0, k.offen ?? k.betrag);
     return acc;
   }, {});
 
