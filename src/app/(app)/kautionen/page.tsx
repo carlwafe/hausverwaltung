@@ -129,6 +129,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       id: k.id,
       mietvertragId: k.mietvertragId,
       einheitBezeichnung: k.mietvertrag.einheit.bezeichnung,
+      mietende: k.mietvertrag.ende?.toISOString() ?? null,
       mieterNamen: k.mietvertrag.mieter.map((m) => mieterName(m)).join(" & "),
       betrag,
       betragAbweichung: einzahlungSumme !== null && Math.abs(einzahlungSumme - betrag) > TOLERANZ,
@@ -170,6 +171,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       id: `verwaist-${v.id}`,
       mietvertragId: v.id,
       einheitBezeichnung: v.einheit.bezeichnung,
+      mietende: v.ende?.toISOString() ?? null,
       mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
       // Kein Kaution-Stammdatensatz vorhanden — die Anlage-Buchung (interne Überweisung
       // Geschäfts- -> Kautionskonto) ist der verlässlichste Hinweis auf den eigentlich gemeinten

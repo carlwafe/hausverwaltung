@@ -31,6 +31,8 @@ export type KautionRow = {
   mietvertragId: string;
   einheitBezeichnung: string;
   mieterNamen: string;
+  // Vertragsende als ISO-Datum; null = Vertrag läuft (noch) ohne Ende.
+  mietende: string | null;
   betrag: number;
   // true, wenn es mindestens eine "Einzahlung Mieter"-Kautionsbuchung gibt und ihre Summe
   // (einzahlungSumme) von betrag abweicht.
@@ -82,6 +84,12 @@ const columns: Column<KautionRow>[] = [
     sortValue: (r) => r.mieterNamen,
     searchValue: (r) => r.mieterNamen,
     render: (r) => r.mieterNamen,
+  },
+  {
+    key: "mietende",
+    label: "Mietende",
+    sortValue: (r) => r.mietende ?? "9999",
+    render: (r) => (r.mietende ? new Intl.DateTimeFormat("de-DE").format(new Date(r.mietende)) : "–"),
   },
   {
     key: "betrag",
