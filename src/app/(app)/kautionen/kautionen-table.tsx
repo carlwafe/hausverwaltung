@@ -233,6 +233,16 @@ export function KautionenTable({ rows }: { rows: KautionRow[] }) {
       rows={rows}
       emptyMessage="Noch keine Kautionen erfasst."
       searchPlaceholder="Kautionen durchsuchen…"
+      selectFilter={{
+        label: "Status",
+        placeholder: "Alle Status",
+        value: (r) => r.status,
+        options: [
+          { value: "AKTIV", label: "Aktiv" },
+          { value: "AUFGELOEST", label: "Offen (aufgelöst, Rest offen)" },
+          { value: "ERLEDIGT", label: "Erledigt" },
+        ],
+      }}
     />
   );
 }
