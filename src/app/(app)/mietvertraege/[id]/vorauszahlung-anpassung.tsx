@@ -71,6 +71,8 @@ export function VorauszahlungAnpassung({
   const [zuschlagGrund, setZuschlagGrund] = useState(STANDARD_ZUSCHLAG_GRUND);
   const [absender, setAbsender] = useState("");
   const [anrede, setAnrede] = useState("Sehr geehrte Damen und Herren,");
+  // Steht nicht in den Stammdaten; die meisten Mieter zahlen per Lastschrift.
+  const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG">("LASTSCHRIFT");
   const [betragEigen, setBetragEigen] = useState<string | null>(null);
   const [gespeichert, setGespeichert] = useState(false);
 
@@ -233,6 +235,20 @@ export function VorauszahlungAnpassung({
             </label>
             <input id="nk-anrede" value={anrede} onChange={(e) => setAnrede(e.target.value)} className={eingabeKlasse} />
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-neutral-400" htmlFor="nk-zahlungsweg">
+              Zahlungsweg des Mieters
+            </label>
+            <select
+              id="nk-zahlungsweg"
+              value={zahlungsweg}
+              onChange={(e) => setZahlungsweg(e.target.value as "LASTSCHRIFT" | "UEBERWEISUNG")}
+              className={eingabeKlasse}
+            >
+              <option value="LASTSCHRIFT">SEPA-Lastschrift</option>
+              <option value="UEBERWEISUNG">Überweisung / Dauerauftrag</option>
+            </select>
+          </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
             <button
@@ -368,8 +384,9 @@ export function VorauszahlungAnpassung({
           )}
           {Math.abs(differenz) >= 0.005 && (
             <p className="mb-4">
-              Bitte zahlen Sie ab dem {gueltigAb ? formatDate(gueltigAb) : "…"} den neuen Betrag und passen Sie einen
-              bestehenden Dauerauftrag entsprechend an.
+              {zahlungsweg === "LASTSCHRIFT"
+                ? `Den geänderten Betrag ziehe ich ab dem ${gueltigAb ? formatDate(gueltigAb) : "…"} aufgrund des bestehenden SEPA-Lastschriftmandats von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt zugleich als Vorabankündigung (Pre-Notification) des geänderten Lastschriftbetrags.`
+                : `Bitte zahlen Sie ab dem ${gueltigAb ? formatDate(gueltigAb) : "…"} den neuen Betrag und passen Sie einen bestehenden Dauerauftrag entsprechend an.`}
               {brief.jobcenter && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
             </p>
           )}
