@@ -168,11 +168,24 @@ export async function updateMietvertrag(id: string, formData: FormData) {
           einzahlungUnbekannt: data.kautionEinzahlungUnbekannt ?? false,
         },
       });
+    } else {
+      // Geleertes Kautionsfeld = Kaution-Stammdatensatz entfernen (z.B. irrtümlich angelegt).
+      // Kautionsbuchungen im Journal bleiben davon unberührt; erfasste Einbehalte hängen aber am
+      // Datensatz und würden per Cascade mitgelöscht — dann lieber abbrechen.
+      const kaution = await tx.kaution.findUnique({
+        where: { mietvertragId: id },
+        select: { id: true, _count: { select: { einbehalte: true } } },
+      });
+      if (kaution && kaution._count.einbehalte > 0) {
+        throw new Error("Kaution hat erfasste Einbehalte und kann nicht entfernt werden — erst die Einbehalte löschen.");
+      }
+      if (kaution) await tx.kaution.delete({ where: { id: kaution.id } });
     }
   });
 
   revalidatePath("/mietvertraege");
   revalidatePath(`/mietvertraege/${id}`);
+  revalidatePath("/kautionen");
   revalidatePath("/offene-posten");
   revalidatePath("/");
   // Zurück auf die Detailseite (nicht mehr die Liste) — passend zum Bearbeiten auf einer eigenen
