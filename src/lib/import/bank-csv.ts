@@ -122,8 +122,9 @@ export function istEigentuemerBuchung(empfaengerOderName: string): boolean {
 // Kontoauszügen wiederholt vorkommenden Verschreiber "Kaustion" (eingefügtes s) ab. "ms" ... "whg"
 // (nicht zwingend direkt aufeinanderfolgend) deckt Kanthaks eigene Kurzform "MS WHG2"/"MS WHG 2"
 // ebenso ab wie "MS <Mietername> ... WHG <n>", wo zwischen "MS" und "WHG" noch ein Name steht —
-// beide Formen kommen in echten Kontoauszügen vor.
-export const KAUTION_PATTERN = /ka(u|us)tion|mietsicherhe|\bms\b.*\bwhg\b/i;
+// beide Formen kommen in echten Kontoauszügen vor. "[a-z]ietsicherhe" statt nur "mietsicherhe"
+// fängt zusätzlich einen vertippten Anfangsbuchstaben ab (echter Fall: "RIETSICHERHEIT").
+export const KAUTION_PATTERN = /ka(u|us)tion|[a-z]ietsicherhe|\bms\b.*\bwhg\b/i;
 
 // Unterscheidet innerhalb der Kaution-Buchungen die interne Überweisung vom Geschäfts- aufs
 // Kautionskonto (immer ausgehend, Verwendungszweck nennt explizit "Anlage" — in allen bisher

@@ -54,6 +54,10 @@ export type ParsedZahlungRow = {
 };
 
 const TAGE_TOLERANZ_VOR_BEGINN = 14;
+// Eine Kaution geht typischerweise schon ein bis zwei Monate vor dem Einzug ein (echte Fälle:
+// Zahlung Ende März für einen Mietbeginn 1. Mai) — mit dem normalen 14-Tage-Fenster fiel der
+// richtige (neue) Vertrag heraus und ein Namensvetter mit laufendem Vertrag bekam die Kaution.
+const TAGE_TOLERANZ_VOR_BEGINN_KAUTION = 90;
 const TAGE_TOLERANZ_NACH_ENDE = 60;
 // Sowohl eine Nebenkostenabrechnung als auch eine Kaution-Rückzahlung fürs Auszugsjahr werden oft
 // erst viele Monate nach Vertragsende beglichen — eine Kaution wird in der Praxis häufig bewusst
@@ -65,11 +69,16 @@ const TAGE_TOLERANZ_NACH_ENDE = 60;
 const TAGE_TOLERANZ_NACH_ENDE_ERWEITERT = 730;
 
 /** Prüft, ob eine Zahlung (mit etwas Toleranz für Kaution/Rücklastschriften) in den Mietzeitraum fällt. */
-function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat, toleranzNachEndeTage: number): boolean {
+function liegtImMietzeitraum(
+  datum: string | null,
+  k: MietvertragKandidat,
+  toleranzVorBeginnTage: number,
+  toleranzNachEndeTage: number,
+): boolean {
   if (!datum) return true;
   const zahlungMs = new Date(datum).getTime();
   if (k.beginn) {
-    const beginnMs = new Date(k.beginn).getTime() - TAGE_TOLERANZ_VOR_BEGINN * 86400000;
+    const beginnMs = new Date(k.beginn).getTime() - toleranzVorBeginnTage * 86400000;
     if (zahlungMs < beginnMs) return false;
   }
   if (k.ende) {
@@ -79,6 +88,17 @@ function liegtImMietzeitraum(datum: string | null, k: MietvertragKandidat, toler
   return true;
 }
 
+/**
+ * Hausnummer und ggf. Wohnungsnummer aus einem Buchungstext wie "Breslauer Str. 2, Eutin, WHG 4"
+ * oder "Breslauerstr.12 ... Wohnung Nr.3". Sammeladressen ("Breslauer Str. 2-18") zählen nicht.
+ */
+function adresseImText(text: string): { haus: number; whg: number | null } | null {
+  const haus = text.match(/breslauer\s*-?\s*str(?:a(?:ss|ß)e|\.)?\s*(\d{1,2})(?![\d/-]|\s*-\s*\d)/i);
+  if (!haus) return null;
+  const whg = text.match(/\b(?:whg|wohnung)\.?\s*(?:nr\.?\s*)?0?(\d)\b/i);
+  return { haus: Number(haus[1]), whg: whg ? Number(whg[1]) : null };
+}
+
 function findeMietvertrag(
   verwendungszweck: string,
   name: string,
@@ -86,14 +106,35 @@ function findeMietvertrag(
   datum: string | null,
   kandidaten: MietvertragKandidat[],
   weiteresZeitfenster: boolean,
+  kaution: boolean,
 ): { id: string | null; mehrdeutig: boolean } {
   const text = `${verwendungszweck} ${name}`;
   const toleranzNachEndeTage = weiteresZeitfenster
     ? TAGE_TOLERANZ_NACH_ENDE_ERWEITERT
     : TAGE_TOLERANZ_NACH_ENDE;
+  const toleranzVorBeginnTage = kaution ? TAGE_TOLERANZ_VOR_BEGINN_KAUTION : TAGE_TOLERANZ_VOR_BEGINN;
 
-  const scored = kandidaten
-    .filter((k) => liegtImMietzeitraum(datum, k, toleranzNachEndeTage))
+  const imZeitraum = kandidaten.filter((k) =>
+    liegtImMietzeitraum(datum, k, toleranzVorBeginnTage, toleranzNachEndeTage),
+  );
+  // textEnthaeltWort vergleicht ohne Wortgrenzen (die Bank bricht Namen gern mitten im Wort um,
+  // z.B. "Schol lenberger"), deshalb steckt ein kürzerer Nachname oft in einem längeren: "Bernhard"
+  // in "Sven Bernhardt". Trifft auch der längere Nachname eines anderen Kandidaten, zählt der
+  // kürzere nur noch schwach (wie ein Vorname) — ganz ignorieren geht nicht, weil die Bank den
+  // Namen auch mal anders schreibt als die Stammdaten (echter Fall: Mieterin "Bernhard" überweist
+  // als "Bernhardt, Nicole"); dann entscheidet ihr Vorname.
+  const getroffeneNachnamen = imZeitraum
+    .flatMap((k) => k.mieterNamen.flatMap((m) => m.nachname.split(/\s+/)))
+    .filter((t) => t.length >= 3 && textEnthaeltWort(text, t))
+    .map(normalizeText);
+  const vonLaengeremNachnamenUeberdeckt = (teil: string) => {
+    const n = normalizeText(teil);
+    return getroffeneNachnamen.some((g) => g.length > n.length && g.includes(n));
+  };
+
+  const adresse = adresseImText(text);
+
+  const scored = imZeitraum
     .map((k) => {
       let score = 0;
       if (betrag !== null) {
@@ -126,7 +167,7 @@ function findeMietvertrag(
         // Vorname-Wort einer mehrteiligen Firmenbezeichnung, oder ein passender Betrag).
         for (const teil of nachnameWorte) {
           if (textEnthaeltWort(text, teil)) {
-            score += teil.length >= 4 ? 3 : 1;
+            score += teil.length >= 4 && !vonLaengeremNachnamenUeberdeckt(teil) ? 3 : 1;
             getroffeneNamensteile++;
           }
         }
@@ -144,6 +185,14 @@ function findeMietvertrag(
       if (getroffeneNamensteile >= 2) score += 3;
       if (textEnthaeltWort(text, k.einheitBezeichnung.replace(/^HS \d+ WHG \d+ - /, ""))) {
         score += 1;
+      }
+      // Nennt der Text die Adresse ("Breslauer Str. 2 ... WHG 1"), trennt das Namensvettern
+      // zuverlässig (z.B. Bernhard in HS 2 vs. Bernhardt in HS 18) — zählt aber nur zusätzlich zu
+      // einem Namenstreffer (siehe infrage unten), weil Nachmieter dieselbe Adresse haben.
+      const einheit = k.einheitBezeichnung.match(/^HS (\d+) WHG (\d+)/);
+      if (adresse && einheit && adresse.haus === Number(einheit[1])) {
+        score += adresse.whg === null || adresse.whg === Number(einheit[2]) ? 2 : 0;
+        if (adresse.whg !== null && adresse.whg === Number(einheit[2])) score += 1;
       }
       return { id: k.id, score, getroffeneNamensteile };
     });
@@ -263,7 +312,18 @@ export function mapZahlungenRows(
     // entspricht keiner Warmmiete), aber der Name im Verwendungszweck/Begünstigten reicht meist
     // trotzdem für eine eindeutige Zuordnung.
     if (!eigentuemerBuchung && !istBekannterKostenEmpfaenger && betrag !== null && errors.length === 0) {
-      const treffer = findeMietvertrag(verwendungszweck, name, betrag, datum, kandidaten, nebenkostenausgleich || kaution);
+      const treffer = findeMietvertrag(
+        verwendungszweck,
+        // Kautionsanlagen/-auflösungen laufen über die Eigentümerin ("WALLER JULIA") — ihr Name
+        // ist dann kein Hinweis auf den Mieter, würde aber z.B. als Vorname "Julia" einer
+        // Mieterin zählen (echter Fall: Auflösung für Schöning landete bei Julia Schwarz).
+        istEigentuemerBuchung(name) ? "" : name,
+        betrag,
+        datum,
+        kandidaten,
+        nebenkostenausgleich || kaution,
+        kaution,
+      );
       vorgeschlagenerMietvertragId = treffer.id;
       mehrdeutig = treffer.mehrdeutig;
     }
