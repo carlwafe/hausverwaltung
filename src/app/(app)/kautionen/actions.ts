@@ -74,6 +74,66 @@ export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie
   revalidatePath("/kautionen");
 }
 
+const kautionAufteilungSchema = z.object({
+  kautionBetrag: z.coerce.number().refine((v) => v !== 0, "Kautionsanteil darf nicht 0 sein"),
+  nkJahr: z.coerce.number().int().min(2000, "Abrechnungsjahr fehlt").max(2100),
+});
+
+/**
+ * Teilt eine Kautionsbuchung, deren Überweisung zugleich ein Nebenkosten-Guthaben/-Nachzahlung
+ * enthält (z.B. "Guthaben BK-Abr 2023 + Kaution"), in den Kautionsanteil (gleiche Kategorie) und
+ * einen NEBENKOSTENAUSGLEICH fürs angegebene Abrechnungsjahr auf. Beide Teile behalten Bankvorzeichen,
+ * Rohdaten und Import-Bezug und teilen sich die aufteilungGruppeId (= Id des stornierten Originals),
+ * damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
+ */
+export async function teileKautionsbuchungAuf(id: string, _prev: string | null, formData: FormData): Promise<string | null> {
+  await requireEditor();
+  const parsed = kautionAufteilungSchema.safeParse({
+    kautionBetrag: String(formData.get("kautionBetrag") ?? "").replace(",", "."),
+    nkJahr: formData.get("nkJahr"),
+  });
+  if (!parsed.success) return parsed.error.issues.map((i) => i.message).join(", ");
+  const { kautionBetrag, nkJahr } = parsed.data;
+
+  const original = await prisma.buchung.findUnique({
+    where: { id },
+    include: { buchungsart: { select: { kontokreis: true, code: true } }, storniertZeile: { select: { id: true } } },
+  });
+  if (!original) return "Buchung nicht gefunden.";
+  if (original.storniertDurchBuchungId || original.storniertZeile) return "Diese Buchung ist bereits storniert.";
+  if (original.buchungsart.kontokreis !== "KAUTIONSKONTO" || original.buchungsart.code === "KAUTION_EINBEHALT")
+    return "Nur Kautionsbuchungen lassen sich hier aufteilen.";
+  if (!original.mietvertragId) return "Die Buchung ist keinem Mietvertrag zugeordnet.";
+  if (original.bezugTyp && original.bezugTyp !== "Umbuchung")
+    return "Diese Buchung ist mit einer anderen Buchung verknüpft und kann nicht aufgeteilt werden.";
+
+  const gesamt = Number(original.betrag);
+  const nkBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
+  if (Math.sign(kautionBetrag) !== Math.sign(gesamt) || Math.abs(kautionBetrag) >= Math.abs(gesamt) - 0.005)
+    return `Der Kautionsanteil muss dasselbe Vorzeichen wie die Buchung (${gesamt.toFixed(2)} €) haben und betragsmäßig kleiner sein.`;
+
+  const nkArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
+  const gemeinsam = {
+    mietvertragId: original.mietvertragId,
+    datum: original.datum,
+    empfaenger: original.empfaenger,
+    verwendungszweck: original.verwendungszweck,
+    rohdaten: original.rohdaten ?? undefined,
+    importBatchId: original.importBatchId,
+    aufteilungGruppeId: original.aufteilungGruppeId ?? original.id,
+  };
+  await prisma.$transaction(async (tx) => {
+    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: original.buchungsartId, betrag: kautionBetrag } });
+    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: nkArt.id, betrag: nkBetrag, jahr: nkJahr } });
+    await storniereBuchung(tx, id);
+  });
+
+  revalidatePath("/kautionen");
+  revalidatePath("/nebenkostenausgleich");
+  revalidatePath(`/mietvertraege/${original.mietvertragId}`);
+  return null;
+}
+
 const kautionsbuchungSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
   datum: pflichtDatum("Datum ist erforderlich"),

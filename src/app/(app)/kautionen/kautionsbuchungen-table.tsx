@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
@@ -9,6 +9,7 @@ import {
   deleteKautionsbuchungen,
   aendereKautionEinbehaltStatus,
   loescheKautionEinbehalt,
+  teileKautionsbuchungAuf,
   type KautionEinbehaltStatus,
 } from "./actions";
 
@@ -222,9 +223,74 @@ const columns: Column<KautionsbuchungRow>[] = [
   },
 ];
 
+/**
+ * Teilt eine Kautionsbuchung in Kautionsanteil + Nebenkostenausgleich (z.B. eine Überweisung
+ * "Guthaben BK-Abr 2023 + Kaution") — der Nebenkostenanteil ergibt sich als Rest.
+ */
+function AufteilenPanel({ k, onFertig }: { k: KautionsbuchungRow; onFertig: () => void }) {
+  const [kautionText, setKautionText] = useState("");
+  const [nkJahr, setNkJahr] = useState(String(new Date(k.datum).getFullYear() - 1));
+  const [fehler, formAction, pending] = useActionState(async (prev: string | null, formData: FormData) => {
+    const ergebnis = await teileKautionsbuchungAuf(k.id, prev, formData);
+    if (!ergebnis) onFertig();
+    return ergebnis;
+  }, null);
+  const kaution = Number(kautionText.replace(",", "."));
+  const rest = kautionText.trim() && Number.isFinite(kaution) ? Math.round((k.betrag - kaution) * 100) / 100 : null;
+
+  return (
+    <form action={formAction} className="mb-3 rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-sm">
+      <p className="mb-2 text-neutral-300">
+        {formatDate(k.datum)} · {formatEuro(k.betrag)} · {k.verwendungszweck || "–"} — aufteilen in Kaution +
+        Nebenkostenausgleich
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs text-neutral-400">
+          Kautionsanteil ({KATEGORIE_LABEL[k.kategorie]})
+          <input
+            name="kautionBetrag"
+            inputMode="decimal"
+            value={kautionText}
+            onChange={(e) => setKautionText(e.target.value)}
+            placeholder={k.betrag < 0 ? "z.B. -400,00" : "z.B. 400,00"}
+            required
+            className="mt-1 block w-32 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+          />
+        </label>
+        <label className="text-xs text-neutral-400">
+          Abrechnungsjahr
+          <input
+            name="nkJahr"
+            type="number"
+            value={nkJahr}
+            onChange={(e) => setNkJahr(e.target.value)}
+            required
+            className="mt-1 block w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+          />
+        </label>
+        <span className="pb-2 text-neutral-300">= Nebenkostenausgleich {rest !== null ? formatEuro(rest) : "–"}</span>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-white px-3 py-1.5 font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+        >
+          {pending ? "Teile auf…" : "Aufteilen"}
+        </button>
+        <button type="button" onClick={onFertig} className="pb-1.5 text-neutral-400 hover:text-white">
+          Abbrechen
+        </button>
+      </div>
+      {fehler && <p className="mt-2 text-red-400">{fehler}</p>}
+    </form>
+  );
+}
+
 export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KautionsbuchungRow[]>([]);
   const [pending, startTransition] = useTransition();
+  const [aufteilen, setAufteilen] = useState<KautionsbuchungRow | null>(null);
+  const aufteilbar =
+    ausgewaehlt.length === 1 && !ausgewaehlt[0].einbehalt && ausgewaehlt[0].mietvertragId ? ausgewaehlt[0] : null;
 
   function loeschen() {
     if (ausgewaehlt.length === 0) return;
@@ -242,16 +308,28 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
       {ausgewaehlt.length > 0 && (
         <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
           <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>
-          <button
-            type="button"
-            onClick={loeschen}
-            disabled={pending}
-            className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
-          >
-            {pending ? "Lösche…" : "Ausgewählte löschen"}
-          </button>
+          <div className="flex gap-2">
+            {aufteilbar && (
+              <button
+                type="button"
+                onClick={() => setAufteilen(aufteilbar)}
+                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+              >
+                Aufteilen…
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={loeschen}
+              disabled={pending}
+              className="rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-950 disabled:opacity-50"
+            >
+              {pending ? "Lösche…" : "Ausgewählte löschen"}
+            </button>
+          </div>
         </div>
       )}
+      {aufteilen && <AufteilenPanel key={aufteilen.id} k={aufteilen} onFertig={() => setAufteilen(null)} />}
       <DataTable
         columns={columns}
         rows={rows}
