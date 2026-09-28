@@ -67,7 +67,15 @@ export async function speichereAnreden(formData: FormData): Promise<string> {
   }
   const bestehend = await prisma.mieter.findMany({ where: { id: { in: [...wunsch.keys()] } }, select: { id: true, anrede: true } });
   const aenderungen = bestehend.filter((m) => m.anrede !== wunsch.get(m.id));
-  await prisma.$transaction(aenderungen.map((m) => prisma.mieter.update({ where: { id: m.id }, data: { anrede: wunsch.get(m.id) } })));
+  // Je Zielwert ein updateMany statt eines Updates pro Mieter — ~100 Einzel-Updates über Neon
+  // überschritten das 5-s-Limit der Transaktion (P2028) und wurden komplett zurückgerollt.
+  const nachWert = (wert: "FRAU" | "HERR" | null) => aenderungen.filter((m) => wunsch.get(m.id) === wert).map((m) => m.id);
+  await prisma.$transaction(
+    (["FRAU", "HERR", null] as const)
+      .map((wert) => ({ wert, ids: nachWert(wert) }))
+      .filter(({ ids }) => ids.length > 0)
+      .map(({ wert, ids }) => prisma.mieter.updateMany({ where: { id: { in: ids } }, data: { anrede: wert } })),
+  );
 
   revalidatePath("/mieter");
   revalidatePath("/mieter/anrede");
