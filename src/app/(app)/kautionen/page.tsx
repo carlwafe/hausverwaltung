@@ -9,6 +9,7 @@ import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { KAUTION_EINBEHALT_BEZUG } from "@/lib/nk-verrechnung";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -116,7 +117,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       id: k.id,
       mietvertragId: k.mietvertragId,
       einheitBezeichnung: k.mietvertrag.einheit.bezeichnung,
-      mieterNamen: k.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      mieterNamen: k.mietvertrag.mieter.map((m) => mieterName(m)).join(" & "),
       betrag,
       betragAbweichung: einzahlungSumme !== null && Math.abs(einzahlungSumme - betrag) > TOLERANZ,
       einzahlungSumme,
@@ -156,7 +157,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       id: `verwaist-${v.id}`,
       mietvertragId: v.id,
       einheitBezeichnung: v.einheit.bezeichnung,
-      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
       // Kein Kaution-Stammdatensatz vorhanden — die Anlage-Buchung (interne Überweisung
       // Geschäfts- -> Kautionskonto) ist der verlässlichste Hinweis auf den eigentlich gemeinten
       // Betrag, sonst 0.
@@ -216,7 +217,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
     id: k.id,
     mietvertragId: k.mietvertragId,
     einheitBezeichnung: k.mietvertrag?.einheit.bezeichnung ?? null,
-    mieterNamen: k.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? null,
+    mieterNamen: k.mietvertrag?.mieter.map((m) => mieterName(m)).join(" & ") ?? null,
     datum: k.datum!.toISOString(),
     betrag: Number(k.betrag),
     empfaenger: k.empfaenger,
@@ -264,7 +265,7 @@ async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
     id: e.id,
     mietvertragId: e.kaution.mietvertragId,
     einheitBezeichnung: e.kaution.mietvertrag.einheit.bezeichnung,
-    mieterNamen: e.kaution.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    mieterNamen: e.kaution.mietvertrag.mieter.map((m) => mieterName(m)).join(" & "),
     datum: (e.datum ?? e.erstelltAm).toISOString(),
     betrag: -Number(e.betrag),
     empfaenger: null,
@@ -291,7 +292,7 @@ async function ladeMietvertraege(): Promise<{ id: string; label: string }[]> {
     .sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung))
     .map((v) => ({
       id: v.id,
-      label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+      label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => mieterName(m)).join(" & ")}`,
     }));
 }
 

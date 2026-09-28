@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { ZeitachseChart, type EinheitZeile } from "./zeitachse-chart";
+import { mieterName } from "@/lib/mieter-name";
 
 async function ladeZeitachseDaten(): Promise<EinheitZeile[]> {
   const einheitenRaw = await prisma.einheit.findMany({
@@ -26,7 +27,7 @@ async function ladeZeitachseDaten(): Promise<EinheitZeile[]> {
       beginn: v.beginn ? v.beginn.toISOString() : null,
       ende: v.ende ? v.ende.toISOString() : null,
       status: v.status,
-      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") || "– ohne Mieter –",
+      mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & ") || "– ohne Mieter –",
     })),
   }));
 }

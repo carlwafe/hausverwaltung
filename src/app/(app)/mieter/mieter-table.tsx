@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { DataTable, type Column } from "@/components/data-table";
+import { mieterName } from "@/lib/mieter-name";
 
 export type MieterRow = {
   id: string;
@@ -20,10 +21,10 @@ const columns: Column<MieterRow>[] = [
     key: "name",
     label: "Name",
     sortValue: (m) => `${m.nachname} ${m.vorname}`,
-    searchValue: (m) => `${m.vorname} ${m.nachname}`,
+    searchValue: (m) => mieterName(m),
     render: (m) => (
       <Link href={`/mieter/${m.id}`} className="font-medium hover:underline">
-        {m.vorname} {m.nachname}
+        {mieterName(m)}
       </Link>
     ),
   },

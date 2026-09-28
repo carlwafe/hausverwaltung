@@ -13,6 +13,7 @@ import {
   erfasseMieterhoehung,
   loescheMieterhoehung,
 } from "../../actions";
+import { mieterName, mieterNameNachnameZuerst } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -61,7 +62,7 @@ export default async function MietvertragBearbeitenPage({
     nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
     mieterhoehungen,
   });
-  const mieterNamen = vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
+  const mieterNamen = vertrag.mieter.map((m) => mieterName(m)).join(" & ");
 
   return (
     <div>
@@ -82,7 +83,7 @@ export default async function MietvertragBearbeitenPage({
 
       <MietvertragForm
         einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung, typ: e.typ }))}
-        mieter={mieter.map((m) => ({ id: m.id, label: `${m.nachname}, ${m.vorname}` }))}
+        mieter={mieter.map((m) => ({ id: m.id, label: `${mieterNameNachnameZuerst(m)}` }))}
         initial={{
           einheitId: vertrag.einheitId,
           mieterId1: vertrag.mieter[0]?.id ?? "",

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -52,7 +53,7 @@ async function ladeZeilen(): Promise<Zeile[]> {
     zeilen.push({
       mietvertragId: v.id,
       einheitBezeichnung: v.einheit.bezeichnung,
-      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") || "– ohne Mieter –",
+      mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & ") || "– ohne Mieter –",
       referenzDatum,
       referenzQuelle: letzteMieterhoehung ? "letzte Mieterhöhung" : "Mietbeginn",
       naechsteMoeglich,

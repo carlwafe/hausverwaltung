@@ -1,3 +1,5 @@
+import { mieterName } from "./mieter-name";
+
 export type MieterFuerDuplikatCheck = {
   id: string;
   vorname: string;
@@ -66,10 +68,10 @@ export function findeDuplikate(mieter: MieterFuerDuplikatCheck[]): DuplikatPaar[
         continue;
       }
 
-      const vollA = `${a.vorname} ${a.nachname}`;
-      const vollB = `${b.vorname} ${b.nachname}`;
+      const vollA = mieterName(a);
+      const vollB = mieterName(b);
       // Auch vertauschte Vor-/Nachname-Reihenfolge berücksichtigen (kommt bei Importen vor).
-      const vollBVertauscht = `${b.nachname} ${b.vorname}`;
+      const vollBVertauscht = `${b.nachname} ${b.vorname}`.trim();
       if (aehnlicheNamen(vollA, vollB) || aehnlicheNamen(vollA, vollBVertauscht)) {
         paare.push({ a, b, grund: "Ähnlicher Name" });
       }

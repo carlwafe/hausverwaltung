@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { previewImport, commitImport, type PreviewResult } from "./actions";
 import type { ParsedVertragRow } from "@/lib/import/mietvertraege-import";
+import { mieterName } from "@/lib/mieter-name";
 
 type EditRow = ParsedVertragRow & {
   gewaehlteEinheitId: string; // "" = ignorieren
@@ -220,7 +221,7 @@ export default function MietvertraegeImportPage() {
                           ? "–"
                           : r.mieterEintraege.map((m, idx) => (
                               <div key={idx}>
-                                {m.vorname} {m.nachname}{" "}
+                                {mieterName(m)}{" "}
                                 <span className={m.mieterId ? "text-neutral-500" : "text-amber-400"}>
                                   {m.mieterId ? "(vorhanden)" : "(neu)"}
                                 </span>

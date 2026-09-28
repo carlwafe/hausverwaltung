@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
+import { mieterName } from "@/lib/mieter-name";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
   const zahlungen = await prisma.buchung.findMany({
@@ -24,7 +25,7 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     mietvertragId: z.mietvertragId!,
     datum: z.datum!.toISOString(),
     einheitBezeichnung: z.mietvertrag!.einheit.bezeichnung,
-    mieterNamen: z.mietvertrag!.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    mieterNamen: z.mietvertrag!.mieter.map((m) => mieterName(m)).join(" & "),
     periodeMonat: z.periodeMonat,
     periodeJahr: z.periodeJahr,
     betrag: Number(z.betrag),

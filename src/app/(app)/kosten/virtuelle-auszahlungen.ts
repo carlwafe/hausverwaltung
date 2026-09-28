@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -29,7 +30,7 @@ export async function ladeVirtuelleAuszahlungen(): Promise<VirtuelleAuszahlungOp
   }
 
   return buchungen.map((b) => {
-    const mieterNamen = b.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
+    const mieterNamen = b.mietvertrag?.mieter.map((m) => mieterName(m)).join(" & ");
     const wer = mieterNamen ? `${b.mietvertrag?.einheit.bezeichnung} — ${mieterNamen}` : "kein Mietvertrag";
     const hinweis = (gutschriftenAnzahl.get(b.id) ?? 0) > 0 ? " (bereits verknüpft)" : "";
     return {

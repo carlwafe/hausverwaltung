@@ -10,6 +10,7 @@ import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -35,7 +36,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
   // Buchungsarten lassen sich umbuchen, siehe aendereBuchungsart) — nur ansehen oder stornieren.
   if (zahlung.buchungsart.code === "MAHNGEBUEHR") {
     const nkJahr = zahlung.bezugTyp === NK_VERRECHNUNG_BEZUG ? zahlung.jahr : null;
-    const mieterNamen = zahlung.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
+    const mieterNamen = zahlung.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ");
     return (
       <div>
         <div className="mb-6 flex items-center justify-between">
@@ -78,7 +79,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
   // Gebühren-Zahlung (Sonderforderung): keine Mietperiode, keine Aufteilung — nur ansehen,
   // umbuchen oder löschen.
   if (zahlung.buchungsart.code === "SONDERZAHLUNG") {
-    const mieterNamen = zahlung.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ");
+    const mieterNamen = zahlung.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ");
     return (
       <div>
         <div className="mb-6 flex items-center justify-between">
@@ -150,7 +151,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
 
   const mietvertraegeOptionen = vertraege.map((v) => ({
     id: v.id,
-    label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+    label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => mieterName(m)).join(" & ")}`,
   }));
 
   return (
@@ -158,7 +159,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
           Zahlung — {zahlung.mietvertrag!.einheit.bezeichnung} (
-          {zahlung.mietvertrag!.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")})
+          {zahlung.mietvertrag!.mieter.map((m) => mieterName(m)).join(" & ")})
         </h1>
         <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Zahlung wirklich löschen?" />
       </div>
@@ -200,7 +201,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           <ul className="mb-3 space-y-1 text-sm">
             {aufteilungGeschwister.map((z) => {
               const label = `${z.mietvertrag.einheit.bezeichnung} — ${z.mietvertrag.mieter
-                .map((m) => `${m.vorname} ${m.nachname}`)
+                .map((m) => mieterName(m))
                 .join(" & ")}`;
               return (
                 <li key={z.id} className="flex items-center justify-between">

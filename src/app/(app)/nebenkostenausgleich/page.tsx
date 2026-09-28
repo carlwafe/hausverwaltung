@@ -5,6 +5,7 @@ import {
   NebenkostenausgleichZahlungenTable,
   type NebenkostenausgleichZahlungRow,
 } from "./nebenkostenausgleich-zahlungen-table";
+import { mieterName } from "@/lib/mieter-name";
 
 async function ladeNebenkostenausgleichZahlungen(): Promise<NebenkostenausgleichZahlungRow[]> {
   const zahlungen = await prisma.buchung.findMany({
@@ -25,7 +26,7 @@ async function ladeNebenkostenausgleichZahlungen(): Promise<Nebenkostenausgleich
     verwendungszweck: b.verwendungszweck,
     mietvertragId: b.mietvertragId,
     einheitBezeichnung: b.mietvertrag?.einheit.bezeichnung ?? null,
-    mieterNamen: b.mietvertrag?.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") ?? null,
+    mieterNamen: b.mietvertrag?.mieter.map((m) => mieterName(m)).join(" & ") ?? null,
     rohdaten: (b.rohdaten as Record<string, string> | null) ?? null,
     importBatchId: b.importBatchId,
     importDateiname: b.importBatch?.dateiname ?? null,

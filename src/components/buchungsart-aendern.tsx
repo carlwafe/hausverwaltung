@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { BuchungsartAendernForm } from "./buchungsart-aendern-form";
+import { mieterName } from "@/lib/mieter-name";
 
 /**
  * Knopf "Buchungsart ändern" für eine bestehende Buchung (Zahlung, Kostenposition, …). Lädt die
@@ -40,7 +41,7 @@ export async function BuchungsartAendern({
       arten={arten}
       mietvertraege={vertraege.map((v) => ({
         id: v.id,
-        label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+        label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => mieterName(m)).join(" & ")}`,
       }))}
       kostenarten={kostenarten}
       aktuelleMietvertragId={aktuelleMietvertragId ?? ""}

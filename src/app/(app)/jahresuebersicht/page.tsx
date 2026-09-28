@@ -9,6 +9,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
 import { kontostandAmStichtag } from "@/lib/kontostand";
 import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-form";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -253,7 +254,7 @@ async function ladeMieterZeilen(jahr: number) {
       nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
     })),
     einheitBezeichnung: v.einheit.bezeichnung,
-    mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+    mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
     zahlungen: zahlungenNachVertrag.get(v.id) ?? [],
     sonderbewegungen: sonderNachVertrag.get(v.id) ?? [],
     nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({

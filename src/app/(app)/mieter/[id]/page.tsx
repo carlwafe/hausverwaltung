@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { MieterForm } from "../mieter-form";
 import { updateMieter, deleteMieter } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -45,7 +46,7 @@ export default async function MieterDetailPage({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          {mieter.vorname} {mieter.nachname}
+          {mieterName(mieter)}
         </h1>
         <DeleteButton action={deleteMieter.bind(null, id)} />
       </div>

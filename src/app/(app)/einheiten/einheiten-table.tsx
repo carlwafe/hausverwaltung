@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { mieterName } from "@/lib/mieter-name";
 
 const typLabel: Record<string, string> = {
   WOHNUNG: "Wohnung",
@@ -30,7 +31,7 @@ function hatBuergergeldEmpfaenger(e: EinheitRow): boolean {
 
 function mieterText(e: EinheitRow): string {
   return e.mietvertraege
-    .flatMap((v) => v.mieter.map((m) => `${m.vorname} ${m.nachname}`))
+    .flatMap((v) => v.mieter.map((m) => mieterName(m)))
     .join(", ");
 }
 
@@ -91,7 +92,7 @@ const columns: Column<EinheitRow>[] = [
               <span key={m.id}>
                 {mi > 0 && " & "}
                 <Link href={`/mieter/${m.id}`} className="hover:underline">
-                  {m.vorname} {m.nachname}
+                  {mieterName(m)}
                 </Link>
               </span>
             ))}

@@ -12,6 +12,7 @@ import { baueKautionskonto } from "@/lib/kautionskonto";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -272,13 +273,13 @@ export default async function MietvertragDetailPage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">
           {vertrag.einheit.bezeichnung} —{" "}
-          {vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}
+          {vertrag.mieter.map((m) => mieterName(m)).join(" & ")}
         </h1>
       </div>
       <EckdatenSektion
         mietvertragId={id}
         einheitLabel={vertrag.einheit.bezeichnung}
-        mieterNamen={vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}
+        mieterNamen={vertrag.mieter.map((m) => mieterName(m)).join(" & ")}
         beginnText={vertrag.beginn ? formatDate(vertrag.beginn) : "unbekannt"}
         endeText={vertrag.ende ? formatDate(vertrag.ende) : "–"}
         kaltmieteText={formatEuro(aktuelleMiete.kaltmiete)}
@@ -364,7 +365,7 @@ export default async function MietvertragDetailPage({
           mietende: vertrag.ende,
         }}
         kopf={{
-          mieter: vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+          mieter: vertrag.mieter.map((m) => mieterName(m)).join(" & "),
           einheit: vertrag.einheit.bezeichnung,
           wohnflaeche: Number(vertrag.einheit.wohnflaecheQm),
           mietbeginn: vertrag.beginn,

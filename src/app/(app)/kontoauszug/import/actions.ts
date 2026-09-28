@@ -30,6 +30,7 @@ import {
   normalizeText,
 } from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
+import { mieterName } from "@/lib/mieter-name";
 
 export type BuchungsartKandidat = {
   id: string;
@@ -509,7 +510,7 @@ export async function previewImport(
       // MietvertragAuswahl in page.tsx) ist das Eingabefeld schmal, ein bereits ausgewähltes
       // Label wird also oft am Ende abgeschnitten — mit dem Namen vorn bleibt der wichtigste Teil
       // sichtbar, auch wenn die Einheit selbst nicht mehr angezeigt wird.
-      label: `${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")} — ${v.einheit.bezeichnung}`,
+      label: `${v.mieter.map((m) => mieterName(m)).join(" & ")} — ${v.einheit.bezeichnung}`,
       warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
       mieterNamen: v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname })),
       einheitBezeichnung: v.einheit.bezeichnung,

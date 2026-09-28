@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { speichereAnreden } from "../actions";
+import { mieterName, mieterNameNachnameZuerst } from "@/lib/mieter-name";
 
 type Zeile = { id: string; anrede: "FRAU" | "HERR" | null; vorname: string; nachname: string; einheiten: string[] };
 
@@ -55,11 +56,11 @@ export function AnredeListe({ zeilen }: { zeilen: Zeile[] }) {
             {zeilen.map((z) => (
               <tr key={z.id} className={`border-t border-neutral-800 ${nurOhne && z.anrede !== null ? "hidden" : ""}`}>
                 <td className="px-4 py-2 text-white">
-                  {z.nachname}, {z.vorname}
+                  {mieterNameNachnameZuerst(z)}
                 </td>
                 <td className="px-4 py-2 text-neutral-400">{z.einheiten.join(", ") || "–"}</td>
                 <td className="px-4 py-1.5">
-                  <div className="flex gap-1" role="radiogroup" aria-label={`Anrede ${z.vorname} ${z.nachname}`}>
+                  <div className="flex gap-1" role="radiogroup" aria-label={`Anrede ${mieterName(z)}`}>
                     {[
                       ["FRAU", "Frau"],
                       ["HERR", "Herr"],

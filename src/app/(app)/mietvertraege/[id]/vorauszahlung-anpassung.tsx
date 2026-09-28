@@ -6,6 +6,7 @@ import { runFormAction } from "@/lib/form-utils";
 import { ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "@/lib/soll-ist";
 import { schlageVorauszahlungVor, vorgeschlagenesGueltigAb } from "@/lib/vorauszahlung-vorschlag";
 import { passeNkVorauszahlungAn } from "../actions";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -52,12 +53,12 @@ function briefAnrede(mieter: VorauszahlungBriefDaten["mieter"]): string {
     const text = teile.join(", ") + ",";
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
-  return `Guten Tag ${mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" und ")},`;
+  return `Guten Tag ${mieter.map((m) => mieterName(m)).join(" und ")},`;
 }
 
 function empfaengerZeile(m: VorauszahlungBriefDaten["mieter"][number]): string {
   const titel = m.anrede === "FRAU" ? "Frau " : m.anrede === "HERR" ? "Herrn " : "";
-  return `${titel}${m.vorname} ${m.nachname}`;
+  return `${titel}${mieterName(m)}`;
 }
 
 const eingabeKlasse =
@@ -305,7 +306,7 @@ export function VorauszahlungAnpassung({
           <div className="flex items-start justify-between">
             <div className="mt-2 min-h-[40mm]">
               {brief.mieter.map((m) => (
-                <p key={`${m.vorname} ${m.nachname}`}>{empfaengerZeile(m)}</p>
+                <p key={mieterName(m)}>{empfaengerZeile(m)}</p>
               ))}
               <p>{brief.strasse}</p>
               <p>{brief.plzOrt}</p>

@@ -4,6 +4,7 @@ import { MietvertraegeTable, type VertragRow } from "./mietvertraege-table";
 import { ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { gebaeudeGruppeAnzeige } from "@/lib/gebaeude-gruppen";
+import { mieterName } from "@/lib/mieter-name";
 
 async function ladeVertraege(): Promise<VertragRow[]> {
   const vertraegeRaw = await prisma.mietvertrag.findMany({
@@ -38,7 +39,7 @@ async function ladeVertraege(): Promise<VertragRow[]> {
       gebaeudeLabel: gebaeudeGruppe.label,
       gebaeudeHref: gebaeudeGruppe.href,
       einheitBezeichnung: v.einheit.bezeichnung,
-      mieterNamen: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+      mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
       beginn: v.beginn ? v.beginn.toISOString() : null,
       ende: v.ende ? v.ende.toISOString() : null,
       kaltmiete: aktuelleMiete.kaltmiete,

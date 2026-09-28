@@ -20,6 +20,7 @@ import {
 import { ManuellePositionForm } from "../manuelle-position-form";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
 import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -93,7 +94,7 @@ export default async function NebenkostenabrechnungDetailPage({
   ]);
   const mietvertragKandidaten = mietvertraegeRoh.map((v) => ({
     id: v.id,
-    label: `${v.einheit.bezeichnung} - ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+    label: `${v.einheit.bezeichnung} - ${v.mieter.map((m) => mieterName(m)).join(" & ")}`,
   }));
   const nichtBeruecksichtigt = ermittleNichtBeruecksichtigteKostenarten(
     abrechnung.jahr,
@@ -137,7 +138,7 @@ export default async function NebenkostenabrechnungDetailPage({
         .map((p) => ({
           mietvertragId: p.mietvertragId!,
           einheitBezeichnung: p.einheit.bezeichnung,
-          mieterNamen: p.mietvertrag ? p.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ") : "–",
+          mieterNamen: p.mietvertrag ? p.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ") : "–",
           zeitraumVon: p.zeitraumVon.toISOString(),
           zeitraumBis: p.zeitraumBis.toISOString(),
           betrag: betraege.get(p.mietvertragId!) ?? null,
@@ -447,7 +448,7 @@ export default async function NebenkostenabrechnungDetailPage({
             gebaeudeSortSchluessel:
               (p.einheit.gebaeude.haus?.reihenfolge ?? 999) * 1000 + Number(p.einheit.gebaeude.hausnummer),
             mieterNamen: p.mietvertrag
-              ? p.mietvertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")
+              ? p.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ")
               : "–",
             zeitraumVon: p.zeitraumVon.toISOString(),
             zeitraumBis: p.zeitraumBis.toISOString(),

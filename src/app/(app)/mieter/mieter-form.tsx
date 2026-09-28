@@ -47,19 +47,18 @@ export function MieterForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="vorname">
-            Vorname
+            Vorname <span className="font-normal text-neutral-500">(leer bei Firmen)</span>
           </label>
           <input
             id="vorname"
             name="vorname"
-            required
             defaultValue={initial?.vorname}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="nachname">
-            Nachname
+            Nachname <span className="font-normal text-neutral-500">(bzw. Firmenname)</span>
           </label>
           <input
             id="nachname"

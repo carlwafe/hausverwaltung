@@ -5,6 +5,7 @@ import { toDateInputValue } from "@/lib/date-utils";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -65,7 +66,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
       return {
         id: v.id,
         einheit: v.einheit.bezeichnung,
-        mieter: v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & "),
+        mieter: v.mieter.map((m) => mieterName(m)).join(" & "),
         status: v.status as "AKTIV" | "BEENDET",
         soll,
         ist,

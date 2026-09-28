@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { MietvertragForm } from "../mietvertrag-form";
 import { createMietvertrag } from "../actions";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
+import { mieterNameNachnameZuerst } from "@/lib/mieter-name";
 
 export default async function NeuerMietvertragPage() {
   const [einheitenRaw, mieter] = await Promise.all([
@@ -15,7 +16,7 @@ export default async function NeuerMietvertragPage() {
       <h1 className="mb-6 text-2xl font-semibold">Neuer Mietvertrag</h1>
       <MietvertragForm
         einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung, typ: e.typ }))}
-        mieter={mieter.map((m) => ({ id: m.id, label: `${m.nachname}, ${m.vorname}` }))}
+        mieter={mieter.map((m) => ({ id: m.id, label: `${mieterNameNachnameZuerst(m)}` }))}
         action={createMietvertrag}
       />
     </div>

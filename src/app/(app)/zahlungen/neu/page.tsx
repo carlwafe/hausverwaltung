@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { ZahlungForm } from "../zahlung-form";
 import { createZahlung } from "../actions";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
+import { mieterName } from "@/lib/mieter-name";
 
 export default async function NeueZahlungPage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function NeueZahlungPage({
       <ZahlungForm
         mietvertraege={vertraege.map((v) => ({
           id: v.id,
-          label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" & ")}`,
+          label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => mieterName(m)).join(" & ")}`,
         }))}
         defaultMietvertragId={mietvertragId}
         action={createZahlung}

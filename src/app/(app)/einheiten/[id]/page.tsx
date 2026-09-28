@@ -10,6 +10,7 @@ import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
 import { KostenTable } from "../../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 import { WohnflaecheKorrekturForm } from "../wohnflaeche-korrektur-form";
+import { mieterName } from "@/lib/mieter-name";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -101,7 +102,7 @@ export default async function EinheitDetailPage({
                       <span key={m.id}>
                         {i > 0 && " & "}
                         <Link href={`/mieter/${m.id}`} className="hover:underline">
-                          {m.vorname} {m.nachname}
+                          {mieterName(m)}
                         </Link>
                       </span>
                     ))}

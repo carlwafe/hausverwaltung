@@ -8,8 +8,9 @@ import { requireEditor } from "@/lib/session";
 
 const mieterSchema = z.object({
   anrede: z.enum(["FRAU", "HERR"]).nullable(),
-  vorname: z.string().min(1, "Vorname ist erforderlich"),
-  nachname: z.string().min(1, "Nachname ist erforderlich"),
+  // Leer bei Firmen/Genossenschaften/Behörden — dann steht der ganze Name im Nachnamen.
+  vorname: z.string().trim(),
+  nachname: z.string().trim().min(1, "Nachname ist erforderlich"),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("").transform(() => undefined)),
   handynummer: z.string().optional(),
   festnetznummer: z.string().optional(),
@@ -20,7 +21,7 @@ const mieterSchema = z.object({
 function parseForm(formData: FormData) {
   const parsed = mieterSchema.safeParse({
     anrede: formData.get("anrede") || null,
-    vorname: formData.get("vorname"),
+    vorname: formData.get("vorname") ?? "",
     nachname: formData.get("nachname"),
     email: formData.get("email") ?? "",
     handynummer: formData.get("handynummer") || undefined,
