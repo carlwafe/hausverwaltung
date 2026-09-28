@@ -240,6 +240,14 @@ const aufteilungTeilSchema = z.discriminatedUnion("typ", [
     betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
     beschreibung: z.string().optional(),
   }),
+  // Kautionsanteil einer Sammelüberweisung (z.B. "1. Miete und Kaution") — wird zur
+  // KAUTION_EINZAHLUNG mit Bankvorzeichen, wie beim Import einer reinen Kautionszahlung.
+  z.object({
+    typ: z.literal("kaution"),
+    mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
+    betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
+    beschreibung: z.string().optional(),
+  }),
 ]);
 
 /**
@@ -287,17 +295,20 @@ export async function teileZahlungAuf(
   const mieteTeile = teile.filter((t) => t.typ === "miete");
   const kostenTeile = teile.filter((t) => t.typ === "kosten");
   const sonderTeile = teile.filter((t) => t.typ === "sonderzahlung");
+  const kautionTeile = teile.filter((t) => t.typ === "kaution");
   const betroffeneMietvertraege = new Set([
     original.mietvertragId,
     ...mieteTeile.map((t) => t.mietvertragId),
     ...sonderTeile.map((t) => t.mietvertragId),
+    ...kautionTeile.map((t) => t.mietvertragId),
   ]);
 
-  const [mietzahlungArt, kostenpositionArt, mahngebuehrArt, sonderzahlungArt] = await Promise.all([
+  const [mietzahlungArt, kostenpositionArt, mahngebuehrArt, sonderzahlungArt, kautionEinzahlungArt] = await Promise.all([
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "MIETZAHLUNG" } }),
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } }),
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "MAHNGEBUEHR" } }),
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "SONDERZAHLUNG" } }),
+    prisma.buchungsart.findUniqueOrThrow({ where: { code: "KAUTION_EINZAHLUNG" } }),
   ]);
 
   await prisma.$transaction(async (tx) => {
@@ -324,6 +335,21 @@ export async function teileZahlungAuf(
           buchungsartId: sonderzahlungArt.id,
           datum: original.datum,
           betrag: teil.betrag,
+          verwendungszweck: teil.beschreibung || original.verwendungszweck,
+          rohdaten: original.rohdaten ?? undefined,
+          importBatchId: original.importBatchId,
+          aufteilungGruppeId: gruppeId,
+        },
+      });
+    }
+    for (const teil of kautionTeile) {
+      await tx.buchung.create({
+        data: {
+          mietvertragId: teil.mietvertragId,
+          buchungsartId: kautionEinzahlungArt.id,
+          datum: original.datum,
+          betrag: teil.betrag,
+          empfaenger: original.empfaenger,
           verwendungszweck: teil.beschreibung || original.verwendungszweck,
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
@@ -367,6 +393,7 @@ export async function teileZahlungAuf(
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
   if (kostenTeile.length > 0) revalidatePath("/kosten");
+  if (kautionTeile.length > 0) revalidatePath("/kautionen");
   for (const mietvertragId of betroffeneMietvertraege) revalidatePath(`/mietvertraege/${mietvertragId}`);
   redirect("/zahlungen");
 }

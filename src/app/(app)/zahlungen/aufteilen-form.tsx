@@ -7,7 +7,7 @@ import { teileZahlungAuf } from "./actions";
 const MONATE_KURZ = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
 type Zeile = {
-  typ: "miete" | "kosten" | "sonderzahlung";
+  typ: "miete" | "kosten" | "sonderzahlung" | "kaution";
   mietvertragId: string;
   betrag: string;
   periodeMonat: number;
@@ -99,9 +99,9 @@ export function AufteilenForm({
                 periodeMonat: z.periodeMonat,
                 periodeJahr: z.periodeJahr,
               }
-            : z.typ === "sonderzahlung"
+            : z.typ === "sonderzahlung" || z.typ === "kaution"
               ? {
-                  typ: "sonderzahlung",
+                  typ: z.typ,
                   mietvertragId: z.mietvertragId || aktuelleMietvertragId,
                   betrag: parseKommaBetrag(z.betrag),
                   beschreibung: z.beschreibung || undefined,
@@ -136,8 +136,9 @@ export function AufteilenForm({
       <p className="mb-3 text-sm font-medium text-white">Zahlung ({betragGesamt.toFixed(2)} €) aufteilen</p>
       <p className="mb-3 text-xs text-neutral-500">
         Ersetzt diese Zahlung durch die unten angegebenen — z.B. eine Überweisung, die Miete für
-        Wohnung und Garage in einer Summe zahlt, oder eine Zahlung, die teilweise eine
-        Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist. Bei einer geplatzten Lastschrift:
+        Wohnung und Garage in einer Summe zahlt, eine Zahlung, die teilweise eine
+        Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist, oder erste Miete und Kaution in
+        einer Summe (Teil &quot;Kaution&quot; = Einzahlung Mieter aufs Kautionskonto des Vertrags). Bei einer geplatzten Lastschrift:
         Mietteil negativ, die Bankgebühr als Kosten mit negativem Betrag (&quot;dem Mieter berechnen&quot; merkt sie
         als Forderung vor).
       </p>
@@ -159,6 +160,9 @@ export function AufteilenForm({
                 </option>
                 <option value="sonderzahlung" className="bg-neutral-900">
                   Gebühren-Zahlung
+                </option>
+                <option value="kaution" className="bg-neutral-900">
+                  Kaution
                 </option>
               </select>
             </div>
@@ -210,7 +214,7 @@ export function AufteilenForm({
                   />
                 </div>
               </>
-            ) : zeile.typ === "sonderzahlung" ? (
+            ) : zeile.typ === "sonderzahlung" || zeile.typ === "kaution" ? (
               <>
                 <div className="min-w-0 flex-1">
                   {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Mietvertrag</label>}
