@@ -48,6 +48,9 @@ export type KautionRow = {
   // NK-Abrechnung") — ist der Kaution ebenfalls endgültig entzogen, aber ohne Auszahlung.
   verrechnet: number;
   einbehalten: number | null;
+  // Davon noch offen: einbehalten ohne die pauschalen, dem Vermieter endgültig gutgeschriebenen
+  // Einbehalte — also vorläufig einbehalten (Rechnung folgt) oder gar nicht begründet.
+  offen: number | null;
   status: keyof typeof STATUS_LABEL;
   // z.B. "keine Einzahlung Mieter gefunden" oder "kein Kaution-Stammdatensatz angelegt" — siehe
   // warnungFuer in page.tsx. null = nichts Auffälliges.
@@ -137,9 +140,18 @@ const columns: Column<KautionRow>[] = [
       r.einbehalten === null ? (
         "–"
       ) : (
-        <span className={r.einbehalten > 0 ? "text-amber-400" : "text-neutral-400"}>
-          {formatEuro(r.einbehalten)}
-        </span>
+        <span className="text-neutral-300">{formatEuro(r.einbehalten)}</span>
+      ),
+  },
+  {
+    key: "offen",
+    label: "Offen",
+    sortValue: (r) => r.offen ?? -1,
+    render: (r) =>
+      r.offen === null ? (
+        "–"
+      ) : (
+        <span className={r.offen > 0.005 ? "text-amber-400" : "text-neutral-500"}>{formatEuro(r.offen)}</span>
       ),
   },
   {

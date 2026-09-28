@@ -121,12 +121,9 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // gutgeschriebenen Einbehalten besteht — ein vorläufiger Einbehalt (Rechnung folgt noch) oder ein
     // unbegründeter Rest lässt den Fall offen.
     const pauschalEinbehalten = k.einbehalte.reduce((s, e) => s + Number(e.betrag), 0);
+    const offen = einbehalten !== null ? Math.round((einbehalten - pauschalEinbehalten) * 100) / 100 : null;
     const status: KautionRow["status"] =
-      aufgeloest === 0
-        ? "AKTIV"
-        : einbehalten !== null && einbehalten - pauschalEinbehalten <= TOLERANZ
-          ? "ERLEDIGT"
-          : "AUFGELOEST";
+      aufgeloest === 0 ? "AKTIV" : offen !== null && offen <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
 
     return {
       id: k.id,
@@ -142,6 +139,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       ausgezahlt,
       verrechnet,
       einbehalten,
+      offen,
       status,
       warnung: warnungFuer(summen, k.einzahlungUnbekannt),
     };
@@ -185,6 +183,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       ausgezahlt,
       verrechnet,
       einbehalten,
+      offen: einbehalten,
       status,
       warnung:
         warnungFuer(summen) ??
@@ -325,14 +324,14 @@ export default async function KautionenPage() {
   const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
   // Für die Verbindlichkeiten-Summe zählt bei einer bereits aufgelösten Kaution nur noch der
   // tatsächlich einbehaltene Rest, nicht mehr der ursprüngliche Gesamtbetrag.
-  const summeOffen = offen.reduce((s, k) => s + (k.einbehalten ?? k.betrag), 0);
+  const summeOffen = offen.reduce((s, k) => s + (k.offen ?? k.betrag), 0);
 
   // Zeilen ohne eigenen Kaution-Stammdatensatz (anlageform === null, siehe warnungFuer) haben
   // keine echte Anlageform und fließen hier bewusst nicht mit ein — sie stehen ohnehin schon per
   // Warnsymbol sichtbar in der Tabelle.
   const summeJeAnlageform = offen.reduce<Record<string, number>>((acc, k) => {
     if (!k.anlageform) return acc;
-    acc[k.anlageform] = (acc[k.anlageform] ?? 0) + (k.einbehalten ?? k.betrag);
+    acc[k.anlageform] = (acc[k.anlageform] ?? 0) + (k.offen ?? k.betrag);
     return acc;
   }, {});
 
