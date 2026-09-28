@@ -59,11 +59,18 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   // Betrag) summieren sich hier automatisch.
   const summenProMietvertrag = new Map<
     string,
-    { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number }
+    { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number; sonstiges: number }
   >();
   for (const b of buchungen) {
     const key = b.mietvertragId!;
-    const eintrag = summenProMietvertrag.get(key) ?? { einzahlung: 0, anlage: 0, aufgeloest: 0, ausgezahlt: 0, verrechnet: 0 };
+    const eintrag = summenProMietvertrag.get(key) ?? {
+      einzahlung: 0,
+      anlage: 0,
+      aufgeloest: 0,
+      ausgezahlt: 0,
+      verrechnet: 0,
+      sonstiges: 0,
+    };
     const betrag = Number(b.betrag);
     const code = b.buchungsart.code;
     if (code === "KAUTION_EINZAHLUNG") eintrag.einzahlung += betrag;
@@ -91,7 +98,16 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // einbehaltenen Restbetrags.
     else if (code === "KAUTION_EINBEHALT" && b.bezugTyp === KAUTION_EINBEHALT_BEZUG && b.jahr !== null)
       eintrag.verrechnet += Math.abs(betrag);
+    else if (code === "KAUTION_SONSTIGES") eintrag.sonstiges += betrag;
     summenProMietvertrag.set(key, eintrag);
+  }
+
+  // Kautionsgeld, das direkt aufs Geschäftskonto ging und nie aufs Kautionskonto angelegt wurde (z.B.
+  // Gellusch: nur ein Drittel lag auf dem Kautionskonto, der Rest kam direkt) — steht für Auszahlungen
+  // zusätzlich zur Auflösung zur Verfügung. Liegt alles auf dem Kautionskonto, ist es 0.
+  function direktEingegangen(summen: { einzahlung: number; sonstiges: number; anlage: number } | undefined): number {
+    if (!summen) return 0;
+    return Math.max(0, Math.round((summen.einzahlung + summen.sonstiges - summen.anlage) * 100) / 100);
   }
 
   // Warnt, wenn für einen Mietvertrag zwar eine Kautionsbewegung (Anlage/Auflösung/Auszahlung)
@@ -99,7 +115,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   // tatsächliche Einzahlung fälschlich als normale Zahlung statt als Kautionsbuchung importiert
   // wurde. Ohne diese Warnung fällt so ein Fall sonst nur auf, wenn man gezielt danach sucht.
   function warnungFuer(
-    summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number } | undefined,
+    summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number; sonstiges: number } | undefined,
     einzahlungUnbekannt = false,
   ): string | null {
     if (!summen || summen.einzahlung > 0 || einzahlungUnbekannt) return null;
@@ -116,7 +132,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const verrechnet = summen?.verrechnet ?? 0;
     // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
     // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
-    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt - verrechnet) * 100) / 100 : null;
+    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100 : null;
     // Erledigt, sobald der einbehaltene Rest vollständig aus pauschalen, dem Vermieter endgültig
     // gutgeschriebenen Einbehalten besteht — ein vorläufiger Einbehalt (Rechnung folgt noch) oder ein
     // unbegründeter Rest lässt den Fall offen.
@@ -163,7 +179,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const aufgeloest = summen.aufgeloest;
     const ausgezahlt = summen.ausgezahlt;
     const verrechnet = summen.verrechnet;
-    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt - verrechnet) * 100) / 100 : null;
+    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100 : null;
     const status: KautionRow["status"] =
       aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
 
