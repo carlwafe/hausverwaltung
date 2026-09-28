@@ -149,12 +149,6 @@ const columns: Column<KautionRow>[] = [
     ),
   },
   {
-    key: "zinssatz",
-    label: "Zinssatz",
-    sortValue: (r) => r.zinssatz ?? -1,
-    render: (r) => (r.zinssatz !== null ? `${r.zinssatz.toLocaleString("de-DE")} %` : "–"),
-  },
-  {
     key: "aufgeloest",
     label: "Aufgelöst",
     sortValue: (r) => r.aufgeloest,
