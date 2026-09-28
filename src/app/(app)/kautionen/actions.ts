@@ -108,9 +108,11 @@ export async function teileKautionsbuchungAuf(id: string, _prev: string | null, 
     return "Diese Buchung ist mit einer anderen Buchung verknüpft und kann nicht aufgeteilt werden.";
 
   const gesamt = Number(original.betrag);
+  // Beide Teile dürfen in unterschiedliche Richtungen gehen: z.B. Kaution -100 € ausgezahlt und
+  // damit eine NK-Nachzahlung von +67,34 € verrechnet = Überweisung -32,66 €.
   const nkBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
-  if (Math.sign(kautionBetrag) !== Math.sign(gesamt) || Math.abs(kautionBetrag) >= Math.abs(gesamt) - 0.005)
-    return `Der Kautionsanteil muss dasselbe Vorzeichen wie die Buchung (${gesamt.toFixed(2)} €) haben und betragsmäßig kleiner sein.`;
+  if (Math.abs(nkBetrag) < 0.005)
+    return `Der Kautionsanteil entspricht der ganzen Buchung (${gesamt.toFixed(2)} €) — dann gibt es nichts aufzuteilen.`;
 
   const nkArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
   const gemeinsam = {

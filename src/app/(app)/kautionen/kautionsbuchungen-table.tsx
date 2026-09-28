@@ -272,7 +272,8 @@ function AufteilenPanel({ k, onFertig }: { k: KautionsbuchungRow; onFertig: () =
     <form action={formAction} className="mb-3 rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-sm">
       <p className="mb-2 text-neutral-300">
         {formatDate(k.datum)} · {formatEuro(k.betrag)} · {k.verwendungszweck || "–"} — aufteilen in Kaution +
-        Nebenkostenausgleich
+        Nebenkostenausgleich (Bankvorzeichen: ausgehend negativ; eine verrechnete Nachzahlung ergibt einen
+        positiven Nebenkostenanteil)
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-neutral-400">
