@@ -9,6 +9,19 @@ import { requireEditor } from "@/lib/session";
 import { storniereBuchung } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 
+// Freitext-Kommentar zur Kaution (Kaution.notizen), direkt in der Übersicht bearbeitbar — z.B. für
+// eine Überzahlung, die zurückgefordert werden muss.
+export async function speichereKautionNotiz(kautionId: string, text: string) {
+  await requireEditor();
+  const kaution = await prisma.kaution.update({
+    where: { id: kautionId },
+    data: { notizen: text.trim() || null },
+    select: { mietvertragId: true },
+  });
+  revalidatePath("/kautionen");
+  revalidatePath(`/mietvertraege/${kaution.mietvertragId}`);
+}
+
 // "Löschen" heißt beim Storno-Prinzip: die Buchung bleibt stehen, bekommt aber eine
 // Gegenbuchung mit negiertem Betrag (siehe storniereBuchung) statt echt gelöscht zu werden.
 export async function deleteKautionsbuchungen(ids: string[]) {

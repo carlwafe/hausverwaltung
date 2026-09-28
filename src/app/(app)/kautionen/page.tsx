@@ -159,6 +159,8 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       offen,
       status,
       warnung: warnungFuer(summen, k.einzahlungUnbekannt),
+      kautionId: k.id,
+      notizen: k.notizen,
     };
   });
 
@@ -206,6 +208,8 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       warnung:
         warnungFuer(summen) ??
         "Kein Kaution-Stammdatensatz angelegt — aber Kautionsbuchungen für diesen Mietvertrag vorhanden.",
+      kautionId: null,
+      notizen: null,
     };
   });
 

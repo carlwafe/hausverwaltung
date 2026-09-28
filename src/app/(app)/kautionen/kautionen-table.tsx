@@ -1,7 +1,9 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { speichereKautionNotiz } from "./actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -57,7 +59,48 @@ export type KautionRow = {
   // z.B. "keine Einzahlung Mieter gefunden" oder "kein Kaution-Stammdatensatz angelegt" — siehe
   // warnungFuer in page.tsx. null = nichts Auffälliges.
   warnung: string | null;
+  // Id des Kaution-Stammdatensatzes; null bei einer Zeile ohne eigenen Datensatz (dann kein Kommentar).
+  kautionId: string | null;
+  notizen: string | null;
 };
+
+// Mehrzeilig, wächst mit dem Inhalt; speichert beim Verlassen des Felds, nur bei Änderung — wie die
+// Kommentarspalte der Nebenkostenabrechnung (pruefung-zellen.tsx).
+function KommentarFeld({ kautionId, notizen }: { kautionId: string; notizen: string }) {
+  const [wert, setWert] = useState(notizen);
+  const [gespeichert, setGespeichert] = useState(notizen);
+  const [isPending, startTransition] = useTransition();
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [wert]);
+
+  function speichern() {
+    if (wert.trim() === gespeichert.trim()) return;
+    startTransition(async () => {
+      await speichereKautionNotiz(kautionId, wert);
+      setGespeichert(wert);
+    });
+  }
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={wert}
+      onChange={(e) => setWert(e.target.value)}
+      onBlur={speichern}
+      disabled={isPending}
+      placeholder="Kommentar…"
+      maxLength={500}
+      className="block w-56 resize-none rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50"
+    />
+  );
+}
 
 const columns: Column<KautionRow>[] = [
   {
@@ -172,6 +215,14 @@ const columns: Column<KautionRow>[] = [
         {STATUS_LABEL[r.status]}
       </span>
     ),
+  },
+  {
+    key: "kommentar",
+    label: "Kommentar",
+    sortValue: (r) => r.notizen ?? "",
+    searchValue: (r) => r.notizen ?? "",
+    render: (r) =>
+      r.kautionId ? <KommentarFeld kautionId={r.kautionId} notizen={r.notizen ?? ""} /> : <span className="text-neutral-600">–</span>,
   },
 ];
 
