@@ -58,6 +58,13 @@ enum KautionStatus {
   ZURUECKGEZAHLT
 }
 
+// Anrede für Schreiben an den Mieter ("Sehr geehrte Frau …"). null = nicht erfasst → neutrale
+// Anrede mit vollem Namen ("Guten Tag Anna Muster,").
+enum Anrede {
+  FRAU
+  HERR
+}
+
 // Wie der Mieter die Miete zahlt — steuert u.a. den Text im Schreiben zur Anpassung der
 // NK-Vorauszahlung (Lastschrift: Vorabankündigung statt Bitte um Dauerauftrags-Änderung).
 enum Zahlungsweg {
@@ -331,6 +338,7 @@ model WohnflaecheKorrektur {
 
 model Mieter {
   id                    String   @id @default(cuid())
+  anrede                Anrede?
   vorname               String
   nachname              String
   email                 String?

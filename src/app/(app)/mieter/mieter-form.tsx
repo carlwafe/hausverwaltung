@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 
 type Mieter = {
+  anrede: string | null;
   vorname: string;
   nachname: string;
   email: string | null;
@@ -27,6 +28,22 @@ export function MieterForm({
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="anrede">
+          Anrede
+        </label>
+        <select
+          id="anrede"
+          name="anrede"
+          defaultValue={initial?.anrede ?? ""}
+          className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        >
+          <option value="">– keine (neutral: „Guten Tag Vorname Nachname“) –</option>
+          <option value="FRAU">Frau</option>
+          <option value="HERR">Herr</option>
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="vorname">

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 
 const mieterSchema = z.object({
+  anrede: z.enum(["FRAU", "HERR"]).nullable(),
   vorname: z.string().min(1, "Vorname ist erforderlich"),
   nachname: z.string().min(1, "Nachname ist erforderlich"),
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("").transform(() => undefined)),
@@ -18,6 +19,7 @@ const mieterSchema = z.object({
 
 function parseForm(formData: FormData) {
   const parsed = mieterSchema.safeParse({
+    anrede: formData.get("anrede") || null,
     vorname: formData.get("vorname"),
     nachname: formData.get("nachname"),
     email: formData.get("email") ?? "",

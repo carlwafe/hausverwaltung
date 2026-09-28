@@ -26,12 +26,12 @@ const ABSENDER_KEY = "nk-schreiben-absender";
 
 // Standard-Zuschlag auf die rechnerische Vorauszahlung (Entscheidung des Eigentümers) — je Schreiben
 // änderbar, 0 = kein Zuschlag. Rechtlich angreifbar, siehe Hinweis in vorauszahlung-vorschlag.ts.
-const STANDARD_ZUSCHLAG_PROZENT = "5";
+const STANDARD_ZUSCHLAG_PROZENT = "3";
 const STANDARD_ZUSCHLAG_GRUND = "allgemein steigende Energie- und Betriebskosten";
 
 export type VorauszahlungBriefDaten = {
   mietvertragId: string;
-  mieterNamen: string[];
+  mieter: { anrede: "FRAU" | "HERR" | null; vorname: string; nachname: string }[];
   strasse: string;
   plzOrt: string;
   einheit: string;
@@ -42,6 +42,23 @@ export type VorauszahlungBriefDaten = {
   // Aus dem Mietvertrag; null = nicht erfasst → Lastschrift vorbelegt (zahlen die meisten).
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
 };
+
+// "Sehr geehrte Frau Muster, sehr geehrter Herr Muster," — fehlt bei einem Mieter die Anrede, für
+// alle neutral mit vollem Namen ("Guten Tag Anna Muster und Ben Muster,"), statt die Formen zu mischen.
+function briefAnrede(mieter: VorauszahlungBriefDaten["mieter"]): string {
+  if (mieter.length === 0) return "Sehr geehrte Damen und Herren,";
+  if (mieter.every((m) => m.anrede !== null)) {
+    const teile = mieter.map((m) => (m.anrede === "FRAU" ? `sehr geehrte Frau ${m.nachname}` : `sehr geehrter Herr ${m.nachname}`));
+    const text = teile.join(", ") + ",";
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  return `Guten Tag ${mieter.map((m) => `${m.vorname} ${m.nachname}`).join(" und ")},`;
+}
+
+function empfaengerZeile(m: VorauszahlungBriefDaten["mieter"][number]): string {
+  const titel = m.anrede === "FRAU" ? "Frau " : m.anrede === "HERR" ? "Herrn " : "";
+  return `${titel}${m.vorname} ${m.nachname}`;
+}
 
 const eingabeKlasse =
   "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
@@ -72,7 +89,7 @@ export function VorauszahlungAnpassung({
   const [zuschlag, setZuschlag] = useState(STANDARD_ZUSCHLAG_PROZENT);
   const [zuschlagGrund, setZuschlagGrund] = useState(STANDARD_ZUSCHLAG_GRUND);
   const [absender, setAbsender] = useState("");
-  const [anrede, setAnrede] = useState("Sehr geehrte Damen und Herren,");
+  const [anrede, setAnrede] = useState(() => briefAnrede(brief.mieter));
   const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG">(brief.zahlungsweg ?? "LASTSCHRIFT");
   const [betragEigen, setBetragEigen] = useState<string | null>(null);
   const [gespeichert, setGespeichert] = useState(false);
@@ -233,6 +250,7 @@ export function VorauszahlungAnpassung({
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="nk-anrede">
               Anrede
+              {brief.mieter.some((m) => m.anrede === null) && " (Frau/Herr beim Mieter nicht erfasst → neutral)"}
             </label>
             <input id="nk-anrede" value={anrede} onChange={(e) => setAnrede(e.target.value)} className={eingabeKlasse} />
           </div>
@@ -286,8 +304,8 @@ export function VorauszahlungAnpassung({
           <p className="mb-2 text-[8pt] text-neutral-600 underline">{absenderZeilen.join(" · ") || "Absender"}</p>
           <div className="flex items-start justify-between">
             <div className="mt-2 min-h-[40mm]">
-              {brief.mieterNamen.map((n) => (
-                <p key={n}>{n}</p>
+              {brief.mieter.map((m) => (
+                <p key={`${m.vorname} ${m.nachname}`}>{empfaengerZeile(m)}</p>
               ))}
               <p>{brief.strasse}</p>
               <p>{brief.plzOrt}</p>

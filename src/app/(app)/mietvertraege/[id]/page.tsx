@@ -348,7 +348,7 @@ export default async function MietvertragDetailPage({
         nkDaten={nkDaten}
         vorauszahlungBrief={{
           mietvertragId: vertrag.id,
-          mieterNamen: vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`),
+          mieter: vertrag.mieter.map((m) => ({ anrede: m.anrede, vorname: m.vorname, nachname: m.nachname })),
           strasse: `${vertrag.einheit.gebaeude.strasse} ${vertrag.einheit.gebaeude.hausnummer}`,
           plzOrt: `${vertrag.einheit.gebaeude.objekt.plz} ${vertrag.einheit.gebaeude.objekt.ort}`,
           einheit: vertrag.einheit.bezeichnung,
