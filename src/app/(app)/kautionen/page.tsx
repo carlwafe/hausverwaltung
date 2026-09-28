@@ -90,8 +90,11 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   // vorliegt, aber nie eine "Einzahlung Mieter"-Buchung erfasst wurde — typischerweise, weil die
   // tatsächliche Einzahlung fälschlich als normale Zahlung statt als Kautionsbuchung importiert
   // wurde. Ohne diese Warnung fällt so ein Fall sonst nur auf, wenn man gezielt danach sucht.
-  function warnungFuer(summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number } | undefined): string | null {
-    if (!summen || summen.einzahlung > 0) return null;
+  function warnungFuer(
+    summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number } | undefined,
+    einzahlungUnbekannt = false,
+  ): string | null {
+    if (!summen || summen.einzahlung > 0 || einzahlungUnbekannt) return null;
     if (summen.anlage === 0 && summen.aufgeloest === 0 && summen.ausgezahlt === 0 && summen.verrechnet === 0) return null;
     return "Keine Einzahlung des Mieters in den Kautionsbuchungen gefunden — vermutlich wurde die tatsächliche Einzahlung fälschlich als normale Zahlung importiert.";
   }
@@ -124,7 +127,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       verrechnet,
       einbehalten,
       status,
-      warnung: warnungFuer(summen),
+      warnung: warnungFuer(summen, k.einzahlungUnbekannt),
     };
   });
 

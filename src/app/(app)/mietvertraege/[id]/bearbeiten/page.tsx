@@ -97,6 +97,7 @@ export default async function MietvertragBearbeitenPage({
           kautionBetrag: vertrag.kaution?.betrag.toString() ?? "",
           kautionAnlageform: vertrag.kaution?.anlageform ?? "KAUTIONSKONTO",
           kautionZinssatz: vertrag.kaution?.zinssatz?.toString() ?? "",
+          kautionEinzahlungUnbekannt: vertrag.kaution?.einzahlungUnbekannt ?? false,
           saldovortrag: vertrag.saldovortrag.toString(),
         }}
         action={updateMietvertrag.bind(null, id)}

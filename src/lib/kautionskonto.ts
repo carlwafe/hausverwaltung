@@ -5,6 +5,8 @@
 //
 // Wirkung auf das Guthaben des Mieters:
 //  - KAUTION_EINZAHLUNG: + (Einzahlung des Mieters)
+//  - Einzahlung vor Buchhaltungsbeginn (Kaution.einzahlungUnbekannt, keine Journalbuchung): + sollBetrag,
+//    als erste Zeile ohne Datum
 //  - KAUTION_ANLAGE / KAUTION_AUFLOESUNG: 0 (nur Umbuchung zwischen Geschäfts- und Kautionskonto)
 //  - KAUTION_AUSZAHLUNG / KAUTION_VIRTUELLE_AUSZAHLUNG: − (an den Mieter bzw. für ihn bezahlt)
 //  - KAUTION_SONSTIGES: mit Buchungsvorzeichen (z.B. Zinsen +, Kontoführungsgebühr −)
@@ -96,6 +98,8 @@ function formatDatum(d: Date) {
 
 export function baueKautionskonto(input: {
   sollBetrag: number | null;
+  // Kaution.einzahlungUnbekannt — nur wirksam, solange keine KAUTION_EINZAHLUNG gebucht ist.
+  einzahlungUnbekannt?: boolean;
   bewegungen: KautionBewegung[];
   einbehalte: KautionEinbehaltEingabe[];
 }): Kautionskonto {
@@ -180,6 +184,23 @@ export function baueKautionskonto(input: {
     }
   }
 
+  // Einzahlung aus der Zeit vor dem Buchhaltungsbeginn: steht nicht im Journal, gilt aber als in
+  // Höhe des Kaution-Solls erfolgt. Wird nach dem Sortieren vorangestellt (ohne Datum würde sie
+  // sonst ans Ende rutschen).
+  const vorBuchhaltung: Roh | null =
+    input.einzahlungUnbekannt && eingezahlt === 0 && input.sollBetrag
+      ? {
+          id: "einzahlung-vor-buchhaltung",
+          datum: null,
+          vorgang: "Einzahlung Mieter",
+          bemerkung: "vor Buchhaltungsbeginn, Datum unbekannt",
+          buchungsbetrag: null,
+          wirkung: input.sollBetrag,
+          art: "einzahlung",
+        }
+      : null;
+  if (vorBuchhaltung) eingezahlt += vorBuchhaltung.wirkung;
+
   // Chronologisch; ohne Datum ans Ende. Bei gleichem Datum Einzahlungen vor Abgängen.
   const reihenfolge: Record<KautionskontoZeile["art"], number> = {
     einzahlung: 0,
@@ -195,6 +216,7 @@ export function baueKautionskonto(input: {
     const tb = b.datum ? b.datum.getTime() : Number.POSITIVE_INFINITY;
     return ta - tb || reihenfolge[a.art] - reihenfolge[b.art];
   });
+  if (vorBuchhaltung) roh.unshift(vorBuchhaltung);
   let stand = 0;
   const zeilen = roh.map((z) => {
     stand = r2(stand + z.wirkung);

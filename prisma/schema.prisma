@@ -409,6 +409,11 @@ model Kaution {
   anlageform          KautionAnlageform @default(KAUTIONSKONTO)
   zinssatz            Decimal?          @db.Decimal(5, 2)
   einzahlungsdatum    DateTime?
+  // Die Einzahlung des Mieters liegt vor dem Buchhaltungsbeginn (Objekt.buchhaltungAb) und ist
+  // deshalb nicht als KAUTION_EINZAHLUNG im Journal — Datum unbekannt, Betrag = betrag. Das
+  // Kautionskonto rechnet dann mit einer Anfangs-Einzahlung in Höhe von betrag, und die
+  // "keine Einzahlung gefunden"-Warnung auf /kautionen entfällt.
+  einzahlungUnbekannt Boolean           @default(false)
   // Wann/mit welchem Betrag das Kautionskonto aufgelöst wurde (Status AUFGELOEST) — meist eine
   // Überweisung des vollen hinterlegten Betrags auf das normale Konto, von dort ggf. erst später
   // (teilweise) an den Mieter ausgezahlt. Optional: nicht jede Kaution läuft über ein separates

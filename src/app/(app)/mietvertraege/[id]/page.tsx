@@ -215,6 +215,7 @@ export default async function MietvertragDetailPage({
   });
   const kautionskonto = baueKautionskonto({
     sollBetrag: vertrag.kaution ? Number(vertrag.kaution.betrag) : null,
+    einzahlungUnbekannt: vertrag.kaution?.einzahlungUnbekannt ?? false,
     bewegungen: kautionBuchungen.map((b) => ({
       id: b.id,
       datum: b.datum,
@@ -291,6 +292,7 @@ export default async function MietvertragDetailPage({
                 betragText: formatEuro(Number(vertrag.kaution.betrag)),
                 anlageform: vertrag.kaution.anlageform,
                 zinssatzText: vertrag.kaution.zinssatz ? `${Number(vertrag.kaution.zinssatz)} %` : "–",
+                einzahlungUnbekannt: vertrag.kaution.einzahlungUnbekannt,
               }
             : null
         }

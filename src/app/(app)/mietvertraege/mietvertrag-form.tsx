@@ -22,6 +22,7 @@ type Initial = {
   kautionBetrag?: string;
   kautionAnlageform?: string;
   kautionZinssatz?: string;
+  kautionEinzahlungUnbekannt?: boolean;
   saldovortrag?: string;
 };
 
@@ -60,6 +61,9 @@ export function MietvertragForm({
   const [kautionBetrag, setKautionBetrag] = useState(initial?.kautionBetrag ?? "");
   const [kautionAnlageform, setKautionAnlageform] = useState(initial?.kautionAnlageform ?? "KAUTIONSKONTO");
   const [kautionZinssatz, setKautionZinssatz] = useState(initial?.kautionZinssatz ?? "");
+  const [kautionEinzahlungUnbekannt, setKautionEinzahlungUnbekannt] = useState(
+    initial?.kautionEinzahlungUnbekannt ?? false,
+  );
   const [saldovortrag, setSaldovortrag] = useState(initial?.saldovortrag ?? "0");
 
   return (
@@ -289,6 +293,16 @@ export function MietvertragForm({
             />
           </div>
         </div>
+        <label className="mt-4 flex items-center gap-2 text-sm text-neutral-300">
+          <input
+            type="checkbox"
+            name="kautionEinzahlungUnbekannt"
+            checked={kautionEinzahlungUnbekannt}
+            onChange={(e) => setKautionEinzahlungUnbekannt(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-neutral-700 bg-transparent"
+          />
+          Einzahlung vor Buchhaltungsbeginn erfolgt (Datum unbekannt, keine Buchung im Journal)
+        </label>
       </fieldset>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
