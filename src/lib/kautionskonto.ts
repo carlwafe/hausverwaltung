@@ -10,7 +10,9 @@
 //  - KAUTION_ANLAGE / KAUTION_AUFLOESUNG: 0 (nur Umbuchung zwischen Geschäfts- und Kautionskonto);
 //    eine positive (eingehende) KAUTION_ANLAGE ist eine Rückbuchung vom Kautionskonto (z.B. doppelt
 //    angelegt, Kontowechsel) und mindert den angelegten Betrag, statt das Mietverhältnis aufzulösen
-//  - KAUTION_AUSZAHLUNG / KAUTION_VIRTUELLE_AUSZAHLUNG: − (an den Mieter bzw. für ihn bezahlt)
+//  - KAUTION_AUSZAHLUNG / KAUTION_VIRTUELLE_AUSZAHLUNG: − (an den Mieter bzw. für ihn bezahlt); eine
+//    positive KAUTION_AUSZAHLUNG ist eine zurückgekommene Auszahlung (Rücküberweisung, z.B. "Konto
+//    aufgelöst") und mindert die ausgezahlte Summe wieder
 //  - KAUTION_SONSTIGES: mit Buchungsvorzeichen (z.B. Zinsen +, Kontoführungsgebühr −)
 //  - Einbehalt (unstrittig/bestätigt): −; strittig offen: vorläufig zurückbehalten, noch ohne
 //    Wirkung auf den Stand; verworfen: ohne Wirkung.
@@ -140,9 +142,14 @@ export function baueKautionskonto(input: {
         art: "umbuchung",
       });
     } else if (b.code === "KAUTION_AUSZAHLUNG" || b.code === "KAUTION_VIRTUELLE_AUSZAHLUNG") {
-      const w = -Math.abs(b.betrag);
       const virtuell = b.code === "KAUTION_VIRTUELLE_AUSZAHLUNG";
-      const text = virtuell ? "Verrechnet mit bezahlter Rechnung" : "Auszahlung an Mieter";
+      // Echte Auszahlung mit Bankvorzeichen: ausgehend mindert, eine Rücküberweisung (positiv) erhöht.
+      const w = virtuell ? -Math.abs(b.betrag) : b.betrag;
+      const text = virtuell
+        ? "Verrechnet mit bezahlter Rechnung"
+        : w > 0
+          ? "Auszahlung zurückgekommen"
+          : "Auszahlung an Mieter";
       ausgezahlt.push({ text, betrag: -w, datum: b.datum, hinweis: b.verwendungszweck ?? undefined });
       roh.push({ id: b.id, datum: b.datum, vorgang: text, bemerkung, buchungsbetrag: b.betrag, wirkung: w, art: "auszahlung" });
     } else {

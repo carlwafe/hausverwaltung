@@ -78,8 +78,10 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // VIRTUELLE_AUSZAHLUNG zählt genauso wie eine echte Auszahlung Mieter — der Betrag ist der
     // Kaution trotzdem endgültig entzogen, nur ohne eigene Kontobewegung (siehe Gegenbuchung auf
     // der Kosten-Seite, jetzt Buchung.bezugId).
-    else if (code === "KAUTION_AUSZAHLUNG" || code === "KAUTION_VIRTUELLE_AUSZAHLUNG")
-      eintrag.ausgezahlt += Math.abs(betrag);
+    // Eine echte Auszahlung zählt mit Bankvorzeichen: eine Rücküberweisung (positiv, z.B. "Konto
+    // aufgelöst") mindert die ausgezahlte Summe wieder, statt als zweite Auszahlung zu zählen.
+    else if (code === "KAUTION_AUSZAHLUNG") eintrag.ausgezahlt -= betrag;
+    else if (code === "KAUTION_VIRTUELLE_AUSZAHLUNG") eintrag.ausgezahlt += Math.abs(betrag);
     // Mit der Nebenkostenabrechnung verrechneter Einbehalt (KAUTION_EINBEHALT mit Abrechnungsjahr,
     // siehe NK_VERRECHNUNG_BEZUG): der Betrag ist dem Kautionsrest ebenfalls entzogen und mindert
     // deshalb "Einbehalten". Ein einfacher Einbehalt ohne Abrechnungsjahr bleibt dagegen Teil des
