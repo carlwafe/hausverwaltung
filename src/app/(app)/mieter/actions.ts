@@ -56,6 +56,25 @@ export async function updateMieter(id: string, formData: FormData) {
   redirect("/mieter");
 }
 
+/** Anrede vieler Mieter auf einmal setzen (Seite /mieter/anrede) — Felder "anrede_<mieterId>". */
+export async function speichereAnreden(formData: FormData): Promise<string> {
+  await requireEditor();
+  const wunsch = new Map<string, "FRAU" | "HERR" | null>();
+  for (const [key, wert] of formData.entries()) {
+    if (!key.startsWith("anrede_")) continue;
+    if (wert !== "" && wert !== "FRAU" && wert !== "HERR") throw new Error("Ungültige Anrede");
+    wunsch.set(key.slice("anrede_".length), wert === "" ? null : wert);
+  }
+  const bestehend = await prisma.mieter.findMany({ where: { id: { in: [...wunsch.keys()] } }, select: { id: true, anrede: true } });
+  const aenderungen = bestehend.filter((m) => m.anrede !== wunsch.get(m.id));
+  await prisma.$transaction(aenderungen.map((m) => prisma.mieter.update({ where: { id: m.id }, data: { anrede: wunsch.get(m.id) } })));
+
+  revalidatePath("/mieter");
+  revalidatePath("/mieter/anrede");
+  revalidatePath("/mietvertraege", "layout");
+  return `${aenderungen.length} Anrede${aenderungen.length === 1 ? "" : "n"} gespeichert.`;
+}
+
 export async function deleteMieter(id: string) {
   await requireEditor();
   await prisma.mieter.delete({ where: { id } });
