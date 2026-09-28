@@ -9,13 +9,6 @@ function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-const ANLAGEFORM_LABEL: Record<string, string> = {
-  KAUTIONSKONTO: "Kautionskonto",
-  SPARBUCH: "Sparbuch",
-  BUERGSCHAFT: "Bürgschaft",
-  BAR: "Bar",
-};
-
 const STATUS_LABEL = {
   AKTIV: "Aktiv",
   AUFGELOEST: "Aufgelöst, Rest offen",
@@ -154,13 +147,6 @@ const columns: Column<KautionRow>[] = [
         )}
       </span>
     ),
-  },
-  {
-    key: "anlageform",
-    label: "Anlageform",
-    sortValue: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] : ""),
-    searchValue: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] : ""),
-    render: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] : "–"),
   },
   {
     key: "zinssatz",
