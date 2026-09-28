@@ -7,7 +7,9 @@
 //  - KAUTION_EINZAHLUNG: + (Einzahlung des Mieters)
 //  - Einzahlung vor Buchhaltungsbeginn (Kaution.einzahlungUnbekannt, keine Journalbuchung): + sollBetrag,
 //    als erste Zeile ohne Datum
-//  - KAUTION_ANLAGE / KAUTION_AUFLOESUNG: 0 (nur Umbuchung zwischen Geschäfts- und Kautionskonto)
+//  - KAUTION_ANLAGE / KAUTION_AUFLOESUNG: 0 (nur Umbuchung zwischen Geschäfts- und Kautionskonto);
+//    eine positive (eingehende) KAUTION_ANLAGE ist eine Rückbuchung vom Kautionskonto (z.B. doppelt
+//    angelegt, Kontowechsel) und mindert den angelegten Betrag, statt das Mietverhältnis aufzulösen
 //  - KAUTION_AUSZAHLUNG / KAUTION_VIRTUELLE_AUSZAHLUNG: − (an den Mieter bzw. für ihn bezahlt)
 //  - KAUTION_SONSTIGES: mit Buchungsvorzeichen (z.B. Zinsen +, Kontoführungsgebühr −)
 //  - Einbehalt (unstrittig/bestätigt): −; strittig offen: vorläufig zurückbehalten, noch ohne
@@ -121,12 +123,17 @@ export function baueKautionskonto(input: {
       roh.push({ id: b.id, datum: b.datum, vorgang: "Einzahlung Mieter", bemerkung, buchungsbetrag: b.betrag, wirkung: w, art: "einzahlung" });
     } else if (b.code === "KAUTION_ANLAGE" || b.code === "KAUTION_AUFLOESUNG") {
       const istAnlage = b.code === "KAUTION_ANLAGE";
-      if (istAnlage) anlage += Math.abs(b.betrag);
+      // Anlage mit Bankvorzeichen: ausgehend (negativ) erhöht, Rückbuchung (positiv) mindert.
+      if (istAnlage) anlage -= b.betrag;
       else aufloesung += Math.abs(b.betrag);
       roh.push({
         id: b.id,
         datum: b.datum,
-        vorgang: istAnlage ? "Anlage auf Kautionskonto" : "Auflösung Kautionskonto",
+        vorgang: !istAnlage
+          ? "Auflösung Kautionskonto"
+          : b.betrag > 0
+            ? "Rückbuchung vom Kautionskonto"
+            : "Anlage auf Kautionskonto",
         bemerkung,
         buchungsbetrag: b.betrag,
         wirkung: 0,

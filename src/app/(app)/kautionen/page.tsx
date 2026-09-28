@@ -68,7 +68,9 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // Einzahlung des Mieters voraus. Wird unten als Fallback-Betrag für einen fehlenden
     // Kaution-Stammdatensatz genutzt und liefert außerdem das Signal für die "keine Einzahlung
     // gefunden"-Warnung (siehe warnungFuer).
-    else if (code === "KAUTION_ANLAGE") eintrag.anlage += Math.abs(betrag);
+    // Mit Bankvorzeichen: eine positive Anlage ist eine Rückbuchung vom Kautionskonto (siehe
+    // kautionskonto.ts) und mindert den angelegten Betrag.
+    else if (code === "KAUTION_ANLAGE") eintrag.anlage -= betrag;
     // Auflösung/Auszahlung kommen aus dem Kontoauszug mit ihrem tatsächlichen Vorzeichen
     // (Auflösung eingehend = positiv, Auszahlung ausgehend = negativ) — hier auf positive
     // Beträge normalisiert, damit "Einbehalten" als einfache Differenz berechnet werden kann.
@@ -96,7 +98,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     einzahlungUnbekannt = false,
   ): string | null {
     if (!summen || summen.einzahlung > 0 || einzahlungUnbekannt) return null;
-    if (summen.anlage === 0 && summen.aufgeloest === 0 && summen.ausgezahlt === 0 && summen.verrechnet === 0) return null;
+    if (Math.abs(summen.anlage) < TOLERANZ && summen.aufgeloest === 0 && summen.ausgezahlt === 0 && summen.verrechnet === 0) return null;
     return "Keine Einzahlung des Mieters in den Kautionsbuchungen gefunden — vermutlich wurde die tatsächliche Einzahlung fälschlich als normale Zahlung importiert.";
   }
 
@@ -161,7 +163,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       // Kein Kaution-Stammdatensatz vorhanden — die Anlage-Buchung (interne Überweisung
       // Geschäfts- -> Kautionskonto) ist der verlässlichste Hinweis auf den eigentlich gemeinten
       // Betrag, sonst 0.
-      betrag: summen.anlage,
+      betrag: Math.round(summen.anlage * 100) / 100,
       betragAbweichung: false,
       einzahlungSumme: summen.einzahlung > 0 ? summen.einzahlung : null,
       anlageform: null,

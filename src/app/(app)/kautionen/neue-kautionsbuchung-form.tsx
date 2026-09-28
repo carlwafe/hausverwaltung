@@ -16,7 +16,7 @@ const EINBEHALT_STATUS_OPTIONEN: { value: string; label: string }[] = [
 
 const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "EINZAHLUNG_MIETER", label: "Einzahlung Mieter (eingehend)" },
-  { value: "ANLAGE", label: "Anlage aufs Kautionskonto (ausgehend)" },
+  { value: "ANLAGE", label: "Anlage aufs Kautionskonto (ausgehend; positiv = Rückbuchung)" },
   { value: "AUFLOESUNG", label: "Auflösung vom Kautionskonto (eingehend)" },
   { value: "AUSZAHLUNG_MIETER", label: "Auszahlung Mieter (ausgehend)" },
   { value: "SONSTIGES", label: "Sonstiges (z.B. Korrektur)" },
