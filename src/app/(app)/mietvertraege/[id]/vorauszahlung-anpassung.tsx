@@ -24,6 +24,11 @@ function ausIso(iso: string): Date | null {
 // Absender wird nur im Browser gemerkt (steht nirgends in den Stammdaten) — reine Bequemlichkeit.
 const ABSENDER_KEY = "nk-schreiben-absender";
 
+// Standard-Zuschlag auf die rechnerische Vorauszahlung (Entscheidung des Eigentümers) — je Schreiben
+// änderbar, 0 = kein Zuschlag. Rechtlich angreifbar, siehe Hinweis in vorauszahlung-vorschlag.ts.
+const STANDARD_ZUSCHLAG_PROZENT = "5";
+const STANDARD_ZUSCHLAG_GRUND = "allgemein steigende Energie- und Betriebskosten";
+
 export type VorauszahlungBriefDaten = {
   mietvertragId: string;
   mieterNamen: string[];
@@ -62,8 +67,8 @@ export function VorauszahlungAnpassung({
 }) {
   const [gueltigAbIso, setGueltigAbIso] = useState(() => isoDatum(vorgeschlagenesGueltigAb()));
   const [briefdatumIso, setBriefdatumIso] = useState(() => isoDatum(new Date()));
-  const [zuschlag, setZuschlag] = useState("0");
-  const [zuschlagGrund, setZuschlagGrund] = useState("");
+  const [zuschlag, setZuschlag] = useState(STANDARD_ZUSCHLAG_PROZENT);
+  const [zuschlagGrund, setZuschlagGrund] = useState(STANDARD_ZUSCHLAG_GRUND);
   const [absender, setAbsender] = useState("");
   const [anrede, setAnrede] = useState("Sehr geehrte Damen und Herren,");
   const [betragEigen, setBetragEigen] = useState<string | null>(null);
@@ -146,7 +151,7 @@ export function VorauszahlungAnpassung({
                 <td className="py-1 text-right text-white">{formatEuro(bisher.nebenkostenVorauszahlung)}</td>
               </tr>
               <tr className="border-t border-neutral-700 font-medium">
-                <td className="py-1.5 pr-4 text-white">Vorschlag (aufgerundet auf volle Euro)</td>
+                <td className="py-1.5 pr-4 text-white">Vorschlag{zuschlagProzent > 0 && ` (inkl. ${String(zuschlagProzent).replace(".", ",")} % Zuschlag)`}, aufgerundet</td>
                 <td className="py-1.5 text-right text-white">{formatEuro(vorschlag.vorschlag)}</td>
               </tr>
             </tbody>
@@ -198,8 +203,8 @@ export function VorauszahlungAnpassung({
                 className={eingabeKlasse}
               />
               <p className="mt-1 text-xs text-amber-400">
-                Ein pauschaler Sicherheitszuschlag ist unzulässig (BGH VIII ZR 294/10) — nur bei konkret absehbaren
-                Kostensteigerungen.
+                Pauschale Zuschläge sind nach BGH (VIII ZR 294/10) angreifbar — bei einem konkreten Grund (z.B.
+                angekündigte Preiserhöhung) diesen hier eintragen.
               </p>
             </div>
           )}
@@ -311,7 +316,7 @@ export function VorauszahlungAnpassung({
               {zuschlagProzent > 0 && (
                 <tr>
                   <td className="py-0.5">
-                    zzgl. {String(zuschlagProzent).replace(".", ",")} % für absehbare Kostensteigerungen
+                    zzgl. {String(zuschlagProzent).replace(".", ",")} % Zuschlag
                     {zuschlagGrund && ` (${zuschlagGrund})`}
                   </td>
                   <td className="py-0.5 text-right">

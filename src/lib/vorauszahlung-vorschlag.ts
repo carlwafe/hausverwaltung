@@ -2,9 +2,10 @@
 // (§ 560 Abs. 4 BGB: Anpassung auf eine "angemessene Höhe" per Erklärung in Textform). Maßstab ist
 // der Kostenanteil des Mieters aus der letzten Abrechnung, auf ein volles Jahr hochgerechnet.
 //
-// Ein pauschaler Sicherheitszuschlag (z.B. 10 %) ist nach BGH (VIII ZR 294/10) nicht zulässig —
-// ein Zuschlag nur, wenn konkrete Kostensteigerungen absehbar sind (z.B. angekündigte Preiserhöhung
-// des Versorgers). Deshalb ist er hier standardmäßig 0 und muss bewusst gesetzt werden.
+// Zuschlag: Die Oberfläche setzt auf Wunsch des Eigentümers standardmäßig 5 % an. Ein pauschaler
+// Sicherheitszuschlag ist nach BGH (VIII ZR 294/10) allerdings angreifbar — sauber nur bei konkret
+// absehbaren Kostensteigerungen (z.B. angekündigte Preiserhöhung des Versorgers), deren Grund dann im
+// Schreiben steht. Folge eines zu hohen Ansatzes: nur der überhöhte Teil ist unwirksam.
 
 export type VorauszahlungVorschlagEingabe = {
   jahr: number;
