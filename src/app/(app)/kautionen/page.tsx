@@ -42,7 +42,10 @@ const CODE_ZU_KATEGORIE: Record<string, KautionBuchungKategorie> = {
 async function ladeKautionen(): Promise<KautionRow[]> {
   const [kautionen, buchungen] = await Promise.all([
     prisma.kaution.findMany({
-      include: { mietvertrag: { include: { einheit: true, mieter: true } } },
+      include: {
+        mietvertrag: { include: { einheit: true, mieter: true } },
+        einbehalte: { where: { pauschal: true }, select: { betrag: true } },
+      },
     }),
     prisma.buchung.findMany({
       where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
@@ -114,8 +117,16 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
     // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
     const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt - verrechnet) * 100) / 100 : null;
+    // Erledigt, sobald der einbehaltene Rest vollständig aus pauschalen, dem Vermieter endgültig
+    // gutgeschriebenen Einbehalten besteht — ein vorläufiger Einbehalt (Rechnung folgt noch) oder ein
+    // unbegründeter Rest lässt den Fall offen.
+    const pauschalEinbehalten = k.einbehalte.reduce((s, e) => s + Number(e.betrag), 0);
     const status: KautionRow["status"] =
-      aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+      aufgeloest === 0
+        ? "AKTIV"
+        : einbehalten !== null && einbehalten - pauschalEinbehalten <= TOLERANZ
+          ? "ERLEDIGT"
+          : "AUFGELOEST";
 
     return {
       id: k.id,
@@ -283,6 +294,7 @@ async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
       status: e.status,
       nkJahr: e.bezugTyp === "Nebenkostenabrechnung" && e.bezugId ? Number(e.bezugId) : null,
       gebucht: e.buchungId !== null,
+      pauschal: e.pauschal,
     },
   }));
 }

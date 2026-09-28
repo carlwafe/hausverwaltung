@@ -22,7 +22,11 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "SONSTIGES", label: "Sonstiges (z.B. Korrektur)" },
   {
     value: "EINBEHALT",
-    label: "Einbehalt (Kaution einbehalten, z.B. für einen Schaden)",
+    label: "Einbehalt, vorläufig (z.B. Reparatur, Rechnung folgt noch)",
+  },
+  {
+    value: "EINBEHALT_PAUSCHAL",
+    label: "Einbehalt, pauschal — dem Vermieter gutgeschrieben (z.B. Abnutzung, Sperrmüll ohne Rechnung)",
   },
   {
     value: "VERRECHNUNG_NK",
@@ -65,9 +69,12 @@ export function NeueKautionsbuchungForm({
   // solange das Datum noch nicht ausgefüllt ist).
   const gutschriftenAmTag = datum ? virtuelleGutschriften.filter((g) => g.datumISO === datum) : [];
 
-  const istEinbehalt = kategorie === "EINBEHALT";
+  const istPauschal = kategorie === "EINBEHALT_PAUSCHAL";
+  // Vorläufiger und pauschaler Einbehalt brauchen beide eine Begründung; nur der vorläufige hat
+  // einen wählbaren Streit-Status (pauschal ist immer unstrittig).
+  const istEinbehalt = kategorie === "EINBEHALT" || istPauschal;
   const istNkVerrechnung = kategorie === "VERRECHNUNG_NK";
-  // Beide erzeugen intern einen KautionEinbehalt — die Verrechnung ist ein unstrittiger Einbehalt
+  // Alle erzeugen intern einen KautionEinbehalt — die Verrechnung ist ein unstrittiger Einbehalt
   // mit Bezug auf ein Abrechnungsjahr.
   const erzeugtEinbehalt = istEinbehalt || istNkVerrechnung;
 
@@ -83,7 +90,8 @@ export function NeueKautionsbuchungForm({
           text || `Verrechnung mit Nebenkostenabrechnung ${formData.get("nkJahr") ?? ""}`.trim(),
         );
         formData.set("betrag", String(Math.abs(Number(formData.get("betrag")))));
-        formData.set("status", istNkVerrechnung ? "UNSTRITTIG" : einbehaltStatus);
+        formData.set("status", istNkVerrechnung || istPauschal ? "UNSTRITTIG" : einbehaltStatus);
+        if (istPauschal) formData.set("pauschal", "on");
       }
       const ergebnis = erzeugtEinbehalt
         ? await erfasseKautionEinbehalt(null, formData)
@@ -195,7 +203,7 @@ export function NeueKautionsbuchungForm({
             />
           </div>
         )}
-        {istEinbehalt && (
+        {istEinbehalt && !istPauschal && (
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="einbehalt-status">
               Status

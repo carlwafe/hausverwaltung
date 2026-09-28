@@ -9,6 +9,7 @@ import {
   deleteKautionsbuchungen,
   aendereKautionEinbehaltStatus,
   loescheKautionEinbehalt,
+  setzeKautionEinbehaltPauschal,
   teileKautionsbuchungAuf,
   type KautionEinbehaltStatus,
 } from "./actions";
@@ -80,13 +81,15 @@ export type KautionsbuchungRow = {
     nkJahr: number | null;
     // Zurückbehaltungsrecht: nur unstrittige/bestätigte Einbehalte erzeugen eine echte Buchung.
     gebucht: boolean;
+    // Pauschal dem Vermieter gutgeschrieben (endgültig) statt vorläufig bis zur Rechnung.
+    pauschal: boolean;
   } | null;
 };
 
 function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
   const [pending, startTransition] = useTransition();
   if (k.einbehalt) {
-    const { status, nkJahr, gebucht } = k.einbehalt;
+    const { status, nkJahr, gebucht, pauschal } = k.einbehalt;
     // Verrechnung mit einer NK-Abrechnung: ein unstrittiger Einbehalt mit Abrechnungsjahr — hat
     // keinen Streit-Status, den man hier umstellen müsste.
     if (nkJahr) {
@@ -96,9 +99,34 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
         </span>
       );
     }
+    const artSelect = (
+      <select
+        value={pauschal ? "pauschal" : "vorlaeufig"}
+        disabled={pending}
+        onChange={(e) => startTransition(() => setzeKautionEinbehaltPauschal(k.id, e.target.value === "pauschal"))}
+        title="Vorläufig: wartet auf eine Rechnung (dann stornieren und als virtuelle Auszahlung anlegen). Pauschal: dem Vermieter endgültig gutgeschrieben."
+        className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400 disabled:opacity-50"
+      >
+        <option value="vorlaeufig" className="bg-neutral-900 text-white">
+          vorläufig
+        </option>
+        <option value="pauschal" className="bg-neutral-900 text-white">
+          pauschal gutgeschrieben
+        </option>
+      </select>
+    );
+    if (pauschal) {
+      return (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Einbehalt</span>
+          {artSelect}
+        </div>
+      );
+    }
     return (
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">Einbehalt</span>
+        {artSelect}
         <select
           value={status}
           disabled={pending}
@@ -145,7 +173,9 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
 }
 
 function kategorieText(k: KautionsbuchungRow) {
-  return k.einbehalt?.nkJahr ? `Verrechnung mit NK-Abrechnung ${k.einbehalt.nkJahr}` : KATEGORIE_LABEL[k.kategorie];
+  if (k.einbehalt?.nkJahr) return `Verrechnung mit NK-Abrechnung ${k.einbehalt.nkJahr}`;
+  if (k.einbehalt) return k.einbehalt.pauschal ? "Einbehalt pauschal gutgeschrieben" : "Einbehalt vorläufig";
+  return KATEGORIE_LABEL[k.kategorie];
 }
 
 const columns: Column<KautionsbuchungRow>[] = [

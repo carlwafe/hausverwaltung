@@ -491,6 +491,11 @@ model KautionEinbehalt {
   // storniert und dieser Verweis wieder auf null gesetzt.
   buchung           Buchung?               @relation(fields: [buchungId], references: [id], onDelete: SetNull)
   buchungId         String?                @unique
+  // Pauschal einbehalten und dem Vermieter endgültig gutgeschrieben (z.B. Abnutzung, Sperrmüll-
+  // entsorgung ohne eigene Rechnung) — im Unterschied zu einem vorläufigen Einbehalt, der noch auf
+  // eine Rechnung wartet und dann storniert + als virtuelle Auszahlung neu angelegt wird. Buchung
+  // wie jeder unstrittige Einbehalt (Einnahme); zählt auf /kautionen als abgeschlossen.
+  pauschal          Boolean                @default(false)
 
   @@index([kautionId])
   @@map("kaution_einbehalte")

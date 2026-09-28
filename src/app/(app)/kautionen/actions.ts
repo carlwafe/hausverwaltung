@@ -234,6 +234,7 @@ const einbehaltSchema = z.object({
   // Nebenkostenabrechnung, mit der er verrechnet wurde (deckt deren Nachzahlung).
   datum: z.string().optional(),
   nkJahr: z.coerce.number().int().min(2000).max(2100).optional(),
+  pauschal: z.boolean().optional(),
 });
 
 // Zurückbehaltungsrecht: nur ein unstrittiger oder bestätigter Einbehalt darf eine echte Buchung
@@ -303,11 +304,15 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
     status: formData.get("status"),
     datum: formData.get("datum") || undefined,
     nkJahr: formData.get("nkJahr") || undefined,
+    pauschal: formData.get("pauschal") === "on",
   });
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
-  const { mietvertragId, positionText, betrag, status, nkJahr } = parsed.data;
+  const { mietvertragId, positionText, betrag, nkJahr } = parsed.data;
+  const pauschal = parsed.data.pauschal ?? false;
+  // Ein pauschaler Einbehalt ist per Definition endgültig — also immer unstrittig (gebucht).
+  const status = pauschal ? "UNSTRITTIG" : parsed.data.status;
   const datum = parsed.data.datum ? parseStrengesDatum(parsed.data.datum) : null;
   if (parsed.data.datum && !datum) return "Ungültiges Datum (z.B. 31.02. gibt es nicht).";
 
@@ -326,6 +331,7 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
         datum,
         bezugTyp: nkJahr ? NK_VERRECHNUNG_BEZUG : null,
         bezugId: nkJahr ? String(nkJahr) : null,
+        pauschal,
       },
     });
     await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
@@ -349,7 +355,28 @@ export async function aendereKautionEinbehaltStatus(id: string, status: KautionE
   await prisma.$transaction(async (tx) => {
     const einbehalt = await tx.kautionEinbehalt.update({
       where: { id },
-      data: { status, statusGeaendertAm: new Date() },
+      // Pauschal gilt nur für unstrittige Einbehalte — wird der Streit neu aufgerollt, ist er es nicht mehr.
+      data: { status, statusGeaendertAm: new Date(), ...(status !== "UNSTRITTIG" ? { pauschal: false } : {}) },
+    });
+    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
+  });
+  revalidatePath("/kautionen");
+  revalidatePath("/jahresuebersicht");
+}
+
+// Wechselt zwischen vorläufigem Einbehalt (Rechnung folgt noch) und pauschalem, dem Vermieter
+// endgültig gutgeschriebenem Einbehalt. Pauschal heißt immer unstrittig — ein bisher strittiger
+// Einbehalt wird dabei also gebucht.
+export async function setzeKautionEinbehaltPauschal(id: string, pauschal: boolean) {
+  await requireEditor();
+  await prisma.$transaction(async (tx) => {
+    const bisher = await tx.kautionEinbehalt.findUniqueOrThrow({ where: { id } });
+    const einbehalt = await tx.kautionEinbehalt.update({
+      where: { id },
+      data: {
+        pauschal,
+        ...(pauschal && bisher.status !== "UNSTRITTIG" ? { status: "UNSTRITTIG" as const, statusGeaendertAm: new Date() } : {}),
+      },
     });
     await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
   });
