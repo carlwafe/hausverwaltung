@@ -462,6 +462,10 @@ enum KautionEinbehaltStatus {
   STRITTIG_OFFEN
   STRITTIG_BESTAETIGT
   STRITTIG_VERWORFEN
+  // Die Reparatur wurde tatsächlich durchgeführt und bezahlt: der Einbehalt ist in eine virtuelle
+  // Auszahlung umgewandelt, die die Rechnung (Kostenposition) aus der Kaution begleicht (siehe
+  // virtuelleAuszahlungId). Der Einbehalt selbst bucht dann nichts mehr, sonst zählte er doppelt.
+  VERRECHNET
 }
 
 // Ein einzelner, begründeter Einbehalt bei Auflösung der Kaution (z.B. Schadensersatz, offene
@@ -491,6 +495,10 @@ model KautionEinbehalt {
   // storniert und dieser Verweis wieder auf null gesetzt.
   buchung           Buchung?               @relation(fields: [buchungId], references: [id], onDelete: SetNull)
   buchungId         String?                @unique
+  // Nur bei status VERRECHNET: die KAUTION_VIRTUELLE_AUSZAHLUNG, in die der Einbehalt umgewandelt
+  // wurde (ihre Gutschrift auf der Kosten-Seite verweist per bezugId darauf). Bewusst ohne FK, wie
+  // Buchung.bezugId — Buchungen werden nie gelöscht, nur storniert.
+  virtuelleAuszahlungId String?
 
   @@index([kautionId])
   @@map("kaution_einbehalte")

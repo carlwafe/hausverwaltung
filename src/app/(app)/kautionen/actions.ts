@@ -6,7 +6,7 @@ import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechn
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
-import { storniereBuchung } from "@/lib/buchung-storno";
+import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 
 // "Löschen" heißt beim Storno-Prinzip: die Buchung bleibt stehen, bekommt aber eine
@@ -148,6 +148,44 @@ const kautionsbuchungSchema = z.object({
   verknuepfteKostenpositionId: z.string().optional(),
 });
 
+// Verknüpft eine virtuelle Kautionsauszahlung mit der Kosten-Seite: bei einer bereits vorhandenen
+// Gutschrift (negativer Betrag) nur per bezugId, bei der bezahlten Rechnung selbst (z.B. die
+// Reparatur, die aus der Kaution bezahlt wurde) legt das System die Gutschrift als Gegenbuchung
+// an — die Rechnung bleibt unverändert, die Ausgabe hebt sich in Kontostand, Jahresübersicht und
+// Nebenkostenabrechnung auf.
+async function verknuepfeMitKostenposition(
+  tx: Prisma.TransactionClient,
+  kostenpositionId: string,
+  virtuelleAuszahlungId: string,
+  gutschriftBetrag: number,
+) {
+  const kosten = await tx.buchung.findUniqueOrThrow({ where: { id: kostenpositionId } });
+  if (Number(kosten.betrag) < 0) {
+    await tx.buchung.update({ where: { id: kostenpositionId }, data: { bezugTyp: "Buchung", bezugId: virtuelleAuszahlungId } });
+    return;
+  }
+  if (gutschriftBetrag > Number(kosten.betrag) + 0.005) {
+    throw new Error("Der Kautionsbetrag ist größer als die gewählte Rechnung.");
+  }
+  await tx.buchung.create({
+    data: {
+      buchungsartId: kosten.buchungsartId,
+      kostenartId: kosten.kostenartId,
+      gebaeudeId: kosten.gebaeudeId,
+      hausId: kosten.hausId,
+      kostengruppeId: kosten.kostengruppeId,
+      einheitId: kosten.einheitId,
+      betrag: -gutschriftBetrag,
+      jahr: kosten.jahr,
+      datum: kosten.datum,
+      empfaenger: kosten.empfaenger,
+      verwendungszweck: `Verrechnet mit Kaution: ${kosten.verwendungszweck ?? ""}`.trim(),
+      bezugTyp: "Buchung",
+      bezugId: virtuelleAuszahlungId,
+    },
+  });
+}
+
 // Für Fälle, die sich nicht aus einer einzelnen Kontobuchung ergeben (z.B. ein einbehaltener
 // Kautionsrest, der teils für eine Reparatur verwendet und teils in einer Nebenkostenabrechnung
 // verrechnet wurde, ohne dass dafür je eine als "Kaution" erkennbare Auszahlung überwiesen
@@ -176,39 +214,7 @@ export async function erstelleKautionsbuchung(_prev: string | null, formData: Fo
       data: { mietvertragId, buchungsartId: buchungsart.id, datum, betrag, verwendungszweck },
     });
     if (verknuepfteKostenpositionId) {
-      const kosten = await tx.buchung.findUniqueOrThrow({ where: { id: verknuepfteKostenpositionId } });
-      if (Number(kosten.betrag) < 0) {
-        // Gegenbuchung (Gutschrift) existiert schon — nur verknüpfen.
-        await tx.buchung.update({
-          where: { id: verknuepfteKostenpositionId },
-          data: { bezugTyp: "Buchung", bezugId: buchung.id },
-        });
-      } else {
-        // Die bezahlte Rechnung selbst wurde gewählt (z.B. Reparatur, mit der Kaution verrechnet):
-        // die Gutschrift als Gegenbuchung legt das System an, die Rechnung bleibt unverändert. So
-        // hebt sich die Ausgabe in Kontostand, Jahresübersicht und Nebenkostenabrechnung auf.
-        const gutschriftBetrag = Math.abs(betrag);
-        if (gutschriftBetrag > Number(kosten.betrag) + 0.005) {
-          throw new Error("Der Kautionsbetrag ist größer als die gewählte Rechnung.");
-        }
-        await tx.buchung.create({
-          data: {
-            buchungsartId: kosten.buchungsartId,
-            kostenartId: kosten.kostenartId,
-            gebaeudeId: kosten.gebaeudeId,
-            hausId: kosten.hausId,
-            kostengruppeId: kosten.kostengruppeId,
-            einheitId: kosten.einheitId,
-            betrag: -gutschriftBetrag,
-            jahr: kosten.jahr,
-            datum: kosten.datum,
-            empfaenger: kosten.empfaenger,
-            verwendungszweck: `Verrechnet mit Kaution: ${kosten.verwendungszweck ?? ""}`.trim(),
-            bezugTyp: "Buchung",
-            bezugId: buchung.id,
-          },
-        });
-      }
+      await verknuepfeMitKostenposition(tx, verknuepfteKostenpositionId, buchung.id, Math.abs(betrag));
     }
   });
 
@@ -223,7 +229,9 @@ const EINBEHALT_STATUS_WERTE = [
   "STRITTIG_BESTAETIGT",
   "STRITTIG_VERWORFEN",
 ] as const;
-export type KautionEinbehaltStatus = (typeof EINBEHALT_STATUS_WERTE)[number];
+// VERRECHNET ist bewusst kein wählbarer Status (nicht in EINBEHALT_STATUS_WERTE): er entsteht nur
+// über verrechneEinbehaltMitRechnung, weil dazu die virtuelle Auszahlung angelegt werden muss.
+export type KautionEinbehaltStatus = (typeof EINBEHALT_STATUS_WERTE)[number] | "VERRECHNET";
 
 const einbehaltSchema = z.object({
   mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
@@ -345,8 +353,9 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
 // und sorgt dafür, dass genau für diese beiden Status eine echte Buchung im Journal existiert.
 export async function aendereKautionEinbehaltStatus(id: string, status: KautionEinbehaltStatus) {
   await requireEditor();
-  if (!EINBEHALT_STATUS_WERTE.includes(status)) return;
+  if (!(EINBEHALT_STATUS_WERTE as readonly string[]).includes(status)) return;
   await prisma.$transaction(async (tx) => {
+    await hebeVerrechnungAuf(tx, id);
     const einbehalt = await tx.kautionEinbehalt.update({
       where: { id },
       data: { status, statusGeaendertAm: new Date() },
@@ -354,12 +363,96 @@ export async function aendereKautionEinbehaltStatus(id: string, status: KautionE
     await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
   });
   revalidatePath("/kautionen");
+  revalidatePath("/kosten");
   revalidatePath("/jahresuebersicht");
+}
+
+// Macht die Umwandlung in eine virtuelle Auszahlung rückgängig (Statuswechsel weg von VERRECHNET
+// oder Löschen des Einbehalts): virtuelle Auszahlung und ihre Gutschrift auf der Kosten-Seite
+// werden storniert. Eine schon vorher vorhandene, nur verknüpfte Gutschrift bleibt stehen.
+async function hebeVerrechnungAuf(tx: Prisma.TransactionClient, einbehaltId: string) {
+  const einbehalt = await tx.kautionEinbehalt.findUniqueOrThrow({ where: { id: einbehaltId } });
+  if (!einbehalt.virtuelleAuszahlungId) return;
+  const gutschriften = await tx.buchung.findMany({
+    where: {
+      bezugTyp: "Buchung",
+      bezugId: einbehalt.virtuelleAuszahlungId,
+      verwendungszweck: { startsWith: "Verrechnet mit Kaution" },
+      ...AKTIVE_BUCHUNG_FILTER,
+    },
+    select: { id: true },
+  });
+  for (const g of gutschriften) await storniereBuchung(tx, g.id);
+  await storniereBuchung(tx, einbehalt.virtuelleAuszahlungId);
+  await tx.kautionEinbehalt.update({ where: { id: einbehaltId }, data: { virtuelleAuszahlungId: null } });
+}
+
+/**
+ * Wandelt einen Einbehalt in eine virtuelle Auszahlung um, sobald die Reparatur tatsächlich
+ * durchgeführt und bezahlt ist: die Kaution begleicht die gewählte Rechnung (Gutschrift auf der
+ * Kosten-Seite), der Einbehalt wird VERRECHNET und bucht selbst nichts mehr — so erscheint der
+ * Betrag weder doppelt (Einnahme + Kosten) noch als Kosten, die auf andere Mieter umgelegt würden.
+ */
+export async function verrechneEinbehaltMitRechnung(
+  einbehaltId: string,
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  await requireEditor();
+  const kostenpositionId = String(formData.get("kostenpositionId") ?? "");
+  if (!kostenpositionId) return "Bitte die bezahlte Rechnung auswählen.";
+
+  const einbehalt = await prisma.kautionEinbehalt.findUnique({
+    where: { id: einbehaltId },
+    include: { kaution: { select: { mietvertragId: true } } },
+  });
+  if (!einbehalt) return "Einbehalt nicht gefunden.";
+  if (einbehalt.status === "VERRECHNET") return "Dieser Einbehalt ist bereits mit einer Rechnung verrechnet.";
+  if (einbehalt.status === "STRITTIG_VERWORFEN") return "Ein verworfener Einbehalt kann nicht verrechnet werden.";
+  if (einbehalt.bezugTyp === NK_VERRECHNUNG_BEZUG) return "Dieser Einbehalt ist bereits mit einer Nebenkostenabrechnung verrechnet.";
+
+  const kosten = await prisma.buchung.findUnique({
+    where: { id: kostenpositionId },
+    include: { buchungsart: { select: { code: true } }, storniertZeile: { select: { id: true } } },
+  });
+  if (!kosten || kosten.buchungsart.code !== "KOSTENPOSITION" || kosten.storniertDurchBuchungId || kosten.storniertZeile)
+    return "Die gewählte Kostenposition gibt es nicht (mehr).";
+
+  const betrag = Number(einbehalt.betrag);
+  const virtuellArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KAUTION_VIRTUELLE_AUSZAHLUNG" } });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const virtuell = await tx.buchung.create({
+        data: {
+          mietvertragId: einbehalt.kaution.mietvertragId,
+          buchungsartId: virtuellArt.id,
+          datum: kosten.datum ?? einbehalt.datum ?? new Date(),
+          betrag: -betrag,
+          verwendungszweck: einbehalt.positionText,
+        },
+      });
+      await verknuepfeMitKostenposition(tx, kostenpositionId, virtuell.id, betrag);
+      const aktualisiert = await tx.kautionEinbehalt.update({
+        where: { id: einbehaltId },
+        data: { status: "VERRECHNET", statusGeaendertAm: new Date(), virtuelleAuszahlungId: virtuell.id },
+      });
+      await synchronisiereKautionEinbehaltBuchung(tx, aktualisiert);
+    });
+  } catch (e) {
+    return e instanceof Error ? e.message : "Verrechnen fehlgeschlagen.";
+  }
+
+  revalidatePath("/kautionen");
+  revalidatePath("/kosten");
+  revalidatePath("/jahresuebersicht");
+  revalidatePath(`/mietvertraege/${einbehalt.kaution.mietvertragId}`);
+  return null;
 }
 
 export async function loescheKautionEinbehalt(id: string) {
   await requireEditor();
   await prisma.$transaction(async (tx) => {
+    await hebeVerrechnungAuf(tx, id);
     const einbehalt = await tx.kautionEinbehalt.findUniqueOrThrow({ where: { id } });
     if (einbehalt.buchungId) {
       await storniereBuchung(tx, einbehalt.buchungId);

@@ -8,7 +8,7 @@ import {
 import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { KAUTION_EINBEHALT_BEZUG } from "@/lib/nk-verrechnung";
+import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
@@ -42,7 +42,10 @@ const CODE_ZU_KATEGORIE: Record<string, KautionBuchungKategorie> = {
 async function ladeKautionen(): Promise<KautionRow[]> {
   const [kautionen, buchungen] = await Promise.all([
     prisma.kaution.findMany({
-      include: { mietvertrag: { include: { einheit: true, mieter: true } } },
+      include: {
+        mietvertrag: { include: { einheit: true, mieter: true } },
+        einbehalte: { select: { betrag: true, status: true, bezugTyp: true } },
+      },
     }),
     prisma.buchung.findMany({
       where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
@@ -114,8 +117,20 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
     // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
     const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest - ausgezahlt - verrechnet) * 100) / 100 : null;
+    // Erledigt, sobald der einbehaltene Rest vollständig durch endgültige Einbehalte (unstrittig/
+    // bestätigt, nicht schon über die NK-Abrechnung verrechnet) begründet ist und kein strittiger
+    // Einbehalt mehr offen ist. Verrechnete Einbehalte stecken schon als virtuelle Auszahlung in
+    // "ausgezahlt".
+    const endgueltigEinbehalten = k.einbehalte
+      .filter((e) => (e.status === "UNSTRITTIG" || e.status === "STRITTIG_BESTAETIGT") && e.bezugTyp !== NK_VERRECHNUNG_BEZUG)
+      .reduce((s, e) => s + Number(e.betrag), 0);
+    const strittigOffen = k.einbehalte.some((e) => e.status === "STRITTIG_OFFEN");
     const status: KautionRow["status"] =
-      aufgeloest === 0 ? "AKTIV" : einbehalten !== null && einbehalten <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
+      aufgeloest === 0
+        ? "AKTIV"
+        : einbehalten !== null && einbehalten - endgueltigEinbehalten <= TOLERANZ && !strittigOffen
+          ? "ERLEDIGT"
+          : "AUFGELOEST";
 
     return {
       id: k.id,
@@ -242,7 +257,9 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
 // Gutschriften (negativer Betrag, die Gegenbuchung existiert schon) oder die bezahlte Rechnung
 // selbst (positiver Betrag, z.B. die Reparatur, die mit der Kaution verrechnet wurde) — dann legt
 // das Speichern die Gegenbuchung automatisch an.
-async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string; datumISO: string | null }[]> {
+async function ladeVirtuelleGutschriften(): Promise<
+  { id: string; label: string; datumISO: string | null; betrag: number; verknuepft: boolean }[]
+> {
   const positionen = await prisma.buchung.findMany({
     where: { buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
     orderBy: [{ datum: "desc" }, { erstelltAm: "desc" }],
@@ -254,6 +271,8 @@ async function ladeVirtuelleGutschriften(): Promise<{ id: string; label: string;
       id: k.id,
       label: `${k.datum ? new Intl.DateTimeFormat("de-DE").format(k.datum) : k.jahr} — ${k.kostenart?.name ?? "?"} — ${formatEuro(betrag)} ${betrag < 0 ? "(Gutschrift)" : "(Rechnung)"}${k.empfaenger ? ` — ${k.empfaenger}` : ""}${k.bezugTyp === "Buchung" ? " (bereits verknüpft)" : ""}`,
       datumISO: k.datum ? k.datum.toISOString().slice(0, 10) : null,
+      betrag,
+      verknuepft: k.bezugTyp === "Buchung",
     };
   });
 }
@@ -355,7 +374,10 @@ export default async function KautionenPage() {
           Kautionsbuchungen ({alleBuchungen.length})
         </h2>
         <NeueKautionsbuchungForm mietvertraege={mietvertraege} virtuelleGutschriften={virtuelleGutschriften} />
-        <KautionsbuchungenTable rows={alleBuchungen} />
+        <KautionsbuchungenTable
+          rows={alleBuchungen}
+          rechnungen={virtuelleGutschriften.filter((g) => g.betrag > 0 && !g.verknuepft)}
+        />
       </div>
     </div>
   );

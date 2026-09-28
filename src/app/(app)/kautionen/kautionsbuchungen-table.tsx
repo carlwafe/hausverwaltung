@@ -10,6 +10,7 @@ import {
   aendereKautionEinbehaltStatus,
   loescheKautionEinbehalt,
   teileKautionsbuchungAuf,
+  verrechneEinbehaltMitRechnung,
   type KautionEinbehaltStatus,
 } from "./actions";
 
@@ -38,6 +39,7 @@ const EINBEHALT_STATUS_LABEL: Record<KautionEinbehaltStatus, string> = {
   STRITTIG_OFFEN: "Strittig — offen",
   STRITTIG_BESTAETIGT: "Strittig — bestätigt",
   STRITTIG_VERWORFEN: "Strittig — verworfen",
+  VERRECHNET: "Mit Rechnung verrechnet",
 };
 
 const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
@@ -107,13 +109,17 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
           }
           className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400 disabled:opacity-50"
         >
-          {(Object.keys(EINBEHALT_STATUS_LABEL) as KautionEinbehaltStatus[]).map((st) => (
-            <option key={st} value={st} className="bg-neutral-900 text-white">
-              {EINBEHALT_STATUS_LABEL[st]}
-            </option>
-          ))}
+          {(Object.keys(EINBEHALT_STATUS_LABEL) as KautionEinbehaltStatus[])
+            // "Mit Rechnung verrechnet" entsteht nur über "Mit Rechnung verrechnen…" (legt die
+            // virtuelle Auszahlung an) — hier nur anzeigen; ein anderer Status macht es rückgängig.
+            .filter((st) => st !== "VERRECHNET" || status === "VERRECHNET")
+            .map((st) => (
+              <option key={st} value={st} disabled={st === "VERRECHNET"} className="bg-neutral-900 text-white">
+                {EINBEHALT_STATUS_LABEL[st]}
+              </option>
+            ))}
         </select>
-        {!gebucht && (
+        {!gebucht && status !== "VERRECHNET" && (
           <span
             title="Zurückbehaltungsrecht: solange der Einbehalt nicht unstrittig/bestätigt ist, gibt es keine Buchung auf dem Kautionskonto"
             className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400"
@@ -285,12 +291,87 @@ function AufteilenPanel({ k, onFertig }: { k: KautionsbuchungRow; onFertig: () =
   );
 }
 
-export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] }) {
+/**
+ * Wandelt einen Einbehalt in eine virtuelle Auszahlung um, sobald die Reparatur durchgeführt und
+ * die Rechnung bezahlt ist — die Kaution begleicht dann diese Rechnung (Gutschrift in den Kosten).
+ */
+function VerrechnenPanel({
+  k,
+  rechnungen,
+  onFertig,
+}: {
+  k: KautionsbuchungRow;
+  rechnungen: { id: string; label: string }[];
+  onFertig: () => void;
+}) {
+  const [fehler, formAction, pending] = useActionState(async (prev: string | null, formData: FormData) => {
+    const ergebnis = await verrechneEinbehaltMitRechnung(k.id, prev, formData);
+    if (!ergebnis) onFertig();
+    return ergebnis;
+  }, null);
+
+  return (
+    <form action={formAction} className="mb-3 rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-sm">
+      <p className="mb-2 text-neutral-300">
+        Einbehalt {formatEuro(-k.betrag)} · {k.verwendungszweck} — mit der bezahlten Rechnung verrechnen (wird zur
+        virtuellen Auszahlung, die Rechnung bekommt eine Gutschrift)
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="min-w-0 flex-1 text-xs text-neutral-400">
+          Bezahlte Rechnung
+          <select
+            name="kostenpositionId"
+            required
+            defaultValue=""
+            className="mt-1 block w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+          >
+            <option value="" className="bg-neutral-900">
+              – Rechnung wählen –
+            </option>
+            {rechnungen.map((r) => (
+              <option key={r.id} value={r.id} className="bg-neutral-900">
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-white px-3 py-1.5 font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+        >
+          {pending ? "Verrechne…" : "Verrechnen"}
+        </button>
+        <button type="button" onClick={onFertig} className="pb-1.5 text-neutral-400 hover:text-white">
+          Abbrechen
+        </button>
+      </div>
+      {fehler && <p className="mt-2 text-red-400">{fehler}</p>}
+    </form>
+  );
+}
+
+export function KautionsbuchungenTable({
+  rows,
+  rechnungen,
+}: {
+  rows: KautionsbuchungRow[];
+  // Bezahlte Rechnungen (Kostenpositionen mit positivem Betrag) als Ziel für "Mit Rechnung verrechnen".
+  rechnungen: { id: string; label: string }[];
+}) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KautionsbuchungRow[]>([]);
   const [pending, startTransition] = useTransition();
   const [aufteilen, setAufteilen] = useState<KautionsbuchungRow | null>(null);
-  const aufteilbar =
-    ausgewaehlt.length === 1 && !ausgewaehlt[0].einbehalt && ausgewaehlt[0].mietvertragId ? ausgewaehlt[0] : null;
+  const [verrechnen, setVerrechnen] = useState<KautionsbuchungRow | null>(null);
+  const einzeln = ausgewaehlt.length === 1 ? ausgewaehlt[0] : null;
+  const aufteilbar = einzeln && !einzeln.einbehalt && einzeln.mietvertragId ? einzeln : null;
+  const verrechenbar =
+    einzeln?.einbehalt &&
+    !einzeln.einbehalt.nkJahr &&
+    einzeln.einbehalt.status !== "VERRECHNET" &&
+    einzeln.einbehalt.status !== "STRITTIG_VERWORFEN"
+      ? einzeln
+      : null;
 
   function loeschen() {
     if (ausgewaehlt.length === 0) return;
@@ -309,6 +390,15 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
         <div className="mb-3 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2">
           <span className="text-sm text-neutral-300">{ausgewaehlt.length} ausgewählt</span>
           <div className="flex gap-2">
+            {verrechenbar && (
+              <button
+                type="button"
+                onClick={() => setVerrechnen(verrechenbar)}
+                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+              >
+                Mit Rechnung verrechnen…
+              </button>
+            )}
             {aufteilbar && (
               <button
                 type="button"
@@ -330,6 +420,9 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
         </div>
       )}
       {aufteilen && <AufteilenPanel key={aufteilen.id} k={aufteilen} onFertig={() => setAufteilen(null)} />}
+      {verrechnen && (
+        <VerrechnenPanel key={verrechnen.id} k={verrechnen} rechnungen={rechnungen} onFertig={() => setVerrechnen(null)} />
+      )}
       <DataTable
         columns={columns}
         rows={rows}
