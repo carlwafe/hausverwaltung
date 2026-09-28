@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { optionalesDatum, pflichtDatum } from "@/lib/zod-datum";
+import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -222,6 +223,69 @@ export async function erfasseMieterhoehung(mietvertragId: string, formData: Form
   await prisma.mieterhoehung.create({
     data: { mietvertragId, ...parsed.data },
   });
+
+  revalidateNachMieterhoehung(mietvertragId);
+}
+
+const vorauszahlungAnpassungSchema = z.object({
+  gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
+  nebenkostenVorauszahlung: z.coerce.number().min(0, "NK-Vorauszahlung darf nicht negativ sein"),
+  notizen: z.string().optional(),
+});
+
+/**
+ * Übernimmt eine neue NK-Vorauszahlung nach einer Abrechnung (§ 560 Abs. 4 BGB) als Mieterhöhung
+ * mit unveränderter Kaltmiete — die Kaltmiete wird aus dem zum gueltigAb-Monat geltenden Stand
+ * übernommen. Gibt es in diesem Monat schon eine Mieterhöhung, wird nur deren NK-Betrag ersetzt.
+ */
+export async function passeNkVorauszahlungAn(mietvertragId: string, formData: FormData) {
+  await requireEditor();
+
+  const parsed = vorauszahlungAnpassungSchema.safeParse({
+    gueltigAb: formData.get("gueltigAb"),
+    nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
+    notizen: formData.get("notizen") || undefined,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+  }
+  const { gueltigAb, nebenkostenVorauszahlung, notizen } = parsed.data;
+
+  const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
+    where: { id: mietvertragId },
+    select: { beginn: true, ende: true, kaltmiete: true, nebenkostenVorauszahlung: true, mieterhoehungen: true },
+  });
+  if (vertrag.beginn && gueltigAb < vertrag.beginn) throw new Error("Gültig ab darf nicht vor dem Mietbeginn liegen");
+  if (vertrag.ende && gueltigAb > vertrag.ende) throw new Error("Gültig ab liegt nach dem Mietende");
+
+  const monatIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+  const imSelbenMonat = vertrag.mieterhoehungen.find((m) => monatIndex(m.gueltigAb) === monatIndex(gueltigAb));
+  if (imSelbenMonat) {
+    await prisma.mieterhoehung.update({
+      where: { id: imSelbenMonat.id },
+      data: {
+        nebenkostenVorauszahlung,
+        notizen: [imSelbenMonat.notizen, notizen].filter(Boolean).join(" · ") || null,
+      },
+    });
+  } else {
+    const { kaltmiete } = ermittleMieteFuerMonat(
+      {
+        kaltmiete: Number(vertrag.kaltmiete),
+        nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+        mieterhoehungen: vertrag.mieterhoehungen.map((m) => ({
+          gueltigAb: m.gueltigAb,
+          kaltmiete: Number(m.kaltmiete),
+          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+        })),
+      },
+      gueltigAb.getFullYear(),
+      gueltigAb.getMonth() + 1,
+    );
+    await prisma.mieterhoehung.create({
+      data: { mietvertragId, gueltigAb, kaltmiete, nebenkostenVorauszahlung, notizen },
+    });
+  }
 
   revalidateNachMieterhoehung(mietvertragId);
 }

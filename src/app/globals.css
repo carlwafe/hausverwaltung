@@ -18,3 +18,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Drucken: Ist ein .druckbereich auf der Seite (z.B. das Schreiben zur NK-Vorauszahlung), wird nur
+   dieser auf A4 ausgegeben — Navigation, Formulare usw. bleiben unsichtbar. */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body:has(.druckbereich) {
+    background: white;
+  }
+  body:has(.druckbereich) * {
+    visibility: hidden;
+  }
+  body:has(.druckbereich) .druckbereich,
+  body:has(.druckbereich) .druckbereich * {
+    visibility: visible;
+  }
+  body:has(.druckbereich) .druckbereich {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-shadow: none;
+  }
+}

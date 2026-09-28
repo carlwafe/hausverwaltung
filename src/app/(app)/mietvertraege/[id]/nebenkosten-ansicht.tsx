@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
+import { VorauszahlungAnpassung, type VorauszahlungBriefDaten } from "./vorauszahlung-anpassung";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -129,10 +130,13 @@ export function NebenkostenAnsicht({
   daten,
   jahr,
   kopf,
+  vorauszahlungBrief,
 }: {
   daten: NkJahrDaten | null;
   jahr: number | null;
   kopf: { mieter: string; einheit: string; wohnflaeche: number };
+  // Nur bei der neuesten Abrechnung gesetzt: Vorschlag + Schreiben zur Anpassung der Vorauszahlung.
+  vorauszahlungBrief: VorauszahlungBriefDaten | null;
 }) {
   if (!daten) {
     return (
@@ -338,6 +342,16 @@ export function NebenkostenAnsicht({
             </tbody>
           </table>
         </>
+      )}
+      {vorauszahlungBrief && daten.neueVorauszahlung && (
+        <VorauszahlungAnpassung
+          jahr={daten.jahr}
+          zeitraumVon={daten.zeitraumVon}
+          zeitraumBis={daten.zeitraumBis}
+          kostenanteilGesamt={daten.kostenanteilGesamt}
+          anteileJahr={daten.details.map((d) => d.anteilJahr)}
+          brief={vorauszahlungBrief}
+        />
       )}
       <p className="mt-3 text-xs italic text-neutral-500">
         Ein Guthaben wird entweder ausgezahlt oder mit der Miete verrechnet (§ 387 BGB, dem Mieter schriftlich mitzuteilen

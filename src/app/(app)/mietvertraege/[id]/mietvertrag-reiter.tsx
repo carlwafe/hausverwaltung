@@ -5,6 +5,7 @@ import type { MieterkontoJahr } from "@/lib/mieterkonto";
 import type { Kautionskonto } from "@/lib/kautionskonto";
 import { MieterkontoAnsicht } from "./mieterkonto-ansicht";
 import { NebenkostenAnsicht, type NkJahrDaten } from "./nebenkosten-ansicht";
+import type { VorauszahlungBriefDaten } from "./vorauszahlung-anpassung";
 import { KautionAnsicht } from "./kaution-ansicht";
 
 type Reiter = "mieterkonto" | "nebenkosten" | "kaution";
@@ -29,6 +30,7 @@ export function MietvertragReiter({
   stichtagAb,
   nkJahre,
   nkDaten,
+  vorauszahlungBrief,
   kaution,
   kopf,
 }: {
@@ -41,6 +43,7 @@ export function MietvertragReiter({
   // Abrechnungsjahre mit einer Position für diesen Mietvertrag, absteigend.
   nkJahre: number[];
   nkDaten: Record<number, NkJahrDaten>;
+  vorauszahlungBrief: VorauszahlungBriefDaten;
   kaution: { konto: Kautionskonto; anlageform: string | null; zinssatz: number | null; mietende: Date | null };
   kopf: { mieter: string; einheit: string; wohnflaeche: number; mietbeginn: Date | null };
 }) {
@@ -98,7 +101,15 @@ export function MietvertragReiter({
       {reiter === "mieterkonto" && (
         <MieterkontoAnsicht mietvertragId={mietvertragId} jahr={kontoJahr} konto={konten[kontoJahr]} stichtagAb={stichtagAb} />
       )}
-      {reiter === "nebenkosten" && <NebenkostenAnsicht jahr={nkJahr} daten={nkJahr !== null ? nkDaten[nkJahr] ?? null : null} kopf={kopf} />}
+      {reiter === "nebenkosten" && (
+        <NebenkostenAnsicht
+          jahr={nkJahr}
+          daten={nkJahr !== null ? nkDaten[nkJahr] ?? null : null}
+          kopf={kopf}
+          // Anpassung der Vorauszahlung nur auf Basis der neuesten Abrechnung.
+          vorauszahlungBrief={nkJahr === nkJahre[0] ? vorauszahlungBrief : null}
+        />
+      )}
       {reiter === "kaution" && (
         <KautionAnsicht
           konto={kaution.konto}

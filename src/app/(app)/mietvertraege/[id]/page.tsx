@@ -49,7 +49,7 @@ export default async function MietvertragDetailPage({
     prisma.mietvertrag.findUnique({
       where: { id },
       include: {
-        einheit: true,
+        einheit: { include: { gebaeude: { select: { strasse: true, hausnummer: true, objekt: { select: { plz: true, ort: true } } } } } },
         mieter: true,
         kaution: { include: { einbehalte: true } },
         buchungen: {
@@ -345,6 +345,16 @@ export default async function MietvertragDetailPage({
         }
         nkJahre={nkJahre}
         nkDaten={nkDaten}
+        vorauszahlungBrief={{
+          mietvertragId: vertrag.id,
+          mieterNamen: vertrag.mieter.map((m) => `${m.vorname} ${m.nachname}`),
+          strasse: `${vertrag.einheit.gebaeude.strasse} ${vertrag.einheit.gebaeude.hausnummer}`,
+          plzOrt: `${vertrag.einheit.gebaeude.objekt.plz} ${vertrag.einheit.gebaeude.objekt.ort}`,
+          einheit: vertrag.einheit.bezeichnung,
+          vertrag: vertragFuerSollIst,
+          mehrwertsteuer: vertragFuerSollIst.mehrwertsteuer,
+          jobcenter: vertrag.mieter.some((m) => m.buergergeldEmpfaenger),
+        }}
         kaution={{
           konto: kautionskonto,
           anlageform: vertrag.kaution ? ANLAGEFORM_LABEL[vertrag.kaution.anlageform] ?? vertrag.kaution.anlageform : null,
