@@ -102,6 +102,29 @@ const EINBEHALT_STATUS_TEXT: Record<KautionEinbehaltEingabe["status"], string> =
   STRITTIG_VERWORFEN: "verworfen",
 };
 
+// Obergrenze der jährlichen Zinsen auf einem Mietkautions-Sparkonto je Zeitraum — bewusst eher über
+// den tatsächlichen Sparbuchzinsen (in den Auflösungen seit 2023 lag der Zins bei rund 0,1 % p.a.).
+function maxZinssatz(jahr: number): number {
+  if (jahr <= 2001) return 0.03;
+  if (jahr <= 2008) return 0.02;
+  if (jahr <= 2012) return 0.01;
+  if (jahr <= 2022) return 0.0025;
+  return 0.015;
+}
+
+// Maximaler Aufzinsungsfaktor von "seit" bis zur Auflösung (Jahr für Jahr, anteilig im ersten und
+// letzten Jahr). Unbekannter Beginn: 10 Jahre vor der Auflösung.
+function maxZinsfaktor(seit: Date | null, bis: Date): number {
+  const start = seit ?? new Date(bis.getFullYear() - 10, bis.getMonth(), bis.getDate());
+  let faktor = 1;
+  for (let jahr = start.getFullYear(); jahr <= bis.getFullYear(); jahr++) {
+    const von = Math.max(start.getTime(), new Date(jahr, 0, 1).getTime());
+    const nach = Math.min(bis.getTime(), new Date(jahr + 1, 0, 1).getTime());
+    if (nach > von) faktor *= 1 + (maxZinssatz(jahr) * (nach - von)) / (365.25 * 86400000);
+  }
+  return faktor;
+}
+
 function formatDatum(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
 }
@@ -239,16 +262,13 @@ export function baueKautionskonto(input: {
 
   // Zinsen in der Auflösung: die Sparkasse zahlt beim Auflösen Kaution + Zinsen aus, gebucht wird
   // nur der Gesamtbetrag. Was vom Kautionskonto mehr zurückkam als hinging (angelegte Beträge, oder
-  // ohne gebuchte Anlage die eingezahlte Kaution), steht dem Mieter als Zins zu. Plausibel sind
-  // höchstens 5 % pro Jahr Anlagedauer (erste Anlage bzw. Mietbeginn bis Auflösung, mindestens ein
-  // Jahr) — eine größere Differenz ist eher ein Buchungsfehler und soll sichtbar bleiben. Ist die
-  // Dauer unbekannt, dürfen die Zinsen nur nicht höher sein als die Kaution selbst.
+  // ohne gebuchte Anlage die eingezahlte Kaution), steht dem Mieter als Zins zu — aber nur bis zu
+  // einer großzügigen Obergrenze nach historischen Sparbuchzinsen (siehe maxZinsfaktor), damit eine
+  // größere Differenz als möglicher Buchungsfehler sichtbar bleibt.
   const hin = anlageAusgehend > TOLERANZ ? anlageAusgehend : eingezahlt;
   const zinsen = aufloesung > TOLERANZ ? r2(rueckfluss - hin) : 0;
-  const seit = ersteAnlage ?? input.mietbeginn ?? null;
-  const jahre =
-    seit && aufloesungsDatum ? Math.max(1, (aufloesungsDatum.getTime() - seit.getTime()) / (365.25 * 86400000)) : null;
-  const zinsenObergrenze = jahre !== null ? hin * 0.05 * jahre : hin;
+  const zinsenObergrenze =
+    aufloesungsDatum !== null ? hin * (maxZinsfaktor(ersteAnlage ?? input.mietbeginn ?? null, aufloesungsDatum) - 1) + 1 : 0;
   if (zinsen > TOLERANZ && zinsen <= zinsenObergrenze) {
     sonstiges += zinsen;
     roh.push({
