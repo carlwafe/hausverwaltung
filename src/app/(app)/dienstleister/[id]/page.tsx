@@ -5,6 +5,7 @@ import { updateDienstleister, deleteDienstleister } from "../actions";
 import { ladeFormularOptionen } from "../lade-optionen";
 import { uploadDokument } from "../../dokumente/actions";
 import { BelegeSektion } from "@/components/belege-sektion";
+import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { DeleteButton } from "@/components/delete-button";
 
 export default async function DienstleisterDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +37,7 @@ export default async function DienstleisterDetailPage({ params }: { params: Prom
       <div className="mt-8 max-w-3xl">
         <BelegeSektion
           titel="Verträge"
+          maxBytes={MAX_DOKUMENT_GROESSE_BYTES}
           leerText="Noch kein Vertrag hochgeladen."
           dokumente={dienstleister.dokumente}
           uploadAction={uploadDokument.bind(null, {

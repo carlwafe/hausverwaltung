@@ -4,7 +4,7 @@ import { DateInput } from "@/components/date-input";
 import { useActionState, useState, useTransition } from "react";
 import { DeleteButton } from "./delete-button";
 import { aendereBelegDatum, deleteDokument } from "@/app/(app)/dokumente/actions";
-import { ermittleZuGrosseDateien } from "@/lib/upload-limits";
+import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
 
 function formatBytes(n: number | null) {
   if (n === null) return "";
@@ -52,7 +52,9 @@ export function BelegeSektion({
   revalidatePath,
   titel = "Belege",
   leerText = "Noch keine Belege hochgeladen.",
+  maxBytes = MAX_DATEIGROESSE_BYTES,
 }: {
+  maxBytes?: number;
   titel?: string;
   leerText?: string;
   dokumente: BelegRow[];
@@ -66,11 +68,13 @@ export function BelegeSektion({
     (a, b) => (b.belegDatum ?? b.createdAt).getTime() - (a.belegDatum ?? a.createdAt).getTime(),
   );
 
+  const maxMb = maxBytes / (1024 * 1024);
+
   function pruefeDateigroessen(e: React.ChangeEvent<HTMLInputElement>) {
-    const zuGross = ermittleZuGrosseDateien(e.target.files);
+    const zuGross = ermittleZuGrosseDateien(e.target.files, maxBytes);
     if (zuGross.length > 0) {
       setGroessenFehler(
-        `Dateien dürfen maximal 1 MB groß sein: ${zuGross.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")}.`,
+        `Dateien dürfen maximal ${maxMb} MB groß sein: ${zuGross.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")}.`,
       );
       e.target.value = "";
     } else {
@@ -151,7 +155,7 @@ export function BelegeSektion({
         </button>
       </form>
       <p className="mt-1 text-xs text-neutral-500">
-        Maximal 1 MB pro Datei. Das Belegdatum ist das Datum des Belegs selbst (z.B. Rechnungsdatum) und gilt für
+        Maximal {maxMb} MB pro Datei. Das Belegdatum ist das Datum des Belegs selbst (z.B. Rechnungsdatum) und gilt für
         alle Dateien dieses Uploads; es lässt sich in der Tabelle später ändern.
       </p>
       {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
