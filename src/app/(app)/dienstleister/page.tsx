@@ -17,7 +17,6 @@ export default async function DienstleisterPage() {
 
   const alle = dienstleister.map((d) => ({
     typ: d.typ,
-    aktiv: d.aktiv,
     row: {
       id: d.id,
       name: d.name,
@@ -26,6 +25,7 @@ export default async function DienstleisterPage() {
       telefon: d.telefon ?? "",
       email: d.email ?? "",
       adresse: d.adresse ?? "",
+      aktiv: d.aktiv,
       suchbegriffe: d.suchbegriffe,
       kostenarten: d.kostenarten.map((k) => k.name).join(", "),
     } satisfies DienstleisterRow,
@@ -43,13 +43,14 @@ export default async function DienstleisterPage() {
 
       {ABSCHNITTE.map((a) => {
         const vonTyp = alle.filter((d) => d.typ === a.typ);
-        const rows = vonTyp.filter((d) => d.aktiv).map((d) => d.row);
-        const inaktiv = vonTyp.filter((d) => !d.aktiv).map((d) => d.row);
+        // Aktive zuerst, Inaktive (grau) danach — jeweils nach Name sortiert.
+        const rows = [...vonTyp.filter((d) => d.row.aktiv), ...vonTyp.filter((d) => !d.row.aktiv)].map((d) => d.row);
+        const anzahlAktiv = vonTyp.filter((d) => d.row.aktiv).length;
         return (
           <section key={a.typ} className="mb-10">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">
-                {a.titel} <span className="text-sm font-normal text-neutral-500">({rows.length})</span>
+                {a.titel} <span className="text-sm font-normal text-neutral-500">({anzahlAktiv} aktiv)</span>
               </h2>
               <Link
                 href={`/dienstleister/neu?typ=${a.typ}`}
@@ -59,14 +60,6 @@ export default async function DienstleisterPage() {
               </Link>
             </div>
             <DienstleisterTable rows={rows} />
-            {inaktiv.length > 0 && (
-              <div className="mt-6">
-                <h3 className="mb-2 text-sm font-semibold text-neutral-400">
-                  {a.titel} inaktiv <span className="font-normal text-neutral-500">({inaktiv.length})</span>
-                </h3>
-                <DienstleisterTable rows={inaktiv} />
-              </div>
-            )}
           </section>
         );
       })}

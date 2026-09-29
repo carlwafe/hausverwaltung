@@ -14,6 +14,7 @@ export type DienstleisterRow = {
   suchbegriffe: string;
   kostenarten: string;
   adresse: string;
+  aktiv: boolean;
 };
 
 const columns: Column<DienstleisterRow>[] = [
@@ -70,6 +71,17 @@ const columns: Column<DienstleisterRow>[] = [
         "–"
       ),
   },
+  {
+    key: "aktiv",
+    label: "Status",
+    sortValue: (d) => (d.aktiv ? 0 : 1),
+    render: (d) =>
+      d.aktiv ? (
+        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Aktiv</span>
+      ) : (
+        <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">Inaktiv</span>
+      ),
+  },
 ];
 
 export function DienstleisterTable({ rows }: { rows: DienstleisterRow[] }) {
@@ -77,6 +89,7 @@ export function DienstleisterTable({ rows }: { rows: DienstleisterRow[] }) {
     <DataTable
       columns={columns}
       rows={rows}
+      rowClassName={(d) => (d.aktiv ? "" : "bg-neutral-900/60 text-neutral-500")}
       emptyMessage="Noch nichts angelegt."
       searchPlaceholder="Name, Beschreibung, Telefon … durchsuchen"
     />
