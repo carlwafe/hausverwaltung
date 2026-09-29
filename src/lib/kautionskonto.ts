@@ -14,6 +14,8 @@
 //    positive KAUTION_AUSZAHLUNG ist eine zurückgekommene Auszahlung (Rücküberweisung, z.B. "Konto
 //    aufgelöst") und mindert die ausgezahlte Summe wieder
 //  - KAUTION_SONSTIGES: mit Buchungsvorzeichen (z.B. Zinsen +, Kontoführungsgebühr −)
+//  - Zinsen in der Auflösung (keine Buchung): kommt vom Kautionskonto mehr zurück als angelegt wurde,
+//    ist die Differenz Zins und steht dem Mieter zu — automatische Zeile "+" beim Auflösungsdatum
 //  - Einbehalt (unstrittig/bestätigt): −; strittig offen: vorläufig zurückbehalten, noch ohne
 //    Wirkung auf den Stand; verworfen: ohne Wirkung.
 
@@ -116,6 +118,10 @@ export function baueKautionskonto(input: {
   let sonstiges = 0;
   let anlage = 0;
   let aufloesung = 0;
+  // Für die Zinsen in der Auflösung: was aufs Kautionskonto ging und was von dort zurückkam.
+  let anlageAusgehend = 0;
+  let rueckfluss = 0;
+  let aufloesungsDatum: Date | null = null;
   const ausgezahlt: KautionsabrechnungPosten[] = [];
 
   for (const b of input.bewegungen) {
@@ -130,6 +136,9 @@ export function baueKautionskonto(input: {
       // Anlage mit Bankvorzeichen: ausgehend (negativ) erhöht, Rückbuchung (positiv) mindert.
       if (istAnlage) anlage -= b.betrag;
       else aufloesung += Math.abs(b.betrag);
+      if (istAnlage && b.betrag < 0) anlageAusgehend -= b.betrag;
+      else rueckfluss += Math.abs(b.betrag);
+      if (!istAnlage && b.datum && (!aufloesungsDatum || b.datum > aufloesungsDatum)) aufloesungsDatum = b.datum;
       roh.push({
         id: b.id,
         datum: b.datum,
@@ -221,6 +230,25 @@ export function baueKautionskonto(input: {
         }
       : null;
   if (vorBuchhaltung) eingezahlt += vorBuchhaltung.wirkung;
+
+  // Zinsen in der Auflösung: die Sparkasse zahlt beim Auflösen Kaution + Zinsen aus, gebucht wird
+  // nur der Gesamtbetrag. Was vom Kautionskonto mehr zurückkam als hinging (angelegte Beträge, oder
+  // ohne gebuchte Anlage die eingezahlte Kaution), steht dem Mieter als Zins zu. Nur bis 5 % der
+  // Kaution — eine größere Differenz ist eher ein Buchungsfehler und soll sichtbar bleiben.
+  const hin = anlageAusgehend > TOLERANZ ? anlageAusgehend : eingezahlt;
+  const zinsen = aufloesung > TOLERANZ ? r2(rueckfluss - hin) : 0;
+  if (zinsen > TOLERANZ && zinsen <= hin * 0.05) {
+    sonstiges += zinsen;
+    roh.push({
+      id: "zinsen-aufloesung",
+      datum: aufloesungsDatum,
+      vorgang: "Zinsen (in Auflösung enthalten)",
+      bemerkung: "Differenz zwischen Auflösungsbetrag und angelegter Kaution",
+      buchungsbetrag: null,
+      wirkung: zinsen,
+      art: "sonstiges",
+    });
+  }
 
   // Chronologisch; ohne Datum ans Ende. Bei gleichem Datum Einzahlungen vor Abgängen.
   const reihenfolge: Record<KautionskontoZeile["art"], number> = {
