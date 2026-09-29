@@ -79,6 +79,8 @@ export type KautionsbuchungRow = {
     status: KautionEinbehaltStatus;
     // Abrechnungsjahr der Nebenkostenabrechnung, mit der der Einbehalt verrechnet wurde.
     nkJahr: number | null;
+    // Mit einer Forderung aus dem Mieterkonto (Mietrückstand, Gebühren) verrechnet.
+    mieterkonto: boolean;
     // Zurückbehaltungsrecht: nur unstrittige/bestätigte Einbehalte erzeugen eine echte Buchung.
     gebucht: boolean;
     // Pauschal dem Vermieter gutgeschrieben (endgültig) statt vorläufig bis zur Rechnung.
@@ -89,7 +91,12 @@ export type KautionsbuchungRow = {
 function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
   const [pending, startTransition] = useTransition();
   if (k.einbehalt) {
-    const { status, nkJahr, gebucht, pauschal } = k.einbehalt;
+    const { status, nkJahr, gebucht, pauschal, mieterkonto } = k.einbehalt;
+    if (mieterkonto) {
+      return (
+        <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400">Verrechnung mit Mieterkonto</span>
+      );
+    }
     // Verrechnung mit einer NK-Abrechnung: ein unstrittiger Einbehalt mit Abrechnungsjahr — hat
     // keinen Streit-Status, den man hier umstellen müsste.
     if (nkJahr) {
@@ -174,6 +181,7 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
 
 function kategorieText(k: KautionsbuchungRow) {
   if (k.einbehalt?.nkJahr) return `Verrechnung mit NK-Abrechnung ${k.einbehalt.nkJahr}`;
+  if (k.einbehalt?.mieterkonto) return "Verrechnung mit Mieterkonto";
   if (k.einbehalt) return k.einbehalt.pauschal ? "Einbehalt pauschal gutgeschrieben" : "Einbehalt vorläufig";
   return KATEGORIE_LABEL[k.kategorie];
 }

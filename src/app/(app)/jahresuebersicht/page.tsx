@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
@@ -211,7 +212,7 @@ async function ladeMieterZeilen(jahr: number) {
     prisma.buchung.findMany({
       where: {
         mietvertragId: { in: mietvertragIds },
-        buchungsart: { code: { in: ["MAHNGEBUEHR", "SONDERZAHLUNG"] } },
+        ...SONDERBUCHUNGEN_FILTER,
         ...AKTIVE_BUCHUNG_FILTER,
       },
       select: { mietvertragId: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
@@ -221,7 +222,7 @@ async function ladeMieterZeilen(jahr: number) {
   for (const s of sonderRaw) {
     if (!s.mietvertragId || !s.datum) continue;
     const liste = sonderNachVertrag.get(s.mietvertragId) ?? [];
-    liste.push({ datum: s.datum, betrag: s.buchungsart.code === "MAHNGEBUEHR" ? -Number(s.betrag) : Number(s.betrag) });
+    liste.push({ datum: s.datum, betrag: sonderWirkung(s.buchungsart.code, Number(s.betrag)) });
     sonderNachVertrag.set(s.mietvertragId, liste);
   }
 

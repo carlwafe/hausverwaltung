@@ -33,6 +33,10 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
     label: "Verrechnung mit NK-Abrechnung (Kaution mit einer Nachzahlung verrechnet)",
   },
   {
+    value: "VERRECHNUNG_MIETERKONTO",
+    label: "Verrechnung mit Mieterkonto (Mietrückstand, Gebühren o.ä. aus der Kaution beglichen)",
+  },
+  {
     value: "VIRTUELLE_AUSZAHLUNG",
     label: "Virtuelle Auszahlung (kein Kontofluss, bereits über eine Kostenposition gebucht)",
   },
@@ -74,9 +78,10 @@ export function NeueKautionsbuchungForm({
   // einen wählbaren Streit-Status (pauschal ist immer unstrittig).
   const istEinbehalt = kategorie === "EINBEHALT" || istPauschal;
   const istNkVerrechnung = kategorie === "VERRECHNUNG_NK";
+  const istMieterkontoVerrechnung = kategorie === "VERRECHNUNG_MIETERKONTO";
   // Alle erzeugen intern einen KautionEinbehalt — die Verrechnung ist ein unstrittiger Einbehalt
   // mit Bezug auf ein Abrechnungsjahr.
-  const erzeugtEinbehalt = istEinbehalt || istNkVerrechnung;
+  const erzeugtEinbehalt = istEinbehalt || istNkVerrechnung || istMieterkontoVerrechnung;
 
   function submit(formData: FormData) {
     startTransition(async () => {
@@ -87,11 +92,15 @@ export function NeueKautionsbuchungForm({
         const text = String(formData.get("verwendungszweck") ?? "").trim();
         formData.set(
           "positionText",
-          text || `Verrechnung mit Nebenkostenabrechnung ${formData.get("nkJahr") ?? ""}`.trim(),
+          text ||
+            (istMieterkontoVerrechnung
+              ? "Verrechnung mit Mieterkonto"
+              : `Verrechnung mit Nebenkostenabrechnung ${formData.get("nkJahr") ?? ""}`.trim()),
         );
         formData.set("betrag", String(Math.abs(Number(formData.get("betrag")))));
-        formData.set("status", istNkVerrechnung || istPauschal ? "UNSTRITTIG" : einbehaltStatus);
+        formData.set("status", istNkVerrechnung || istPauschal || istMieterkontoVerrechnung ? "UNSTRITTIG" : einbehaltStatus);
         if (istPauschal) formData.set("pauschal", "on");
+        if (istMieterkontoVerrechnung) formData.set("mieterkonto", "on");
       }
       const ergebnis = erzeugtEinbehalt
         ? await erfasseKautionEinbehalt(null, formData)

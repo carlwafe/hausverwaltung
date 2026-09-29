@@ -33,6 +33,8 @@ export type KautionEinbehaltEingabe = {
   betrag: number; // positiv
   status: "UNSTRITTIG" | "STRITTIG_OFFEN" | "STRITTIG_BESTAETIGT" | "STRITTIG_VERWORFEN";
   nkJahr: number | null;
+  // Mit einer Forderung aus dem Mieterkonto (Mietrückstand, Gebühren) verrechnet.
+  mieterkonto?: boolean;
 };
 
 export type KautionskontoZeile = {
@@ -160,7 +162,12 @@ export function baueKautionskonto(input: {
 
   const einbehaltePositionen: KautionEinbehaltPosten[] = [];
   for (const e of input.einbehalte) {
-    const nk = e.nkJahr !== null ? `mit Nebenkostenabrechnung ${e.nkJahr} verrechnet` : undefined;
+    const nk =
+      e.nkJahr !== null
+        ? `mit Nebenkostenabrechnung ${e.nkJahr} verrechnet`
+        : e.mieterkonto
+          ? "mit dem Mieterkonto verrechnet"
+          : undefined;
     const statusText = EINBEHALT_STATUS_TEXT[e.status];
     const bezug = [nk ?? "", `erfasst ${formatDatum(e.datum)}`].filter(Boolean).join(" · ");
     if (e.status === "UNSTRITTIG" || e.status === "STRITTIG_BESTAETIGT") {

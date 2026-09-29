@@ -9,6 +9,7 @@ import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAkt
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { baueMieterkontoJahr } from "@/lib/mieterkonto";
 import { baueKautionskonto } from "@/lib/kautionskonto";
+import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
@@ -78,7 +79,7 @@ export default async function MietvertragDetailPage({
   if (!vertrag) notFound();
 
   const sonderBuchungen = await prisma.buchung.findMany({
-    where: { mietvertragId: id, buchungsart: { code: { in: ["MAHNGEBUEHR", "SONDERZAHLUNG"] } }, ...AKTIVE_BUCHUNG_FILTER },
+    where: { mietvertragId: id, ...SONDERBUCHUNGEN_FILTER, ...AKTIVE_BUCHUNG_FILTER },
     select: { id: true, datum: true, betrag: true, verwendungszweck: true, buchungsart: { select: { code: true } } },
     orderBy: { datum: "desc" },
   });
@@ -122,7 +123,7 @@ export default async function MietvertragDetailPage({
   const ab = objekt?.buchhaltungAb ?? null;
   const sonderOffenImSaldo = sonderBuchungen
     .filter((b) => b.datum && (!ab || b.datum >= ab) && b.datum <= bis)
-    .reduce((sum, b) => sum + (b.buchungsart.code === "MAHNGEBUEHR" ? Number(b.betrag) : -Number(b.betrag)), 0);
+    .reduce((sum, b) => sum - sonderWirkung(b.buchungsart.code, Number(b.betrag)), 0);
   const saldo = ist - soll + saldovortrag - sonderOffenImSaldo;
   const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
   // Jahre für das Mieterkonto: ab dem ersten Jahr mit Zahlungen (oder dem Stichtag/Soll-Beginn) bis
@@ -144,9 +145,11 @@ export default async function MietvertragDetailPage({
     .map((b) => ({
       id: b.id,
       datum: b.datum!,
-      betrag: Number(b.betrag),
+      // Forderung mit ihrem Betrag, Zahlungen/Verrechnungen mit ihrer (positiven) Wirkung.
+      betrag: b.buchungsart.code === "MAHNGEBUEHR" ? Number(b.betrag) : sonderWirkung(b.buchungsart.code, Number(b.betrag)),
       verwendungszweck: b.verwendungszweck,
       istForderung: b.buchungsart.code === "MAHNGEBUEHR",
+      ...(b.buchungsart.code === "KAUTION_EINBEHALT" ? { bezeichnung: "Verrechnung mit Kaution", href: "/kautionen" } : {}),
     }));
   // Offene Nebenkostenabrechnung des Vorjahres je Jahr (wie in der Jahresübersicht): Saldo der
   // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Nebenkostenausgleich.
@@ -232,6 +235,7 @@ export default async function MietvertragDetailPage({
       betrag: Number(e.betrag),
       status: e.status,
       nkJahr: e.bezugTyp === NK_VERRECHNUNG_BEZUG && e.bezugId ? Number(e.bezugId) : null,
+      mieterkonto: e.bezugTyp === "Mieterkonto",
     })),
   });
   const nkOffenFuerJahr = (jahr: number): number | null => {

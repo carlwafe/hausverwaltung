@@ -162,7 +162,7 @@ const columns: Column<KautionRow>[] = [
   },
   {
     key: "verrechnet",
-    label: "Mit NK verrechnet",
+    label: "Verrechnet (NK / Mieterkonto)",
     sortValue: (r) => r.verrechnet,
     render: (r) => (r.verrechnet > 0 ? formatEuro(r.verrechnet) : "–"),
   },

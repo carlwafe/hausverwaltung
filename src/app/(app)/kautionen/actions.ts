@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { pflichtDatum, parseStrengesDatum } from "@/lib/zod-datum";
 import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
+import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
@@ -250,7 +251,13 @@ const einbehaltSchema = z.object({
   datum: z.string().optional(),
   nkJahr: z.coerce.number().int().min(2000).max(2100).optional(),
   pauschal: z.boolean().optional(),
+  // Mit einer Forderung aus dem Mieterkonto (Mietrückstand, Gebühren) verrechnet.
+  mieterkonto: z.boolean().optional(),
 });
+
+// bezugTyp eines KautionEinbehalt, der mit dem Mieterkonto verrechnet wurde (siehe
+// MIETERKONTO_VERRECHNUNG_BEZUG für die zugehörige Buchung).
+const MIETERKONTO_BEZUG = "Mieterkonto";
 
 // Zurückbehaltungsrecht: nur ein unstrittiger oder bestätigter Einbehalt darf eine echte Buchung
 // im Journal erzeugen — ein strittig offener oder verworfener Einbehalt bleibt reine Ankündigung,
@@ -295,7 +302,9 @@ async function synchronisiereKautionEinbehaltBuchung(
         // Mit einer NK-Abrechnung verrechnet: das Abrechnungsjahr steht in jahr, dann zählt diese
         // Buchung als Begleichung der Position (siehe nk-verrechnung.ts).
         jahr: einbehalt.bezugTyp === NK_VERRECHNUNG_BEZUG && einbehalt.bezugId ? Number(einbehalt.bezugId) : null,
-        bezugTyp: KAUTION_EINBEHALT_BEZUG,
+        // Mit dem Mieterkonto verrechnet: eigener bezugTyp, damit die Buchung im Mietsaldo als Zahlung
+        // zählt (siehe sonderforderungen.ts); bezugId verweist wie immer auf den Einbehalt.
+        bezugTyp: einbehalt.bezugTyp === MIETERKONTO_BEZUG ? MIETERKONTO_VERRECHNUNG_BEZUG : KAUTION_EINBEHALT_BEZUG,
         bezugId: einbehalt.id,
       },
     });
@@ -320,14 +329,18 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
     datum: formData.get("datum") || undefined,
     nkJahr: formData.get("nkJahr") || undefined,
     pauschal: formData.get("pauschal") === "on",
+    mieterkonto: formData.get("mieterkonto") === "on",
   });
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
   const { mietvertragId, positionText, betrag, nkJahr } = parsed.data;
+  const mieterkonto = parsed.data.mieterkonto ?? false;
+  if (mieterkonto && nkJahr) return "Bitte entweder mit dem Mieterkonto oder mit einer NK-Abrechnung verrechnen, nicht beides.";
   const pauschal = parsed.data.pauschal ?? false;
   // Ein pauschaler Einbehalt ist per Definition endgültig — also immer unstrittig (gebucht).
-  const status = pauschal ? "UNSTRITTIG" : parsed.data.status;
+  // Pauschale Einbehalte und Verrechnungen mit dem Mieterkonto sind immer unstrittig (gebucht).
+  const status = pauschal || mieterkonto ? "UNSTRITTIG" : parsed.data.status;
   const datum = parsed.data.datum ? parseStrengesDatum(parsed.data.datum) : null;
   if (parsed.data.datum && !datum) return "Ungültiges Datum (z.B. 31.02. gibt es nicht).";
 
@@ -344,7 +357,7 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
         betrag,
         status,
         datum,
-        bezugTyp: nkJahr ? NK_VERRECHNUNG_BEZUG : null,
+        bezugTyp: nkJahr ? NK_VERRECHNUNG_BEZUG : mieterkonto ? MIETERKONTO_BEZUG : null,
         bezugId: nkJahr ? String(nkJahr) : null,
         pauschal,
       },

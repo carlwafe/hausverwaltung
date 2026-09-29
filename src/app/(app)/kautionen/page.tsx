@@ -9,6 +9,7 @@ import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { KAUTION_EINBEHALT_BEZUG } from "@/lib/nk-verrechnung";
+import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
 import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
@@ -131,6 +132,9 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // deshalb "Einbehalten". Ein einfacher Einbehalt ohne Abrechnungsjahr bleibt dagegen Teil des
     // einbehaltenen Restbetrags.
     else if (code === "KAUTION_EINBEHALT" && b.bezugTyp === KAUTION_EINBEHALT_BEZUG && b.jahr !== null)
+      eintrag.verrechnet += Math.abs(betrag);
+    // Mit dem Mieterkonto verrechnet (Mietrückstand, Gebühren) — ebenso endgültig beglichen.
+    else if (code === "KAUTION_EINBEHALT" && b.bezugTyp === MIETERKONTO_VERRECHNUNG_BEZUG)
       eintrag.verrechnet += Math.abs(betrag);
     else if (code === "KAUTION_SONSTIGES") eintrag.sonstiges += betrag;
     summenProMietvertrag.set(key, eintrag);
@@ -352,6 +356,7 @@ async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
     einbehalt: {
       status: e.status,
       nkJahr: e.bezugTyp === "Nebenkostenabrechnung" && e.bezugId ? Number(e.bezugId) : null,
+      mieterkonto: e.bezugTyp === "Mieterkonto",
       gebucht: e.buchungId !== null,
       pauschal: e.pauschal,
     },
