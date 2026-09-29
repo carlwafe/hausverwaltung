@@ -2,11 +2,14 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { DienstleisterTable, type DienstleisterRow } from "./dienstleister-table";
 import { ladeFormularOptionen } from "./lade-optionen";
+import { ladeDienstleisterVorschlaege } from "@/lib/dienstleister-vorschlaege";
+import { Vorschlaege } from "./vorschlaege";
 
 export default async function DienstleisterPage() {
-  const [dienstleister, { gebaeude }] = await Promise.all([
+  const [dienstleister, { gebaeude }, vorschlaege] = await Promise.all([
     prisma.dienstleister.findMany({ orderBy: { name: "asc" }, include: { kostenart: true } }),
     ladeFormularOptionen(),
+    ladeDienstleisterVorschlaege(),
   ]);
   const gebaeudeLabel = new Map(gebaeude.flatMap((g) => g.optionen.map((o) => [o.value, o.label] as const)));
 
@@ -36,6 +39,19 @@ export default async function DienstleisterPage() {
           + Neuer Dienstleister
         </Link>
       </div>
+
+      <Vorschlaege
+        rows={vorschlaege.map((v) => ({
+          name: v.name,
+          kostenartId: v.kostenartId,
+          kostenartName: v.kostenartName,
+          gebaeudeAuswahl: v.gebaeudeAuswahl,
+          gebaeudeLabel: v.gebaeudeAuswahl ? (gebaeudeLabel.get(v.gebaeudeAuswahl) ?? "–") : "–",
+          anzahl: v.anzahl,
+          summe: v.summe,
+          sicherheit: v.sicherheit,
+        }))}
+      />
 
       <DienstleisterTable rows={rows} />
     </div>

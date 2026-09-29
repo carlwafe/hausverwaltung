@@ -66,3 +66,23 @@ export async function deleteDienstleister(id: string) {
   revalidatePath("/dienstleister");
   redirect("/dienstleister");
 }
+
+// Übernimmt Vorschläge aus dem Import-Verlauf als Dienstleister (Suchbegriff = Empfängername).
+export async function uebernehmeVorschlaege(
+  vorschlaege: { name: string; kostenartId: string; gebaeudeAuswahl: string | null }[],
+) {
+  await requireEditor();
+  const vorhanden = new Set((await prisma.dienstleister.findMany({ select: { name: true } })).map((d) => d.name));
+  const neu = vorschlaege.filter((v) => v.name.trim().length >= 3 && !vorhanden.has(v.name));
+  if (neu.length > 0) {
+    await prisma.dienstleister.createMany({
+      data: neu.map((v) => ({
+        name: v.name,
+        suchbegriffe: v.name,
+        kostenartId: v.kostenartId,
+        gebaeudeAuswahl: v.gebaeudeAuswahl,
+      })),
+    });
+  }
+  revalidatePath("/dienstleister");
+}
