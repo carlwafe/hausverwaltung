@@ -13,6 +13,7 @@ import {
   textEnthaeltWort,
   WASCHGELD_PATTERN,
 } from "./bank-csv";
+import { findeDienstleister, type DienstleisterKandidat } from "./dienstleister";
 import { gebaeudeWert, hausWert, kostengruppeWert, einheitWert } from "../gebaeude-gruppen";
 
 export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean };
@@ -533,6 +534,9 @@ export function mapKostenRows(
   bekannteWarmmieten: ReadonlySet<number> = new Set(),
   // Für den Einheit-Vorschlag per Adresse+Wohnungsnummer (siehe ermittleEinheitVorschlagViaWhg).
   einheitKandidaten: EinheitKandidat[] = [],
+  // Dienstleister-Stammdaten: ein Treffer legt Kostenart (und ggf. Gebäude) fest und hat Vorrang
+  // vor der aus der Historie gelernten Zuordnung.
+  dienstleister: DienstleisterKandidat[] = [],
 ): ParsedKostenRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
     findeKontoauszugSpalten(headers);
@@ -573,8 +577,12 @@ export function mapKostenRows(
     // eingehende Buchung so gut wie immer seine Miete, selbst wenn er (z.B. für eine einmalige
     // Kostenerstattung) zufällig auch schon als Kosten-Empfänger in der Historie steht.
     const istBekannterMieter = istBekannterMieterEmpfaenger(empfaenger, verwendungszweck, mieterKandidaten);
+    const dienstleisterTreffer = istBekannterMieter
+      ? null
+      : findeDienstleister(empfaenger, verwendungszweck, dienstleister);
     const bekannterKostenEmpfaenger =
-      !istBekannterMieter && ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0;
+      !istBekannterMieter &&
+      (dienstleisterTreffer !== null || ermittleTreffer(empfaenger, verwendungszweck, historie).length > 0);
     // Bewusst unabhängig von istBekannterMieter geprüft (anders als bekannterKostenEmpfaenger
     // oben): der Namensabgleich schlägt z.B. fehl, wenn die Bank einen Umlaut im Absendernamen
     // beim Export weglässt ("Jackisch" statt "Jäckisch") — ein starkes Signal wie das
@@ -642,6 +650,16 @@ export function mapKostenRows(
       // deshalb direkt "Reparaturen" vorschlagen, statt die Zeile ohne Vorschlag stehen zu lassen.
       if (kleinreparatur && !vorgeschlageneKostenartId) {
         vorgeschlageneKostenartId = reparaturenKostenartId;
+      }
+      if (dienstleisterTreffer) {
+        vorgeschlageneKostenartId = dienstleisterTreffer.kostenartId;
+        if (dienstleisterTreffer.gebaeudeAuswahl) {
+          vorgeschlageneGebaeudeAuswahl = dienstleisterTreffer.gebaeudeAuswahl;
+        } else if (vorgeschlageneGebaeudeAuswahl === undefined) {
+          // Dienstleister ohne festes Gebäude, aber Kostenart sicher: "Objekt gesamt" als
+          // Vorschlag, damit die Zeile als sicher erkannt wird.
+          vorgeschlageneGebaeudeAuswahl = null;
+        }
       }
     }
 

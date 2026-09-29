@@ -1,0 +1,149 @@
+"use client";
+
+import { useActionState } from "react";
+import { runFormAction } from "@/lib/form-utils";
+import type { GebaeudeAuswahlGruppe } from "@/lib/gebaeude-gruppen";
+
+type Dienstleister = {
+  name: string;
+  suchbegriffe: string;
+  kostenartId: string;
+  gebaeudeAuswahl: string | null;
+  iban: string | null;
+  notiz: string | null;
+  aktiv: boolean;
+};
+
+const inputClass =
+  "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
+
+export function DienstleisterForm({
+  initial,
+  kostenarten,
+  gebaeude,
+  action,
+}: {
+  initial?: Dienstleister;
+  kostenarten: { id: string; label: string }[];
+  gebaeude: GebaeudeAuswahlGruppe[];
+  action: (formData: FormData) => Promise<void>;
+}) {
+  const [error, formAction, pending] = useActionState(
+    (_prev: string | null, formData: FormData) => runFormAction(action, formData),
+    null,
+  );
+
+  return (
+    <form action={formAction} className="max-w-md space-y-4">
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="name">
+          Name
+        </label>
+        <input
+          id="name"
+          name="name"
+          required
+          defaultValue={initial?.name}
+          placeholder="z.B. Stadtwerke Eutin"
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="suchbegriffe">
+          Suchbegriffe
+        </label>
+        <p className="mb-1 text-xs text-neutral-500">
+          Ein Begriff pro Zeile (mind. 3 Zeichen). Kommt einer davon im Empfänger oder Verwendungszweck
+          einer Kontoauszugszeile vor, wird sie diesem Dienstleister zugeordnet — ohne Beachtung von
+          Groß-/Kleinschreibung und Umlauten.
+        </p>
+        <textarea
+          id="suchbegriffe"
+          name="suchbegriffe"
+          required
+          rows={3}
+          defaultValue={initial?.suchbegriffe}
+          placeholder={"stadtwerke eutin\nSWE Eutin"}
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="kostenartId">
+          Kostenart
+        </label>
+        <select
+          id="kostenartId"
+          name="kostenartId"
+          required
+          defaultValue={initial?.kostenartId ?? ""}
+          className={inputClass}
+        >
+          <option value="" className="bg-neutral-900">
+            Bitte wählen…
+          </option>
+          {kostenarten.map((k) => (
+            <option key={k.id} value={k.id} className="bg-neutral-900">
+              {k.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="gebaeudeAuswahl">
+          Gebäude (optional)
+        </label>
+        <select
+          id="gebaeudeAuswahl"
+          name="gebaeudeAuswahl"
+          defaultValue={initial?.gebaeudeAuswahl ?? ""}
+          className={inputClass}
+        >
+          <option value="" className="bg-neutral-900">
+            Nicht festgelegt (aus Adresse/Historie ermitteln, sonst Objekt gesamt)
+          </option>
+          {gebaeude.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.optionen.map((o) => (
+                <option key={o.value} value={o.value} className="bg-neutral-900">
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="iban">
+          IBAN (optional)
+        </label>
+        <input id="iban" name="iban" defaultValue={initial?.iban ?? ""} className={inputClass} />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="notiz">
+          Notiz (optional)
+        </label>
+        <textarea id="notiz" name="notiz" rows={2} defaultValue={initial?.notiz ?? ""} className={inputClass} />
+      </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="aktiv" defaultChecked={initial?.aktiv ?? true} />
+        Beim Import automatisch zuordnen
+      </label>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+      >
+        {pending ? "Speichern…" : "Speichern"}
+      </button>
+    </form>
+  );
+}

@@ -534,8 +534,31 @@ model Kostenart {
   vorverteilteLeerstaende     VorverteilterLeerstand[]
   techemAllgemeinstromAnteile TechemAllgemeinstromAnteil[]
   nebenkostenQmAbweichungen   NebenkostenQmAbweichung[]
+  dienstleister               Dienstleister[]
 
   @@map("kostenarten")
+}
+
+// Stammdaten: Dienstleister/Lieferanten (Stadtwerke, Hausmeister, Versicherung ...). Beim
+// Kosten-Import werden Kontoauszugszeilen, deren Empfänger oder Verwendungszweck einen der
+// Suchbegriffe enthält, automatisch der hinterlegten Kostenart (und optional dem Gebäude/Haus/
+// der Kostengruppe/Einheit) zugeordnet. gebaeudeAuswahl hat dasselbe Format wie das
+// Auswahl-<select> ("gebaeude:<id>", "haus:<id>", ...), null = Objekt gesamt/nicht festgelegt.
+model Dienstleister {
+  id              String    @id @default(cuid())
+  name            String
+  // Ein Suchbegriff pro Zeile, Vergleich ohne Groß-/Kleinschreibung und Umlaut-Unterschiede.
+  suchbegriffe    String
+  kostenart       Kostenart @relation(fields: [kostenartId], references: [id], onDelete: Restrict)
+  kostenartId     String
+  gebaeudeAuswahl String?
+  iban            String?
+  notiz           String?
+  aktiv           Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  @@index([kostenartId])
+  @@map("dienstleister")
 }
 
 // Ein Ablesewert (z.B. Zählerstand-Differenz) pro Einheit, Kostenart und Jahr — Grundlage für die

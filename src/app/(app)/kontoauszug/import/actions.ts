@@ -8,6 +8,7 @@ import { requireUser, requireEditor } from "@/lib/session";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
+import { parseSuchbegriffe, type DienstleisterKandidat } from "@/lib/import/dienstleister";
 import {
   mapKostenRows,
   type EinheitKandidat,
@@ -589,6 +590,15 @@ export async function previewImport(
         einheitTyp: v.einheit.typ,
       })),
     );
+    const dienstleisterKandidaten: DienstleisterKandidat[] = (
+      await prisma.dienstleister.findMany({ where: { aktiv: true } })
+    ).map((d) => ({
+      id: d.id,
+      name: d.name,
+      suchbegriffe: parseSuchbegriffe(d.suchbegriffe),
+      kostenartId: d.kostenartId,
+      gebaeudeAuswahl: d.gebaeudeAuswahl,
+    }));
     const kostenRows = mapKostenRows(
       headers,
       rows,
@@ -599,6 +609,7 @@ export async function previewImport(
       reparaturenKostenartId,
       bekannteWarmmieten,
       einheitKandidaten,
+      dienstleisterKandidaten,
     );
     const buchungenRohdaten = await prisma.buchung.findMany({ where: dedup, select: { rohdaten: true } });
     const bestehendeSets = berechneBestehendeImportSets({
