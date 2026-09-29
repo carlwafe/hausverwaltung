@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { findeDienstleister, parseSuchbegriffe } from "@/lib/import/dienstleister";
 import { normalizeText } from "@/lib/import/bank-csv";
-import { gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 
 export type DienstleisterVorschlag = {
   // Normalisierter Empfänger, dient als Schlüssel.
@@ -11,7 +10,6 @@ export type DienstleisterVorschlag = {
   // Alle Kostenarten mit nennenswertem Anteil (>= 10 %), häufigste zuerst.
   kostenarten: { id: string; name: string }[];
   // Nur gesetzt, wenn alle Buchungen dieselbe Zuordnung haben.
-  gebaeudeAuswahl: string | null;
   anzahl: number;
   summe: number;
 };
@@ -21,7 +19,7 @@ const MIN_ANZAHL = 2;
 /**
  * Leitet aus den bereits importierten Kostenbuchungen Dienstleister-Vorschläge ab: Empfänger, die
  * mindestens zweimal vorkommen, noch von keinem Dienstleister abgedeckt sind und kein Mieter
- * sind. Kostenarten = alle mit mind. 10 % Anteil, Gebäude nur bei einheitlicher Zuordnung.
+ * sind. Kostenarten = alle mit mind. 10 % Anteil.
  */
 export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorschlag[]> {
   const [buchungen, dienstleister, mieter] = await Promise.all([
@@ -37,10 +35,6 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
         betrag: true,
         kostenartId: true,
         kostenart: { select: { name: true } },
-        gebaeudeId: true,
-        hausId: true,
-        kostengruppeId: true,
-        einheitId: true,
       },
     }),
     prisma.dienstleister.findMany({ include: { kostenarten: { select: { id: true } } } }),
@@ -52,7 +46,6 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
     name: d.name,
     suchbegriffe: parseSuchbegriffe(d.suchbegriffe),
     kostenartIds: d.kostenarten.map((k) => k.id),
-    gebaeudeAuswahl: d.gebaeudeAuswahl,
   }));
   const mieterNamen = new Set(
     mieter.flatMap((m) => [normalizeText(`${m.vorname}${m.nachname}`), normalizeText(`${m.nachname}${m.vorname}`)]),
@@ -61,7 +54,6 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
   type Gruppe = {
     schreibweisen: Map<string, number>;
     kostenarten: Map<string, { name: string; anzahl: number }>;
-    gebaeude: Map<string, number>;
     anzahl: number;
     summe: number;
   };
@@ -72,7 +64,7 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
     if (schluessel.length < 3 || mieterNamen.has(schluessel)) continue;
     let g = gruppen.get(schluessel);
     if (!g) {
-      g = { schreibweisen: new Map(), kostenarten: new Map(), gebaeude: new Map(), anzahl: 0, summe: 0 };
+      g = { schreibweisen: new Map(), kostenarten: new Map(), anzahl: 0, summe: 0 };
       gruppen.set(schluessel, g);
     }
     g.anzahl++;
@@ -81,8 +73,6 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
     const ka = g.kostenarten.get(b.kostenartId!) ?? { name: b.kostenart?.name ?? "", anzahl: 0 };
     ka.anzahl++;
     g.kostenarten.set(b.kostenartId!, ka);
-    const gw = gebaeudeAuswahlWert(b.gebaeudeId, b.hausId, b.kostengruppeId, b.einheitId);
-    g.gebaeude.set(gw, (g.gebaeude.get(gw) ?? 0) + 1);
   }
 
   const haeufigster = <T>(m: Map<string, T>, wert: (v: T) => number) =>
@@ -101,7 +91,6 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
       schluessel,
       name,
       kostenarten,
-      gebaeudeAuswahl: g.gebaeude.size === 1 ? ([...g.gebaeude.keys()][0] || null) : null,
       anzahl: g.anzahl,
       summe: g.summe,
     });

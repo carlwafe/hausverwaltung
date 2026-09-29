@@ -597,7 +597,6 @@ export async function previewImport(
       name: d.name,
       suchbegriffe: parseSuchbegriffe(d.suchbegriffe),
       kostenartIds: d.kostenarten.map((k) => k.id),
-      gebaeudeAuswahl: d.gebaeudeAuswahl,
     }));
     const kostenRows = mapKostenRows(
       headers,

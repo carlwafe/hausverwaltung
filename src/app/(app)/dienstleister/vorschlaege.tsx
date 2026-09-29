@@ -6,8 +6,6 @@ import { uebernehmeVorschlaege } from "./actions";
 export type VorschlagRow = {
   name: string;
   kostenarten: { id: string; name: string }[];
-  gebaeudeAuswahl: string | null;
-  gebaeudeLabel: string;
   anzahl: number;
   summe: number;
 };
@@ -23,7 +21,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
     start(async () => {
       try {
         await uebernehmeVorschlaege(
-          liste.map((r) => ({ name: r.name, kostenartIds: r.kostenarten.map((k) => k.id), gebaeudeAuswahl: r.gebaeudeAuswahl })),
+          liste.map((r) => ({ name: r.name, kostenartIds: r.kostenarten.map((k) => k.id) })),
         );
       } catch (e) {
         setFehler(e instanceof Error ? e.message : "Unbekannter Fehler");
@@ -62,7 +60,6 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
             <tr>
               <th className="py-1 pr-4 font-normal">Empfänger</th>
               <th className="py-1 pr-4 font-normal">Kostenart</th>
-              <th className="py-1 pr-4 font-normal">Gebäude</th>
               <th className="py-1 pr-4 text-right font-normal">Buchungen</th>
               <th className="py-1 pr-4 text-right font-normal">Summe</th>
               <th />
@@ -73,7 +70,6 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
               <tr key={r.name} className="border-t border-neutral-800">
                 <td className="py-1.5 pr-4">{r.name}</td>
                 <td className="py-1.5 pr-4">{r.kostenarten.map((k) => k.name).join(", ")}</td>
-                <td className="py-1.5 pr-4">{r.gebaeudeLabel}</td>
                 <td className="py-1.5 pr-4 text-right">{r.anzahl}</td>
                 <td className="py-1.5 pr-4 text-right">{euro.format(r.summe)}</td>
                 <td className="py-1.5 text-right">

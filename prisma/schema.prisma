@@ -543,20 +543,17 @@ model Kostenart {
 // Kosten-Import werden Kontoauszugszeilen, deren Empfänger oder Verwendungszweck einen der
 // Suchbegriffe enthält, dem Dienstleister zugeordnet. Hat er genau eine Kostenart, wird sie
 // vorgeschlagen; bei mehreren (oder keiner) bleibt die Kostenart offen bzw. der Verlaufs-Vorschlag
-// gilt, sofern er unter den Kostenarten des Dienstleisters liegt. gebaeudeAuswahl hat dasselbe
-// Format wie das Auswahl-<select> ("gebaeude:<id>", "haus:<id>", ...), null = nicht festgelegt.
-// Verträge liegen als Dokument (dienstleisterId) an.
+// gilt, sofern er unter den Kostenarten des Dienstleisters liegt. Verträge liegen als Dokument (dienstleisterId) an.
 model Dienstleister {
-  id              String      @id @default(cuid())
-  name            String
+  id           String      @id @default(cuid())
+  name         String
   // Ein Suchbegriff pro Zeile, Vergleich ohne Groß-/Kleinschreibung und Umlaut-Unterschiede.
-  suchbegriffe    String
-  kostenarten     Kostenart[]
-  gebaeudeAuswahl String?
-  iban            String?
-  notiz           String?
-  aktiv           Boolean     @default(true)
-  createdAt       DateTime    @default(now())
+  suchbegriffe String
+  kostenarten  Kostenart[]
+  iban         String?
+  notiz        String?
+  aktiv        Boolean     @default(true)
+  createdAt    DateTime    @default(now())
 
   dokumente Dokument[]
 

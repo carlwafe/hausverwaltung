@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DienstleisterForm } from "../dienstleister-form";
 import { updateDienstleister, deleteDienstleister } from "../actions";
-import { ladeFormularOptionen } from "../lade-optionen";
+import { ladeKostenartenOptionen } from "../lade-optionen";
 import { uploadDokument } from "../../dokumente/actions";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
@@ -10,12 +10,12 @@ import { DeleteButton } from "@/components/delete-button";
 
 export default async function DienstleisterDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [dienstleister, { kostenarten, gebaeude }] = await Promise.all([
+  const [dienstleister, kostenarten] = await Promise.all([
     prisma.dienstleister.findUnique({
       where: { id },
       include: { kostenarten: { select: { id: true } }, dokumente: true },
     }),
-    ladeFormularOptionen(),
+    ladeKostenartenOptionen(),
   ]);
   if (!dienstleister) notFound();
 
@@ -31,7 +31,6 @@ export default async function DienstleisterDetailPage({ params }: { params: Prom
       <DienstleisterForm
         initial={{ ...dienstleister, kostenartIds: dienstleister.kostenarten.map((k) => k.id) }}
         kostenarten={kostenarten}
-        gebaeude={gebaeude}
         action={updateDienstleister.bind(null, id)}
       />
       <div className="mt-8 max-w-3xl">

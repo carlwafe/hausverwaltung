@@ -2,13 +2,11 @@
 
 import { useActionState } from "react";
 import { runFormAction } from "@/lib/form-utils";
-import type { GebaeudeAuswahlGruppe } from "@/lib/gebaeude-gruppen";
 
 type Dienstleister = {
   name: string;
   suchbegriffe: string;
   kostenartIds: string[];
-  gebaeudeAuswahl: string | null;
   iban: string | null;
   notiz: string | null;
   aktiv: boolean;
@@ -20,12 +18,10 @@ const inputClass =
 export function DienstleisterForm({
   initial,
   kostenarten,
-  gebaeude,
   action,
 }: {
   initial?: Dienstleister;
   kostenarten: { id: string; label: string }[];
-  gebaeude: GebaeudeAuswahlGruppe[];
   action: (formData: FormData) => Promise<void>;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -89,31 +85,6 @@ export function DienstleisterForm({
           ))}
         </div>
       </fieldset>
-
-      <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="gebaeudeAuswahl">
-          Gebäude (optional)
-        </label>
-        <select
-          id="gebaeudeAuswahl"
-          name="gebaeudeAuswahl"
-          defaultValue={initial?.gebaeudeAuswahl ?? ""}
-          className={inputClass}
-        >
-          <option value="" className="bg-neutral-900">
-            Nicht festgelegt (aus Adresse/Historie ermitteln, sonst Objekt gesamt)
-          </option>
-          {gebaeude.map((g) => (
-            <optgroup key={g.label} label={g.label}>
-              {g.optionen.map((o) => (
-                <option key={o.value} value={o.value} className="bg-neutral-900">
-                  {o.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="iban">

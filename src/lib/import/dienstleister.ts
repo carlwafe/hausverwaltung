@@ -8,8 +8,6 @@ export type DienstleisterKandidat = {
   suchbegriffe: string[];
   // Leer = keine feste Kostenart, mehrere = Dienstleister deckt mehrere Kostenarten ab.
   kostenartIds: string[];
-  // "gebaeude:<id>"/"haus:<id>"/... wie im Auswahl-<select>, null = nicht festgelegt.
-  gebaeudeAuswahl: string | null;
 };
 
 /** Zerlegt das Suchbegriffe-Textfeld (ein Begriff pro Zeile oder durch Komma/Semikolon getrennt). */

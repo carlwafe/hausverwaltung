@@ -8,7 +8,6 @@ export type DienstleisterRow = {
   name: string;
   suchbegriffe: string;
   kostenarten: string;
-  gebaeude: string;
   aktiv: boolean;
 };
 
@@ -37,7 +36,6 @@ const columns: Column<DienstleisterRow>[] = [
     searchValue: (d) => d.kostenarten,
     render: (d) => d.kostenarten || "–",
   },
-  { key: "gebaeude", label: "Gebäude", sortValue: (d) => d.gebaeude, render: (d) => d.gebaeude },
   {
     key: "aktiv",
     label: "Auto-Zuordnung",

@@ -661,13 +661,6 @@ export function mapKostenRows(
         } else if (ids.length > 1 && vorgeschlageneKostenartId && !ids.includes(vorgeschlageneKostenartId)) {
           vorgeschlageneKostenartId = null;
         }
-        if (dienstleisterTreffer.gebaeudeAuswahl) {
-          vorgeschlageneGebaeudeAuswahl = dienstleisterTreffer.gebaeudeAuswahl;
-        } else if (vorgeschlageneGebaeudeAuswahl === undefined && vorgeschlageneKostenartId) {
-          // Kostenart sicher, aber kein Gebäude festgelegt/ermittelbar: "Objekt gesamt" als
-          // Vorschlag, damit die Zeile als sicher erkannt wird.
-          vorgeschlageneGebaeudeAuswahl = null;
-        }
       }
     }
 

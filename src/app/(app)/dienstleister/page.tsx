@@ -1,24 +1,20 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { DienstleisterTable, type DienstleisterRow } from "./dienstleister-table";
-import { ladeFormularOptionen } from "./lade-optionen";
 import { ladeDienstleisterVorschlaege } from "@/lib/dienstleister-vorschlaege";
 import { Vorschlaege } from "./vorschlaege";
 
 export default async function DienstleisterPage() {
-  const [dienstleister, { gebaeude }, vorschlaege] = await Promise.all([
+  const [dienstleister, vorschlaege] = await Promise.all([
     prisma.dienstleister.findMany({ orderBy: { name: "asc" }, include: { kostenarten: { orderBy: { name: "asc" } } } }),
-    ladeFormularOptionen(),
     ladeDienstleisterVorschlaege(),
   ]);
-  const gebaeudeLabel = new Map(gebaeude.flatMap((g) => g.optionen.map((o) => [o.value, o.label] as const)));
 
   const rows: DienstleisterRow[] = dienstleister.map((d) => ({
     id: d.id,
     name: d.name,
     suchbegriffe: d.suchbegriffe,
     kostenarten: d.kostenarten.map((k) => k.name).join(", "),
-    gebaeude: d.gebaeudeAuswahl ? (gebaeudeLabel.get(d.gebaeudeAuswahl) ?? "–") : "–",
     aktiv: d.aktiv,
   }));
 
@@ -29,7 +25,7 @@ export default async function DienstleisterPage() {
           <h1 className="text-2xl font-semibold text-white">Dienstleister</h1>
           <p className="text-sm text-neutral-400">
             {rows.length} Dienstleister — beim Kosten-Import werden Kontoauszugszeilen anhand der
-            Suchbegriffe automatisch der Kostenart (und ggf. dem Gebäude) zugeordnet.
+            Suchbegriffe automatisch der Kostenart zugeordnet.
           </p>
         </div>
         <Link
@@ -44,8 +40,6 @@ export default async function DienstleisterPage() {
         rows={vorschlaege.map((v) => ({
           name: v.name,
           kostenarten: v.kostenarten,
-          gebaeudeAuswahl: v.gebaeudeAuswahl,
-          gebaeudeLabel: v.gebaeudeAuswahl ? (gebaeudeLabel.get(v.gebaeudeAuswahl) ?? "–") : "–",
           anzahl: v.anzahl,
           summe: v.summe,
         }))}

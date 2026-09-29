@@ -11,7 +11,6 @@ const dienstleisterSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich"),
   suchbegriffe: z.string(),
   kostenartIds: z.array(z.string()),
-  gebaeudeAuswahl: z.string().optional(),
   iban: z.string().trim().optional(),
   notiz: z.string().trim().optional(),
   aktiv: z.boolean(),
@@ -22,7 +21,6 @@ function parseForm(formData: FormData) {
     name: formData.get("name"),
     suchbegriffe: formData.get("suchbegriffe") ?? "",
     kostenartIds: formData.getAll("kostenartIds").map(String),
-    gebaeudeAuswahl: formData.get("gebaeudeAuswahl") || undefined,
     iban: formData.get("iban") || undefined,
     notiz: formData.get("notiz") || undefined,
     aktiv: formData.get("aktiv") === "on",
@@ -39,7 +37,6 @@ function parseForm(formData: FormData) {
     name: d.name,
     suchbegriffe: suchbegriffe.join("\n"),
     kostenartIds: d.kostenartIds,
-    gebaeudeAuswahl: d.gebaeudeAuswahl ?? null,
     iban: d.iban ?? null,
     notiz: d.notiz ?? null,
     aktiv: d.aktiv,
@@ -77,7 +74,7 @@ export async function deleteDienstleister(id: string) {
 
 // Übernimmt Vorschläge aus dem Import-Verlauf als Dienstleister (Suchbegriff = Empfängername).
 export async function uebernehmeVorschlaege(
-  vorschlaege: { name: string; kostenartIds: string[]; gebaeudeAuswahl: string | null }[],
+  vorschlaege: { name: string; kostenartIds: string[] }[],
 ) {
   await requireEditor();
   const vorhanden = new Set((await prisma.dienstleister.findMany({ select: { name: true } })).map((d) => d.name));
@@ -87,7 +84,6 @@ export async function uebernehmeVorschlaege(
       data: {
         name: v.name,
         suchbegriffe: v.name,
-        gebaeudeAuswahl: v.gebaeudeAuswahl,
         kostenarten: { connect: v.kostenartIds.map((id) => ({ id })) },
       },
     });
