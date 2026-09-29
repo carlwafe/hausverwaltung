@@ -7,8 +7,16 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseSuchbegriffe } from "@/lib/import/dienstleister";
 
+const TYPEN = ["DIENSTLEISTER", "LIEFERANT"] as const;
+
 const dienstleisterSchema = z.object({
+  typ: z.enum(TYPEN),
   name: z.string().trim().min(1, "Name ist erforderlich"),
+  beschreibung: z.string().trim().optional(),
+  ansprechpartner: z.string().trim().optional(),
+  telefon: z.string().trim().optional(),
+  email: z.string().trim().optional(),
+  adresse: z.string().trim().optional(),
   suchbegriffe: z.string(),
   kostenartIds: z.array(z.string()),
   iban: z.string().trim().optional(),
@@ -18,7 +26,13 @@ const dienstleisterSchema = z.object({
 
 function parseForm(formData: FormData) {
   const parsed = dienstleisterSchema.safeParse({
+    typ: formData.get("typ"),
     name: formData.get("name"),
+    beschreibung: formData.get("beschreibung") || undefined,
+    ansprechpartner: formData.get("ansprechpartner") || undefined,
+    telefon: formData.get("telefon") || undefined,
+    email: formData.get("email") || undefined,
+    adresse: formData.get("adresse") || undefined,
     suchbegriffe: formData.get("suchbegriffe") ?? "",
     kostenartIds: formData.getAll("kostenartIds").map(String),
     iban: formData.get("iban") || undefined,
@@ -30,11 +44,14 @@ function parseForm(formData: FormData) {
   }
   const d = parsed.data;
   const suchbegriffe = parseSuchbegriffe(d.suchbegriffe);
-  if (suchbegriffe.length === 0) {
-    throw new Error("Mindestens ein Suchbegriff (mind. 3 Zeichen) ist erforderlich");
-  }
   return {
+    typ: d.typ,
     name: d.name,
+    beschreibung: d.beschreibung ?? null,
+    ansprechpartner: d.ansprechpartner ?? null,
+    telefon: d.telefon ?? null,
+    email: d.email ?? null,
+    adresse: d.adresse ?? null,
     suchbegriffe: suchbegriffe.join("\n"),
     kostenartIds: d.kostenartIds,
     iban: d.iban ?? null,
@@ -74,7 +91,7 @@ export async function deleteDienstleister(id: string) {
 
 // Übernimmt Vorschläge aus dem Import-Verlauf als Dienstleister (Suchbegriff = Empfängername).
 export async function uebernehmeVorschlaege(
-  vorschlaege: { name: string; kostenartIds: string[] }[],
+  vorschlaege: { name: string; typ: (typeof TYPEN)[number]; kostenartIds: string[] }[],
 ) {
   await requireEditor();
   const vorhanden = new Set((await prisma.dienstleister.findMany({ select: { name: true } })).map((d) => d.name));
@@ -82,6 +99,7 @@ export async function uebernehmeVorschlaege(
   for (const v of neu) {
     await prisma.dienstleister.create({
       data: {
+        typ: v.typ,
         name: v.name,
         suchbegriffe: v.name,
         kostenarten: { connect: v.kostenartIds.map((id) => ({ id })) },

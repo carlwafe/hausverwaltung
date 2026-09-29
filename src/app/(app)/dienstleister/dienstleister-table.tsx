@@ -6,9 +6,14 @@ import { DataTable, type Column } from "@/components/data-table";
 export type DienstleisterRow = {
   id: string;
   name: string;
+  beschreibung: string;
+  ansprechpartner: string;
+  telefon: string;
+  email: string;
+  // Nur für die Suche, nicht als Spalte sichtbar.
   suchbegriffe: string;
   kostenarten: string;
-  aktiv: boolean;
+  adresse: string;
 };
 
 const columns: Column<DienstleisterRow>[] = [
@@ -16,7 +21,7 @@ const columns: Column<DienstleisterRow>[] = [
     key: "name",
     label: "Name",
     sortValue: (d) => d.name,
-    searchValue: (d) => `${d.name} ${d.suchbegriffe}`,
+    searchValue: (d) => `${d.name} ${d.suchbegriffe} ${d.kostenarten} ${d.adresse}`,
     render: (d) => (
       <Link href={`/dienstleister/${d.id}`} className="font-medium hover:underline">
         {d.name}
@@ -24,27 +29,45 @@ const columns: Column<DienstleisterRow>[] = [
     ),
   },
   {
-    key: "suchbegriffe",
-    label: "Suchbegriffe",
-    sortValue: (d) => d.suchbegriffe,
-    render: (d) => d.suchbegriffe.split("\n").join(", "),
+    key: "beschreibung",
+    label: "Beschreibung",
+    sortValue: (d) => d.beschreibung,
+    searchValue: (d) => d.beschreibung,
+    render: (d) => d.beschreibung || "–",
   },
   {
-    key: "kostenarten",
-    label: "Kostenarten",
-    sortValue: (d) => d.kostenarten,
-    searchValue: (d) => d.kostenarten,
-    render: (d) => d.kostenarten || "–",
+    key: "ansprechpartner",
+    label: "Ansprechpartner",
+    sortValue: (d) => d.ansprechpartner,
+    searchValue: (d) => d.ansprechpartner,
+    render: (d) => d.ansprechpartner || "–",
   },
   {
-    key: "aktiv",
-    label: "Auto-Zuordnung",
-    sortValue: (d) => (d.aktiv ? 1 : 0),
+    key: "telefon",
+    label: "Telefon",
+    sortValue: (d) => d.telefon,
+    searchValue: (d) => d.telefon,
     render: (d) =>
-      d.aktiv ? (
-        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Aktiv</span>
+      d.telefon ? (
+        <a href={`tel:${d.telefon.replace(/[^\d+]/g, "")}`} className="whitespace-nowrap hover:underline">
+          {d.telefon}
+        </a>
       ) : (
-        <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">Aus</span>
+        "–"
+      ),
+  },
+  {
+    key: "email",
+    label: "E-Mail",
+    sortValue: (d) => d.email,
+    searchValue: (d) => d.email,
+    render: (d) =>
+      d.email ? (
+        <a href={`mailto:${d.email}`} className="hover:underline">
+          {d.email}
+        </a>
+      ) : (
+        "–"
       ),
   },
 ];
@@ -54,8 +77,8 @@ export function DienstleisterTable({ rows }: { rows: DienstleisterRow[] }) {
     <DataTable
       columns={columns}
       rows={rows}
-      emptyMessage="Noch keine Dienstleister angelegt."
-      searchPlaceholder="Dienstleister durchsuchen…"
+      emptyMessage="Noch nichts angelegt."
+      searchPlaceholder="Name, Beschreibung, Telefon … durchsuchen"
     />
   );
 }

@@ -569,15 +569,30 @@ model Kostenart {
   @@map("kostenarten")
 }
 
+// Dienstleister = erbringt Leistungen (Handwerker, Verwaltung, Hausmeister), Lieferant = liefert
+// Waren/Energie/Versorgung (Stadtwerke, Techem, Material).
+enum DienstleisterTyp {
+  DIENSTLEISTER
+  LIEFERANT
+}
+
 // Stammdaten: Dienstleister/Lieferanten (Stadtwerke, Hausmeister, Versicherung ...). Beim
 // Kosten-Import werden Kontoauszugszeilen, deren Empfänger oder Verwendungszweck einen der
 // Suchbegriffe enthält, dem Dienstleister zugeordnet. Hat er genau eine Kostenart, wird sie
 // vorgeschlagen; bei mehreren (oder keiner) bleibt die Kostenart offen bzw. der Verlaufs-Vorschlag
 // gilt, sofern er unter den Kostenarten des Dienstleisters liegt. Verträge liegen als Dokument (dienstleisterId) an.
 model Dienstleister {
-  id           String      @id @default(cuid())
+  id           String           @id @default(cuid())
+  typ          DienstleisterTyp @default(DIENSTLEISTER)
   name         String
-  // Ein Suchbegriff pro Zeile, Vergleich ohne Groß-/Kleinschreibung und Umlaut-Unterschiede.
+  // Kurzbeschreibung zum schnellen Finden, z.B. "Elektriker", "Aufzugswartung".
+  beschreibung    String?
+  ansprechpartner String?
+  telefon         String?
+  email           String?
+  adresse         String?
+  // Ein Suchbegriff pro Zeile (kann leer sein = keine Auto-Zuordnung beim Import), Vergleich ohne
+  // Groß-/Kleinschreibung und Umlaut-Unterschiede.
   suchbegriffe String
   kostenarten  Kostenart[]
   iban         String?

@@ -1,0 +1,3 @@
+CREATE TYPE "DienstleisterTyp" AS ENUM ('DIENSTLEISTER', 'LIEFERANT');
+
+ALTER TABLE "dienstleister" ADD COLUMN "typ" "DienstleisterTyp" NOT NULL DEFAULT 'DIENSTLEISTER';

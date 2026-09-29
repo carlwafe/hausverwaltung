@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { uebernehmeVorschlaege } from "./actions";
 
+type Typ = "DIENSTLEISTER" | "LIEFERANT";
+
 export type VorschlagRow = {
   name: string;
   kostenarten: { id: string; name: string }[];
@@ -15,13 +17,15 @@ const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR"
 export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
   const [pending, start] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
+  const [typen, setTypen] = useState<Record<string, Typ>>({});
+  const typVon = (r: VorschlagRow): Typ => typen[r.name] ?? "DIENSTLEISTER";
 
   function uebernehmen(liste: VorschlagRow[]) {
     setFehler(null);
     start(async () => {
       try {
         await uebernehmeVorschlaege(
-          liste.map((r) => ({ name: r.name, kostenartIds: r.kostenarten.map((k) => k.id) })),
+          liste.map((r) => ({ name: r.name, typ: typVon(r), kostenartIds: r.kostenarten.map((k) => k.id) })),
         );
       } catch (e) {
         setFehler(e instanceof Error ? e.message : "Unbekannter Fehler");
@@ -39,7 +43,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
           <h2 className="text-lg font-semibold text-white">Vorschläge aus dem Import-Verlauf</h2>
           <p className="text-sm text-neutral-400">
             Empfänger, die mindestens zweimal als Kosten gebucht wurden und noch keinem Dienstleister
-            zugeordnet sind. Kostenarten = die bisher verwendeten (mind. 10 % der Buchungen).
+            oder Lieferanten zugeordnet sind. Den Typ wählen Sie je Zeile vor dem Übernehmen. Kostenarten = die bisher verwendeten (mind. 10 % der Buchungen).
           </p>
         </div>
         {sichere.length > 0 && (
@@ -59,6 +63,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
           <thead className="text-neutral-500">
             <tr>
               <th className="py-1 pr-4 font-normal">Empfänger</th>
+              <th className="py-1 pr-4 font-normal">Typ</th>
               <th className="py-1 pr-4 font-normal">Kostenart</th>
               <th className="py-1 pr-4 text-right font-normal">Buchungen</th>
               <th className="py-1 pr-4 text-right font-normal">Summe</th>
@@ -69,6 +74,20 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
             {rows.map((r) => (
               <tr key={r.name} className="border-t border-neutral-800">
                 <td className="py-1.5 pr-4">{r.name}</td>
+                <td className="py-1.5 pr-4">
+                  <select
+                    value={typVon(r)}
+                    onChange={(e) => setTypen((t) => ({ ...t, [r.name]: e.target.value as Typ }))}
+                    className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs"
+                  >
+                    <option value="DIENSTLEISTER" className="bg-neutral-900">
+                      Dienstleister
+                    </option>
+                    <option value="LIEFERANT" className="bg-neutral-900">
+                      Lieferant
+                    </option>
+                  </select>
+                </td>
                 <td className="py-1.5 pr-4">{r.kostenarten.map((k) => k.name).join(", ")}</td>
                 <td className="py-1.5 pr-4 text-right">{r.anzahl}</td>
                 <td className="py-1.5 pr-4 text-right">{euro.format(r.summe)}</td>
