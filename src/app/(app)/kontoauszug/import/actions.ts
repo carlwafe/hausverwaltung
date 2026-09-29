@@ -591,7 +591,7 @@ export async function previewImport(
       })),
     );
     const dienstleisterKandidaten: DienstleisterKandidat[] = (
-      await prisma.dienstleister.findMany({ where: { aktiv: true }, include: { kostenarten: { select: { id: true } } } })
+      await prisma.dienstleister.findMany({ include: { kostenarten: { select: { id: true } } } })
     ).map((d) => ({
       id: d.id,
       name: d.name,

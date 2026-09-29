@@ -17,6 +17,7 @@ export default async function DienstleisterPage() {
 
   const alle = dienstleister.map((d) => ({
     typ: d.typ,
+    aktiv: d.aktiv,
     row: {
       id: d.id,
       name: d.name,
@@ -41,7 +42,9 @@ export default async function DienstleisterPage() {
       </div>
 
       {ABSCHNITTE.map((a) => {
-        const rows = alle.filter((d) => d.typ === a.typ).map((d) => d.row);
+        const vonTyp = alle.filter((d) => d.typ === a.typ);
+        const rows = vonTyp.filter((d) => d.aktiv).map((d) => d.row);
+        const inaktiv = vonTyp.filter((d) => !d.aktiv).map((d) => d.row);
         return (
           <section key={a.typ} className="mb-10">
             <div className="mb-3 flex items-center justify-between">
@@ -56,6 +59,14 @@ export default async function DienstleisterPage() {
               </Link>
             </div>
             <DienstleisterTable rows={rows} />
+            {inaktiv.length > 0 && (
+              <div className="mt-6">
+                <h3 className="mb-2 text-sm font-semibold text-neutral-400">
+                  {a.titel} inaktiv <span className="font-normal text-neutral-500">({inaktiv.length})</span>
+                </h3>
+                <DienstleisterTable rows={inaktiv} />
+              </div>
+            )}
           </section>
         );
       })}

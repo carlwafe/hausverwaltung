@@ -71,6 +71,17 @@ export function DienstleisterForm({
       </div>
 
       <div>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" name="aktiv" defaultChecked={initial?.aktiv ?? true} />
+          Aktiv (wird aktuell genutzt)
+        </label>
+        <p className="mt-1 text-xs text-neutral-500">
+          Inaktive erscheinen in der Liste weiter unten, z.B. nach einem Wechsel. Die automatische
+          Zuordnung beim Import gilt weiterhin, damit ältere Kontoauszüge zugeordnet werden.
+        </p>
+      </div>
+
+      <div>
         <label className={labelClass} htmlFor="beschreibung">
           Beschreibung
         </label>
@@ -178,11 +189,6 @@ export function DienstleisterForm({
             ))}
           </div>
         </fieldset>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="aktiv" defaultChecked={initial?.aktiv ?? true} />
-          Beim Import automatisch zuordnen
-        </label>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
