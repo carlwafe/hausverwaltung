@@ -57,6 +57,7 @@ async function parseForm(formData: FormData) {
     einheitId,
     mietvertragId,
     gebaeudeId: leerAlsNull(formData.get("gebaeudeId")),
+    hausId: leerAlsNull(formData.get("hausId")),
     dienstleisterId: leerAlsNull(formData.get("dienstleisterId")),
     zugewiesenAnId: leerAlsNull(formData.get("zugewiesenAnId")),
   };
@@ -134,6 +135,31 @@ export async function deleteTicket(id: string) {
   for (const d of ticket.dokumente) await loescheDatei(d.speicherpfad);
   revalidiere(ticket);
   redirect("/tickets");
+}
+
+// Kosten (KOSTENPOSITION-Buchungen) mit einem Ticket verknüpfen bzw. wieder lösen. Die Buchung selbst
+// bleibt unangetastet (unveränderlich) — die Verknüpfung liegt in ticket_kosten.
+export async function verknuepfeKosten(ticketId: string, buchungId: string): Promise<string | null> {
+  await requireEditor();
+  if (!buchungId) return "Bitte eine Kostenposition auswählen.";
+  const buchung = await prisma.buchung.findUnique({
+    where: { id: buchungId },
+    select: { buchungsart: { select: { code: true } } },
+  });
+  if (buchung?.buchungsart.code !== "KOSTENPOSITION") return "Nur Kostenpositionen lassen sich verknüpfen.";
+  await prisma.ticketKosten.upsert({
+    where: { ticketId_buchungId: { ticketId, buchungId } },
+    create: { ticketId, buchungId },
+    update: {},
+  });
+  revalidatePath(`/tickets/${ticketId}`);
+  return null;
+}
+
+export async function loeseKosten(ticketId: string, buchungId: string): Promise<void> {
+  await requireEditor();
+  await prisma.ticketKosten.deleteMany({ where: { ticketId, buchungId } });
+  revalidatePath(`/tickets/${ticketId}`);
 }
 
 export async function addKommentar(ticketId: string, _prev: string | null, formData: FormData): Promise<string | null> {

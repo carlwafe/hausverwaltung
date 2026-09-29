@@ -18,6 +18,7 @@ export type TicketFormWerte = {
   einheitId: string;
   mietvertragId: string;
   gebaeudeId: string;
+  hausId: string;
   dienstleisterId: string;
   zugewiesenAnId: string;
 };
@@ -39,6 +40,7 @@ export function TicketForm({
     einheiten: Option[];
     mietvertraege: (Option & { einheitId: string })[];
     gebaeude: Option[];
+    haeuser: Option[];
     dienstleister: Option[];
     benutzer: Option[];
   };
@@ -186,8 +188,23 @@ export function TicketForm({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
+            <label className={labelClass} htmlFor="hausId">
+              Gebäude (z.B. Dach, Fassade)
+            </label>
+            <select id="hausId" name="hausId" defaultValue={initial.hausId} className={inputClass}>
+              <option value="" className="bg-neutral-900">
+                –
+              </option>
+              {optionen.haeuser.map((h) => (
+                <option key={h.id} value={h.id} className="bg-neutral-900">
+                  {h.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className={labelClass} htmlFor="gebaeudeId">
-              Gebäude (z.B. Dach, Treppenhaus)
+              Hausnummer (z.B. Treppenhaus, Eingang)
             </label>
             <select id="gebaeudeId" name="gebaeudeId" defaultValue={initial.gebaeudeId} className={inputClass}>
               <option value="" className="bg-neutral-900">

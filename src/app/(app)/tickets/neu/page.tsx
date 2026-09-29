@@ -6,7 +6,7 @@ import { ladeTicketOptionen } from "../lade-optionen";
 export default async function NeuesTicketPage({
   searchParams,
 }: {
-  searchParams: Promise<{ einheitId?: string; mietvertragId?: string; dienstleisterId?: string; gebaeudeId?: string }>;
+  searchParams: Promise<{ einheitId?: string; mietvertragId?: string; dienstleisterId?: string; gebaeudeId?: string; hausId?: string }>;
 }) {
   const q = await searchParams;
   const optionen = await ladeTicketOptionen({ mietvertragId: q.mietvertragId });
@@ -28,6 +28,7 @@ export default async function NeuesTicketPage({
           einheitId: mietvertrag?.einheitId ?? q.einheitId ?? "",
           mietvertragId: mietvertrag?.id ?? "",
           gebaeudeId: q.gebaeudeId ?? "",
+          hausId: q.hausId ?? "",
           dienstleisterId: q.dienstleisterId ?? "",
           zugewiesenAnId: "",
         }}

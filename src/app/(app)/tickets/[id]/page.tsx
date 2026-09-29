@@ -5,6 +5,7 @@ import { TicketForm } from "../ticket-form";
 import { KommentarForm } from "../kommentar-form";
 import { addKommentar, deleteTicket, updateTicket } from "../actions";
 import { ladeTicketOptionen } from "../lade-optionen";
+import { KostenSektion } from "../kosten-sektion";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { DeleteButton } from "@/components/delete-button";
 import { uploadDokument } from "../../dokumente/actions";
@@ -71,6 +72,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           einheitId: ticket.einheitId ?? "",
           mietvertragId: ticket.mietvertragId ?? "",
           gebaeudeId: ticket.gebaeudeId ?? "",
+          hausId: ticket.hausId ?? "",
           dienstleisterId: ticket.dienstleisterId ?? "",
           zugewiesenAnId: ticket.zugewiesenAnId ?? "",
         }}
@@ -92,6 +94,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         </ul>
         <KommentarForm action={addKommentar.bind(null, id)} />
       </div>
+
+      <KostenSektion ticketId={id} />
 
       <div className="mt-8 max-w-3xl">
         <BelegeSektion

@@ -195,6 +195,7 @@ model Buchung {
 
   dokumente        Dokument[]
   kautionEinbehalt KautionEinbehalt?
+  ticketKosten     TicketKosten[]
 
   @@index([mietvertragId, datum])
   @@index([buchungsartId])
@@ -271,6 +272,7 @@ model Haus {
 
   gebaeude  Gebaeude[]
   buchungen Buchung[]
+  tickets   Ticket[]
 
   @@map("haeuser")
 }
@@ -905,6 +907,8 @@ model Ticket {
   einheitId       String?
   gebaeude        Gebaeude?        @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
   gebaeudeId      String?
+  haus            Haus?            @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId          String?
   mietvertrag     Mietvertrag?     @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
   mietvertragId   String?
   dienstleister   Dienstleister?   @relation(fields: [dienstleisterId], references: [id], onDelete: SetNull)
@@ -918,6 +922,7 @@ model Ticket {
 
   kommentare TicketKommentar[]
   dokumente  Dokument[]
+  kosten     TicketKosten[]
 
   @@index([status])
   @@map("tickets")
@@ -936,4 +941,21 @@ model TicketKommentar {
 
   @@index([ticketId])
   @@map("ticket_kommentare")
+}
+
+// Verknüpfung eines Tickets mit Kostenpositionen (z.B. Handwerkerrechnung zu einer Reparatur).
+// Bewusst eine eigene Tabelle statt Buchung.bezugTyp/bezugId: Buchungen sind unveränderlich, und ein
+// Ticket kann mehrere Kosten haben. Eine stornierte Buchung fällt über AKTIVE_BUCHUNG_FILTER aus der
+// Anzeige heraus (nach "Bearbeiten" = Storno + Neuanlage muss neu verknüpft werden).
+model TicketKosten {
+  id        String   @id @default(cuid())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  buchung   Buchung  @relation(fields: [buchungId], references: [id], onDelete: Cascade)
+  buchungId String
+  createdAt DateTime @default(now())
+
+  @@unique([ticketId, buchungId])
+  @@index([buchungId])
+  @@map("ticket_kosten")
 }
