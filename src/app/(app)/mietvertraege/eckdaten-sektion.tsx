@@ -59,7 +59,7 @@ export function EckdatenSektion({
   status: string;
   saldovortragText: string;
   zahlungsweg: string | null;
-  kaution: { betragText: string; anlageform: string; zinssatzText: string; einzahlungUnbekannt: boolean } | null;
+  kaution: { betragText: string; anlageform: string; einzahlungUnbekannt: boolean } | null;
   // Fliesstext-Hinweis auf die letzte Mieterhöhung (z.B. "Miete zuletzt zum 1.5.2026 auf 620,00 €
   // erhöht") — die volle Historie/Erfassung steht auf der Bearbeiten-Unterseite.
   letzteErhoehungText: string | null;
@@ -92,7 +92,6 @@ export function EckdatenSektion({
             <>
               <Feld label="Kaution" value={kaution.betragText} />
               <Feld label="Kaution-Anlageform" value={ANLAGEFORM_LABEL[kaution.anlageform] ?? kaution.anlageform} />
-              <Feld label="Kaution-Zinssatz" value={kaution.zinssatzText} />
               {kaution.einzahlungUnbekannt && (
                 <Feld label="Kaution-Einzahlung" value="vor Buchhaltungsbeginn, Datum unbekannt" />
               )}

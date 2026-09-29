@@ -46,14 +46,12 @@ function Block({ titel, children }: { titel: string; children: React.ReactNode }
 export function KautionAnsicht({
   konto,
   anlageform,
-  zinssatz,
   mietende,
   kopf,
 }: {
   konto: Kautionskonto;
   kopf: { mieter: string; einheit: string; mietbeginn: Date | null };
   anlageform: string | null;
-  zinssatz: number | null;
   // Vertragsende (falls bekannt); die Kautionsabrechnung erscheint ab Mietende oder sobald
   // Auszahlungen/Einbehalte gebucht sind.
   mietende: Date | null;
@@ -72,10 +70,7 @@ export function KautionAnsicht({
         </div>
         <div>
           <p className="text-xs text-neutral-400">Anlageform</p>
-          <p className="text-white">
-            {anlageform ?? "–"}
-            {zinssatz !== null && <span className="text-neutral-400"> ({zinssatz} %)</span>}
-          </p>
+          <p className="text-white">{anlageform ?? "–"}</p>
         </div>
         <div>
           <p className="text-xs text-neutral-400">Kautionsguthaben aktuell</p>

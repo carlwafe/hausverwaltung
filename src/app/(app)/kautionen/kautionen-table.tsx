@@ -39,7 +39,6 @@ export type KautionRow = {
   // null = kein eigener Kaution-Stammdatensatz vorhanden (siehe warnung) — betrifft nur einen
   // synthetisch aus Kautionsbuchungen gebildeten Zeileneintrag.
   anlageform: string | null;
-  zinssatz: number | null;
   // Summe der "Auflösung"- bzw. "Auszahlung Mieter"-Kautionsbuchungen dieses Mietvertrags (0,
   // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist.
   aufgeloest: number;

@@ -44,7 +44,7 @@ export function MietvertragReiter({
   nkJahre: number[];
   nkDaten: Record<number, NkJahrDaten>;
   vorauszahlungBrief: VorauszahlungBriefDaten;
-  kaution: { konto: Kautionskonto; anlageform: string | null; zinssatz: number | null; mietende: Date | null };
+  kaution: { konto: Kautionskonto; anlageform: string | null; mietende: Date | null };
   kopf: { mieter: string; einheit: string; wohnflaeche: number; mietbeginn: Date | null };
 }) {
   const [reiter, setReiter] = useState<Reiter>("mieterkonto");
@@ -114,7 +114,6 @@ export function MietvertragReiter({
         <KautionAnsicht
           konto={kaution.konto}
           anlageform={kaution.anlageform}
-          zinssatz={kaution.zinssatz}
           mietende={kaution.mietende}
           kopf={kopf}
         />

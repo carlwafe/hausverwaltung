@@ -297,7 +297,6 @@ export default async function MietvertragDetailPage({
             ? {
                 betragText: formatEuro(Number(vertrag.kaution.betrag)),
                 anlageform: vertrag.kaution.anlageform,
-                zinssatzText: vertrag.kaution.zinssatz ? `${Number(vertrag.kaution.zinssatz)} %` : "–",
                 einzahlungUnbekannt: vertrag.kaution.einzahlungUnbekannt,
               }
             : null
@@ -365,7 +364,6 @@ export default async function MietvertragDetailPage({
         kaution={{
           konto: kautionskonto,
           anlageform: vertrag.kaution ? ANLAGEFORM_LABEL[vertrag.kaution.anlageform] ?? vertrag.kaution.anlageform : null,
-          zinssatz: vertrag.kaution?.zinssatz ? Number(vertrag.kaution.zinssatz) : null,
           mietende: vertrag.ende,
         }}
         kopf={{

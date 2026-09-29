@@ -21,7 +21,6 @@ type Initial = {
   status: string;
   kautionBetrag?: string;
   kautionAnlageform?: string;
-  kautionZinssatz?: string;
   kautionEinzahlungUnbekannt?: boolean;
   saldovortrag?: string;
   zahlungsweg?: string;
@@ -61,7 +60,6 @@ export function MietvertragForm({
   const [status, setStatus] = useState(initial?.status ?? "AKTIV");
   const [kautionBetrag, setKautionBetrag] = useState(initial?.kautionBetrag ?? "");
   const [kautionAnlageform, setKautionAnlageform] = useState(initial?.kautionAnlageform ?? "KAUTIONSKONTO");
-  const [kautionZinssatz, setKautionZinssatz] = useState(initial?.kautionZinssatz ?? "");
   const [kautionEinzahlungUnbekannt, setKautionEinzahlungUnbekannt] = useState(
     initial?.kautionEinzahlungUnbekannt ?? false,
   );
@@ -265,7 +263,7 @@ export function MietvertragForm({
 
       <fieldset className="rounded-md border border-neutral-800 p-4">
         <legend className="px-1 text-sm font-medium">Kaution (optional)</legend>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="kautionBetrag">
               Betrag (€)
@@ -296,20 +294,6 @@ export function MietvertragForm({
               <option value="BUERGSCHAFT">Bürgschaft</option>
               <option value="BAR">Bar</option>
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="kautionZinssatz">
-              Zinssatz (%)
-            </label>
-            <input
-              id="kautionZinssatz"
-              name="kautionZinssatz"
-              type="number"
-              step="0.01"
-              value={kautionZinssatz}
-              onChange={(e) => setKautionZinssatz(e.target.value)}
-              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            />
           </div>
         </div>
         <label className="mt-4 flex items-center gap-2 text-sm text-neutral-300">

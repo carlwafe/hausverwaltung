@@ -32,7 +32,6 @@ const mietvertragSchema = z
     status: z.enum(["AKTIV", "BEENDET", "GEPLANT"]),
     kautionBetrag: optionalPositiveNumber,
     kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
-    kautionZinssatz: optionalNonNegativeNumber,
     kautionEinzahlungUnbekannt: z.coerce.boolean().optional(),
     saldovortrag: z.coerce.number().optional().default(0),
     zahlungsweg: z.enum(["LASTSCHRIFT", "UEBERWEISUNG"]).optional(),
@@ -64,7 +63,6 @@ async function parseForm(formData: FormData) {
     status: formData.get("status"),
     kautionBetrag: formData.get("kautionBetrag") || "",
     kautionAnlageform: formData.get("kautionAnlageform") || undefined,
-    kautionZinssatz: formData.get("kautionZinssatz") || "",
     kautionEinzahlungUnbekannt: formData.get("kautionEinzahlungUnbekannt") === "on",
     saldovortrag: formData.get("saldovortrag") || "0",
     zahlungsweg: formData.get("zahlungsweg") || undefined,
@@ -111,7 +109,6 @@ export async function createMietvertrag(formData: FormData) {
               create: {
                 betrag: data.kautionBetrag,
                 anlageform: data.kautionAnlageform ?? "KAUTIONSKONTO",
-                zinssatz: data.kautionZinssatz,
                 einzahlungUnbekannt: data.kautionEinzahlungUnbekannt ?? false,
               },
             },
@@ -158,13 +155,11 @@ export async function updateMietvertrag(id: string, formData: FormData) {
           mietvertragId: id,
           betrag: data.kautionBetrag,
           anlageform: data.kautionAnlageform ?? "KAUTIONSKONTO",
-          zinssatz: data.kautionZinssatz,
           einzahlungUnbekannt: data.kautionEinzahlungUnbekannt ?? false,
         },
         update: {
           betrag: data.kautionBetrag,
           anlageform: data.kautionAnlageform ?? "KAUTIONSKONTO",
-          zinssatz: data.kautionZinssatz,
           einzahlungUnbekannt: data.kautionEinzahlungUnbekannt ?? false,
         },
       });
