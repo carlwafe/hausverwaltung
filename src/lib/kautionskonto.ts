@@ -110,6 +110,8 @@ export function baueKautionskonto(input: {
   sollBetrag: number | null;
   // Kaution.einzahlungUnbekannt — nur wirksam, solange keine KAUTION_EINZAHLUNG gebucht ist.
   einzahlungUnbekannt?: boolean;
+  // Mietbeginn — Anhaltspunkt, seit wann die Kaution angelegt war (für die Plausibilität der Zinsen).
+  mietbeginn?: Date | null;
   bewegungen: KautionBewegung[];
   einbehalte: KautionEinbehaltEingabe[];
 }): Kautionskonto {
@@ -124,6 +126,7 @@ export function baueKautionskonto(input: {
   let anlageAusgehend = 0;
   let rueckfluss = 0;
   let aufloesungsDatum: Date | null = null;
+  let ersteAnlage: Date | null = null;
   const ausgezahlt: KautionsabrechnungPosten[] = [];
 
   for (const b of input.bewegungen) {
@@ -139,6 +142,7 @@ export function baueKautionskonto(input: {
       if (istAnlage) anlage -= b.betrag;
       else aufloesung += Math.abs(b.betrag);
       if (istAnlage && b.betrag < 0) anlageAusgehend -= b.betrag;
+      if (istAnlage && b.betrag < 0 && b.datum && (!ersteAnlage || b.datum < ersteAnlage)) ersteAnlage = b.datum;
       else rueckfluss += Math.abs(b.betrag);
       if (!istAnlage && b.datum && (!aufloesungsDatum || b.datum > aufloesungsDatum)) aufloesungsDatum = b.datum;
       roh.push({
@@ -235,11 +239,17 @@ export function baueKautionskonto(input: {
 
   // Zinsen in der Auflösung: die Sparkasse zahlt beim Auflösen Kaution + Zinsen aus, gebucht wird
   // nur der Gesamtbetrag. Was vom Kautionskonto mehr zurückkam als hinging (angelegte Beträge, oder
-  // ohne gebuchte Anlage die eingezahlte Kaution), steht dem Mieter als Zins zu. Nur bis 5 % der
-  // Kaution — eine größere Differenz ist eher ein Buchungsfehler und soll sichtbar bleiben.
+  // ohne gebuchte Anlage die eingezahlte Kaution), steht dem Mieter als Zins zu. Plausibel sind
+  // höchstens 5 % pro Jahr Anlagedauer (erste Anlage bzw. Mietbeginn bis Auflösung, mindestens ein
+  // Jahr) — eine größere Differenz ist eher ein Buchungsfehler und soll sichtbar bleiben. Ist die
+  // Dauer unbekannt, dürfen die Zinsen nur nicht höher sein als die Kaution selbst.
   const hin = anlageAusgehend > TOLERANZ ? anlageAusgehend : eingezahlt;
   const zinsen = aufloesung > TOLERANZ ? r2(rueckfluss - hin) : 0;
-  if (zinsen > TOLERANZ && zinsen <= hin * 0.05) {
+  const seit = ersteAnlage ?? input.mietbeginn ?? null;
+  const jahre =
+    seit && aufloesungsDatum ? Math.max(1, (aufloesungsDatum.getTime() - seit.getTime()) / (365.25 * 86400000)) : null;
+  const zinsenObergrenze = jahre !== null ? hin * 0.05 * jahre : hin;
+  if (zinsen > TOLERANZ && zinsen <= zinsenObergrenze) {
     sonstiges += zinsen;
     roh.push({
       id: ZINSEN_ZEILE_ID,

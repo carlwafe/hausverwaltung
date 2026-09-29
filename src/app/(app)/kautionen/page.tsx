@@ -171,7 +171,12 @@ async function ladeKautionen(): Promise<KautionRow[]> {
   }
 
   // Zinsen aus der Auflösung — dieselbe Rechnung wie im Kautionskonto der Mietvertragsseite.
-  function zinsenFuer(mietvertragId: string, sollBetrag: number, einzahlungUnbekannt: boolean): number | null {
+  function zinsenFuer(
+    mietvertragId: string,
+    sollBetrag: number,
+    einzahlungUnbekannt: boolean,
+    mietbeginn: Date | null,
+  ): number | null {
     const bewegungen = buchungen
       .filter((b) => b.mietvertragId === mietvertragId && b.buchungsart.code !== "KAUTION_EINBEHALT")
       .map((b) => ({
@@ -182,7 +187,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
         betrag: Number(b.betrag),
         verwendungszweck: null,
       }));
-    const konto = baueKautionskonto({ sollBetrag, einzahlungUnbekannt, bewegungen, einbehalte: [] });
+    const konto = baueKautionskonto({ sollBetrag, einzahlungUnbekannt, mietbeginn, bewegungen, einbehalte: [] });
     return konto.zeilen.find((z) => z.id === ZINSEN_ZEILE_ID)?.wirkung ?? null;
   }
 
@@ -221,7 +226,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       status,
       warnung: warnungFuer(summen, k.einzahlungUnbekannt),
       kautionId: k.id,
-      zinsen: zinsenFuer(k.mietvertragId, betrag, k.einzahlungUnbekannt),
+      zinsen: zinsenFuer(k.mietvertragId, betrag, k.einzahlungUnbekannt, k.mietvertrag.beginn),
       notizen: k.notizen,
     };
   });
