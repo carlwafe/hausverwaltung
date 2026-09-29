@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/session";
 import { BenutzerForm } from "./benutzer-form";
 import { DeleteButton } from "@/components/delete-button";
 import { deleteBenutzer } from "./actions";
+import { BenutzerBearbeiten } from "./benutzer-bearbeiten";
 
 export default async function BenutzerPage() {
   await requireAdmin();
@@ -29,7 +30,10 @@ export default async function BenutzerPage() {
                 <td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2">{u.role === "ADMIN" ? "Admin" : "Gast"}</td>
                 <td className="px-4 py-2 text-right">
-                  <DeleteButton action={deleteBenutzer.bind(null, u.id)} label="Entfernen" />
+                  <div className="flex items-start justify-end gap-4">
+                    <BenutzerBearbeiten id={u.id} name={u.name} email={u.email} />
+                    <DeleteButton action={deleteBenutzer.bind(null, u.id)} label="Entfernen" />
+                  </div>
                 </td>
               </tr>
             ))}

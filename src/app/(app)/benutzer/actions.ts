@@ -54,3 +54,31 @@ export async function deleteBenutzer(id: string) {
   await prisma.user.delete({ where: { id } });
   revalidatePath("/benutzer");
 }
+
+const updateSchema = z.object({
+  name: z.string().trim().min(1, "Name ist erforderlich"),
+  email: z.string().trim().email("Ungültige E-Mail"),
+});
+
+export async function updateBenutzer(
+  id: string,
+  name: string,
+  emailRaw: string,
+): Promise<string | null> {
+  await requireAdmin();
+
+  const parsed = updateSchema.safeParse({ name, email: emailRaw });
+  if (!parsed.success) {
+    return parsed.error.issues.map((i) => i.message).join(", ");
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && existing.id !== id) {
+    return "Ein Benutzer mit dieser E-Mail existiert bereits.";
+  }
+
+  await prisma.user.update({ where: { id }, data: { name: parsed.data.name, email } });
+  revalidatePath("/benutzer");
+  return null;
+}
