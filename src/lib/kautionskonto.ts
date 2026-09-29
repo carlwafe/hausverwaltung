@@ -165,8 +165,8 @@ export function baueKautionskonto(input: {
       if (istAnlage) anlage -= b.betrag;
       else aufloesung += Math.abs(b.betrag);
       if (istAnlage && b.betrag < 0) anlageAusgehend -= b.betrag;
-      if (istAnlage && b.betrag < 0 && b.datum && (!ersteAnlage || b.datum < ersteAnlage)) ersteAnlage = b.datum;
       else rueckfluss += Math.abs(b.betrag);
+      if (istAnlage && b.betrag < 0 && b.datum && (!ersteAnlage || b.datum < ersteAnlage)) ersteAnlage = b.datum;
       if (!istAnlage && b.datum && (!aufloesungsDatum || b.datum > aufloesungsDatum)) aufloesungsDatum = b.datum;
       roh.push({
         id: b.id,
