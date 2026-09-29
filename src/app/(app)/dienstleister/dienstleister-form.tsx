@@ -7,7 +7,7 @@ import type { GebaeudeAuswahlGruppe } from "@/lib/gebaeude-gruppen";
 type Dienstleister = {
   name: string;
   suchbegriffe: string;
-  kostenartId: string;
+  kostenartIds: string[];
   gebaeudeAuswahl: string | null;
   iban: string | null;
   notiz: string | null;
@@ -69,27 +69,26 @@ export function DienstleisterForm({
         />
       </div>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium" htmlFor="kostenartId">
-          Kostenart
-        </label>
-        <select
-          id="kostenartId"
-          name="kostenartId"
-          required
-          defaultValue={initial?.kostenartId ?? ""}
-          className={inputClass}
-        >
-          <option value="" className="bg-neutral-900">
-            Bitte wählen…
-          </option>
+      <fieldset>
+        <legend className="mb-1 block text-sm font-medium">Kostenarten (optional, mehrere möglich)</legend>
+        <p className="mb-2 text-xs text-neutral-500">
+          Genau eine Kostenart wird beim Import fest vorgeschlagen. Bei mehreren oder keiner bleibt die
+          Kostenart offen bzw. aus dem bisherigen Verlauf (sofern sie zu den gewählten gehört).
+        </p>
+        <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-neutral-700 p-2">
           {kostenarten.map((k) => (
-            <option key={k.id} value={k.id} className="bg-neutral-900">
+            <label key={k.id} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="kostenartIds"
+                value={k.id}
+                defaultChecked={initial?.kostenartIds.includes(k.id)}
+              />
               {k.label}
-            </option>
+            </label>
           ))}
-        </select>
-      </div>
+        </div>
+      </fieldset>
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="gebaeudeAuswahl">

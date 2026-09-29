@@ -652,11 +652,19 @@ export function mapKostenRows(
         vorgeschlageneKostenartId = reparaturenKostenartId;
       }
       if (dienstleisterTreffer) {
-        vorgeschlageneKostenartId = dienstleisterTreffer.kostenartId;
+        // Genau eine Kostenart: fest. Mehrere: der Verlaufs-Vorschlag bleibt, ein Vorschlag
+        // außerhalb der Kostenarten des Dienstleisters wird verworfen (die Zeile bleibt dann
+        // offen zur Prüfung). Keine Kostenart hinterlegt: Verlauf gilt unverändert.
+        const ids = dienstleisterTreffer.kostenartIds;
+        if (ids.length === 1) {
+          vorgeschlageneKostenartId = ids[0];
+        } else if (ids.length > 1 && vorgeschlageneKostenartId && !ids.includes(vorgeschlageneKostenartId)) {
+          vorgeschlageneKostenartId = null;
+        }
         if (dienstleisterTreffer.gebaeudeAuswahl) {
           vorgeschlageneGebaeudeAuswahl = dienstleisterTreffer.gebaeudeAuswahl;
-        } else if (vorgeschlageneGebaeudeAuswahl === undefined) {
-          // Dienstleister ohne festes Gebäude, aber Kostenart sicher: "Objekt gesamt" als
+        } else if (vorgeschlageneGebaeudeAuswahl === undefined && vorgeschlageneKostenartId) {
+          // Kostenart sicher, aber kein Gebäude festgelegt/ermittelbar: "Objekt gesamt" als
           // Vorschlag, damit die Zeile als sicher erkannt wird.
           vorgeschlageneGebaeudeAuswahl = null;
         }

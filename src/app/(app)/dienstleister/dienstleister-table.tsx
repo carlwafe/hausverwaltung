@@ -7,7 +7,7 @@ export type DienstleisterRow = {
   id: string;
   name: string;
   suchbegriffe: string;
-  kostenart: string;
+  kostenarten: string;
   gebaeude: string;
   aktiv: boolean;
 };
@@ -30,7 +30,13 @@ const columns: Column<DienstleisterRow>[] = [
     sortValue: (d) => d.suchbegriffe,
     render: (d) => d.suchbegriffe.split("\n").join(", "),
   },
-  { key: "kostenart", label: "Kostenart", sortValue: (d) => d.kostenart, searchValue: (d) => d.kostenart, render: (d) => d.kostenart },
+  {
+    key: "kostenarten",
+    label: "Kostenarten",
+    sortValue: (d) => d.kostenarten,
+    searchValue: (d) => d.kostenarten,
+    render: (d) => d.kostenarten || "–",
+  },
   { key: "gebaeude", label: "Gebäude", sortValue: (d) => d.gebaeude, render: (d) => d.gebaeude },
   {
     key: "aktiv",

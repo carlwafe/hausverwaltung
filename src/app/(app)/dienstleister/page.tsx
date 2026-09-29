@@ -7,7 +7,7 @@ import { Vorschlaege } from "./vorschlaege";
 
 export default async function DienstleisterPage() {
   const [dienstleister, { gebaeude }, vorschlaege] = await Promise.all([
-    prisma.dienstleister.findMany({ orderBy: { name: "asc" }, include: { kostenart: true } }),
+    prisma.dienstleister.findMany({ orderBy: { name: "asc" }, include: { kostenarten: { orderBy: { name: "asc" } } } }),
     ladeFormularOptionen(),
     ladeDienstleisterVorschlaege(),
   ]);
@@ -17,7 +17,7 @@ export default async function DienstleisterPage() {
     id: d.id,
     name: d.name,
     suchbegriffe: d.suchbegriffe,
-    kostenart: d.kostenart.name,
+    kostenarten: d.kostenarten.map((k) => k.name).join(", "),
     gebaeude: d.gebaeudeAuswahl ? (gebaeudeLabel.get(d.gebaeudeAuswahl) ?? "–") : "–",
     aktiv: d.aktiv,
   }));
@@ -43,13 +43,11 @@ export default async function DienstleisterPage() {
       <Vorschlaege
         rows={vorschlaege.map((v) => ({
           name: v.name,
-          kostenartId: v.kostenartId,
-          kostenartName: v.kostenartName,
+          kostenarten: v.kostenarten,
           gebaeudeAuswahl: v.gebaeudeAuswahl,
           gebaeudeLabel: v.gebaeudeAuswahl ? (gebaeudeLabel.get(v.gebaeudeAuswahl) ?? "–") : "–",
           anzahl: v.anzahl,
           summe: v.summe,
-          sicherheit: v.sicherheit,
         }))}
       />
 

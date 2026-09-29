@@ -10,7 +10,7 @@ import { parseSuchbegriffe } from "@/lib/import/dienstleister";
 const dienstleisterSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich"),
   suchbegriffe: z.string(),
-  kostenartId: z.string().min(1, "Kostenart ist erforderlich"),
+  kostenartIds: z.array(z.string()),
   gebaeudeAuswahl: z.string().optional(),
   iban: z.string().trim().optional(),
   notiz: z.string().trim().optional(),
@@ -21,7 +21,7 @@ function parseForm(formData: FormData) {
   const parsed = dienstleisterSchema.safeParse({
     name: formData.get("name"),
     suchbegriffe: formData.get("suchbegriffe") ?? "",
-    kostenartId: formData.get("kostenartId"),
+    kostenartIds: formData.getAll("kostenartIds").map(String),
     gebaeudeAuswahl: formData.get("gebaeudeAuswahl") || undefined,
     iban: formData.get("iban") || undefined,
     notiz: formData.get("notiz") || undefined,
@@ -38,7 +38,7 @@ function parseForm(formData: FormData) {
   return {
     name: d.name,
     suchbegriffe: suchbegriffe.join("\n"),
-    kostenartId: d.kostenartId,
+    kostenartIds: d.kostenartIds,
     gebaeudeAuswahl: d.gebaeudeAuswahl ?? null,
     iban: d.iban ?? null,
     notiz: d.notiz ?? null,
@@ -48,14 +48,22 @@ function parseForm(formData: FormData) {
 
 export async function createDienstleister(formData: FormData) {
   await requireEditor();
-  await prisma.dienstleister.create({ data: parseForm(formData) });
+  const { kostenartIds, ...data } = parseForm(formData);
+  const neu = await prisma.dienstleister.create({
+    data: { ...data, kostenarten: { connect: kostenartIds.map((id) => ({ id })) } },
+  });
   revalidatePath("/dienstleister");
-  redirect("/dienstleister");
+  // Weiter zur Detailseite, damit direkt ein Vertrag hochgeladen werden kann.
+  redirect(`/dienstleister/${neu.id}`);
 }
 
 export async function updateDienstleister(id: string, formData: FormData) {
   await requireEditor();
-  await prisma.dienstleister.update({ where: { id }, data: parseForm(formData) });
+  const { kostenartIds, ...data } = parseForm(formData);
+  await prisma.dienstleister.update({
+    where: { id },
+    data: { ...data, kostenarten: { set: kostenartIds.map((k) => ({ id: k })) } },
+  });
   revalidatePath("/dienstleister");
   redirect("/dienstleister");
 }
@@ -69,19 +77,19 @@ export async function deleteDienstleister(id: string) {
 
 // Übernimmt Vorschläge aus dem Import-Verlauf als Dienstleister (Suchbegriff = Empfängername).
 export async function uebernehmeVorschlaege(
-  vorschlaege: { name: string; kostenartId: string; gebaeudeAuswahl: string | null }[],
+  vorschlaege: { name: string; kostenartIds: string[]; gebaeudeAuswahl: string | null }[],
 ) {
   await requireEditor();
   const vorhanden = new Set((await prisma.dienstleister.findMany({ select: { name: true } })).map((d) => d.name));
   const neu = vorschlaege.filter((v) => v.name.trim().length >= 3 && !vorhanden.has(v.name));
-  if (neu.length > 0) {
-    await prisma.dienstleister.createMany({
-      data: neu.map((v) => ({
+  for (const v of neu) {
+    await prisma.dienstleister.create({
+      data: {
         name: v.name,
         suchbegriffe: v.name,
-        kostenartId: v.kostenartId,
         gebaeudeAuswahl: v.gebaeudeAuswahl,
-      })),
+        kostenarten: { connect: v.kostenartIds.map((id) => ({ id })) },
+      },
     });
   }
   revalidatePath("/dienstleister");

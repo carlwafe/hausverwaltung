@@ -6,7 +6,8 @@ export type DienstleisterKandidat = {
   id: string;
   name: string;
   suchbegriffe: string[];
-  kostenartId: string;
+  // Leer = keine feste Kostenart, mehrere = Dienstleister deckt mehrere Kostenarten ab.
+  kostenartIds: string[];
   // "gebaeude:<id>"/"haus:<id>"/... wie im Auswahl-<select>, null = nicht festgelegt.
   gebaeudeAuswahl: string | null;
 };

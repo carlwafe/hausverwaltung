@@ -8,14 +8,12 @@ export type DienstleisterVorschlag = {
   // Normalisierter Empfänger, dient als Schlüssel.
   schluessel: string;
   name: string;
-  kostenartId: string;
-  kostenartName: string;
+  // Alle Kostenarten mit nennenswertem Anteil (>= 10 %), häufigste zuerst.
+  kostenarten: { id: string; name: string }[];
   // Nur gesetzt, wenn alle Buchungen dieselbe Zuordnung haben.
   gebaeudeAuswahl: string | null;
   anzahl: number;
   summe: number;
-  // Anteil der Buchungen mit der häufigsten Kostenart (0..1).
-  sicherheit: number;
 };
 
 const MIN_ANZAHL = 2;
@@ -23,7 +21,7 @@ const MIN_ANZAHL = 2;
 /**
  * Leitet aus den bereits importierten Kostenbuchungen Dienstleister-Vorschläge ab: Empfänger, die
  * mindestens zweimal vorkommen, noch von keinem Dienstleister abgedeckt sind und kein Mieter
- * sind. Kostenart = häufigste Kostenart des Empfängers, Gebäude nur bei einheitlicher Zuordnung.
+ * sind. Kostenarten = alle mit mind. 10 % Anteil, Gebäude nur bei einheitlicher Zuordnung.
  */
 export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorschlag[]> {
   const [buchungen, dienstleister, mieter] = await Promise.all([
@@ -45,7 +43,7 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
         einheitId: true,
       },
     }),
-    prisma.dienstleister.findMany(),
+    prisma.dienstleister.findMany({ include: { kostenarten: { select: { id: true } } } }),
     prisma.mieter.findMany({ select: { vorname: true, nachname: true } }),
   ]);
 
@@ -53,7 +51,7 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
     id: d.id,
     name: d.name,
     suchbegriffe: parseSuchbegriffe(d.suchbegriffe),
-    kostenartId: d.kostenartId,
+    kostenartIds: d.kostenarten.map((k) => k.id),
     gebaeudeAuswahl: d.gebaeudeAuswahl,
   }));
   const mieterNamen = new Set(
@@ -95,16 +93,17 @@ export async function ladeDienstleisterVorschlaege(): Promise<DienstleisterVorsc
     if (g.anzahl < MIN_ANZAHL) continue;
     const name = haeufigster(g.schreibweisen, (n) => n)[0];
     if (findeDienstleister(name, "", kandidaten)) continue;
-    const [kostenartId, ka] = haeufigster(g.kostenarten, (k) => k.anzahl);
+    const kostenarten = [...g.kostenarten.entries()]
+      .sort((a, b) => b[1].anzahl - a[1].anzahl)
+      .filter(([, k], i) => i === 0 || k.anzahl / g.anzahl >= 0.1)
+      .map(([id, k]) => ({ id, name: k.name }));
     vorschlaege.push({
       schluessel,
       name,
-      kostenartId,
-      kostenartName: ka.name,
+      kostenarten,
       gebaeudeAuswahl: g.gebaeude.size === 1 ? ([...g.gebaeude.keys()][0] || null) : null,
       anzahl: g.anzahl,
       summe: g.summe,
-      sicherheit: ka.anzahl / g.anzahl,
     });
   }
   return vorschlaege.sort((a, b) => b.anzahl - a.anzahl);

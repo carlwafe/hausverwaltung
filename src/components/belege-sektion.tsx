@@ -50,7 +50,11 @@ export function BelegeSektion({
   dokumente,
   uploadAction,
   revalidatePath,
+  titel = "Belege",
+  leerText = "Noch keine Belege hochgeladen.",
 }: {
+  titel?: string;
+  leerText?: string;
   dokumente: BelegRow[];
   uploadAction: (prevState: string | null, formData: FormData) => Promise<string | null>;
   revalidatePath: string;
@@ -76,7 +80,7 @@ export function BelegeSektion({
 
   return (
     <div className="rounded-lg border border-neutral-800 p-4">
-      <h2 className="mb-3 text-lg font-medium text-white">Belege ({dokumente.length})</h2>
+      <h2 className="mb-3 text-lg font-medium text-white">{titel} ({dokumente.length})</h2>
       <div className="mb-4 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
@@ -119,7 +123,7 @@ export function BelegeSektion({
             {dokumente.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-2 text-sm text-neutral-500">
-                  Noch keine Belege hochgeladen.
+                  {leerText}
                 </td>
               </tr>
             )}
