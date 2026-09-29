@@ -58,6 +58,8 @@ export type KautionRow = {
   // Id des Kaution-Stammdatensatzes; null bei einer Zeile ohne eigenen Datensatz (dann kein Kommentar).
   kautionId: string | null;
   notizen: string | null;
+  // Zinsen, die in der Auflösung enthalten waren (Auflösung über angelegter Kaution); null = keine.
+  zinsen: number | null;
 };
 
 // Mehrzeilig, wächst mit dem Inhalt; speichert beim Verlassen des Felds, nur bei Änderung — wie die
@@ -147,6 +149,12 @@ const columns: Column<KautionRow>[] = [
         )}
       </span>
     ),
+  },
+  {
+    key: "zinsen",
+    label: "Zinsen",
+    sortValue: (r) => r.zinsen ?? 0,
+    render: (r) => (r.zinsen ? formatEuro(r.zinsen) : "–"),
   },
   {
     key: "aufgeloest",

@@ -91,6 +91,8 @@ export type Kautionskonto = {
 };
 
 const TOLERANZ = 0.005;
+// Id der automatisch erzeugten Zinszeile (siehe "Zinsen in der Auflösung" unten).
+export const ZINSEN_ZEILE_ID = "zinsen-aufloesung";
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 const EINBEHALT_STATUS_TEXT: Record<KautionEinbehaltEingabe["status"], string> = {
@@ -240,7 +242,7 @@ export function baueKautionskonto(input: {
   if (zinsen > TOLERANZ && zinsen <= hin * 0.05) {
     sonstiges += zinsen;
     roh.push({
-      id: "zinsen-aufloesung",
+      id: ZINSEN_ZEILE_ID,
       datum: aufloesungsDatum,
       vorgang: "Zinsen (in Auflösung enthalten)",
       bemerkung: "Differenz zwischen Auflösungsbetrag und angelegter Kaution",

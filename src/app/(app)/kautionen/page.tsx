@@ -7,6 +7,7 @@ import {
 } from "./kautionsbuchungen-table";
 import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
+import { baueKautionskonto, ZINSEN_ZEILE_ID } from "@/lib/kautionskonto";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { KAUTION_EINBEHALT_BEZUG } from "@/lib/nk-verrechnung";
 import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
@@ -59,6 +60,8 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     prisma.buchung.findMany({
       where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
       select: {
+        id: true,
+        datum: true,
         mietvertragId: true,
         betrag: true,
         jahr: true,
@@ -167,6 +170,22 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     return "Keine Einzahlung des Mieters in den Kautionsbuchungen gefunden — vermutlich wurde die tatsächliche Einzahlung fälschlich als normale Zahlung importiert.";
   }
 
+  // Zinsen aus der Auflösung — dieselbe Rechnung wie im Kautionskonto der Mietvertragsseite.
+  function zinsenFuer(mietvertragId: string, sollBetrag: number, einzahlungUnbekannt: boolean): number | null {
+    const bewegungen = buchungen
+      .filter((b) => b.mietvertragId === mietvertragId && b.buchungsart.code !== "KAUTION_EINBEHALT")
+      .map((b) => ({
+        id: b.id,
+        datum: b.datum,
+        code: b.buchungsart.code,
+        bezeichnung: b.buchungsart.code,
+        betrag: Number(b.betrag),
+        verwendungszweck: null,
+      }));
+    const konto = baueKautionskonto({ sollBetrag, einzahlungUnbekannt, bewegungen, einbehalte: [] });
+    return konto.zeilen.find((z) => z.id === ZINSEN_ZEILE_ID)?.wirkung ?? null;
+  }
+
   const kautionZeilen = kautionen.map((k) => {
     const summen = summenProMietvertrag.get(k.mietvertragId);
     const betrag = Number(k.betrag);
@@ -203,6 +222,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       status,
       warnung: warnungFuer(summen, k.einzahlungUnbekannt),
       kautionId: k.id,
+      zinsen: zinsenFuer(k.mietvertragId, betrag, k.einzahlungUnbekannt),
       notizen: k.notizen,
     };
   });
@@ -251,6 +271,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
         warnungFuer(summen) ??
         "Kein Kaution-Stammdatensatz angelegt — aber Kautionsbuchungen für diesen Mietvertrag vorhanden.",
       kautionId: null,
+      zinsen: null,
       notizen: null,
     };
   });
