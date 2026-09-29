@@ -7,7 +7,21 @@ import { BenutzerBearbeiten } from "./benutzer-bearbeiten";
 
 export default async function BenutzerPage() {
   await requireAdmin();
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  const alle = await prisma.user.findMany();
+  // Name = "Vorname Nachname": Nachname ist das letzte Wort, der Rest der Vorname.
+  const teile = (name: string | null) => {
+    const woerter = (name ?? "").trim().split(/\s+/).filter(Boolean);
+    return { nach: woerter.pop() ?? "", vor: woerter.join(" ") };
+  };
+  const users = alle.sort((a, b) => {
+    const x = teile(a.name);
+    const y = teile(b.name);
+    return (
+      x.nach.localeCompare(y.nach, "de") ||
+      x.vor.localeCompare(y.vor, "de") ||
+      a.email.localeCompare(b.email, "de")
+    );
+  });
 
   return (
     <div>
