@@ -33,7 +33,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
   const sichere = rows.filter((r) => r.kostenarten.length === 1);
 
   return (
-    <section className="mb-8 rounded-md border border-neutral-800 p-4">
+    <section className="mt-8 rounded-md border border-neutral-800 p-4">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-white">Vorschläge aus dem Import-Verlauf</h2>

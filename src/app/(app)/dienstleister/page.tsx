@@ -36,6 +36,9 @@ export default async function DienstleisterPage() {
         </Link>
       </div>
 
+
+      <DienstleisterTable rows={rows} />
+
       <Vorschlaege
         rows={vorschlaege.map((v) => ({
           name: v.name,
@@ -44,8 +47,6 @@ export default async function DienstleisterPage() {
           summe: v.summe,
         }))}
       />
-
-      <DienstleisterTable rows={rows} />
     </div>
   );
 }
