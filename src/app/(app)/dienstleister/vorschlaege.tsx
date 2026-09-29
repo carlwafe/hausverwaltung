@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { uebernehmeVorschlaege } from "./actions";
 
-type Typ = "DIENSTLEISTER" | "LIEFERANT";
+type Typ = "HANDWERKER" | "SONSTIGE";
 
 export type VorschlagRow = {
   name: string;
@@ -18,7 +18,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
   const [pending, start] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const [typen, setTypen] = useState<Record<string, Typ>>({});
-  const typVon = (r: VorschlagRow): Typ => typen[r.name] ?? "DIENSTLEISTER";
+  const typVon = (r: VorschlagRow): Typ => typen[r.name] ?? "SONSTIGE";
 
   function uebernehmen(liste: VorschlagRow[]) {
     setFehler(null);
@@ -43,7 +43,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
           <h2 className="text-lg font-semibold text-white">Vorschläge aus dem Import-Verlauf</h2>
           <p className="text-sm text-neutral-400">
             Empfänger, die mindestens zweimal als Kosten gebucht wurden und noch keinem Dienstleister
-            oder Lieferanten zugeordnet sind. Den Typ wählen Sie je Zeile vor dem Übernehmen. Kostenarten = die bisher verwendeten (mind. 10 % der Buchungen).
+            zugeordnet sind. Den Typ wählen Sie je Zeile vor dem Übernehmen. Kostenarten = die bisher verwendeten (mind. 10 % der Buchungen).
           </p>
         </div>
         {sichere.length > 0 && (
@@ -80,11 +80,11 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
                     onChange={(e) => setTypen((t) => ({ ...t, [r.name]: e.target.value as Typ }))}
                     className="rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs"
                   >
-                    <option value="DIENSTLEISTER" className="bg-neutral-900">
-                      Dienstleister
+                    <option value="HANDWERKER" className="bg-neutral-900">
+                      Handwerker
                     </option>
-                    <option value="LIEFERANT" className="bg-neutral-900">
-                      Lieferant
+                    <option value="SONSTIGE" className="bg-neutral-900">
+                      Sonstige
                     </option>
                   </select>
                 </td>

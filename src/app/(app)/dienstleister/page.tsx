@@ -5,8 +5,8 @@ import { ladeDienstleisterVorschlaege } from "@/lib/dienstleister-vorschlaege";
 import { Vorschlaege } from "./vorschlaege";
 
 const ABSCHNITTE = [
-  { typ: "DIENSTLEISTER", titel: "Dienstleister", neu: "+ Neuer Dienstleister" },
-  { typ: "LIEFERANT", titel: "Lieferanten", neu: "+ Neuer Lieferant" },
+  { typ: "HANDWERKER", titel: "Handwerker", neu: "+ Neuer Handwerker" },
+  { typ: "SONSTIGE", titel: "Sonstige Dienstleister", neu: "+ Neuer Dienstleister" },
 ] as const;
 
 export default async function DienstleisterPage() {
@@ -34,7 +34,7 @@ export default async function DienstleisterPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Dienstleister &amp; Lieferanten</h1>
+        <h1 className="text-2xl font-semibold text-white">Handwerker &amp; Dienstleister</h1>
         <p className="text-sm text-neutral-400">
           Kontakte zum schnellen Finden und Anrufen. Optional hinterlegte Suchbegriffe ordnen
           Kontoauszugszeilen beim Kosten-Import automatisch zu.

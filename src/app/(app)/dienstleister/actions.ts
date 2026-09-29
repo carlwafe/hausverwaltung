@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseSuchbegriffe } from "@/lib/import/dienstleister";
 
-const TYPEN = ["DIENSTLEISTER", "LIEFERANT"] as const;
+const TYPEN = ["HANDWERKER", "SONSTIGE"] as const;
 
 const dienstleisterSchema = z.object({
   typ: z.enum(TYPEN),

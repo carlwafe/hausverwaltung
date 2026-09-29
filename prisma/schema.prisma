@@ -569,21 +569,21 @@ model Kostenart {
   @@map("kostenarten")
 }
 
-// Dienstleister = erbringt Leistungen (Handwerker, Verwaltung, Hausmeister), Lieferant = liefert
-// Waren/Energie/Versorgung (Stadtwerke, Techem, Material).
+// Handwerker (Elektriker, Sanitär, Tischler ...) getrennt von allen übrigen Dienstleistern und
+// Lieferanten (Verwaltung, Stadtwerke, Techem, Versicherung ...).
 enum DienstleisterTyp {
-  DIENSTLEISTER
-  LIEFERANT
+  HANDWERKER
+  SONSTIGE
 }
 
-// Stammdaten: Dienstleister/Lieferanten (Stadtwerke, Hausmeister, Versicherung ...). Beim
+// Stammdaten: Handwerker, Dienstleister und Lieferanten (Stadtwerke, Hausmeister, Versicherung ...). Beim
 // Kosten-Import werden Kontoauszugszeilen, deren Empfänger oder Verwendungszweck einen der
 // Suchbegriffe enthält, dem Dienstleister zugeordnet. Hat er genau eine Kostenart, wird sie
 // vorgeschlagen; bei mehreren (oder keiner) bleibt die Kostenart offen bzw. der Verlaufs-Vorschlag
 // gilt, sofern er unter den Kostenarten des Dienstleisters liegt. Verträge liegen als Dokument (dienstleisterId) an.
 model Dienstleister {
   id           String           @id @default(cuid())
-  typ          DienstleisterTyp @default(DIENSTLEISTER)
+  typ          DienstleisterTyp @default(SONSTIGE)
   name         String
   // Kurzbeschreibung zum schnellen Finden, z.B. "Elektriker", "Aufzugswartung".
   beschreibung    String?

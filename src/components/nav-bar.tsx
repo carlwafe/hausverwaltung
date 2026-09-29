@@ -15,7 +15,7 @@ const STAMMDATEN: NavLink[] = [
   { href: "/einheiten/zeitachse", label: "Zeitachse" },
   { href: "/gebaeude", label: "Gebäude" },
   { href: "/buchungsarten", label: "Buchungsarten" },
-  { href: "/dienstleister", label: "Dienstleister & Lieferanten" },
+  { href: "/dienstleister", label: "Handwerker & Dienstleister" },
 ];
 
 const FINANZEN: NavLink[] = [

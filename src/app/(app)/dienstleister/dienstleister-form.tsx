@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { runFormAction } from "@/lib/form-utils";
 
-type Typ = "DIENSTLEISTER" | "LIEFERANT";
+type Typ = "HANDWERKER" | "SONSTIGE";
 
 type Dienstleister = {
   typ: Typ;
@@ -26,7 +26,7 @@ const labelClass = "mb-1 block text-sm font-medium";
 
 export function DienstleisterForm({
   initial,
-  standardTyp = "DIENSTLEISTER",
+  standardTyp = "SONSTIGE",
   kostenarten,
   action,
 }: {
@@ -47,11 +47,11 @@ export function DienstleisterForm({
           Typ
         </label>
         <select id="typ" name="typ" defaultValue={initial?.typ ?? standardTyp} className={inputClass}>
-          <option value="DIENSTLEISTER" className="bg-neutral-900">
-            Dienstleister (Handwerker, Verwaltung, Hausmeister …)
+          <option value="HANDWERKER" className="bg-neutral-900">
+            Handwerker (Elektriker, Sanitär, Tischler …)
           </option>
-          <option value="LIEFERANT" className="bg-neutral-900">
-            Lieferant (Energie, Wasser, Material …)
+          <option value="SONSTIGE" className="bg-neutral-900">
+            Sonstiger Dienstleister (Verwaltung, Versorger, Versicherung …)
           </option>
         </select>
       </div>
