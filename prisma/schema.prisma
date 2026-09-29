@@ -77,6 +77,28 @@ enum AbrechnungStatus {
   FINAL
 }
 
+enum TicketStatus {
+  OFFEN
+  IN_BEARBEITUNG
+  WARTET
+  ERLEDIGT
+}
+
+enum TicketPrioritaet {
+  NIEDRIG
+  NORMAL
+  HOCH
+  DRINGEND
+}
+
+enum TicketKategorie {
+  MANGEL_REPARATUR
+  MIETERANFRAGE
+  AUFGABE
+  BUCHHALTUNG
+  SONSTIGES
+}
+
 enum Kontokreis {
   MIETKONTO
   KAUTIONSKONTO
@@ -190,6 +212,9 @@ model User {
   createdAt     DateTime      @default(now())
   importBatches ImportBatch[]
 
+  ticketsErstellt   Ticket[] @relation("TicketErsteller")
+  ticketsZugewiesen Ticket[] @relation("TicketZustaendig")
+
   @@map("users")
 }
 
@@ -284,6 +309,7 @@ model Gebaeude {
 
   einheiten Einheit[]
   buchungen Buchung[]
+  tickets   Ticket[]
 
   @@unique([objektId, strasse, hausnummer])
   @@map("gebaeude")
@@ -309,6 +335,7 @@ model Einheit {
   buchungen                       Buchung[]
   vorverteilteLeerstaende         VorverteilterLeerstand[]
   wohnflaecheKorrekturen          WohnflaecheKorrektur[]
+  tickets                         Ticket[]
 
   @@unique([gebaeudeId, bezeichnung])
   @@map("einheiten")
@@ -394,6 +421,7 @@ model Mietvertrag {
   nebenkostenabrechnungPruefungen NebenkostenabrechnungPruefung[]
   mieterhoehungen                 Mieterhoehung[]
   jahresberichtKommentars         JahresberichtKommentar[]
+  tickets                         Ticket[]
 
   @@map("mietvertraege")
 }
@@ -556,6 +584,7 @@ model Dienstleister {
   createdAt    DateTime    @default(now())
 
   dokumente Dokument[]
+  tickets   Ticket[]
 
   @@map("dienstleister")
 }
@@ -802,6 +831,9 @@ model Dokument {
   // Vertrag eines Dienstleisters (Stammdaten).
   dienstleister   Dienstleister? @relation(fields: [dienstleisterId], references: [id], onDelete: Cascade)
   dienstleisterId String?
+  // Anhang eines Tickets (Foto vom Mangel, Angebot, Schriftverkehr).
+  ticket          Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId        String?
   hochgeladenVon  String?
   // Datum des Belegs selbst (z.B. Rechnungs-/Vertragsdatum) — vom Nutzer beim Upload angegeben und
   // später änderbar. createdAt bleibt das Upload-Datum. Die Belege-Tabelle sortiert nach
@@ -854,4 +886,54 @@ model NichtZugeordneteBuchung {
 
   @@index([datum, betrag])
   @@map("nicht_zugeordnete_buchungen")
+}
+
+// Internes Ticket (Mängel/Reparaturen, Mieteranfragen, Aufgaben, Buchhaltung). Die Bezüge sind alle
+// optional und werden beim Löschen der Bezugsdaten nur gelöst — ein Ticket soll nicht mit einem
+// Mietvertrag o.ä. verschwinden. `nummer` ist die fortlaufende, für Menschen lesbare Nummer.
+model Ticket {
+  id              String           @id @default(cuid())
+  nummer          Int              @unique @default(autoincrement())
+  titel           String
+  beschreibung    String?
+  status          TicketStatus     @default(OFFEN)
+  prioritaet      TicketPrioritaet @default(NORMAL)
+  kategorie       TicketKategorie  @default(MANGEL_REPARATUR)
+  faelligAm       DateTime?
+  erledigtAm      DateTime?
+  einheit         Einheit?         @relation(fields: [einheitId], references: [id], onDelete: SetNull)
+  einheitId       String?
+  gebaeude        Gebaeude?        @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
+  gebaeudeId      String?
+  mietvertrag     Mietvertrag?     @relation(fields: [mietvertragId], references: [id], onDelete: SetNull)
+  mietvertragId   String?
+  dienstleister   Dienstleister?   @relation(fields: [dienstleisterId], references: [id], onDelete: SetNull)
+  dienstleisterId String?
+  erstelltVon     User?            @relation("TicketErsteller", fields: [erstelltVonId], references: [id], onDelete: SetNull)
+  erstelltVonId   String?
+  zugewiesenAn    User?            @relation("TicketZustaendig", fields: [zugewiesenAnId], references: [id], onDelete: SetNull)
+  zugewiesenAnId  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  kommentare TicketKommentar[]
+  dokumente  Dokument[]
+
+  @@index([status])
+  @@map("tickets")
+}
+
+// Verlaufseintrag eines Tickets: Kommentar eines Nutzers oder automatischer Eintrag bei
+// Änderungen (Status, Zuständigkeit) — `system` unterscheidet die beiden.
+model TicketKommentar {
+  id        String   @id @default(cuid())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  text      String
+  autor     String?
+  system    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@map("ticket_kommentare")
 }

@@ -10,7 +10,8 @@ type UploadZiel =
   | { buchungId: string; revalidatePath: string }
   | { mietvertragId: string; revalidatePath: string }
   | { einheitId: string; revalidatePath: string }
-  | { dienstleisterId: string; revalidatePath: string };
+  | { dienstleisterId: string; revalidatePath: string }
+  | { ticketId: string; revalidatePath: string };
 
 // "YYYY-MM-DD" aus einem Datumsfeld als UTC-Mitternacht (wie alle Datumswerte der App); leer/ungültig
 // = kein Belegdatum.
@@ -49,6 +50,7 @@ export async function uploadDokument(
         mietvertragId: "mietvertragId" in ziel ? ziel.mietvertragId : undefined,
         einheitId: "einheitId" in ziel ? ziel.einheitId : undefined,
         dienstleisterId: "dienstleisterId" in ziel ? ziel.dienstleisterId : undefined,
+        ticketId: "ticketId" in ziel ? ziel.ticketId : undefined,
         hochgeladenVon: user.email ?? user.name ?? null,
         belegDatum,
       },

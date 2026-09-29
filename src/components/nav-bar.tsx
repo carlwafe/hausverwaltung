@@ -122,6 +122,14 @@ export function NavBar({
             >
               Dashboard
             </Link>
+            <Link
+              href="/tickets"
+              className={`shrink-0 whitespace-nowrap text-sm ${
+                pathname.startsWith("/tickets") ? "font-medium text-white" : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              Tickets
+            </Link>
             <NavDropdown label="Stammdaten" links={STAMMDATEN} pathname={pathname} />
             <NavDropdown label="Finanzen" links={FINANZEN} pathname={pathname} />
             <NavDropdown label="Abrechnung" links={ABRECHNUNG} pathname={pathname} />
@@ -168,6 +176,15 @@ export function NavBar({
               }`}
             >
               Dashboard
+            </Link>
+            <Link
+              href="/tickets"
+              onClick={() => setMobileOpen(false)}
+              className={`text-sm ${
+                pathname.startsWith("/tickets") ? "font-medium text-white" : "text-neutral-300"
+              }`}
+            >
+              Tickets
             </Link>
             {gruppen.map((gruppe) => (
               <div key={gruppe.label}>

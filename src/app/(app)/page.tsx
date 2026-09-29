@@ -3,13 +3,23 @@ import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { heuteUtc } from "@/lib/ticket";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
 export default async function DashboardPage() {
-  const [objekt, gebaeudeGruppen, einheitenCount, aktiveVertraege, abrechenbareVertraege, aktiveKautionen] =
+  const [
+    objekt,
+    gebaeudeGruppen,
+    einheitenCount,
+    aktiveVertraege,
+    abrechenbareVertraege,
+    aktiveKautionen,
+    offeneTickets,
+    ueberfaelligeTickets,
+  ] =
     await Promise.all([
       prisma.objekt.findFirst(),
       // "Gebäude" meint hier das physische Bauwerk (mehrere Hausnummern desselben Hauses, z.B.
@@ -44,6 +54,8 @@ export default async function DashboardPage() {
         },
       }),
       prisma.kaution.findMany({ where: { status: "AKTIV" }, select: { betrag: true } }),
+      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" } } }),
+      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" }, faelligAm: { lt: heuteUtc() } } }),
     ]);
 
   const summeKautionen = aktiveKautionen.reduce((sum, k) => sum + Number(k.betrag), 0);
@@ -139,6 +151,11 @@ export default async function DashboardPage() {
         >
           <p className="text-xs text-neutral-400">Kautionen gesamt (aktiv)</p>
           <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summeKautionen)}</p>
+        </Link>
+        <Link href="/tickets" className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900">
+          <p className="text-xs text-neutral-400">Offene Tickets</p>
+          <p className="mt-1 text-xl font-semibold text-white">{offeneTickets}</p>
+          {ueberfaelligeTickets > 0 && <p className="text-xs text-red-400">{ueberfaelligeTickets} überfällig</p>}
         </Link>
       </div>
     </div>

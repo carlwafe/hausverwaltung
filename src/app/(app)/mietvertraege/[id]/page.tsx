@@ -14,6 +14,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
+import { TicketsSektion } from "../../tickets/tickets-sektion";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -402,6 +403,10 @@ export default async function MietvertragDetailPage({
           })}
           revalidatePath={`/mietvertraege/${id}`}
         />
+      </div>
+
+      <div className="mt-6">
+        <TicketsSektion where={{ mietvertragId: id }} neuQuery={{ mietvertragId: id }} />
       </div>
     </div>
   );

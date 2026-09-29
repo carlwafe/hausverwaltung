@@ -7,6 +7,7 @@ import { uploadDokument } from "../../dokumente/actions";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { DeleteButton } from "@/components/delete-button";
+import { TicketsSektion } from "../../tickets/tickets-sektion";
 
 export default async function DienstleisterDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,6 +46,9 @@ export default async function DienstleisterDetailPage({ params }: { params: Prom
           })}
           revalidatePath={`/dienstleister/${id}`}
         />
+      </div>
+      <div className="mt-8 max-w-3xl">
+        <TicketsSektion where={{ dienstleisterId: id }} neuQuery={{ dienstleisterId: id }} />
       </div>
     </div>
   );

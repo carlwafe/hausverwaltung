@@ -11,6 +11,7 @@ import { KostenTable } from "../../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 import { WohnflaecheKorrekturForm } from "../wohnflaeche-korrektur-form";
 import { mieterName } from "@/lib/mieter-name";
+import { TicketsSektion } from "../../tickets/tickets-sektion";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -189,6 +190,10 @@ export default async function EinheitDetailPage({
           Reparaturen, Sanierung & Modernisierung dieser Einheit ({kosten.length})
         </h2>
         <KostenTable rows={kosten} />
+      </div>
+
+      <div className="mt-8">
+        <TicketsSektion where={{ einheitId: id }} neuQuery={{ einheitId: id }} />
       </div>
 
       <div className="mt-8">
