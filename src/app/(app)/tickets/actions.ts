@@ -8,6 +8,7 @@ import { requireEditor } from "@/lib/session";
 import { loescheDatei } from "@/lib/storage";
 import { optionalesDatum } from "@/lib/zod-datum";
 import { kategorieLabel, prioritaetLabel, statusLabel } from "@/lib/ticket";
+import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 const leerAlsNull = (v: FormDataEntryValue | null) => (typeof v === "string" && v !== "" ? v : null);
 
@@ -30,7 +31,7 @@ async function parseForm(formData: FormData) {
     faelligAm: formData.get("faelligAm") ?? undefined,
   });
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   const d = parsed.data;
 
@@ -39,9 +40,9 @@ async function parseForm(formData: FormData) {
   // Ein Mietvertrag legt die Einheit fest — verhindert widersprüchliche Bezüge.
   if (mietvertragId) {
     const vertrag = await prisma.mietvertrag.findUnique({ where: { id: mietvertragId }, select: { einheitId: true } });
-    if (!vertrag) throw new Error("Mietvertrag nicht gefunden");
+    if (!vertrag) throw new AktionsFehler("Mietvertrag nicht gefunden");
     if (einheitId && einheitId !== vertrag.einheitId) {
-      throw new Error("Der gewählte Mietvertrag gehört zu einer anderen Einheit");
+      throw new AktionsFehler("Der gewählte Mietvertrag gehört zu einer anderen Einheit");
     }
     einheitId = vertrag.einheitId;
   }
@@ -74,7 +75,7 @@ function revalidiere(bezuege: { einheitId?: string | null; mietvertragId?: strin
   if (bezuege.dienstleisterId) revalidatePath(`/dienstleister/${bezuege.dienstleisterId}`);
 }
 
-export async function createTicket(formData: FormData) {
+export const createTicket = mitMeldung(async function createTicket(formData: FormData) {
   const user = await requireEditor();
   const data = await parseForm(formData);
   const ticket = await prisma.ticket.create({
@@ -82,16 +83,16 @@ export async function createTicket(formData: FormData) {
   });
   revalidiere(data);
   redirect(`/tickets/${ticket.id}`);
-}
+});
 
-export async function updateTicket(id: string, formData: FormData) {
+export const updateTicket = mitMeldung(async function updateTicket(id: string, formData: FormData) {
   const user = await requireEditor();
   const data = await parseForm(formData);
   const alt = await prisma.ticket.findUnique({
     where: { id },
     include: { zugewiesenAn: { select: { name: true, email: true } } },
   });
-  if (!alt) throw new Error("Ticket nicht gefunden");
+  if (!alt) throw new AktionsFehler("Ticket nicht gefunden");
 
   // Ein bereits erledigtes Ticket behält sein ursprüngliches Erledigt-Datum.
   const erledigtAm = data.status === "ERLEDIGT" ? (alt.erledigtAm ?? new Date()) : null;
@@ -125,7 +126,7 @@ export async function updateTicket(id: string, formData: FormData) {
   });
   revalidiere({ ...alt, ...data });
   revalidatePath(`/tickets/${id}`);
-}
+});
 
 export async function deleteTicket(id: string) {
   await requireEditor();
@@ -139,7 +140,7 @@ export async function deleteTicket(id: string) {
 
 // Kosten (KOSTENPOSITION-Buchungen) mit einem Ticket verknüpfen bzw. wieder lösen. Die Buchung selbst
 // bleibt unangetastet (unveränderlich) — die Verknüpfung liegt in ticket_kosten.
-export async function verknuepfeKosten(ticketId: string, buchungId: string): Promise<string | null> {
+export const verknuepfeKosten = mitMeldung(async function verknuepfeKosten(ticketId: string, buchungId: string): Promise<string | null> {
   await requireEditor();
   if (!buchungId) return "Bitte eine Kostenposition auswählen.";
   const buchung = await prisma.buchung.findUnique({
@@ -154,7 +155,7 @@ export async function verknuepfeKosten(ticketId: string, buchungId: string): Pro
   });
   revalidatePath(`/tickets/${ticketId}`);
   return null;
-}
+});
 
 export async function loeseKosten(ticketId: string, buchungId: string): Promise<void> {
   await requireEditor();
@@ -162,7 +163,7 @@ export async function loeseKosten(ticketId: string, buchungId: string): Promise<
   revalidatePath(`/tickets/${ticketId}`);
 }
 
-export async function addKommentar(ticketId: string, _prev: string | null, formData: FormData): Promise<string | null> {
+export const addKommentar = mitMeldung(async function addKommentar(ticketId: string, _prev: string | null, formData: FormData): Promise<string | null> {
   const user = await requireEditor();
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return "Bitte einen Text eingeben.";
@@ -171,4 +172,4 @@ export async function addKommentar(ticketId: string, _prev: string | null, formD
   });
   revalidatePath(`/tickets/${ticketId}`);
   return null;
-}
+});

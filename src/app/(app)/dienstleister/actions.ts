@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseSuchbegriffe } from "@/lib/import/dienstleister";
+import { zodFehler, mitMeldung } from "@/lib/aktion";
 
 const TYPEN = ["HANDWERKER", "SONSTIGE"] as const;
 
@@ -40,7 +41,7 @@ function parseForm(formData: FormData) {
     aktiv: formData.get("aktiv") === "on",
   });
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   const d = parsed.data;
   const suchbegriffe = parseSuchbegriffe(d.suchbegriffe);
@@ -60,7 +61,7 @@ function parseForm(formData: FormData) {
   };
 }
 
-export async function createDienstleister(formData: FormData) {
+export const createDienstleister = mitMeldung(async function createDienstleister(formData: FormData) {
   await requireEditor();
   const { kostenartIds, ...data } = parseForm(formData);
   const neu = await prisma.dienstleister.create({
@@ -69,9 +70,9 @@ export async function createDienstleister(formData: FormData) {
   revalidatePath("/dienstleister");
   // Weiter zur Detailseite, damit direkt ein Vertrag hochgeladen werden kann.
   redirect(`/dienstleister/${neu.id}`);
-}
+});
 
-export async function updateDienstleister(id: string, formData: FormData) {
+export const updateDienstleister = mitMeldung(async function updateDienstleister(id: string, formData: FormData) {
   await requireEditor();
   const { kostenartIds, ...data } = parseForm(formData);
   await prisma.dienstleister.update({
@@ -80,7 +81,7 @@ export async function updateDienstleister(id: string, formData: FormData) {
   });
   revalidatePath("/dienstleister");
   redirect("/dienstleister");
-}
+});
 
 export async function deleteDienstleister(id: string) {
   await requireEditor();

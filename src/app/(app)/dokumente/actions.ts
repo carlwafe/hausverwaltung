@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 import { speichereDatei, loescheDatei } from "@/lib/storage";
 
 type UploadZiel =
@@ -23,7 +24,7 @@ function parseBelegDatum(wert: FormDataEntryValue | string | null): Date | null 
 // Das "file"-Feld kann mehrfach vorkommen (z.B. mehrere Einheit-Fotos auf einmal, siehe
 // FotosSektion) — hier bewusst per getAll statt get, damit ein- und mehrteilige Uploads
 // dieselbe Action nutzen können.
-export async function uploadDokument(
+export const uploadDokument = mitMeldung(async function uploadDokument(
   ziel: UploadZiel,
   _prev: string | null,
   formData: FormData,
@@ -59,7 +60,7 @@ export async function uploadDokument(
 
   revalidatePath(ziel.revalidatePath);
   return null;
-}
+});
 
 export async function deleteDokument(id: string, revalidatePathValue: string): Promise<void> {
   await requireEditor();

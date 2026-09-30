@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
+import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 
 // Freitext-Kommentar zur Kaution (Kaution.notizen), direkt in der Übersicht bearbeitbar — z.B. für
 // eine Überzahlung, die zurückgefordert werden muss.
@@ -101,7 +102,7 @@ const kautionAufteilungSchema = z.object({
  * Rohdaten und Import-Bezug und teilen sich die aufteilungGruppeId (= Id des stornierten Originals),
  * damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
  */
-export async function teileKautionsbuchungAuf(id: string, _prev: string | null, formData: FormData): Promise<string | null> {
+export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbuchungAuf(id: string, _prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
   const parsed = kautionAufteilungSchema.safeParse({
     kautionBetrag: String(formData.get("kautionBetrag") ?? "").replace(",", "."),
@@ -147,7 +148,7 @@ export async function teileKautionsbuchungAuf(id: string, _prev: string | null, 
 
   revalidiereKautionAufteilung(original.mietvertragId);
   redirect("/kautionen");
-}
+});
 
 function revalidiereKautionAufteilung(mietvertragId: string | null) {
   revalidatePath("/kautionen");
@@ -168,7 +169,7 @@ function revalidiereKautionAufteilung(mietvertragId: string | null) {
 export async function hebeKautionAufteilungAuf(id: string) {
   await requireEditor();
   const teil = await prisma.buchung.findFirst({ where: { id, ...AKTIVE_BUCHUNG_FILTER } });
-  if (!teil?.aufteilungGruppeId) throw new Error("Diese Buchung ist nicht Teil einer Aufteilung.");
+  if (!teil?.aufteilungGruppeId) throw new AktionsFehler("Diese Buchung ist nicht Teil einer Aufteilung.");
 
   const gruppe = await prisma.buchung.findMany({
     where: { aufteilungGruppeId: teil.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
@@ -176,9 +177,9 @@ export async function hebeKautionAufteilungAuf(id: string) {
   });
   const kautionsTeile = gruppe.filter((b) => b.buchungsart.kontokreis === "KAUTIONSKONTO");
   if (kautionsTeile.length !== 1)
-    throw new Error("Diese Aufteilung enthält nicht genau einen Kautionsteil und lässt sich hier nicht zusammenführen.");
+    throw new AktionsFehler("Diese Aufteilung enthält nicht genau einen Kautionsteil und lässt sich hier nicht zusammenführen.");
   if (gruppe.some((b) => b.buchungsart.kontokreis !== "KAUTIONSKONTO" && !["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"].includes(b.buchungsart.code)))
-    throw new Error("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
+    throw new AktionsFehler("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
 
   const vorlage = kautionsTeile[0];
   const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
@@ -224,7 +225,7 @@ const kautionsbuchungSchema = z.object({
 // wurde) — legt eine Kautionsbuchung ohne Rohdaten/Import-Bezug an, damit sich Einbehalten/Status
 // auf der Kautionen-Seite trotzdem korrekt berechnen, siehe kautionsbuchungen-table.tsx
 // ("manuell" statt Rohdaten-Anzeige).
-export async function erstelleKautionsbuchung(_prev: string | null, formData: FormData): Promise<string | null> {
+export const erstelleKautionsbuchung = mitMeldung(async function erstelleKautionsbuchung(_prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
 
   const parsed = kautionsbuchungSchema.safeParse({
@@ -259,7 +260,7 @@ export async function erstelleKautionsbuchung(_prev: string | null, formData: Fo
         // hebt sich die Ausgabe in Kontostand, Jahresübersicht und Nebenkostenabrechnung auf.
         const gutschriftBetrag = Math.abs(betrag);
         if (gutschriftBetrag > Number(kosten.betrag) + 0.005) {
-          throw new Error("Der Kautionsbetrag ist größer als die gewählte Rechnung.");
+          throw new AktionsFehler("Der Kautionsbetrag ist größer als die gewählte Rechnung.");
         }
         await tx.buchung.create({
           data: {
@@ -285,7 +286,7 @@ export async function erstelleKautionsbuchung(_prev: string | null, formData: Fo
   revalidatePath("/kautionen");
   revalidatePath("/kosten");
   return null;
-}
+});
 
 const EINBEHALT_STATUS_WERTE = [
   "UNSTRITTIG",
@@ -372,7 +373,7 @@ async function synchronisiereKautionEinbehaltBuchung(
 // Ein einzelner, begründeter Einbehalt bei Auflösung der Kaution — siehe KautionEinbehalt im
 // Schema. Setzt zwingend einen Kaution-Stammdatensatz voraus (kautionId), im Unterschied zu einer
 // normalen Kautionsbuchung, die auch ohne einen solchen erfasst werden kann.
-export async function erfasseKautionEinbehalt(_prev: string | null, formData: FormData): Promise<string | null> {
+export const erfasseKautionEinbehalt = mitMeldung(async function erfasseKautionEinbehalt(_prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
 
   const parsed = einbehaltSchema.safeParse({
@@ -424,7 +425,7 @@ export async function erfasseKautionEinbehalt(_prev: string | null, formData: Fo
   revalidatePath("/nebenkostenabrechnungen", "layout");
   revalidatePath(`/mietvertraege/${mietvertragId}`);
   return null;
-}
+});
 
 // Zurückbehaltungsrecht: ein Wechsel nach STRITTIG_BESTAETIGT/VERWORFEN ist jederzeit erlaubt (der
 // Streit wird geklärt), ein Rücksprung auf STRITTIG_OFFEN ebenso (Streit wird neu aufgerollt) — die

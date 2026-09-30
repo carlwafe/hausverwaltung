@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { AktionsFehler } from "@/lib/aktion";
 
 // Für jede Anzeige-/Summenabfrage, die nur "lebende" Buchungen sehen soll: schließt sowohl eine
 // bereits stornierte Zeile (storniertDurchBuchungId gesetzt) als auch ihre eigene
@@ -18,7 +19,7 @@ export const AKTIVE_BUCHUNG_FILTER = { storniertDurchBuchungId: null, storniertZ
 export async function storniereBuchung(tx: Prisma.TransactionClient, buchungId: string) {
   const original = await tx.buchung.findUniqueOrThrow({ where: { id: buchungId } });
   if (original.storniertDurchBuchungId) {
-    throw new Error("Diese Buchung wurde bereits storniert.");
+    throw new AktionsFehler("Diese Buchung wurde bereits storniert.");
   }
   const storno = await tx.buchung.create({
     data: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
@@ -44,7 +44,7 @@ export function KostenartForm({
   action,
 }: {
   initial?: Kostenart;
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),

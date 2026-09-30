@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import {
   mapVertraegeRows,
@@ -111,7 +112,7 @@ type CommitRow = {
   nebenkostenVorauszahlung: number;
 };
 
-export async function commitImport(
+export const commitImport = mitMeldung(async function commitImport(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -180,4 +181,4 @@ export async function commitImport(
   return `${erstellt} Mietvertrag/Mietverträge importiert.${
     uebersprungen.length > 0 ? ` ${uebersprungen.length} übersprungen (bereits vorhanden).` : ""
   }`;
-}
+});

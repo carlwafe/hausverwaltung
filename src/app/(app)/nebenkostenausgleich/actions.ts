@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 
 export async function deleteNebenkostenausgleichZahlungen(ids: string[]) {
   await requireEditor();
@@ -36,7 +37,7 @@ const aufteilungTeilSchema = z.object({
  * aufteilungGruppeId (= Id des Originals) hält die Teile zusammen und lässt die Zeile beim
  * Kontoauszug-Import weiter als "bereits importiert" erkennen. Analog zu teileZahlungAuf.
  */
-export async function teileNebenkostenausgleichAuf(
+export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNebenkostenausgleichAuf(
   id: string,
   _prev: string | null,
   formData: FormData,
@@ -93,7 +94,7 @@ export async function teileNebenkostenausgleichAuf(
 
   revalidateAusgleich(new Set([original.mietvertragId, ...teile.map((t) => t.mietvertragId)]));
   redirect("/nebenkostenausgleich");
-}
+});
 
 /**
  * Macht die Aufteilung rückgängig: alle aktiven Teile werden storniert und zu einer einzigen
@@ -103,21 +104,21 @@ export async function teileNebenkostenausgleichAuf(
 export async function hebeNebenkostenausgleichAufteilungAuf(id: string) {
   await requireEditor();
   const teil = await prisma.buchung.findFirst({ where: { id, ...AKTIVE_BUCHUNG_FILTER } });
-  if (!teil?.aufteilungGruppeId) throw new Error("Diese Buchung ist nicht Teil einer Aufteilung.");
+  if (!teil?.aufteilungGruppeId) throw new AktionsFehler("Diese Buchung ist nicht Teil einer Aufteilung.");
 
   const gruppe = await prisma.buchung.findMany({
     where: { aufteilungGruppeId: teil.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
     include: { buchungsart: { select: { code: true } } },
   });
   if (gruppe.some((b) => !["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"].includes(b.buchungsart.code))) {
-    throw new Error("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
+    throw new AktionsFehler("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
   }
   const original = await prisma.buchung.findUnique({ where: { id: teil.aufteilungGruppeId } });
   const ausgleichTeile = gruppe
     .filter((b) => b.buchungsart.code === "NEBENKOSTENAUSGLEICH")
     .sort((a, b) => Math.abs(Number(b.betrag)) - Math.abs(Number(a.betrag)));
   const vorlage = original ?? ausgleichTeile[0];
-  if (!vorlage) throw new Error("Keine Nebenkostenausgleich-Buchung in dieser Aufteilung gefunden.");
+  if (!vorlage) throw new AktionsFehler("Keine Nebenkostenausgleich-Buchung in dieser Aufteilung gefunden.");
 
   const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
 

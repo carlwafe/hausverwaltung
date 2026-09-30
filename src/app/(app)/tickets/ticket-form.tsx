@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { TICKET_KATEGORIE, TICKET_PRIORITAET, TICKET_STATUS } from "@/lib/ticket";
@@ -44,7 +44,7 @@ export function TicketForm({
     dienstleister: Option[];
     benutzer: Option[];
   };
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
   bearbeiten?: boolean;
 }) {
   const [einheitId, setEinheitId] = useState(initial.einheitId);

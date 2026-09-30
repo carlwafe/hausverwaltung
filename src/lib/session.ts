@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
+import { AktionsFehler } from "@/lib/aktion";
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -23,7 +24,7 @@ export async function requireAdmin() {
 export async function requireEditor() {
   const user = await requireUser();
   if (user.role === "GAST") {
-    throw new Error("Gäste haben nur Lesezugriff und können nichts ändern.");
+    throw new AktionsFehler("Gäste haben nur Lesezugriff und können nichts ändern.");
   }
   return user;
 }

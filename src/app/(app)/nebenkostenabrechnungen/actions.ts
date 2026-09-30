@@ -8,6 +8,7 @@ import { requireEditor } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
+import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import {
   berechneNebenkostenabrechnung,
   type EinheitFuerAbrechnung,
@@ -191,16 +192,16 @@ export async function ladeBerechnungsdaten(jahr: number) {
   return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug };
 }
 
-export async function createAbrechnung(formData: FormData) {
+export const createAbrechnung = mitMeldung(async function createAbrechnung(formData: FormData) {
   await requireEditor();
   const jahr = Number(formData.get("jahr"));
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
-    throw new Error("Ungültiges Jahr.");
+    throw new AktionsFehler("Ungültiges Jahr.");
   }
 
   const bestehend = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr } });
   if (bestehend) {
-    throw new Error(`Für ${jahr} existiert bereits eine Abrechnung.`);
+    throw new AktionsFehler(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
   const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
@@ -234,37 +235,37 @@ export async function createAbrechnung(formData: FormData) {
   });
   revalidatePath("/nebenkostenabrechnungen");
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
-}
+});
 
 // Legt eine Abrechnung ohne jede Position an, statt sie über berechneNebenkostenabrechnung aus
 // den erfassten Kostenpositionen abzuleiten — für Jahre, deren zugrundeliegende Kostendaten
 // unvollständig/unzuverlässig sind (z.B. 2024, siehe Kommentar in nebenkostenabrechnung.ts). Die
 // einzelnen Positionen (Guthaben/Nachzahlung) werden danach manuell über
 // fuegePositionManuellHinzu eingetragen.
-export async function erstelleLeereAbrechnung(formData: FormData) {
+export const erstelleLeereAbrechnung = mitMeldung(async function erstelleLeereAbrechnung(formData: FormData) {
   await requireEditor();
   const jahr = Number(formData.get("jahr"));
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
-    throw new Error("Ungültiges Jahr.");
+    throw new AktionsFehler("Ungültiges Jahr.");
   }
 
   const bestehend = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr } });
   if (bestehend) {
-    throw new Error(`Für ${jahr} existiert bereits eine Abrechnung.`);
+    throw new AktionsFehler(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
   const abrechnung = await prisma.nebenkostenabrechnung.create({ data: { jahr } });
 
   revalidatePath("/nebenkostenabrechnungen");
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
-}
+});
 
 // Trägt eine einzelne Position von Hand ein — für eine Abrechnung, deren zugrundeliegende
 // Kostendaten zu unvollständig sind, um die eigentliche Berechnung
 // (berechneNebenkostenabrechnung) sinnvoll laufen zu lassen. kostenanteilGesamt und
 // vorauszahlungGesamt werden direkt vom Nutzer eingegeben, saldo wird daraus berechnet
 // (vorauszahlungGesamt - kostenanteilGesamt), genau wie bei einer normal berechneten Position.
-export async function fuegePositionManuellHinzu(
+export const fuegePositionManuellHinzu = mitMeldung(async function fuegePositionManuellHinzu(
   abrechnungId: string,
   _prev: string | null,
   formData: FormData,
@@ -315,13 +316,13 @@ export async function fuegePositionManuellHinzu(
 
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
   return null;
-}
+});
 
 // Bearbeitet eine einzelne, bereits bestehende Position — egal ob ursprünglich manuell erfasst
 // oder berechnet (ein erneutes "Neu berechnen" würde eine berechnete Position ohnehin wieder
 // überschreiben, ein manueller Zwischen-Edit stört das nicht). Gleiches Eingabeschema wie
 // fuegePositionManuellHinzu: kostenanteilGesamt/vorauszahlungGesamt direkt, saldo daraus berechnet.
-export async function bearbeitePosition(
+export const bearbeitePosition = mitMeldung(async function bearbeitePosition(
   positionId: string,
   _prev: string | null,
   formData: FormData,
@@ -355,7 +356,7 @@ export async function bearbeitePosition(
 
   revalidatePath(`/nebenkostenabrechnungen/${position.abrechnungId}`);
   return null;
-}
+});
 
 // Löscht eine einzelne Position (z.B. eine versehentlich manuell angelegte) — im Unterschied zu
 // deleteAbrechnung, das die ganze Abrechnung samt aller Positionen löscht.
@@ -491,12 +492,12 @@ export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormDa
     typeof datum !== "string" ||
     !datum
   ) {
-    throw new Error("Ungültige Eingabe.");
+    throw new AktionsFehler("Ungültige Eingabe.");
   }
   const datumWert = parseStrengesDatum(datum);
-  if (!datumWert) throw new Error("Ungültiges Datum.");
+  if (!datumWert) throw new AktionsFehler("Ungültiges Datum.");
   const betrag = typeof betragRaw === "string" ? Number(betragRaw.replace(",", ".")) : NaN;
-  if (!Number.isFinite(betrag)) throw new Error("Ungültiger Betrag.");
+  if (!Number.isFinite(betrag)) throw new AktionsFehler("Ungültiger Betrag.");
 
   const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
   await prisma.buchung.create({
@@ -518,16 +519,16 @@ export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormDa
 // VORVERTEILT-Kostenart — analog zu speichereVerbrauchswerte, nur pro Mietvertrag statt pro
 // Einheit (siehe VorverteilterKostenanteil in schema.prisma). Wirkt erst nach einem "Neu
 // berechnen" auf die Positionen, genau wie neu erfasste Verbrauchswerte.
-export async function speichereVorverteilteKostenanteile(formData: FormData) {
+export const speichereVorverteilteKostenanteile = mitMeldung(async function speichereVorverteilteKostenanteile(formData: FormData) {
   await requireEditor();
 
   const jahr = Number(formData.get("jahr"));
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
-    throw new Error("Ungültiges Jahr.");
+    throw new AktionsFehler("Ungültiges Jahr.");
   }
   const kostenartId = String(formData.get("kostenartId") ?? "");
   if (!kostenartId) {
-    throw new Error("Bitte eine Kostenart auswählen.");
+    throw new AktionsFehler("Bitte eine Kostenart auswählen.");
   }
 
   const mietvertragIds = formData.getAll("mietvertragId").map(String);
@@ -541,7 +542,7 @@ export async function speichereVorverteilteKostenanteile(formData: FormData) {
     }
     const betrag = Number(text);
     if (!Number.isFinite(betrag) || betrag < 0) {
-      throw new Error(`Ungültiger Betrag für einen Mietvertrag: "${text}".`);
+      throw new AktionsFehler(`Ungültiger Betrag für einen Mietvertrag: "${text}".`);
     }
     eintraege.push({ mietvertragId, betrag });
   }
@@ -555,14 +556,14 @@ export async function speichereVorverteilteKostenanteile(formData: FormData) {
     try {
       geparst = JSON.parse(leerstandRoh);
     } catch {
-      throw new Error("Leerstand-Angaben konnten nicht gelesen werden.");
+      throw new AktionsFehler("Leerstand-Angaben konnten nicht gelesen werden.");
     }
-    if (!Array.isArray(geparst)) throw new Error("Leerstand-Angaben konnten nicht gelesen werden.");
+    if (!Array.isArray(geparst)) throw new AktionsFehler("Leerstand-Angaben konnten nicht gelesen werden.");
     for (const z of geparst as { einheitId?: string | null; betrag?: string | number; notiz?: string }[]) {
       const text = String(z.betrag ?? "").trim().replace(",", ".");
       if (text === "") continue;
       const betrag = Number(text);
-      if (!Number.isFinite(betrag) || betrag < 0) throw new Error(`Ungültiger Leerstand-Betrag: "${text}".`);
+      if (!Number.isFinite(betrag) || betrag < 0) throw new AktionsFehler(`Ungültiger Leerstand-Betrag: "${text}".`);
       leerstand.push({ einheitId: z.einheitId || null, betrag, notiz: z.notiz?.trim() || null });
     }
   }
@@ -585,22 +586,22 @@ export async function speichereVorverteilteKostenanteile(formData: FormData) {
 
   const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
   if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);
-}
+});
 
 // Erfasst, wie viel einer Techem-Gesamtabrechnung (VORVERTEILT-Kostenart, z.B. "Heizkosten Haus
 // 2-12") tatsächlich bereits verrechneter Allgemeinstrom ist — wird bei der Berechnung vom
 // gleich-scopeten Allgemeinstrom-Pool abgezogen (siehe TechemAllgemeinstromAnteil im Schema und
 // berechneEinheitAnteile). Wirkt wie die anderen Vorverteilt-Eingaben erst nach "Neu berechnen".
-export async function speichereTechemAllgemeinstromAnteil(formData: FormData) {
+export const speichereTechemAllgemeinstromAnteil = mitMeldung(async function speichereTechemAllgemeinstromAnteil(formData: FormData) {
   await requireEditor();
 
   const jahr = Number(formData.get("jahr"));
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
-    throw new Error("Ungültiges Jahr.");
+    throw new AktionsFehler("Ungültiges Jahr.");
   }
   const kostenartId = String(formData.get("kostenartId") ?? "");
   if (!kostenartId) {
-    throw new Error("Bitte eine Kostenart auswählen.");
+    throw new AktionsFehler("Bitte eine Kostenart auswählen.");
   }
 
   const roh = formData.get("betrag");
@@ -611,7 +612,7 @@ export async function speichereTechemAllgemeinstromAnteil(formData: FormData) {
   } else {
     const betrag = Number(text);
     if (!Number.isFinite(betrag) || betrag < 0) {
-      throw new Error(`Ungültiger Betrag: "${text}".`);
+      throw new AktionsFehler(`Ungültiger Betrag: "${text}".`);
     }
     await prisma.techemAllgemeinstromAnteil.upsert({
       where: { kostenartId_jahr: { kostenartId, jahr } },
@@ -622,7 +623,7 @@ export async function speichereTechemAllgemeinstromAnteil(formData: FormData) {
 
   const abrechnung = await prisma.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
   if (abrechnung) revalidatePath(`/nebenkostenabrechnungen/${abrechnung.id}`);
-}
+});
 
 // Stern "Berechnung stimmt mit der des Verwalters überein" pro Mietvertrag einer Abrechnung.
 export async function toggleNkVerwalterAbgleich(abrechnungId: string, mietvertragId: string) {
@@ -652,22 +653,22 @@ export async function speichereNkKommentar(abrechnungId: string, mietvertragId: 
 
 // Vergleichsrechnung "wie der Verwalter": abweichende Gesamtwohnfläche eines Kostenkreises. Wirkt nur
 // auf die Simulation auf der Abrechnungsseite, nicht auf die gespeicherten Positionen.
-export async function speichereQmAbweichung(abrechnungId: string, formData: FormData) {
+export const speichereQmAbweichung = mitMeldung(async function speichereQmAbweichung(abrechnungId: string, formData: FormData) {
   await requireEditor();
   const kreis = String(formData.get("kostenkreis") ?? "");
   const trenner = kreis.indexOf("|");
-  if (trenner < 1) throw new Error("Bitte einen Kostenkreis wählen.");
+  if (trenner < 1) throw new AktionsFehler("Bitte einen Kostenkreis wählen.");
   const kostenartId = kreis.slice(0, trenner);
   const scopeLabel = kreis.slice(trenner + 1);
   const qmGesamt = Number(String(formData.get("qmGesamt") ?? "").replace(",", "."));
-  if (!Number.isFinite(qmGesamt) || qmGesamt <= 0) throw new Error("Bitte eine Fläche größer als 0 eintragen.");
+  if (!Number.isFinite(qmGesamt) || qmGesamt <= 0) throw new AktionsFehler("Bitte eine Fläche größer als 0 eintragen.");
   await prisma.nebenkostenQmAbweichung.upsert({
     where: { abrechnungId_kostenartId_scopeLabel: { abrechnungId, kostenartId, scopeLabel } },
     create: { abrechnungId, kostenartId, scopeLabel, qmGesamt },
     update: { qmGesamt },
   });
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
-}
+});
 
 export async function loescheQmAbweichung(id: string, abrechnungId: string) {
   await requireEditor();

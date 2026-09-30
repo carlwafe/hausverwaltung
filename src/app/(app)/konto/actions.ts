@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 
 const schema = z
   .object({
@@ -16,7 +17,7 @@ const schema = z
     path: ["neuesPasswortWiederholen"],
   });
 
-export async function changePassword(
+export const changePassword = mitMeldung(async function changePassword(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -42,4 +43,4 @@ export async function changePassword(
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
 
   return "Passwort wurde geändert.";
-}
+});

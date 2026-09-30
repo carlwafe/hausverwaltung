@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 
 /**
  * Markiert/entmarkiert, dass "Saldo neu" für diesen Mietvertrag/dieses Jahr mit dem vorhandenen
@@ -62,7 +63,7 @@ const kontenabgleichSchema = z.object({
  * Abgleich gegen diesen manuell vom echten Kontoauszug abgelesenen Wert kann eine tatsächlich
  * fehlende oder falsch geflaggte Buchung aufdecken.
  */
-export async function speichereKontenabgleichVerifikation(
+export const speichereKontenabgleichVerifikation = mitMeldung(async function speichereKontenabgleichVerifikation(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -87,7 +88,7 @@ export async function speichereKontenabgleichVerifikation(
   revalidatePath("/jahresuebersicht");
   revalidatePath("/quartalsuebersicht");
   return null;
-}
+});
 
 export async function loescheKontenabgleichVerifikation(jahr: number, quartal = 0) {
   await requireEditor();

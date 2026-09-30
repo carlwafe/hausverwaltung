@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 
@@ -35,7 +35,7 @@ export function MietvertragForm({
   einheiten: EinheitOption[];
   mieter: Option[];
   initial?: Initial;
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),

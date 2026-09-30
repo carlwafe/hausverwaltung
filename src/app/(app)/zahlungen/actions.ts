@@ -9,6 +9,7 @@ import { requireEditor } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { hebeZahlungAufteilungAuf as hebeZahlungAufteilungAufLib } from "@/lib/aufteilung-aufheben";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
+import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 async function ladeBuchungsartId(code: string): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code } });
@@ -54,7 +55,7 @@ const nkVerrechnungSchema = z.object({
   verwendungszweck: z.string().optional(),
 });
 
-export async function createZahlung(formData: FormData) {
+export const createZahlung = mitMeldung(async function createZahlung(formData: FormData) {
   await requireEditor();
 
   if (formData.get("zahlungsart") === "NK_VERRECHNUNG") {
@@ -66,7 +67,7 @@ export async function createZahlung(formData: FormData) {
       verwendungszweck: formData.get("verwendungszweck") || undefined,
     });
     if (!parsed.success) {
-      throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+      throw zodFehler(parsed.error);
     }
     const { mietvertragId, nkJahr, verwendungszweck, ...rest } = parsed.data;
     const buchungsartId = await ladeBuchungsartId("MAHNGEBUEHR");
@@ -98,7 +99,7 @@ export async function createZahlung(formData: FormData) {
       verwendungszweck: formData.get("verwendungszweck"),
     });
     if (!parsed.success) {
-      throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+      throw zodFehler(parsed.error);
     }
     const { mietvertragId, ...rest } = parsed.data;
     const buchungsartId = await ladeBuchungsartId("MAHNGEBUEHR");
@@ -119,7 +120,7 @@ export async function createZahlung(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
 
   const { mietvertragId, ...rest } = parsed.data;
@@ -133,13 +134,13 @@ export async function createZahlung(formData: FormData) {
   revalidatePath("/offene-posten");
   revalidatePath(`/mietvertraege/${mietvertragId}`);
   redirect(`/mietvertraege/${mietvertragId}`);
-}
+});
 
 // "Bearbeiten" heißt beim Storno-Prinzip: die alte Buchung stornieren und mit den korrigierten
 // Werten neu anlegen (siehe storniereBuchung/AKTIVE_BUCHUNG_FILTER) — importBatchId/rohdaten/
 // aufteilungGruppeId wandern dabei auf die neue Zeile mit, weil sie weiterhin dieselbe reale
 // Zahlung repräsentiert.
-export async function updateZahlung(id: string, formData: FormData) {
+export const updateZahlung = mitMeldung(async function updateZahlung(id: string, formData: FormData) {
   await requireEditor();
 
   const parsed = zahlungSchema.safeParse({
@@ -152,7 +153,7 @@ export async function updateZahlung(id: string, formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
 
   const { mietvertragId, ...rest } = parsed.data;
@@ -180,7 +181,7 @@ export async function updateZahlung(id: string, formData: FormData) {
     revalidatePath(`/mietvertraege/${bisherige.mietvertragId}`);
   }
   redirect("/zahlungen");
-}
+});
 
 export async function deleteZahlung(id: string) {
   await requireEditor();
@@ -260,7 +261,7 @@ const aufteilungTeilSchema = z.discriminatedUnion("typ", [
  * eine Kleinreparatur-Erstattung beim Kontoauszug-Import (siehe mapKostenRows in
  * src/lib/import/kosten-import.ts). Analog zu teileKostenpositionAuf in kosten/actions.ts.
  */
-export async function teileZahlungAuf(
+export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
   id: string,
   _prev: string | null,
   formData: FormData,
@@ -396,7 +397,7 @@ export async function teileZahlungAuf(
   if (kautionTeile.length > 0) revalidatePath("/kautionen");
   for (const mietvertragId of betroffeneMietvertraege) revalidatePath(`/mietvertraege/${mietvertragId}`);
   redirect("/zahlungen");
-}
+});
 
 // Macht eine Aufteilung wieder rückgängig: alle Zahlungen derselben aufteilungGruppeId werden
 // storniert und zu einer einzigen neuen Zahlung zusammengeführt (Betrag = Summe), unter dem
@@ -404,8 +405,8 @@ export async function teileZahlungAuf(
 export async function hebeZahlungAufteilungAuf(zahlungId: string) {
   await requireEditor();
   const zahlung = await prisma.buchung.findFirst({ where: { id: zahlungId, ...AKTIVE_BUCHUNG_FILTER } });
-  if (!zahlung) throw new Error("Zahlung nicht gefunden.");
-  if (!zahlung.aufteilungGruppeId) throw new Error("Diese Zahlung ist nicht Teil einer Aufteilung.");
+  if (!zahlung) throw new AktionsFehler("Zahlung nicht gefunden.");
+  if (!zahlung.aufteilungGruppeId) throw new AktionsFehler("Diese Zahlung ist nicht Teil einer Aufteilung.");
 
   // Kostenpositionen aus einer gemischten Aufteilung (Miete + Kosten) gehören ebenfalls zur Gruppe
   // und gehen mit umgekehrtem Vorzeichen in die Summe ein — Details siehe aufteilung-aufheben.ts.

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { AktionsFehler } from "@/lib/aktion";
 
 const ZAHLUNG_CODES = ["MIETZAHLUNG", "SONDERZAHLUNG"];
 
@@ -48,7 +49,7 @@ export async function hebeZahlungAufteilungAuf(aufteilungGruppeId: string, vorla
     original && original.mietvertragId && ZAHLUNG_CODES.includes(original.buchungsart.code)
       ? original
       : gruppe.find((b) => b.id === vorlageId) ?? gruppe.find((b) => ZAHLUNG_CODES.includes(b.buchungsart.code));
-  if (!vorlage) throw new Error("Keine Zahlung in dieser Aufteilung gefunden.");
+  if (!vorlage) throw new AktionsFehler("Keine Zahlung in dieser Aufteilung gefunden.");
 
   const kostenIds = gruppe.filter((b) => b.buchungsart.code === "KOSTENPOSITION").map((b) => b.id);
   const forderungen = kostenIds.length

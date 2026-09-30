@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { mapEinheitenRows, type ParsedEinheitRow } from "@/lib/import/einheiten-import";
 
@@ -77,7 +78,7 @@ export async function previewImport(
   }
 }
 
-export async function commitImport(
+export const commitImport = mitMeldung(async function commitImport(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -152,4 +153,4 @@ export async function commitImport(
   return `${validRows.length} Einheiten wurden erfolgreich importiert.${
     skipped > 0 ? ` ${skipped} Zeile(n) wurden wegen Fehlern übersprungen.` : ""
   }`;
-}
+});

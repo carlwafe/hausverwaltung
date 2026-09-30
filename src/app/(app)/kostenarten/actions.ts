@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { zodFehler, mitMeldung } from "@/lib/aktion";
 
 const VERTEILERSCHLUESSEL = [
   "WOHNFLAECHE",
@@ -48,12 +49,12 @@ function parseForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   return parsed.data;
 }
 
-export async function createKostenart(formData: FormData) {
+export const createKostenart = mitMeldung(async function createKostenart(formData: FormData) {
   await requireEditor();
   const data = parseForm(formData);
 
@@ -69,9 +70,9 @@ export async function createKostenart(formData: FormData) {
 
   revalidatePath("/kostenarten");
   redirect("/kostenarten");
-}
+});
 
-export async function updateKostenart(id: string, formData: FormData) {
+export const updateKostenart = mitMeldung(async function updateKostenart(id: string, formData: FormData) {
   await requireEditor();
   const data = parseForm(formData);
 
@@ -92,7 +93,7 @@ export async function updateKostenart(id: string, formData: FormData) {
   revalidatePath("/kostenarten");
   revalidatePath(`/kostenarten/${id}`);
   redirect("/kostenarten");
-}
+});
 
 export async function deleteKostenart(id: string) {
   await requireEditor();

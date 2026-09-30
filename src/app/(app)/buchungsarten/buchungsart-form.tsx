@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 
 export const KONTOKREIS_LABEL: Record<string, string> = {
   MIETKONTO: "Mietkonto (Mieter)",
@@ -25,7 +25,7 @@ export function BuchungsartForm({
   systemArt = false,
 }: {
   initial?: Art;
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
   gesperrt?: boolean;
   systemArt?: boolean;
 }) {

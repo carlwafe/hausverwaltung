@@ -2,7 +2,7 @@
 
 import { DateInput } from "@/components/date-input";
 import { useActionState, useState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import type { VirtuelleAuszahlungOption } from "./virtuelle-auszahlungen";
@@ -36,7 +36,7 @@ export function KostenpositionForm({
   virtuelleAuszahlungen: VirtuelleAuszahlungOption[];
   initial?: Kostenposition;
   istImportiert?: boolean;
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),

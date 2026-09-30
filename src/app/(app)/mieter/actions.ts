@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 const mieterSchema = z.object({
   anrede: z.enum(["FRAU", "HERR"]).nullable(),
@@ -31,12 +32,12 @@ function parseForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   return parsed.data;
 }
 
-export async function createMieter(formData: FormData) {
+export const createMieter = mitMeldung(async function createMieter(formData: FormData) {
   await requireEditor();
   const data = parseForm(formData);
 
@@ -44,9 +45,9 @@ export async function createMieter(formData: FormData) {
 
   revalidatePath("/mieter");
   redirect("/mieter");
-}
+});
 
-export async function updateMieter(id: string, formData: FormData) {
+export const updateMieter = mitMeldung(async function updateMieter(id: string, formData: FormData) {
   await requireEditor();
   const data = parseForm(formData);
 
@@ -55,7 +56,7 @@ export async function updateMieter(id: string, formData: FormData) {
   revalidatePath("/mieter");
   revalidatePath(`/mieter/${id}`);
   redirect("/mieter");
-}
+});
 
 /** Anrede vieler Mieter auf einmal setzen (Seite /mieter/anrede) — Felder "anrede_<mieterId>". */
 export async function speichereAnreden(formData: FormData): Promise<string> {
@@ -63,7 +64,7 @@ export async function speichereAnreden(formData: FormData): Promise<string> {
   const wunsch = new Map<string, "FRAU" | "HERR" | null>();
   for (const [key, wert] of formData.entries()) {
     if (!key.startsWith("anrede_")) continue;
-    if (wert !== "" && wert !== "FRAU" && wert !== "HERR") throw new Error("Ungültige Anrede");
+    if (wert !== "" && wert !== "FRAU" && wert !== "HERR") throw new AktionsFehler("Ungültige Anrede");
     wunsch.set(key.slice("anrede_".length), wert === "" ? null : wert);
   }
   const bestehend = await prisma.mieter.findMany({ where: { id: { in: [...wunsch.keys()] } }, select: { id: true, anrede: true } });

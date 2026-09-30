@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { zodFehler, mitMeldung } from "@/lib/aktion";
 
 const einheitSchema = z.object({
   gebaeudeId: z.string().min(1, "Gebäude ist erforderlich"),
@@ -30,14 +31,14 @@ function parseForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
 
   const { gebaeudeId, ...rest } = parsed.data;
   return { gebaeudeId, rest };
 }
 
-export async function createEinheit(formData: FormData) {
+export const createEinheit = mitMeldung(async function createEinheit(formData: FormData) {
   await requireEditor();
   const { gebaeudeId, rest } = parseForm(formData);
 
@@ -47,9 +48,9 @@ export async function createEinheit(formData: FormData) {
 
   revalidatePath("/einheiten");
   redirect("/einheiten");
-}
+});
 
-export async function updateEinheit(id: string, formData: FormData) {
+export const updateEinheit = mitMeldung(async function updateEinheit(id: string, formData: FormData) {
   await requireEditor();
   const { gebaeudeId, rest } = parseForm(formData);
 
@@ -61,7 +62,7 @@ export async function updateEinheit(id: string, formData: FormData) {
   revalidatePath("/einheiten");
   revalidatePath(`/einheiten/${id}`);
   redirect("/einheiten");
-}
+});
 
 export async function deleteEinheit(id: string) {
   await requireEditor();
@@ -80,7 +81,7 @@ const wohnflaecheKorrekturSchema = z.object({
 // historisch falsch eingetragenen) Wohnfläche gerechnet wurde als der heute in Einheit.wohnflaecheQm
 // hinterlegte, korrekte Wert — siehe WohnflaecheKorrektur und ladeBerechnungsdaten in
 // nebenkostenabrechnungen/actions.ts.
-export async function erfasseWohnflaecheKorrektur(
+export const erfasseWohnflaecheKorrektur = mitMeldung(async function erfasseWohnflaecheKorrektur(
   einheitId: string,
   _prev: string | null,
   formData: FormData,
@@ -103,7 +104,7 @@ export async function erfasseWohnflaecheKorrektur(
   }
   revalidatePath(`/einheiten/${einheitId}`);
   return null;
-}
+});
 
 export async function loescheWohnflaecheKorrektur(einheitId: string, id: string) {
   await requireEditor();

@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 
 const userSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich"),
@@ -13,7 +14,7 @@ const userSchema = z.object({
   role: z.enum(["ADMIN", "GAST"]),
 });
 
-export async function createBenutzer(
+export const createBenutzer = mitMeldung(async function createBenutzer(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -44,12 +45,12 @@ export async function createBenutzer(
 
   revalidatePath("/benutzer");
   return null;
-}
+});
 
 export async function deleteBenutzer(id: string) {
   const admin = await requireAdmin();
   if (admin.id === id) {
-    throw new Error("Du kannst dich nicht selbst löschen.");
+    throw new AktionsFehler("Du kannst dich nicht selbst löschen.");
   }
   await prisma.user.delete({ where: { id } });
   revalidatePath("/benutzer");
@@ -60,7 +61,7 @@ const updateSchema = z.object({
   email: z.string().trim().email("Ungültige E-Mail"),
 });
 
-export async function updateBenutzer(
+export const updateBenutzer = mitMeldung(async function updateBenutzer(
   id: string,
   name: string,
   emailRaw: string,
@@ -81,4 +82,4 @@ export async function updateBenutzer(
   await prisma.user.update({ where: { id }, data: { name: parsed.data.name, email } });
   revalidatePath("/benutzer");
   return null;
-}
+});

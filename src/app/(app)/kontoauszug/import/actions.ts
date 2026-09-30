@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
 import { requireUser, requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
@@ -674,7 +675,7 @@ export type BuchungCommitRow = {
 // Buchungsart-Familie exakt dieselben wie in den vorherigen 5 Funktionen — nur die Zuordnung
 // "welche Formel für diese Zeile" wird jetzt zur Laufzeit anhand der gewählten Buchungsart
 // entschieden statt anhand der Sektion, in der die Zeile ursprünglich angezeigt wurde.
-export async function commitBuchungen(_prev: string | null, formData: FormData): Promise<string | null> {
+export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
   const dedup = await ladeDedupFilter();
 
@@ -883,7 +884,7 @@ export async function commitBuchungen(_prev: string | null, formData: FormData):
   return `${neu.length} Buchung(en) importiert.${
     uebersprungenGesamt > 0 ? ` ${uebersprungenGesamt} als Duplikat übersprungen.` : ""
   }`;
-}
+});
 
 // Eine Buchung, die der Nutzer in keiner der 5 Import-Sektionen sofort klar zuordnen kann,
 // explizit als "nicht kategorisiert" parken statt sie beim Verlassen des Import-Wizards

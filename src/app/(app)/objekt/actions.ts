@@ -5,6 +5,7 @@ import { optionalesDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 
 const objektSchema = z
   .object({
@@ -26,7 +27,7 @@ const objektSchema = z
     path: ["kontostandAnkerBetrag"],
   });
 
-export async function updateObjekt(
+export const updateObjekt = mitMeldung(async function updateObjekt(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
@@ -58,4 +59,4 @@ export async function updateObjekt(
   revalidatePath("/offene-posten");
   revalidatePath("/kontostand");
   return null;
-}
+});

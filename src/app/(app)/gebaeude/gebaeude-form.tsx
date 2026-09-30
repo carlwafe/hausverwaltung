@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 
 type Gebaeude = {
   strasse: string;
@@ -17,7 +17,7 @@ export function GebaeudeForm({
 }: {
   haeuser: { id: string; label: string }[];
   initial?: Gebaeude;
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),

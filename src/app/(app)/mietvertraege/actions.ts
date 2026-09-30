@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { optionalesDatum, pflichtDatum } from "@/lib/zod-datum";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
+import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -69,7 +70,7 @@ async function parseForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
 
   const einheit = await prisma.einheit.findUnique({
@@ -77,7 +78,7 @@ async function parseForm(formData: FormData) {
     select: { typ: true },
   });
   if (einheit?.typ === "GARAGE" && parsed.data.mehrwertsteuer === undefined) {
-    throw new Error("Mehrwertsteuer ist bei Garagen/Stellplätzen erforderlich");
+    throw new AktionsFehler("Mehrwertsteuer ist bei Garagen/Stellplätzen erforderlich");
   }
 
   return parsed.data;
@@ -87,7 +88,7 @@ function mieterIds(data: { mieterId1: string; mieterId2?: string }) {
   return data.mieterId2 ? [data.mieterId1, data.mieterId2] : [data.mieterId1];
 }
 
-export async function createMietvertrag(formData: FormData) {
+export const createMietvertrag = mitMeldung(async function createMietvertrag(formData: FormData) {
   await requireEditor();
   const data = await parseForm(formData);
 
@@ -121,9 +122,9 @@ export async function createMietvertrag(formData: FormData) {
   revalidatePath("/offene-posten");
   revalidatePath("/");
   redirect("/mietvertraege");
-}
+});
 
-export async function updateMietvertrag(id: string, formData: FormData) {
+export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id: string, formData: FormData) {
   await requireEditor();
   const data = await parseForm(formData);
 
@@ -172,7 +173,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
         select: { id: true, _count: { select: { einbehalte: true } } },
       });
       if (kaution && kaution._count.einbehalte > 0) {
-        throw new Error("Kaution hat erfasste Einbehalte und kann nicht entfernt werden — erst die Einbehalte löschen.");
+        throw new AktionsFehler("Kaution hat erfasste Einbehalte und kann nicht entfernt werden — erst die Einbehalte löschen.");
       }
       if (kaution) await tx.kaution.delete({ where: { id: kaution.id } });
     }
@@ -186,7 +187,7 @@ export async function updateMietvertrag(id: string, formData: FormData) {
   // Zurück auf die Detailseite (nicht mehr die Liste) — passend zum Bearbeiten auf einer eigenen
   // Unterseite: nach dem Speichern soll man das Ergebnis direkt sehen, nicht erst wieder suchen.
   redirect(`/mietvertraege/${id}`);
-}
+});
 
 export async function deleteMietvertrag(id: string) {
   await requireEditor();
@@ -221,7 +222,7 @@ export async function erfasseMieterhoehung(mietvertragId: string, formData: Form
     notizen: formData.get("notizen") || undefined,
   });
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
 
   const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
@@ -229,7 +230,7 @@ export async function erfasseMieterhoehung(mietvertragId: string, formData: Form
     select: { beginn: true },
   });
   if (vertrag.beginn && parsed.data.gueltigAb < vertrag.beginn) {
-    throw new Error("Gültig ab darf nicht vor dem Mietbeginn liegen");
+    throw new AktionsFehler("Gültig ab darf nicht vor dem Mietbeginn liegen");
   }
 
   await prisma.mieterhoehung.create({
@@ -250,7 +251,7 @@ const vorauszahlungAnpassungSchema = z.object({
  * mit unveränderter Kaltmiete — die Kaltmiete wird aus dem zum gueltigAb-Monat geltenden Stand
  * übernommen. Gibt es in diesem Monat schon eine Mieterhöhung, wird nur deren NK-Betrag ersetzt.
  */
-export async function passeNkVorauszahlungAn(mietvertragId: string, formData: FormData) {
+export const passeNkVorauszahlungAn = mitMeldung(async function passeNkVorauszahlungAn(mietvertragId: string, formData: FormData) {
   await requireEditor();
 
   const parsed = vorauszahlungAnpassungSchema.safeParse({
@@ -259,7 +260,7 @@ export async function passeNkVorauszahlungAn(mietvertragId: string, formData: Fo
     notizen: formData.get("notizen") || undefined,
   });
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   const { gueltigAb, nebenkostenVorauszahlung, notizen } = parsed.data;
 
@@ -267,8 +268,8 @@ export async function passeNkVorauszahlungAn(mietvertragId: string, formData: Fo
     where: { id: mietvertragId },
     select: { beginn: true, ende: true, kaltmiete: true, nebenkostenVorauszahlung: true, mieterhoehungen: true },
   });
-  if (vertrag.beginn && gueltigAb < vertrag.beginn) throw new Error("Gültig ab darf nicht vor dem Mietbeginn liegen");
-  if (vertrag.ende && gueltigAb > vertrag.ende) throw new Error("Gültig ab liegt nach dem Mietende");
+  if (vertrag.beginn && gueltigAb < vertrag.beginn) throw new AktionsFehler("Gültig ab darf nicht vor dem Mietbeginn liegen");
+  if (vertrag.ende && gueltigAb > vertrag.ende) throw new AktionsFehler("Gültig ab liegt nach dem Mietende");
 
   const monatIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
   const imSelbenMonat = vertrag.mieterhoehungen.find((m) => monatIndex(m.gueltigAb) === monatIndex(gueltigAb));
@@ -300,7 +301,7 @@ export async function passeNkVorauszahlungAn(mietvertragId: string, formData: Fo
   }
 
   revalidateNachMieterhoehung(mietvertragId);
-}
+});
 
 export async function loescheMieterhoehung(id: string) {
   await requireEditor();

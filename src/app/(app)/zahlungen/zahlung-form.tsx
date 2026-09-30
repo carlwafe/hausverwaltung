@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { runFormAction } from "@/lib/form-utils";
+import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 
@@ -43,7 +43,7 @@ export function ZahlungForm({
   mietvertraege: Option[];
   defaultMietvertragId?: string;
   initial?: Zahlung;
-  action: (formData: FormData) => Promise<void>;
+  action: FormAktion;
   // Nur auf /zahlungen/neu: lässt zwischen "Miete" und "Gebühr" wählen (siehe createZahlung) —
   // beim Bearbeiten einer bestehenden Zahlung ist die Art unveränderlich (Storno-Prinzip), eine
   // Gebühr hat dort ohnehin eine eigene, einfachere Ansicht statt dieses Formulars.

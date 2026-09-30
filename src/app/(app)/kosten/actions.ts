@@ -8,6 +8,7 @@ import { requireEditor } from "@/lib/session";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
+import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -46,7 +47,7 @@ function parseForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   const { gebaeudeAuswahl, beschreibung, ...rest } = parsed.data;
   const { gebaeudeId, hausId, kostengruppeId, einheitId } = parseGebaeudeAuswahlWert(gebaeudeAuswahl ?? "");
@@ -79,7 +80,7 @@ async function ermittleDatumFuerVirtuelleGutschrift(
   return buchung?.datum ?? null;
 }
 
-export async function createKostenposition(formData: FormData) {
+export const createKostenposition = mitMeldung(async function createKostenposition(formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
@@ -105,11 +106,11 @@ export async function createKostenposition(formData: FormData) {
   revalidatePath("/kosten");
   revalidatePath("/kautionen");
   redirect("/kosten");
-}
+});
 
 // "Bearbeiten" heißt beim Storno-Prinzip: die alte Buchung stornieren und mit den korrigierten
 // Werten neu anlegen — importBatchId/rohdaten/aufteilungGruppeId wandern dabei mit.
-export async function updateKostenposition(id: string, formData: FormData) {
+export const updateKostenposition = mitMeldung(async function updateKostenposition(id: string, formData: FormData) {
   await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
@@ -148,7 +149,7 @@ export async function updateKostenposition(id: string, formData: FormData) {
   revalidatePath(`/kosten/${id}`);
   revalidatePath("/kautionen");
   redirect("/kosten");
-}
+});
 
 export async function deleteKostenposition(id: string) {
   await requireEditor();
@@ -185,7 +186,7 @@ const aufteilungTeilSchema = z.object({
  * wissen müssen. `aufteilungGruppeId` verknüpft die neuen Positionen als zusammengehörig, damit
  * die Kosten-Übersicht sie wieder als eine Zeile darstellen kann.
  */
-export async function teileKostenpositionAuf(
+export const teileKostenpositionAuf = mitMeldung(async function teileKostenpositionAuf(
   id: string,
   _prev: string | null,
   formData: FormData,
@@ -252,7 +253,7 @@ export async function teileKostenpositionAuf(
 
   revalidatePath("/kosten");
   redirect("/kosten");
-}
+});
 
 // Macht eine Aufteilung wieder rückgängig: alle Positionen derselben aufteilungGruppeId werden
 // storniert und zu einer einzigen neuen Position zusammengeführt (Betrag = Summe), unter der
@@ -261,8 +262,8 @@ export async function teileKostenpositionAuf(
 export async function hebeAufteilungAuf(positionId: string) {
   await requireEditor();
   const position = await prisma.buchung.findFirst({ where: { id: positionId, ...AKTIVE_BUCHUNG_FILTER } });
-  if (!position) throw new Error("Kostenposition nicht gefunden.");
-  if (!position.aufteilungGruppeId) throw new Error("Diese Position ist nicht Teil einer Aufteilung.");
+  if (!position) throw new AktionsFehler("Kostenposition nicht gefunden.");
+  if (!position.aufteilungGruppeId) throw new AktionsFehler("Diese Position ist nicht Teil einer Aufteilung.");
 
   // Stammt die Aufteilung aus einer Zahlung (Miete + Kosten), wird die ursprüngliche Zahlung
   // wiederhergestellt statt die Teile fälschlich zu einer einzigen Kostenposition zu addieren.
@@ -336,7 +337,7 @@ const nichtZugeordneteBuchungZuordnenSchema = z.object({
 // parkeAlsNichtKategorisiert) auf: legt daraus eine echte Kostenposition an — Datum/Betrag/
 // Empfänger/Rohdaten/importBatchId werden 1:1 von der geparkten Buchung übernommen, nur
 // Kostenart/Gebäude/Jahr kommen aus dem Formular — und löscht danach die Parkplatz-Zeile.
-export async function ordneNichtZugeordneteBuchungZu(
+export const ordneNichtZugeordneteBuchungZu = mitMeldung(async function ordneNichtZugeordneteBuchungZu(
   id: string,
   _prev: string | null,
   formData: FormData,
@@ -382,7 +383,7 @@ export async function ordneNichtZugeordneteBuchungZu(
 
   revalidatePath("/kosten");
   return null;
-}
+});
 
 export async function loescheNichtZugeordneteBuchung(id: string) {
   await requireEditor();

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 import { storniereBuchung } from "@/lib/buchung-storno";
 import { ermittleBuchungsartGruppe } from "@/lib/import/buchung-klassifizierung";
 
@@ -12,7 +13,7 @@ import { ermittleBuchungsartGruppe } from "@/lib/import/buchung-klassifizierung"
 // der Import-Bezug wandern mit; bezugTyp "Umbuchung" verweist auf die ursprüngliche Buchung, damit
 // die Bereits-importiert-Erkennung und die Vollständigkeitsprüfung die Bankzeile weiter als
 // erledigt erkennen (siehe ladeDedupFilter in kontoauszug/import/actions.ts).
-export async function aendereBuchungsart(
+export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
   id: string,
   rueckPfad: string,
   _prev: string | null,
@@ -97,4 +98,4 @@ export async function aendereBuchungsart(
   }
   if (neu.mietvertragId) revalidatePath(`/mietvertraege/${neu.mietvertragId}`);
   redirect(rueckPfad);
-}
+});

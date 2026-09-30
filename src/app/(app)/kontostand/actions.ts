@@ -5,6 +5,7 @@ import { parseStrengesDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { mitMeldung } from "@/lib/aktion";
 
 const kontrolleSchema = z.object({
   datum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Bitte ein Datum angeben"),
@@ -14,7 +15,7 @@ const kontrolleSchema = z.object({
 
 // Kontostand laut Kontoauszug an einem Tag als Kontrollpunkt speichern; pro Tag ein Wert, ein
 // erneutes Speichern überschreibt ihn.
-export async function speichereKontostandKontrolle(_prev: string | null, formData: FormData): Promise<string | null> {
+export const speichereKontostandKontrolle = mitMeldung(async function speichereKontostandKontrolle(_prev: string | null, formData: FormData): Promise<string | null> {
   await requireEditor();
   const parsed = kontrolleSchema.safeParse({
     datum: formData.get("datum"),
@@ -32,7 +33,7 @@ export async function speichereKontostandKontrolle(_prev: string | null, formDat
   });
   revalidatePath("/kontostand");
   return null;
-}
+});
 
 export async function loescheKontostandKontrolle(id: string) {
   await requireEditor();

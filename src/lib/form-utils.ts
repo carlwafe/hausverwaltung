@@ -8,15 +8,20 @@ export function isRedirectError(err: unknown): boolean {
   );
 }
 
-export async function runFormAction(
-  action: (formData: FormData) => Promise<void>,
-  formData: FormData,
-): Promise<string | null> {
+/** Server Action für `runFormAction`: liefert bei erwartbaren Fehlern die Meldung (siehe `mitMeldung` in `aktion.ts`). */
+export type FormAktion = (formData: FormData) => Promise<string | void>;
+
+export async function runFormAction(action: FormAktion, formData: FormData): Promise<string | null> {
   try {
-    await action(formData);
-    return null;
+    const meldung = await action(formData);
+    return typeof meldung === "string" ? meldung : null;
   } catch (err) {
     if (isRedirectError(err)) throw err;
+    // In Produktion enthält ein geworfener Fehler aus einer Server Action keine Meldung mehr —
+    // erwartbare Fehler kommen deshalb als Rückgabewert (AktionsFehler + mitMeldung).
+    if (process.env.NODE_ENV === "production") {
+      return "Unerwarteter Fehler beim Speichern. Bitte erneut versuchen.";
+    }
     return err instanceof Error ? err.message : "Unbekannter Fehler";
   }
 }

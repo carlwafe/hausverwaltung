@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
+import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 const gebaeudeSchema = z.object({
   strasse: z.string().min(1, "Straße ist erforderlich"),
@@ -16,7 +17,7 @@ const gebaeudeSchema = z.object({
 
 async function getObjektId() {
   const objekt = await prisma.objekt.findFirst();
-  if (!objekt) throw new Error("Kein Objekt angelegt. Bitte zuerst ein Objekt anlegen (Seed ausführen).");
+  if (!objekt) throw new AktionsFehler("Kein Objekt angelegt. Bitte zuerst ein Objekt anlegen (Seed ausführen).");
   return objekt.id;
 }
 
@@ -27,7 +28,7 @@ async function aufloeseHausAuswahl(hausId: string | undefined, objektId: string)
   return haus.id;
 }
 
-export async function createGebaeude(formData: FormData) {
+export const createGebaeude = mitMeldung(async function createGebaeude(formData: FormData) {
   await requireEditor();
   const objektId = await getObjektId();
 
@@ -39,7 +40,7 @@ export async function createGebaeude(formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   const { hausId, ...rest } = parsed.data;
   const aufgeloesteHausId = await aufloeseHausAuswahl(hausId, objektId);
@@ -50,9 +51,9 @@ export async function createGebaeude(formData: FormData) {
 
   revalidatePath("/gebaeude");
   redirect("/gebaeude");
-}
+});
 
-export async function updateGebaeude(id: string, formData: FormData) {
+export const updateGebaeude = mitMeldung(async function updateGebaeude(id: string, formData: FormData) {
   await requireEditor();
   const bestehend = await prisma.gebaeude.findUniqueOrThrow({ where: { id }, select: { objektId: true } });
 
@@ -64,7 +65,7 @@ export async function updateGebaeude(id: string, formData: FormData) {
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+    throw zodFehler(parsed.error);
   }
   const { hausId, ...rest } = parsed.data;
   const aufgeloesteHausId = await aufloeseHausAuswahl(hausId, bestehend.objektId);
@@ -80,7 +81,7 @@ export async function updateGebaeude(id: string, formData: FormData) {
   revalidatePath("/gebaeude");
   revalidatePath(`/gebaeude/${id}`);
   redirect("/gebaeude");
-}
+});
 
 export async function deleteGebaeude(id: string) {
   await requireEditor();
