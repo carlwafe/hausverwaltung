@@ -32,6 +32,7 @@ const FINANZEN: NavLink[] = [
 const ABRECHNUNG: NavLink[] = [
   { href: "/nebenkostenabrechnungen", label: "Nebenkostenabrechnung" },
   { href: "/jahresuebersicht", label: "Jahresübersicht" },
+  { href: "/quartalsuebersicht", label: "Quartalsübersicht" },
 ];
 
 const VERWALTUNG: NavLink[] = [
