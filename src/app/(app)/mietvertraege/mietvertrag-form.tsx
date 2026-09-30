@@ -239,6 +239,11 @@ export function MietvertragForm({
           <option value="LASTSCHRIFT">SEPA-Lastschrift</option>
           <option value="UEBERWEISUNG">Überweisung / Dauerauftrag</option>
         </select>
+        <p className="mt-1 text-xs text-neutral-400">
+          Aus dem Kontoauszug ableiten: Lastschrift nur, wenn die letzten Mieten durchgängig
+          eingezogen wurden. Bei gemischten Zahlungen (Einzug, Rücklastschrift, dann
+          Dauerauftrag) „Überweisung“ wählen oder offen lassen und von Hand entscheiden.
+        </p>
       </div>
 
       <div>
