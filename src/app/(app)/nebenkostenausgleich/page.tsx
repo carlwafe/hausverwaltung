@@ -30,6 +30,7 @@ async function ladeNebenkostenausgleichZahlungen(): Promise<Nebenkostenausgleich
     rohdaten: (b.rohdaten as Record<string, string> | null) ?? null,
     importBatchId: b.importBatchId,
     importDateiname: b.importBatch?.dateiname ?? null,
+    aufteilungGruppeId: b.aufteilungGruppeId,
   }));
 }
 

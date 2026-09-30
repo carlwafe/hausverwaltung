@@ -34,6 +34,7 @@ export type NebenkostenausgleichZahlungRow = {
   rohdaten: Record<string, string> | null;
   importBatchId: string | null;
   importDateiname: string | null;
+  aufteilungGruppeId: string | null;
 };
 
 const columns: Column<NebenkostenausgleichZahlungRow>[] = [
@@ -41,10 +42,21 @@ const columns: Column<NebenkostenausgleichZahlungRow>[] = [
     key: "datum",
     label: "Datum",
     sortValue: (b) => b.datum,
+    className: "whitespace-nowrap",
     render: (b) => (
-      <Link href={`/nebenkostenausgleich/${b.id}`} className="hover:underline">
-        {formatDate(b.datum)}
-      </Link>
+      <span>
+        <Link href={`/nebenkostenausgleich/${b.id}`} className="hover:underline">
+          {formatDate(b.datum)}
+        </Link>
+        {b.aufteilungGruppeId && (
+          <span
+            title="Teil einer aufgeteilten Zahlung"
+            className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400"
+          >
+            ✂
+          </span>
+        )}
+      </span>
     ),
   },
   {
