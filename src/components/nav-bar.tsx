@@ -87,6 +87,26 @@ function NavDropdown({ label, links, pathname }: { label: string; links: NavLink
   );
 }
 
+const SEITENTITEL: NavLink[] = [
+  ...STAMMDATEN,
+  ...FINANZEN,
+  ...ABRECHNUNG,
+  ...VERWALTUNG,
+  { href: "/buchungen", label: "Buchungen" },
+  { href: "/dokumente", label: "Dokumente" },
+  { href: "/haeuser", label: "Häuser" },
+  { href: "/kostenarten", label: "Kostenarten" },
+  { href: "/tickets", label: "Tickets" },
+  { href: "/konto", label: "Konto" },
+];
+
+function seitenTitel(pathname: string): string {
+  const treffer = SEITENTITEL.filter((l) => pathname === l.href || pathname.startsWith(l.href + "/")).sort(
+    (a, b) => b.href.length - a.href.length,
+  )[0];
+  return treffer ? `${treffer.label} · Mietverwaltung Eutin` : "Mietverwaltung Eutin";
+}
+
 const NAV_GRUPPEN: { label: string; links: NavLink[] }[] = [
   { label: "Stammdaten", links: STAMMDATEN },
   { label: "Finanzen", links: FINANZEN },
@@ -100,6 +120,10 @@ export function NavBar({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    document.title = seitenTitel(pathname);
+  }, [pathname]);
 
   const gruppen = user.role === "ADMIN" ? [...NAV_GRUPPEN, { label: "Verwaltung", links: VERWALTUNG }] : NAV_GRUPPEN;
 
