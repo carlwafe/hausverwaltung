@@ -84,7 +84,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         sonderforderung,
       };
     })
-    .sort((a, b) => a.saldo - b.saldo);
+    .sort((a, b) => a.einheitRang - b.einheitRang);
 }
 
 export default async function OffenePostenPage() {
