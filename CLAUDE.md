@@ -51,4 +51,5 @@ Push auf `main` → Vercel baut und veröffentlicht automatisch (Repo `carlwafe/
 ## Arbeitsweise in diesem Repo
 
 - Änderungen werden nach Verifikation (`tsc`, `eslint`) direkt committet und nach `main` gepusht; Commit-Nachrichten deutsch.
+- Wird eine fachliche/buchhalterische Entscheidung getroffen (z.B. wie ein Sonderfall gebucht wird, welche von mehreren Erfassungswegen der bevorzugte ist), am Ende der Aufgabe nachfragen, ob sie dokumentiert werden soll: **in der App** (Hinweistext an der passenden Stelle, z.B. beim Formular oder auf der Listenseite) **und in dieser CLAUDE.md** (kurz, ohne Mieternamen oder andere personenbezogene Daten — Beispiele anonym mit Beträgen).
 - Änderungen an Produktionsdaten (Buchungen, Verträge) erst nach ausdrücklicher Freigabe des Nutzers; vorher immer den Ist-Zustand lesend prüfen.
