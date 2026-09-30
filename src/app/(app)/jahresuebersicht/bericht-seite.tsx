@@ -25,6 +25,8 @@ export type Zeitraum = {
   von: Date;
   bis: Date;
   bisExklusiv: Date;
+  // Q1/Q2: offene Nebenkostenabrechnung des Vorjahres bleibt außen vor (Abrechnung meist erst in Q3).
+  mitNkOffen: boolean;
   label: string;
   anfangText: string;
   endeText: string;
@@ -43,6 +45,7 @@ export function bildeZeitraum(jahr: number, quartal: number): Zeitraum {
     von,
     bis,
     bisExklusiv,
+    mitNkOffen: quartal === 0 || quartal >= 3,
     label: quartal === 0 ? `${jahr}` : `Q${quartal} ${jahr}`,
     anfangText: `1.${ersterMonat + 1}.${jahr}`,
     endeText: `${letzterTag}.${ersterMonat + anzahlMonate}.${jahr}`,
@@ -581,6 +584,13 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           noch einzuziehende Nachzahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
           &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
         </p>
+        {!zeitraum.mitNkOffen && (
+          <p className="mb-3 text-sm text-neutral-400">
+            In {label} ist die Nebenkostenabrechnung des Vorjahres noch nicht berücksichtigt (sie
+            liegt meist erst im 3. Quartal vor): Saldo neu = Saldo alt − Soll + Miete
+            (+ Gebühren/Sonderforderungen), ohne Spalte &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;.
+          </p>
+        )}
         <p className="mb-3 text-sm text-neutral-400">
           Miete sowie Saldo alt/neu zählen nach der{" "}
           <Link href="/zahlungen" className="underline hover:text-white">
@@ -612,6 +622,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           jahr={jahr}
           quartal={quartal}
           label={label}
+          mitNkOffen={zeitraum.mitNkOffen}
         />
       </div>
 

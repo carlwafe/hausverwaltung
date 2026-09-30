@@ -136,11 +136,13 @@ export function berechneMieterJahresbericht(
 /**
  * Wie berechneMieterJahresbericht, aber für einen beliebigen Zeitraum [von, bis] innerhalb von
  * `jahr` (Quartalsübersicht). "Nebenkostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
- * Abrechnung des Vorjahres von `jahr` und fließt in jedes Quartal voll ein.
+ * Abrechnung des Vorjahres von `jahr` und fließt voll ein — außer bei `mitNkOffen: false` (Q1/Q2,
+ * die Abrechnung liegt dann meist noch nicht vor): dann bleibt sie außen vor, Saldo neu ist der
+ * reine Mietsaldo.
  */
 export function berechneMieterBericht(
   vertraege: MietvertragFuerJahresbericht[],
-  zeitraum: { jahr: number; von: Date; bis: Date },
+  zeitraum: { jahr: number; von: Date; bis: Date; mitNkOffen?: boolean },
   buchhaltungAb: Date | null,
   buchhaltungBisGlobal: Date | null,
 ): MieterJahresberichtZeile[] {
@@ -172,7 +174,8 @@ export function berechneMieterBericht(
         return periode >= vonPeriode && periode <= saldoNeuBisPeriode;
       })
       .reduce((sum, z) => sum + z.betrag, 0);
-    const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v, jahr);
+    const nebenkostenabrechnungOffen =
+      zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr);
     // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0);

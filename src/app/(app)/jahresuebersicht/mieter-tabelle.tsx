@@ -49,11 +49,13 @@ export function MieterTabelle({
   jahr,
   quartal,
   label,
+  mitNkOffen,
 }: {
   zeilen: MieterTabellenZeile[];
   jahr: number;
   quartal: number;
   label: string;
+  mitNkOffen: boolean;
 }) {
   const columns: Column<MieterTabellenZeile>[] = [
     {
@@ -84,6 +86,8 @@ export function MieterTabelle({
     zahlSpalte("sollNebenkosten", "Soll Nebenkosten", (z) => z.sollNebenkosten),
     zahlSpalte("soll", "Soll gesamt", (z) => z.soll, { farbe: () => "text-neutral-200" }),
     zahlSpalte("miete", "Miete", (z) => z.miete),
+    ...(mitNkOffen
+      ? [
     {
       key: "nkOffen",
       label: "Nebenkostenabrechnung offen (Vorjahr)",
@@ -94,7 +98,9 @@ export function MieterTabelle({
           {z.nebenkostenabrechnungOffen ? formatEuro(z.nebenkostenabrechnungOffen) : "–"}
         </span>
       ),
-    },
+    } satisfies Column<MieterTabellenZeile>,
+        ]
+      : []),
     {
       key: "saldoNeu",
       label: "Saldo neu",
@@ -147,7 +153,7 @@ export function MieterTabelle({
             <td className={td}>{summe((z) => z.sollNebenkosten)}</td>
             <td className={td}>{summe((z) => z.soll)}</td>
             <td className={td}>{summe((z) => z.miete)}</td>
-            <td className={td}>{summe((z) => z.nebenkostenabrechnungOffen ?? 0)}</td>
+            {mitNkOffen && <td className={td}>{summe((z) => z.nebenkostenabrechnungOffen ?? 0)}</td>}
             <td className={td}>{summe((z) => z.saldoNeu)}</td>
             <td colSpan={2} />
           </tr>
