@@ -252,7 +252,9 @@ export function NebenkostenAnsicht({
                 abzgl. geleistete NK-Vorauszahlungen
               </td>
               <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(daten.vorauszahlungGesamt)}</td>
-              <td className="px-4 py-2 text-xs text-neutral-500">aus den tatsächlichen Mietzahlungen</td>
+              <td className="px-4 py-2 text-xs text-neutral-500">
+                tatsächlich gezahlt; je Monat zuerst auf die NK bis zum NK-Soll, Rest auf die Kaltmiete (§ 366 Abs. 2 BGB)
+              </td>
             </tr>
             <tr className="border-t border-neutral-700 font-medium">
               <td colSpan={4} className="px-4 py-2 text-white">
@@ -278,6 +280,10 @@ export function NebenkostenAnsicht({
           berechnen.
         </p>
       )}
+      <p className="mt-2 text-xs text-neutral-500">
+        Angezeigt werden die gespeicherten Werte der Gesamtabrechnung — nach Änderungen an Zahlungen, Kosten oder
+        Rechenregeln erst aktuell, wenn die Abrechnung {daten.jahr} dort neu berechnet wurde.
+      </p>
 
       <h3 className="mb-2 mt-6 text-sm font-medium text-white">Erledigung des Saldos</h3>
       <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">

@@ -132,6 +132,11 @@ export function KostenartForm({
             </option>
           ))}
         </select>
+        <p className="mt-1 text-xs text-neutral-500">
+          Nr. 4–6 (Heizung, Warmwasser, verbundene Anlagen) = warme Betriebskosten in der Nebenkostenabrechnung
+          des Mietvertrags; ohne Nummer gilt eine Kostenart nur dann als warm, wenn ihr Name „Heiz…“ oder
+          „Warmwasser“ enthält.
+        </p>
       </div>
 
       <label className={`flex items-center gap-2 text-sm ${!umlagefaehig ? "text-neutral-600" : ""}`}>

@@ -282,7 +282,7 @@ export default async function NebenkostenabrechnungDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <form action={neuBerechnenAction}>
+          <form action={neuBerechnenAction} title="Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand.">
             <SubmitButton
               pendingLabel="Berechne…"
               className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
