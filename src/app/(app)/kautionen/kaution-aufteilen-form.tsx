@@ -47,6 +47,11 @@ export function KautionAufteilenForm({
         Ersetzt diese Buchung durch Kautionsanteil + Nebenkostenausgleich (Bankvorzeichen: ausgehend negativ; eine
         verrechnete Nachzahlung ergibt einen positiven Nebenkostenanteil).
       </p>
+      <p className="mb-3 text-xs text-neutral-500">
+        Beispiel: Kaution −100 €, verrechnete Nachzahlung +67,34 €, überwiesen −32,66 € → Kautionsanteil −100,00,
+        Nebenkostenausgleich +67,34 €. Der Kautionsteil zählt dann nur mit dem überwiesenen Anteil als ausgezahlt, der
+        Rest als mit der Nebenkostenabrechnung verrechnet.
+      </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-neutral-400">
           Kautionsanteil
