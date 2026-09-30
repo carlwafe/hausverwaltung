@@ -88,6 +88,7 @@ export function ZahlungForm({
             </p>
           )}
           {istNkVerrechnung && (
+            <>
             <p className="mt-1 text-xs text-neutral-500">
               Verrechnet das Ergebnis einer Nebenkostenabrechnung mit dem Mieterkonto statt per
               Überweisung: eine Nachzahlung als positive Forderung, ein Guthaben als negative
@@ -102,6 +103,7 @@ export function ZahlungForm({
               <span className="text-neutral-300">Plus</span> = Mietkonto-Guthaben wurde mit der BK ausgezahlt oder mit einer
               Nachzahlung verrechnet (z.B. +3 €). Datum = Datum der Überweisung.
             </p>
+            </>
           )}
         </div>
       )}
