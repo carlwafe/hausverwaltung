@@ -18,7 +18,7 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   { value: "EINZAHLUNG_MIETER", label: "Einzahlung Mieter (eingehend)" },
   { value: "ANLAGE", label: "Anlage aufs Kautionskonto (ausgehend; positiv = Rückbuchung)" },
   { value: "AUFLOESUNG", label: "Auflösung vom Kautionskonto (eingehend)" },
-  { value: "AUSZAHLUNG_MIETER", label: "Auszahlung Mieter (ausgehend)" },
+  { value: "AUSZAHLUNG_MIETER", label: "Auszahlung Mieter (ausgehend; positiv = zurückgekommene Auszahlung)" },
   { value: "SONSTIGES", label: "Sonstiges (z.B. Korrektur)" },
   {
     value: "EINBEHALT",
@@ -137,6 +137,13 @@ export function NeueKautionsbuchungForm({
       <p className="mb-3 text-xs text-neutral-500">
         Auch für Fälle ohne eigene Kontobuchung — z.B. ein einbehaltener Kautionsrest, der anderweitig
         verrechnet wurde (Reparaturkosten, Verrechnung in der Nebenkostenabrechnung).
+      </p>
+      <p className="mb-3 text-xs text-neutral-500">
+        Einbehalte: <em>vorläufig</em>, solange die Rechnung noch fehlt — liegt sie vor, Einbehalt löschen und als
+        virtuelle Auszahlung mit der Rechnung anlegen. <em>Pauschal</em> für Endgültiges ohne Rechnung (Abnutzung,
+        Sperrmüll). Nachzahlung → Verrechnung mit NK-Abrechnung, Mietrückstand/Gebühren → Verrechnung mit Mieterkonto.
+        Rückflüsse mit Bankvorzeichen buchen: positive Anlage = Rückbuchung vom Kautionskonto, positive Auszahlung =
+        zurückgekommene Auszahlung.
       </p>
       <form action={submit} className="space-y-3">
         <input type="hidden" name="mietvertragId" value={mietvertragId} />

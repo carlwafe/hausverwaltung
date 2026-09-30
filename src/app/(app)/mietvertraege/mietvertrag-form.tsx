@@ -301,6 +301,10 @@ export function MietvertragForm({
             </select>
           </div>
         </div>
+        <p className="mt-2 text-xs text-neutral-500">
+          Betrag = ursprünglich eingezahlte Kaution, nicht der Auflösungsbetrag — die Zinsen ergibt die App aus der
+          Auflösung. Feld leeren entfernt die Kaution (nur ohne erfasste Einbehalte).
+        </p>
         <label className="mt-4 flex items-center gap-2 text-sm text-neutral-300">
           <input
             type="checkbox"
@@ -311,6 +315,10 @@ export function MietvertragForm({
           />
           Einzahlung vor Buchhaltungsbeginn erfolgt (Datum unbekannt, keine Buchung im Journal)
         </label>
+        <p className="ml-5 mt-1 text-xs text-neutral-500">
+          Wirkt nur, solange keine Einzahlung gebucht ist. Liegt nur ein Teil vor Buchhaltungsbeginn, diesen Teil
+          stattdessen als Einzahlung auf /kautionen buchen.
+        </p>
       </fieldset>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
