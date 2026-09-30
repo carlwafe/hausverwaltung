@@ -179,7 +179,8 @@ export function TicketForm({
           <label className={labelClass}>Mietvertrag</label>
           <input type="hidden" name="mietvertragId" value={mietvertragId} />
           <MietvertragAuswahl
-            kandidaten={mietvertraegeZurEinheit}
+            kandidaten={optionen.mietvertraege}
+            defaultKandidaten={mietvertraegeZurEinheit}
             value={mietvertragId}
             onChange={waehleMietvertrag}
             leerLabel="– kein Mietvertrag –"
