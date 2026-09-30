@@ -39,10 +39,15 @@ export default function KontoauszugImportPage() {
           Bisherige Importe verwalten
         </Link>
       </div>
-      <p className="mb-6 max-w-2xl text-sm text-neutral-400">
+      <p className="mb-2 max-w-2xl text-sm text-neutral-400">
         CSV- oder Excel-Export deines Kontos einmal hochladen — jede Buchung erscheint unten in
         einer Tabelle mit einer vorgeschlagenen Buchungsart (Miete, Kosten, Mietweiterleitung,
         Kaution, Nebenkostenausgleich, …), die du pro Zeile bestätigen oder ändern kannst.
+      </p>
+      <p className="mb-6 max-w-2xl text-xs text-neutral-500">
+        Stadtwerke-Zahlungen sind pro Haus ein Saldo aus Schlussrechnung und neuen Abschlägen; der
+        Verwendungszweck nennt oft die falsche Sparte (&bdquo;Allgemeinstrom + Wasser&ldquo;, &bdquo;Wasser +
+        Gas&ldquo;). Kostenart am Betrag prüfen und die Kostenposition danach unter Kosten aufteilen.
       </p>
 
       {!hasPreview && (

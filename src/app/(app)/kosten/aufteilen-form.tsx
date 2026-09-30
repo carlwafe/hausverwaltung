@@ -87,6 +87,12 @@ export function AufteilenForm({
         Ersetzt diese Position durch die unten angegebenen — z.B. eine Hausmeister-Rechnung, die
         sowohl umlagefähigen Hausmeisterdienst als auch nicht umlagefähigen Winterdienst enthält.
       </p>
+      <p className="mb-3 text-xs text-neutral-500">
+        Stadtwerke Wasser/Abwasser: Der Kontoauszug zeigt pro Haus nur den Saldo aus Schlussrechnung
+        und neuen Abschlägen — wie im Verwalter-Journal in Wasser SR, Abwasser SR, Abschlag Wasser und
+        Abschlag Abwasser aufteilen. Vorzeichen umgekehrt zum Kontoauszug: Guthaben negativ,
+        Abschläge/Nachzahlungen positiv (z.B. −70,62 − 143,50 + 111,00 + 60,00 = −43,12 €).
+      </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
           <div key={i} className="flex items-end gap-2">
