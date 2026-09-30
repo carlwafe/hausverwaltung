@@ -5,9 +5,10 @@ import { pflichtDatum, parseStrengesDatum } from "@/lib/zod-datum";
 import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
-import { storniereBuchung } from "@/lib/buchung-storno";
+import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Freitext-Kommentar zur Kaution (Kaution.notizen), direkt in der Übersicht bearbeitbar — z.B. für
@@ -144,10 +145,63 @@ export async function teileKautionsbuchungAuf(id: string, _prev: string | null, 
     await storniereBuchung(tx, id);
   });
 
+  revalidiereKautionAufteilung(original.mietvertragId);
+  redirect("/kautionen");
+}
+
+function revalidiereKautionAufteilung(mietvertragId: string | null) {
   revalidatePath("/kautionen");
   revalidatePath("/nebenkostenausgleich");
-  revalidatePath(`/mietvertraege/${original.mietvertragId}`);
-  return null;
+  revalidatePath("/nebenkostenabrechnungen");
+  revalidatePath("/offene-posten");
+  revalidatePath("/jahresuebersicht");
+  revalidatePath("/kontostand");
+  revalidatePath("/zahlungen");
+  if (mietvertragId) revalidatePath(`/mietvertraege/${mietvertragId}`);
+}
+
+/**
+ * Macht die Aufteilung einer Kautionsbuchung rückgängig: alle aktiven Teile (Kaution,
+ * Nebenkostenausgleich, Gebühren-Zahlung) werden storniert und zu einer einzigen Kautionsbuchung
+ * (Betrag = Summe, Bankvorzeichen) zusammengeführt.
+ */
+export async function hebeKautionAufteilungAuf(id: string) {
+  await requireEditor();
+  const teil = await prisma.buchung.findFirst({ where: { id, ...AKTIVE_BUCHUNG_FILTER } });
+  if (!teil?.aufteilungGruppeId) throw new Error("Diese Buchung ist nicht Teil einer Aufteilung.");
+
+  const gruppe = await prisma.buchung.findMany({
+    where: { aufteilungGruppeId: teil.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
+    include: { buchungsart: { select: { code: true, kontokreis: true } } },
+  });
+  const kautionsTeile = gruppe.filter((b) => b.buchungsart.kontokreis === "KAUTIONSKONTO");
+  if (kautionsTeile.length !== 1)
+    throw new Error("Diese Aufteilung enthält nicht genau einen Kautionsteil und lässt sich hier nicht zusammenführen.");
+  if (gruppe.some((b) => b.buchungsart.kontokreis !== "KAUTIONSKONTO" && !["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"].includes(b.buchungsart.code)))
+    throw new Error("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
+
+  const vorlage = kautionsTeile[0];
+  const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.buchung.create({
+      data: {
+        mietvertragId: vorlage.mietvertragId,
+        buchungsartId: vorlage.buchungsartId,
+        datum: vorlage.datum,
+        betrag: summe,
+        empfaenger: vorlage.empfaenger,
+        verwendungszweck: vorlage.verwendungszweck,
+        bemerkung: vorlage.bemerkung,
+        rohdaten: vorlage.rohdaten ?? undefined,
+        importBatchId: vorlage.importBatchId,
+      },
+    });
+    for (const b of gruppe) await storniereBuchung(tx, b.id);
+  });
+
+  revalidiereKautionAufteilung(vorlage.mietvertragId);
+  redirect("/kautionen");
 }
 
 const kautionsbuchungSchema = z.object({

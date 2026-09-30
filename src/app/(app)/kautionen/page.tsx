@@ -328,6 +328,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
     kategorie: CODE_ZU_KATEGORIE[k.buchungsart.code]!,
+    aufteilungGruppeId: k.aufteilungGruppeId,
     verknuepfteKostenpositionen: (gutschriftenNachBuchung.get(k.id) ?? []).map((kp) => ({
       id: kp.id,
       label: `${kp.kostenart?.name ?? "?"} (${formatEuro(Number(kp.betrag))})`,
@@ -376,6 +377,7 @@ async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
     importBatchId: null,
     importDateiname: null,
     kategorie: "EINBEHALT" as const,
+    aufteilungGruppeId: null,
     verknuepfteKostenpositionen: [],
     einbehalt: {
       status: e.status,
