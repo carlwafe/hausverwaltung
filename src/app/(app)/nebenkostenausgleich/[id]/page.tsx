@@ -43,13 +43,16 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
     ? await prisma.buchung.findMany({
         where: {
           aufteilungGruppeId: buchung.aufteilungGruppeId,
-          buchungsart: { code: { in: ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"] } },
           ...AKTIVE_BUCHUNG_FILTER,
         },
-        include: { buchungsart: { select: { code: true } }, mietvertrag: { include: { einheit: true } } },
+        include: { buchungsart: { select: { code: true, bezeichnung: true } }, mietvertrag: { include: { einheit: true } } },
         orderBy: { erstelltAm: "asc" },
       })
     : [];
+
+  // Zusammenführen geht nur bei reinen BK-Ausgleich/Gebühren-Zahlung-Gruppen; enthält die Gruppe
+  // z.B. eine Kautionsauszahlung, bleibt es bei Aufteilen (dieses Teils) bzw. Stornieren.
+  const kannZusammenfuehren = geschwister.every((g) => ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"].includes(g.buchungsart.code));
 
   return (
     <div>
@@ -89,7 +92,7 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
         </p>
       </div>
 
-      {geschwister.length > 0 ? (
+      {geschwister.length > 0 && (
         <div className="mt-4 rounded-lg border border-neutral-800 p-4">
           <p className="mb-1 text-sm font-medium text-white">Teil einer Aufteilung ({geschwister.length} Buchungen)</p>
           <p className="mb-3 text-xs text-neutral-500">
@@ -97,7 +100,12 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
           </p>
           <ul className="mb-3 space-y-1 text-sm">
             {geschwister.map((g) => {
-              const art = g.buchungsart.code === "SONDERZAHLUNG" ? "Gebühren-Zahlung" : `BK-Ausgleich${g.jahr ? ` ${g.jahr}` : ""}`;
+              const art =
+                g.buchungsart.code === "SONDERZAHLUNG"
+                  ? "Gebühren-Zahlung"
+                  : g.buchungsart.code === "NEBENKOSTENAUSGLEICH"
+                    ? `BK-Ausgleich${g.jahr ? ` ${g.jahr}` : ""}`
+                    : g.buchungsart.bezeichnung;
               const label = `${art} — ${g.mietvertrag?.einheit.bezeichnung ?? ""}`;
               return (
                 <li key={g.id} className="flex items-center justify-between">
@@ -107,6 +115,8 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
                     <Link href={`/zahlungen/${g.id}`} className="text-white hover:underline">
                       {label}
                     </Link>
+                  ) : g.buchungsart.code !== "NEBENKOSTENAUSGLEICH" ? (
+                    <span className="text-white">{label}</span>
                   ) : (
                     <Link href={`/nebenkostenausgleich/${g.id}`} className="text-white hover:underline">
                       {label}
@@ -117,21 +127,22 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
               );
             })}
           </ul>
-          <DeleteButton
-            action={hebeNebenkostenausgleichAufteilungAuf.bind(null, id)}
-            confirmText="Aufteilung wirklich rückgängig machen? Alle Teile werden zu einer Nebenkostenausgleich-Buchung zusammengeführt."
-            label="Aufteilung rückgängig machen"
-          />
+          {kannZusammenfuehren && (
+            <DeleteButton
+              action={hebeNebenkostenausgleichAufteilungAuf.bind(null, id)}
+              confirmText="Aufteilung wirklich rückgängig machen? Alle Teile werden zu einer Nebenkostenausgleich-Buchung zusammengeführt."
+              label="Aufteilung rückgängig machen"
+            />
+          )}
         </div>
-      ) : (
-        <NebenkostenausgleichAufteilenForm
-          id={id}
-          betragGesamt={Number(buchung.betrag)}
-          aktuelleMietvertragId={buchung.mietvertragId!}
-          jahr={buchung.jahr}
-          mietvertraege={mietvertraegeOptionen}
-        />
       )}
+      <NebenkostenausgleichAufteilenForm
+        id={id}
+        betragGesamt={Number(buchung.betrag)}
+        aktuelleMietvertragId={buchung.mietvertragId!}
+        jahr={buchung.jahr}
+        mietvertraege={mietvertraegeOptionen}
+      />
     </div>
   );
 }

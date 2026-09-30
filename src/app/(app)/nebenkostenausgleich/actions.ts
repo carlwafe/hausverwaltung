@@ -68,12 +68,16 @@ export async function teileNebenkostenausgleichAuf(
     where: { id, buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
   });
   if (!original) return "Nebenkostenausgleich nicht gefunden.";
-  if (original.aufteilungGruppeId) return "Diese Buchung ist bereits Teil einer Aufteilung.";
 
   const summe = teile.reduce((s, t) => s + t.betrag, 0);
   if (Math.abs(summe - Number(original.betrag)) > 0.005) {
     return `Die Summe der Teile (${summe.toFixed(2)} €) muss dem Gesamtbetrag (${Number(original.betrag).toFixed(2)} €) entsprechen.`;
   }
+
+  // Ist die Buchung schon Teil einer Aufteilung (z.B. Kautionsauszahlung + BK-Nachzahlung einer
+  // Überweisung), wird nur dieser Teil weiter aufgeteilt: die neuen Teile bleiben in derselben
+  // Gruppe, deren Summe (= Bankbetrag) sich nicht ändert.
+  const gruppeId = original.aufteilungGruppeId ?? original.id;
 
   const [ausgleichArt, sonderzahlungArt] = await Promise.all([
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } }),
@@ -90,7 +94,7 @@ export async function teileNebenkostenausgleichAuf(
         verwendungszweck: teil.beschreibung || original.verwendungszweck,
         rohdaten: original.rohdaten ?? undefined,
         importBatchId: original.importBatchId,
-        aufteilungGruppeId: original.id,
+        aufteilungGruppeId: gruppeId,
       };
       if (teil.typ === "nebenkostenausgleich") {
         await tx.buchung.create({
