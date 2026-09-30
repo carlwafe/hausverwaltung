@@ -46,7 +46,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           </h1>
           <DeleteButton action={deleteZahlung.bind(null, id)} confirmText={nkJahr ? "Verrechnung wirklich stornieren?" : "Gebühren-Forderung wirklich stornieren?"} />
         </div>
-        <BuchungsartInfo code="MAHNGEBUEHR" />
+        <BuchungsartInfo code="MAHNGEBUEHR" erstelltAm={zahlung.erstelltAm} erstelltVon={zahlung.erstelltVon} />
         <div className="max-w-xl space-y-2 rounded-lg border border-neutral-800 p-4 text-sm">
           <p className="flex justify-between">
             <span className="text-neutral-400">Datum</span>
@@ -88,7 +88,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           </h1>
           <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Gebühren-Zahlung wirklich löschen?" />
         </div>
-        <BuchungsartInfo code="SONDERZAHLUNG" />
+        <BuchungsartInfo code="SONDERZAHLUNG" erstelltAm={zahlung.erstelltAm} erstelltVon={zahlung.erstelltVon} />
         <div className="max-w-xl space-y-2 rounded-lg border border-neutral-800 p-4 text-sm">
           <p className="flex justify-between">
             <span className="text-neutral-400">Datum</span>
@@ -163,7 +163,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
         </h1>
         <DeleteButton action={deleteZahlung.bind(null, id)} confirmText="Zahlung wirklich löschen?" />
       </div>
-      <BuchungsartInfo code="MIETZAHLUNG" />
+      <BuchungsartInfo code="MIETZAHLUNG" erstelltAm={zahlung.erstelltAm} erstelltVon={zahlung.erstelltVon} />
       <ZahlungForm
         mietvertraege={mietvertraegeOptionen}
         initial={{

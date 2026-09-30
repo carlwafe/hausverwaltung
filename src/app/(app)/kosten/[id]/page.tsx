@@ -90,7 +90,7 @@ export default async function KostenpositionDetailPage({
           confirmText="Kostenposition wirklich löschen?"
         />
       </div>
-      <BuchungsartInfo code="KOSTENPOSITION" />
+      <BuchungsartInfo code="KOSTENPOSITION" erstelltAm={kostenposition.erstelltAm} erstelltVon={kostenposition.erstelltVon} />
       <KostenpositionForm
         kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
         gebaeude={gebaeudeGruppen}

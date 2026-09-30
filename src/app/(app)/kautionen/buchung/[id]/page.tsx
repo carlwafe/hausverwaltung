@@ -74,6 +74,13 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
             {buchung.mietvertrag.einheit.bezeichnung} — {mieterNamen}
           </Link>
         </p>
+        <p className="flex justify-between gap-6 text-xs text-neutral-500">
+          <span>Erstellt</span>
+          <span className="text-right">
+            {new Intl.DateTimeFormat("de-DE").format(buchung.erstelltAm)}
+            {buchung.erstelltVon && ` von ${buchung.erstelltVon}`}
+          </span>
+        </p>
       </div>
 
       {geschwister.length > 0 && (

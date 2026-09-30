@@ -20,8 +20,21 @@ function Flag({ label, wert }: { label: string; wert: boolean }) {
   );
 }
 
-/** Zeigt Buchungsart und deren Flags (zahlungswirksam / eur-relevant) mit Link zum Katalog. */
-export async function BuchungsartInfo({ code }: { code: string }) {
+/**
+ * Zeigt Buchungsart und deren Flags (zahlungswirksam / eur-relevant) mit Link zum Katalog — optional
+ * ergänzt um Erstellungsdatum und Benutzerkennung der konkreten Buchung (Buchung.erstelltAm/
+ * erstelltVon, siehe session.ts/benutzerLabel), falls der Aufrufer eine einzelne Buchung anzeigt statt
+ * nur die Buchungsart allgemein (z.B. auf einer Listenseite).
+ */
+export async function BuchungsartInfo({
+  code,
+  erstelltAm,
+  erstelltVon,
+}: {
+  code: string;
+  erstelltAm?: Date;
+  erstelltVon?: string | null;
+}) {
   const art = await prisma.buchungsart.findUnique({ where: { code } });
   if (!art) return null;
   return (
@@ -31,6 +44,12 @@ export async function BuchungsartInfo({ code }: { code: string }) {
       </span>
       <Flag label="Zahlungswirksam" wert={art.zahlungswirksam} />
       <Flag label="Eur-relevant" wert={art.eurRelevant} />
+      {erstelltAm && (
+        <span>
+          Erstellt: <span className="text-neutral-200">{new Intl.DateTimeFormat("de-DE").format(erstelltAm)}</span>
+          {erstelltVon && ` von ${erstelltVon}`}
+        </span>
+      )}
       <Link href="/buchungsarten" className="underline hover:text-white">
         alle Buchungsarten &amp; Flags
       </Link>

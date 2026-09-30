@@ -62,7 +62,7 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
         </h1>
         <DeleteButton action={loescheUndZurueck.bind(null, id)} confirmText="Nebenkostenausgleich wirklich stornieren?" />
       </div>
-      <BuchungsartInfo code="NEBENKOSTENAUSGLEICH" />
+      <BuchungsartInfo code="NEBENKOSTENAUSGLEICH" erstelltAm={buchung.erstelltAm} erstelltVon={buchung.erstelltVon} />
       <div className="max-w-xl space-y-2 rounded-lg border border-neutral-800 p-4 text-sm">
         <p className="flex justify-between">
           <span className="text-neutral-400">Datum</span>
