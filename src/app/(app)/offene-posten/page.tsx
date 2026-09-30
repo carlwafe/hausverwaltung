@@ -5,6 +5,7 @@ import { toDateInputValue } from "@/lib/date-utils";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
@@ -19,7 +20,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: { in: ["AKTIV", "BEENDET"] } },
     include: {
-      einheit: true,
+      einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
     },
@@ -38,6 +39,13 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
   }
 
   const sonderforderungen = await ladeSonderforderungSalden(vertraege.map((v) => v.id), { ab: buchhaltungAb, bis });
+
+  // Rang in der Objekt-Reihenfolge der Einheiten (für die Spaltensortierung "Einheit").
+  const einheitRang = new Map(
+    sortEinheitenNachGebaeude(
+      vertraege.map((v) => ({ id: v.id, bezeichnung: v.einheit.bezeichnung, gebaeude: v.einheit.gebaeude })),
+    ).map((v, i) => [v.id, i]),
+  );
 
   return vertraege
     .map((v) => {
@@ -66,6 +74,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
       return {
         id: v.id,
         einheit: v.einheit.bezeichnung,
+        einheitRang: einheitRang.get(v.id) ?? 0,
         mieter: v.mieter.map((m) => mieterName(m)).join(" & "),
         status: v.status as "AKTIV" | "BEENDET",
         soll,

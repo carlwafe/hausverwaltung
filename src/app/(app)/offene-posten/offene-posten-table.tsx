@@ -10,6 +10,7 @@ function formatEuro(value: number) {
 export type OffenePostenRow = {
   id: string;
   einheit: string;
+  einheitRang: number;
   mieter: string;
   status: "AKTIV" | "BEENDET";
   soll: number;
@@ -23,7 +24,7 @@ const columns: Column<OffenePostenRow>[] = [
   {
     key: "einheit",
     label: "Einheit",
-    sortValue: (z) => z.einheit,
+    sortValue: (z) => z.einheitRang,
     searchValue: (z) => z.einheit,
     render: (z) => (
       <Link href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
