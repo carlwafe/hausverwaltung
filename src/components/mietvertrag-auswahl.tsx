@@ -37,8 +37,13 @@ export function MietvertragAuswahl({
   // Bounding-Box des Eingabefelds berechnet; ein Scroll außerhalb des Panels währenddessen
   // schließt es, statt eine veraltete Position stehen zu lassen.
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [position, setPosition] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
 
   const aktuellesLabel = kandidaten.find((k) => k.id === value)?.label ?? "";
   const sucheNorm = suche.trim().toLowerCase();
@@ -55,24 +60,54 @@ export function MietvertragAuswahl({
     setOffen(false);
   }
 
-  function oeffnen() {
+  // Position aus der Bounding-Box des Felds und dem sichtbaren Bereich (visualViewport: auf dem
+  // Handy ohne die eingeblendete Tastatur) berechnen; bei zu wenig Platz darunter öffnet das Panel
+  // nach oben.
+  function berechnePosition() {
     const rect = wrapperRef.current?.getBoundingClientRect();
-    if (rect) setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    if (!rect) return;
+    const vv = window.visualViewport;
+    const sichtOben = vv?.offsetTop ?? 0;
+    const sichtUnten = sichtOben + (vv?.height ?? window.innerHeight);
+    const platzUnten = sichtUnten - rect.bottom - 8;
+    const platzOben = rect.top - sichtOben - 8;
+    if (platzUnten >= 140 || platzUnten >= platzOben) {
+      setPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: Math.max(96, Math.min(224, platzUnten)),
+      });
+    } else {
+      setPosition({
+        bottom: window.innerHeight - rect.top + 4,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: Math.max(96, Math.min(224, platzOben)),
+      });
+    }
+  }
+
+  function oeffnen() {
+    berechnePosition();
     setOffen(true);
     setSuche("");
   }
 
   useEffect(() => {
     if (!offen) return;
-    function schliessenBeiScroll(e: Event) {
-      // Scrollen INNERHALB des Panels (die Kandidatenliste selbst ist scrollbar) soll es nicht
-      // schließen — nur ein Scroll anderswo, der die berechnete Position veralten lassen würde.
-      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
-      setOffen(false);
-    }
-    // capture:true, damit auch Scrollen innerhalb eines Containers (nicht nur des Fensters) erfasst wird
-    window.addEventListener("scroll", schliessenBeiScroll, true);
-    return () => window.removeEventListener("scroll", schliessenBeiScroll, true);
+    // Scrollen/Größenänderung (auf dem Handy löst schon das Einblenden der Tastatur beides aus)
+    // schließt das Panel nicht, sondern positioniert es neu — sonst verschwindet es sofort wieder.
+    window.addEventListener("scroll", berechnePosition, true);
+    window.addEventListener("resize", berechnePosition);
+    window.visualViewport?.addEventListener("resize", berechnePosition);
+    window.visualViewport?.addEventListener("scroll", berechnePosition);
+    return () => {
+      window.removeEventListener("scroll", berechnePosition, true);
+      window.removeEventListener("resize", berechnePosition);
+      window.visualViewport?.removeEventListener("resize", berechnePosition);
+      window.visualViewport?.removeEventListener("scroll", berechnePosition);
+    };
   }, [offen]);
 
   return (
@@ -96,9 +131,14 @@ export function MietvertragAuswahl({
         typeof document !== "undefined" &&
         createPortal(
           <div
-            ref={panelRef}
-            style={{ top: position.top, left: position.left, minWidth: position.width }}
-            className="fixed z-50 max-h-56 w-max max-w-[26rem] overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg"
+            style={{
+              top: position.top,
+              bottom: position.bottom,
+              left: position.left,
+              minWidth: position.width,
+              maxHeight: position.maxHeight,
+            }}
+            className="fixed z-50 w-max max-w-[26rem] overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg"
           >
             <button
               type="button"
