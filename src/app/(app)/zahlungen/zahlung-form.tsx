@@ -197,6 +197,11 @@ export function ZahlungForm({
               className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
+          <p className="col-span-2 text-xs text-neutral-400">
+            Der Monat, für den die Miete gedacht ist — nicht der Zahlungstag. Er bestimmt, in welcher
+            Nebenkostenabrechnung die NK-Vorauszahlung zählt (z.B. Dezembermiete, im Januar gezahlt →
+            Dezember des Vorjahres).
+          </p>
         </div>
       )}
 

@@ -434,6 +434,17 @@ export default async function NebenkostenabrechnungDetailPage({
         = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
         ist, falls einer offen ist; ist er 0, gilt die Position als erledigt.
       </p>
+      <p className="mb-3 text-sm text-neutral-400">
+        <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
+        Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
+        dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
+        Kaltmiete (§ 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in einem
+        Monat weniger als das NK-Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € NK zählen von
+        380 € gezahlt 280 € als NK, 100 € Kaltmiete bleiben offen; ein Monat ohne Zahlung bringt 0 €
+        NK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
+        berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
+        an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
+      </p>
 
       <PositionenTable
         rows={abrechnung.positionen.map((p) => {

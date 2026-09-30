@@ -169,6 +169,8 @@ const columns: Column<PositionRow>[] = [
     key: "vorauszahlung",
     label: "Vorauszahlung",
     align: "right",
+    title:
+      "Tatsächlich gezahlte NK-Vorauszahlung: je Mietmonat zuerst auf die NK (bis zum NK-Soll), erst der Rest auf die Kaltmiete (§ 366 Abs. 2 BGB)",
     sortValue: (p) => p.vorauszahlungGesamt,
     render: (p) => formatEuro(p.vorauszahlungGesamt),
   },

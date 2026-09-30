@@ -17,6 +17,8 @@ export type Column<T> = {
   searchValue?: (row: T) => string;
   align?: "left" | "right";
   className?: string;
+  /** Erklärung als Tooltip am Spaltenkopf. */
+  title?: string;
 };
 
 function normalize(s: string): string {
@@ -261,6 +263,7 @@ export function DataTable<T extends { id: string }>({
               {columns.map((c) => (
                 <th
                   key={c.key}
+                  title={c.title}
                   className={`px-4 py-2 ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}
                 >
                   {c.sortValue ? (
