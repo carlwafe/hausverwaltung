@@ -46,7 +46,7 @@ Push auf `main` → Vercel baut und veröffentlicht automatisch (Repo `carlwafe/
 
 **Schreibende Aktionen.** Server Actions (`"use server"`-Dateien `actions.ts` neben den Seiten) beginnen mit `requireEditor()` (`src/lib/session.ts`; `GAST` = nur lesen), rufen nach dem Schreiben `revalidatePath` für alle betroffenen Seiten auf. Formulare: entweder `useActionState` + `runFormAction` (werfende Aktionen) oder Aktionen, die `string | null` zurückgeben. Wiederverwendbare UI: `DataTable` (Sortierung/Suche/Filter/Auswahl), `DateInput` (Datum mit Auto-Sprung), `SubmitButton`, `DeleteButton` (ist selbst ein `<form>` — nicht in andere Formulare schachteln), `MietvertragAuswahl` (Suchauswahl für beliebige `{id,label}`-Listen). Auth-Schutz für alle Routen über `src/proxy.ts` (NextAuth-Middleware).
 
-**Sortierung.** Einheiten/Gebäude/Häuser werden nicht alphabetisch, sondern in der Haus-Reihenfolge des Objekts sortiert (`einheit-sort.ts`, `sort-einheiten.ts`, `gebaeude-gruppen.ts`).
+**Sortierung.** Einheiten/Gebäude/Häuser werden nicht alphabetisch, sondern in der Haus-Reihenfolge des Objekts sortiert (`einheit-sort.ts`, `sort-einheiten.ts`, `gebaeude-gruppen.ts`). Stolperfalle in Tabellen: Gibt das `sortValue` einer `DataTable`-Spalte den Bezeichnungstext zurück, sortiert die Spalte alphabetisch ("HS 15" vor "HS 9") — für Einheiten-Spalten stattdessen im Server den Rang mit `sortEinheitenNachGebaeude` berechnen (Abfrage braucht `einheit.gebaeude.haus.gebaeude`) und als Zahl mitgeben (Beispiel: `einheitRang` in Offene Posten). Ohne aktive Spaltensortierung behält die `DataTable` die Reihenfolge der übergebenen Zeilen, die Standardsortierung wird also in der Seite festgelegt.
 
 ## Arbeitsweise in diesem Repo
 
