@@ -1,7 +1,7 @@
 "use client";
 
-// quartal: undefined = reine Jahresauswahl (Jahresübersicht), 1–4 = zusätzlich Quartalsauswahl.
-export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal?: number }) {
+// quartal: 0 = ganzes Jahr, 1–4 = einzelnes Quartal.
+export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: number }) {
   const bis = Math.max(new Date().getFullYear() + 1, jahr);
   const von = Math.min(2020, jahr);
   const jahre: number[] = [];
@@ -29,26 +29,25 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal?: numb
           ))}
         </select>
       </div>
-      {quartal !== undefined && (
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="quartal">
-            Quartal
-          </label>
-          <select
-            id="quartal"
-            name="quartal"
-            defaultValue={quartal}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className={`w-28 ${selectCls}`}
-          >
-            {[1, 2, 3, 4].map((q) => (
-              <option key={q} value={q}>
-                Q{q}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="quartal">
+          Zeitraum
+        </label>
+        <select
+          id="quartal"
+          name="quartal"
+          defaultValue={quartal}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className={`w-28 ${selectCls}`}
+        >
+          <option value={0}>Gesamtjahr</option>
+          {[1, 2, 3, 4].map((q) => (
+            <option key={q} value={q}>
+              Q{q}
+            </option>
+          ))}
+        </select>
+      </div>
     </form>
   );
 }

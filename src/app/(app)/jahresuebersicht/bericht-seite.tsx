@@ -336,7 +336,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">{istQuartal ? "Quartalsübersicht" : "Jahresübersicht"}</h1>
+        <h1 className="text-2xl font-semibold text-white">{istQuartal ? "Jahresübersicht – Quartal" : "Jahresübersicht"}</h1>
         <p className="text-sm text-neutral-400">
           Mieteinnahmen ./. Ausgaben nach dem Zuflussprinzip (Anlage V) — Einnahmen nach
           tatsächlichem Zahlungseingang,{" "}
@@ -347,7 +347,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
       </div>
 
       <div className="mb-6 rounded-lg border border-neutral-800 p-4">
-        <JahrFilterForm jahr={jahr} quartal={istQuartal ? quartal : undefined} />
+        <JahrFilterForm jahr={jahr} quartal={quartal} />
       </div>
 
       <div className="mb-6 grid grid-cols-3 gap-4">
