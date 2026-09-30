@@ -39,6 +39,8 @@ export function DataTable<T extends { id: string }>({
   renderBelow,
   dateValue,
   selectFilter,
+  defaultSort,
+  renderFooter,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -80,14 +82,19 @@ export function DataTable<T extends { id: string }>({
     options: { value: string; label: string }[];
     placeholder?: string;
   };
+  /** Anfangssortierung (Spalten-key); der Nutzer kann sie durch Klick auf eine Spaltenüberschrift ändern. */
+  defaultSort?: { key: string; dir?: "asc" | "desc" };
+  /** Zusätzliche Fußzeile (<tr>, z.B. Summen) über die aktuell gefilterten/sortierten Zeilen;
+   * colSpan wie bei renderExpanded. */
+  renderFooter?: (visibleRows: T[], colSpan: number) => React.ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
   const [bis, setBis] = useState("");
   const [datumResetZaehler, setDatumResetZaehler] = useState(0);
   const [selectFilterValue, setSelectFilterValue] = useState("");
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = useState<string | null>(defaultSort?.key ?? null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(defaultSort?.dir ?? "asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -322,6 +329,9 @@ export function DataTable<T extends { id: string }>({
               </tr>
             )}
           </tbody>
+          {renderFooter && sortiert.length > 0 && (
+            <tfoot>{renderFooter(sortiert, columns.length + (selectable ? 1 : 0))}</tfoot>
+          )}
         </table>
       </div>
     </div>

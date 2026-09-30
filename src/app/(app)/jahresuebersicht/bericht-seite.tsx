@@ -3,8 +3,8 @@ import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { prisma } from "@/lib/prisma";
 import { JahrFilterForm } from "./jahr-filter-form";
-import { VerifikationsStern } from "./verifikations-stern";
-import { KommentarFeld } from "./kommentar-feld";
+import { MieterTabelle } from "./mieter-tabelle";
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { berechneMieterBericht, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
@@ -226,7 +226,7 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     prisma.mietvertrag.findMany({
       where: { status: { in: ["AKTIV", "BEENDET"] } },
       include: {
-        einheit: true,
+        einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
         mieter: true,
         abrechnungspositionen: {
           select: { saldo: true, abrechnung: { select: { jahr: true } } },
@@ -306,12 +306,16 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     })),
   }));
 
-  return berechneMieterBericht(
-    vertraege,
-    zeitraum,
-    objekt?.buchhaltungAb ?? null,
-    objekt?.buchhaltungBis ?? null,
+  // Rang in der Objekt-Reihenfolge der Einheiten (Haus-Reihenfolge) statt alphabetisch.
+  const einheitRang = new Map(
+    sortEinheitenNachGebaeude(
+      vertraegeRaw.map((v) => ({ id: v.id, bezeichnung: v.einheit.bezeichnung, gebaeude: v.einheit.gebaeude })),
+    ).map((v, i) => [v.id, i]),
   );
+
+  return berechneMieterBericht(vertraege, zeitraum, objekt?.buchhaltungAb ?? null, objekt?.buchhaltungBis ?? null)
+    .map((z) => ({ ...z, einheitRang: einheitRang.get(z.mietvertragId) ?? 0 }))
+    .sort((a, b) => a.einheitRang - b.einheitRang);
 }
 
 export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: number }) {
@@ -586,122 +590,29 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           schon für Januar überwiesene Miete zählt so korrekt zum Folgejahr, statt das laufende
           Jahr künstlich ins Plus zu ziehen.
         </p>
-        <div className="overflow-auto rounded-lg border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-neutral-800 text-left text-xs text-neutral-400">
-                <th className="px-4 py-2">Mietvertrag</th>
-                <th className="px-4 py-2 text-right" title="Monatliche Kaltmiete, wie sie im letzten Berichtsmonat gilt">
-                  Kaltmiete mtl.
-                </th>
-                <th className="px-4 py-2 text-right" title="Monatliche NK-Vorauszahlung (bei Garagen die Mehrwertsteuer), letzter Berichtsmonat">
-                  NK mtl.
-                </th>
-                <th className="px-4 py-2 text-right">Miete warm mtl.</th>
-                <th className="px-4 py-2 text-right">Saldo alt</th>
-                <th className="px-4 py-2 text-right">Soll Kaltmiete</th>
-                <th className="px-4 py-2 text-right">Soll Nebenkosten</th>
-                <th className="px-4 py-2 text-right">Soll gesamt</th>
-                <th className="px-4 py-2 text-right">Miete</th>
-                <th className="px-4 py-2 text-right">Nebenkostenabrechnung offen (Vorjahr)</th>
-                <th className="px-4 py-2 text-right">Saldo neu</th>
-                <th className="px-4 py-2 text-center" title="Stimmt mit dem vorhandenen Jahresbericht des früheren Verwalters überein">
-                  ✓
-                </th>
-                <th className="px-4 py-2">Kommentar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mieterZeilen.map((z) => (
-                <tr key={z.mietvertragId} className="border-b border-neutral-800">
-                  <td className="px-4 py-2">
-                    <Link href={`/mietvertraege/${z.mietvertragId}`} className="text-white hover:underline">
-                      {z.einheitBezeichnung} – {z.mieterNamen}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 text-right text-neutral-400">{formatEuro(z.kaltmieteMtl)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-400">{formatEuro(z.nebenkostenMtl)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-400">{formatEuro(z.warmMtl)}</td>
-                  <td className={`px-4 py-2 text-right ${z.saldoAlt < 0 ? "text-red-400" : "text-neutral-300"}`}>
-                    {formatEuro(z.saldoAlt)}
-                  </td>
-                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.sollKaltmiete)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.sollNebenkosten)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(z.soll)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-300">{formatEuro(z.miete)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-300">
-                    {z.nebenkostenabrechnungOffen ? formatEuro(z.nebenkostenabrechnungOffen) : "–"}
-                  </td>
-                  <td
-                    className={`px-4 py-2 text-right font-medium ${z.saldoNeu < 0 ? "text-red-400" : "text-white"}`}
-                  >
-                    {formatEuro(z.saldoNeu)}
-                  </td>
-                  <td className="px-4 py-2 text-center">
-                    <VerifikationsStern
-                      mietvertragId={z.mietvertragId}
-                      jahr={jahr}
-                      quartal={quartal}
-                      verifiziert={verifizierteIds.has(z.mietvertragId)}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <KommentarFeld
-                      mietvertragId={z.mietvertragId}
-                      jahr={jahr}
-                      quartal={quartal}
-                      kommentar={kommentarNachMietvertrag.get(z.mietvertragId) ?? ""}
-                    />
-                  </td>
-                </tr>
-              ))}
-              {mieterZeilen.length === 0 && (
-                <tr>
-                  <td colSpan={13} className="px-4 py-4 text-center text-neutral-500">
-                    Keine Mietverträge mit Bewegung in {label}.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {mieterZeilen.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-neutral-800 font-medium">
-                  <td className="px-4 py-2 text-white">Summe</td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.kaltmieteMtl, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.nebenkostenMtl, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.warmMtl, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoAlt, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.sollKaltmiete, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.sollNebenkosten, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.soll, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.miete, 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + (z.nebenkostenabrechnungOffen ?? 0), 0))}
-                  </td>
-                  <td className="px-4 py-2 text-right text-white">
-                    {formatEuro(mieterZeilen.reduce((s, z) => s + z.saldoNeu, 0))}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+        <MieterTabelle
+          zeilen={mieterZeilen.map((z) => ({
+            id: z.mietvertragId,
+            einheit: z.einheitBezeichnung,
+            einheitRang: z.einheitRang,
+            mieter: z.mieterNamen,
+            kaltmieteMtl: z.kaltmieteMtl,
+            nebenkostenMtl: z.nebenkostenMtl,
+            warmMtl: z.warmMtl,
+            saldoAlt: z.saldoAlt,
+            sollKaltmiete: z.sollKaltmiete,
+            sollNebenkosten: z.sollNebenkosten,
+            soll: z.soll,
+            miete: z.miete,
+            nebenkostenabrechnungOffen: z.nebenkostenabrechnungOffen,
+            saldoNeu: z.saldoNeu,
+            verifiziert: verifizierteIds.has(z.mietvertragId),
+            kommentar: kommentarNachMietvertrag.get(z.mietvertragId) ?? "",
+          }))}
+          jahr={jahr}
+          quartal={quartal}
+          label={label}
+        />
       </div>
 
     </div>
