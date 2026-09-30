@@ -41,7 +41,11 @@ const columns: Column<NebenkostenausgleichZahlungRow>[] = [
     key: "datum",
     label: "Datum",
     sortValue: (b) => b.datum,
-    render: (b) => formatDate(b.datum),
+    render: (b) => (
+      <Link href={`/nebenkostenausgleich/${b.id}`} className="hover:underline">
+        {formatDate(b.datum)}
+      </Link>
+    ),
   },
   {
     key: "betrag",
