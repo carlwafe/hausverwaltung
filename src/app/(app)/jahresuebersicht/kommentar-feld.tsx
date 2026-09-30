@@ -8,10 +8,12 @@ import { speichereJahresberichtKommentar } from "./actions";
 export function KommentarFeld({
   mietvertragId,
   jahr,
+  quartal = 0,
   kommentar,
 }: {
   mietvertragId: string;
   jahr: number;
+  quartal?: number;
   kommentar: string;
 }) {
   const [wert, setWert] = useState(kommentar);
@@ -30,7 +32,7 @@ export function KommentarFeld({
   function speichern() {
     if (wert.trim() === gespeichert.trim()) return;
     startTransition(async () => {
-      await speichereJahresberichtKommentar(mietvertragId, jahr, wert);
+      await speichereJahresberichtKommentar(mietvertragId, jahr, wert, quartal);
       setGespeichert(wert);
     });
   }

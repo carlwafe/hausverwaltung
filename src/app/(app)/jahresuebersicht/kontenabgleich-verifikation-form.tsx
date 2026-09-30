@@ -16,10 +16,14 @@ function formatEuro(value: number) {
  */
 export function KontenabgleichVerifikationForm({
   jahr,
+  quartal = 0,
+  stichtagText,
   kontostandLautJournal,
   gespeicherterWert,
 }: {
   jahr: number;
+  quartal?: number;
+  stichtagText: string;
   kontostandLautJournal: number;
   gespeicherterWert: number | null;
 }) {
@@ -46,9 +50,10 @@ export function KontenabgleichVerifikationForm({
       <div className="flex flex-wrap items-end gap-3">
         <form action={formAction} className="contents">
           <input type="hidden" name="jahr" value={jahr} />
+          <input type="hidden" name="quartal" value={quartal} />
           <div>
             <label className="mb-1 block text-xs text-neutral-400">
-              Kontostand laut Kontoauszug am 31.12.{jahr}
+              Kontostand laut Kontoauszug am {stichtagText}
             </label>
             <input
               type="number"
@@ -70,7 +75,7 @@ export function KontenabgleichVerifikationForm({
         </form>
         {gespeicherterWert !== null && (
           <DeleteButton
-            action={loescheKontenabgleichVerifikation.bind(null, jahr)}
+            action={loescheKontenabgleichVerifikation.bind(null, jahr, quartal)}
             confirmText="Bestätigten Kontostand wirklich entfernen?"
             label="Entfernen"
             size="sm"

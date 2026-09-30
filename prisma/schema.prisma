@@ -705,9 +705,11 @@ model JahresberichtVerifikation {
   mietvertrag   Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
   mietvertragId String
   jahr          Int
+  // 0 = Jahresübersicht, 1–4 = Quartalsübersicht (siehe quartalsuebersicht).
+  quartal       Int         @default(0)
   erstelltAm    DateTime    @default(now())
 
-  @@unique([mietvertragId, jahr])
+  @@unique([mietvertragId, jahr, quartal])
   @@map("jahresbericht_verifikationen")
 }
 
@@ -719,10 +721,12 @@ model JahresberichtKommentar {
   mietvertrag    Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
   mietvertragId  String
   jahr           Int
+  // 0 = Jahresübersicht, 1–4 = Quartalsübersicht.
+  quartal        Int         @default(0)
   kommentar      String
   aktualisiertAm DateTime    @updatedAt
 
-  @@unique([mietvertragId, jahr])
+  @@unique([mietvertragId, jahr, quartal])
   @@map("jahresbericht_kommentare")
 }
 
@@ -732,11 +736,14 @@ model JahresberichtKommentar {
 // hier ist der einzige Bezug zur Realität, ohne den eine Abweichung nie auffallen würde.
 model KontenabgleichVerifikation {
   id                       String   @id @default(cuid())
-  jahr                     Int      @unique
+  jahr                     Int
+  // 0 = Jahresübersicht (Stichtag 31.12.), 1–4 = Quartalsübersicht (Stichtag Quartalsende).
+  quartal                  Int      @default(0)
   kontostandLautBankauszug Decimal  @db.Decimal(10, 2)
   erstelltAm               DateTime @default(now())
   aktualisiertAm           DateTime @updatedAt
 
+  @@unique([jahr, quartal])
   @@map("kontenabgleich_verifikationen")
 }
 

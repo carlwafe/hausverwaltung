@@ -125,13 +125,34 @@ export function berechneMieterJahresbericht(
   buchhaltungAb: Date | null,
   buchhaltungBisGlobal: Date | null,
 ): MieterJahresberichtZeile[] {
-  const saldoAltBis = new Date(jahr - 1, 11, 31, 23, 59, 59, 999);
-  const saldoNeuBisKandidat = new Date(jahr, 11, 31, 23, 59, 59, 999);
+  return berechneMieterBericht(
+    vertraege,
+    { jahr, von: new Date(jahr, 0, 1), bis: new Date(jahr, 11, 31, 23, 59, 59, 999) },
+    buchhaltungAb,
+    buchhaltungBisGlobal,
+  );
+}
+
+/**
+ * Wie berechneMieterJahresbericht, aber für einen beliebigen Zeitraum [von, bis] innerhalb von
+ * `jahr` (Quartalsübersicht). "Nebenkostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
+ * Abrechnung des Vorjahres von `jahr` und fließt in jedes Quartal voll ein.
+ */
+export function berechneMieterBericht(
+  vertraege: MietvertragFuerJahresbericht[],
+  zeitraum: { jahr: number; von: Date; bis: Date },
+  buchhaltungAb: Date | null,
+  buchhaltungBisGlobal: Date | null,
+): MieterJahresberichtZeile[] {
+  const { jahr } = zeitraum;
+  const saldoAltBis = new Date(zeitraum.von.getTime() - 1);
+  const saldoNeuBisKandidat = zeitraum.bis;
   const saldoNeuBis =
     buchhaltungBisGlobal && buchhaltungBisGlobal < saldoNeuBisKandidat
       ? buchhaltungBisGlobal
       : saldoNeuBisKandidat;
   const saldoNeuBisPeriode = periodeVon(saldoNeuBis);
+  const vonPeriode = periodeVon(zeitraum.von);
 
   const zeilen: MieterJahresberichtZeile[] = [];
 
@@ -145,8 +166,11 @@ export function berechneMieterJahresbericht(
     const mtl = ermittleMieteFuerMonat(v, letzterMonat.getFullYear(), letzterMonat.getMonth() + 1);
     const kaltmieteMtl = mtl.kaltmiete;
     const nebenkostenMtl = mtl.nebenkostenVorauszahlung + (v.mehrwertsteuer ?? 0);
-    const miete = v.zahlungen
-      .filter((z) => z.periodeJahr === jahr && z.periodeJahr * 12 + z.periodeMonat <= saldoNeuBisPeriode)
+  const miete = v.zahlungen
+      .filter((z) => {
+        const periode = z.periodeJahr * 12 + z.periodeMonat;
+        return periode >= vonPeriode && periode <= saldoNeuBisPeriode;
+      })
       .reduce((sum, z) => sum + z.betrag, 0);
     const nebenkostenabrechnungOffen = nebenkostenabrechnungOffenBetrag(v, jahr);
     // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl

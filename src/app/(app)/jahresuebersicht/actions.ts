@@ -10,41 +10,49 @@ import { requireEditor } from "@/lib/session";
  * (externen, vom früheren Verwalter erstellten) Jahresbericht abgeglichen und für übereinstimmend
  * befunden wurde — reine Existenz der Zeile, siehe Schema-Kommentar auf JahresberichtVerifikation.
  */
-export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr: number) {
+export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr: number, quartal = 0) {
   await requireEditor();
 
   const bestehend = await prisma.jahresberichtVerifikation.findUnique({
-    where: { mietvertragId_jahr: { mietvertragId, jahr } },
+    where: { mietvertragId_jahr_quartal: { mietvertragId, jahr, quartal } },
   });
 
   if (bestehend) {
     await prisma.jahresberichtVerifikation.delete({ where: { id: bestehend.id } });
   } else {
-    await prisma.jahresberichtVerifikation.create({ data: { mietvertragId, jahr } });
+    await prisma.jahresberichtVerifikation.create({ data: { mietvertragId, jahr, quartal } });
   }
 
   revalidatePath("/jahresuebersicht");
+  revalidatePath("/quartalsuebersicht");
 }
 
-// Kommentar pro Mietvertrag und Jahr (leer = entfernt).
-export async function speichereJahresberichtKommentar(mietvertragId: string, jahr: number, kommentar: string) {
+// Kommentar pro Mietvertrag und Jahr bzw. Quartal (0 = Jahr; leer = entfernt).
+export async function speichereJahresberichtKommentar(
+  mietvertragId: string,
+  jahr: number,
+  kommentar: string,
+  quartal = 0,
+) {
   await requireEditor();
   const text = kommentar.trim();
-  const where = { mietvertragId_jahr: { mietvertragId, jahr } };
+  const where = { mietvertragId_jahr_quartal: { mietvertragId, jahr, quartal } };
   if (!text) {
-    await prisma.jahresberichtKommentar.deleteMany({ where: { mietvertragId, jahr } });
+    await prisma.jahresberichtKommentar.deleteMany({ where: { mietvertragId, jahr, quartal } });
   } else {
     await prisma.jahresberichtKommentar.upsert({
       where,
-      create: { mietvertragId, jahr, kommentar: text },
+      create: { mietvertragId, jahr, quartal, kommentar: text },
       update: { kommentar: text },
     });
   }
   revalidatePath("/jahresuebersicht");
+  revalidatePath("/quartalsuebersicht");
 }
 
 const kontenabgleichSchema = z.object({
   jahr: z.coerce.number().int(),
+  quartal: z.coerce.number().int().min(0).max(4).default(0),
   kontostandLautBankauszug: z.coerce.number(),
 });
 
@@ -62,25 +70,28 @@ export async function speichereKontenabgleichVerifikation(
 
   const parsed = kontenabgleichSchema.safeParse({
     jahr: formData.get("jahr"),
+    quartal: formData.get("quartal") ?? 0,
     kontostandLautBankauszug: formData.get("kontostandLautBankauszug"),
   });
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
-  const { jahr, kontostandLautBankauszug } = parsed.data;
+  const { jahr, quartal, kontostandLautBankauszug } = parsed.data;
 
   await prisma.kontenabgleichVerifikation.upsert({
-    where: { jahr },
+    where: { jahr_quartal: { jahr, quartal } },
     update: { kontostandLautBankauszug },
-    create: { jahr, kontostandLautBankauszug },
+    create: { jahr, quartal, kontostandLautBankauszug },
   });
 
   revalidatePath("/jahresuebersicht");
+  revalidatePath("/quartalsuebersicht");
   return null;
 }
 
-export async function loescheKontenabgleichVerifikation(jahr: number) {
+export async function loescheKontenabgleichVerifikation(jahr: number, quartal = 0) {
   await requireEditor();
-  await prisma.kontenabgleichVerifikation.deleteMany({ where: { jahr } });
+  await prisma.kontenabgleichVerifikation.deleteMany({ where: { jahr, quartal } });
   revalidatePath("/jahresuebersicht");
+  revalidatePath("/quartalsuebersicht");
 }
