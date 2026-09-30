@@ -5,7 +5,7 @@ import { pflichtDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { hebeZahlungAufteilungAuf as hebeZahlungAufteilungAufLib } from "@/lib/aufteilung-aufheben";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
@@ -56,7 +56,7 @@ const nkVerrechnungSchema = z.object({
 });
 
 export const createZahlung = mitMeldung(async function createZahlung(formData: FormData) {
-  await requireEditor();
+  const user = await requireEditor();
 
   if (formData.get("zahlungsart") === "NK_VERRECHNUNG") {
     const parsed = nkVerrechnungSchema.safeParse({
@@ -81,6 +81,7 @@ export const createZahlung = mitMeldung(async function createZahlung(formData: F
         verwendungszweck:
           verwendungszweck ??
           `${rest.betrag > 0 ? "Nachzahlung" : "Guthaben"} Nebenkostenabrechnung ${nkJahr}`,
+        erstelltVon: benutzerLabel(user),
       },
     });
     revalidatePath("/zahlungen");
@@ -103,7 +104,7 @@ export const createZahlung = mitMeldung(async function createZahlung(formData: F
     }
     const { mietvertragId, ...rest } = parsed.data;
     const buchungsartId = await ladeBuchungsartId("MAHNGEBUEHR");
-    await prisma.buchung.create({ data: { ...rest, buchungsartId, mietvertragId } });
+    await prisma.buchung.create({ data: { ...rest, buchungsartId, mietvertragId, erstelltVon: benutzerLabel(user) } });
     revalidatePath("/zahlungen");
     revalidatePath("/offene-posten");
     revalidatePath(`/mietvertraege/${mietvertragId}`);
@@ -127,7 +128,7 @@ export const createZahlung = mitMeldung(async function createZahlung(formData: F
   const buchungsartId = await ladeBuchungsartId("MIETZAHLUNG");
 
   await prisma.buchung.create({
-    data: { ...rest, buchungsartId, mietvertragId },
+    data: { ...rest, buchungsartId, mietvertragId, erstelltVon: benutzerLabel(user) },
   });
 
   revalidatePath("/zahlungen");
@@ -141,7 +142,7 @@ export const createZahlung = mitMeldung(async function createZahlung(formData: F
 // aufteilungGruppeId wandern dabei auf die neue Zeile mit, weil sie weiterhin dieselbe reale
 // Zahlung repräsentiert.
 export const updateZahlung = mitMeldung(async function updateZahlung(id: string, formData: FormData) {
-  await requireEditor();
+  const user = await requireEditor();
 
   const parsed = zahlungSchema.safeParse({
     mietvertragId: formData.get("mietvertragId"),
@@ -159,8 +160,9 @@ export const updateZahlung = mitMeldung(async function updateZahlung(id: string,
   const { mietvertragId, ...rest } = parsed.data;
   const bisherige = await prisma.buchung.findUniqueOrThrow({ where: { id } });
 
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
     await tx.buchung.create({
       data: {
         ...rest,
@@ -169,6 +171,7 @@ export const updateZahlung = mitMeldung(async function updateZahlung(id: string,
         rohdaten: bisherige.rohdaten ?? undefined,
         importBatchId: bisherige.importBatchId,
         aufteilungGruppeId: bisherige.aufteilungGruppeId,
+        erstelltVon,
       },
     });
   });
@@ -184,10 +187,10 @@ export const updateZahlung = mitMeldung(async function updateZahlung(id: string,
 });
 
 export async function deleteZahlung(id: string) {
-  await requireEditor();
+  const user = await requireEditor();
   const zahlung = await prisma.buchung.findUniqueOrThrow({ where: { id } });
   await prisma.$transaction(async (tx) => {
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, benutzerLabel(user));
   });
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");
@@ -196,11 +199,12 @@ export async function deleteZahlung(id: string) {
 }
 
 export async function deleteZahlungen(ids: string[]) {
-  await requireEditor();
+  const user = await requireEditor();
   if (ids.length === 0) return;
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     for (const id of ids) {
-      await storniereBuchung(tx, id);
+      await storniereBuchung(tx, id, erstelltVon);
     }
   });
   revalidatePath("/zahlungen");
@@ -266,7 +270,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const raw = formData.get("teile");
   if (typeof raw !== "string") return "Keine Aufteilung übermittelt.";
@@ -312,6 +316,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
     prisma.buchungsart.findUniqueOrThrow({ where: { code: "KAUTION_EINZAHLUNG" } }),
   ]);
 
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     for (const teil of mieteTeile) {
       await tx.buchung.create({
@@ -326,6 +331,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
+          erstelltVon,
         },
       });
     }
@@ -340,6 +346,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
+          erstelltVon,
         },
       });
     }
@@ -355,6 +362,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
+          erstelltVon,
         },
       });
     }
@@ -370,6 +378,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
+          erstelltVon,
         },
       });
       if (teil.demMieterBerechnen && teil.betrag < 0 && original.mietvertragId) {
@@ -384,11 +393,12 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
             verwendungszweck: teil.beschreibung || original.verwendungszweck,
             bezugTyp: "Buchung",
             bezugId: kostenBuchung.id,
+            erstelltVon,
           },
         });
       }
     }
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
   });
 
   revalidatePath("/zahlungen");
@@ -403,14 +413,18 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
 // storniert und zu einer einzigen neuen Zahlung zusammengeführt (Betrag = Summe), unter dem
 // Mietvertrag/der Periode der Zahlung, von der aus die Aktion aufgerufen wurde.
 export async function hebeZahlungAufteilungAuf(zahlungId: string) {
-  await requireEditor();
+  const user = await requireEditor();
   const zahlung = await prisma.buchung.findFirst({ where: { id: zahlungId, ...AKTIVE_BUCHUNG_FILTER } });
   if (!zahlung) throw new AktionsFehler("Zahlung nicht gefunden.");
   if (!zahlung.aufteilungGruppeId) throw new AktionsFehler("Diese Zahlung ist nicht Teil einer Aufteilung.");
 
   // Kostenpositionen aus einer gemischten Aufteilung (Miete + Kosten) gehören ebenfalls zur Gruppe
   // und gehen mit umgekehrtem Vorzeichen in die Summe ein — Details siehe aufteilung-aufheben.ts.
-  const betroffeneMietvertraege = await hebeZahlungAufteilungAufLib(zahlung.aufteilungGruppeId, zahlung.id);
+  const betroffeneMietvertraege = await hebeZahlungAufteilungAufLib(
+    zahlung.aufteilungGruppeId,
+    zahlung.id,
+    benutzerLabel(user),
+  );
   revalidatePath("/kosten");
   revalidatePath("/zahlungen");
   revalidatePath("/offene-posten");

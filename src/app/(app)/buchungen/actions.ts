@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { mitMeldung } from "@/lib/aktion";
 import { storniereBuchung } from "@/lib/buchung-storno";
 import { ermittleBuchungsartGruppe } from "@/lib/import/buchung-klassifizierung";
@@ -19,7 +19,7 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const zielCode = String(formData.get("zielCode") ?? "");
   const mietvertragId = String(formData.get("mietvertragId") ?? "") || null;
@@ -56,6 +56,7 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
   const datum = original.datum;
   if (!datum) return "Die Buchung hat kein Datum und kann nicht umgebucht werden.";
 
+  const erstelltVon = benutzerLabel(user);
   const neu = await prisma.$transaction(async (tx) => {
     const angelegt = await tx.buchung.create({
       data: {
@@ -73,11 +74,12 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
         importBatchId: original.importBatchId,
         bezugTyp: "Umbuchung",
         bezugId: original.bezugTyp === "Umbuchung" ? original.bezugId : original.id,
+        erstelltVon,
       },
     });
     // Belege gehören zur Buchung, nicht zum Journal — sie ziehen auf die neue Buchung um.
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: angelegt.id } });
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
     return angelegt;
   });
 

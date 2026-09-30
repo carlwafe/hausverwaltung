@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
-import { requireUser, requireEditor } from "@/lib/session";
+import { requireUser, requireEditor, benutzerLabel } from "@/lib/session";
 import { mitMeldung } from "@/lib/aktion";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
@@ -676,7 +676,7 @@ export type BuchungCommitRow = {
 // "welche Formel für diese Zeile" wird jetzt zur Laufzeit anhand der gewählten Buchungsart
 // entschieden statt anhand der Sektion, in der die Zeile ursprünglich angezeigt wurde.
 export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: string | null, formData: FormData): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
   const dedup = await ladeDedupFilter();
 
   const raw = formData.get("rows");
@@ -860,6 +860,7 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
           jahr: r.gruppe === "KOSTEN" || r.gruppe === "NEBENKOSTENAUSGLEICH" ? r.jahr : undefined,
           rohdaten: r.rohdaten,
           importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
+          erstelltVon: benutzerLabel(user),
         };
       }),
     });

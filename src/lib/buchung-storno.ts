@@ -16,7 +16,15 @@ export const AKTIVE_BUCHUNG_FILTER = { storniertDurchBuchungId: null, storniertZ
 // weil Original + Storno sich durch ihre entgegengesetzten Vorzeichen automatisch aufheben.
 // "Löschen" einer Buchung heißt: nur stornieren (Original bleibt stehen). "Bearbeiten" heißt:
 // stornieren + mit den korrigierten Werten neu anlegen (siehe Aufrufstellen).
-export async function storniereBuchung(tx: Prisma.TransactionClient, buchungId: string) {
+//
+// erstelltVon: wer den Storno ausgelöst hat (siehe benutzerLabel in session.ts) — bewusst NICHT
+// vom Original übernommen, da der Storno eine neue, eigene Handlung ist (das Original kann z.B.
+// aus einem Import ohne Nutzerbezug stammen oder von einer anderen Person angelegt worden sein).
+export async function storniereBuchung(
+  tx: Prisma.TransactionClient,
+  buchungId: string,
+  erstelltVon: string | null,
+) {
   const original = await tx.buchung.findUniqueOrThrow({ where: { id: buchungId } });
   if (original.storniertDurchBuchungId) {
     throw new AktionsFehler("Diese Buchung wurde bereits storniert.");
@@ -41,6 +49,7 @@ export async function storniereBuchung(tx: Prisma.TransactionClient, buchungId: 
       bezugTyp: original.bezugTyp,
       bezugId: original.bezugId,
       rohdaten: original.rohdaten ?? undefined,
+      erstelltVon,
       // importBatchId/aufteilungGruppeId bewusst NICHT übernommen: der Storno ist keine eigene
       // Import-Zeile und soll weder in der Vollständigkeitsprüfung des Original-Batches noch in
       // einer Aufteilungsgruppe auftauchen.

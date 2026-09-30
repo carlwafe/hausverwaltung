@@ -28,3 +28,9 @@ export async function requireEditor() {
   }
   return user;
 }
+
+/** Lesbare Kennung des Nutzers für Nachvollziehbarkeit (z.B. Buchung.erstelltVon,
+ * Dokument.hochgeladenVon) — bevorzugt die E-Mail (eindeutig), sonst der Name. */
+export function benutzerLabel(user: { email?: string | null; name?: string | null }): string | null {
+  return user.email ?? user.name ?? null;
+}

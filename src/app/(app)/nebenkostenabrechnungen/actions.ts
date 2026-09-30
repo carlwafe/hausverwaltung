@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
@@ -479,7 +479,7 @@ export async function neuBerechnen(id: string) {
 // derselben Vorzeichenlogik wie saldo entgegengenommen (positiv = ausgezahltes Guthaben, negativ =
 // eingezogene Nachzahlung), intern aber im rohen Bank-Vorzeichen gespeichert wie beim Import.
 export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormData) {
-  await requireEditor();
+  const user = await requireEditor();
   const mietvertragId = formData.get("mietvertragId");
   const jahr = formData.get("jahr");
   const datum = formData.get("datum");
@@ -508,6 +508,7 @@ export async function erfasseNebenkostenausgleichZahlungManuell(formData: FormDa
       datum: datumWert,
       betrag: -betrag,
       verwendungszweck: "Manuell erfasst",
+      erstelltVon: benutzerLabel(user),
     },
   });
 

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
@@ -81,7 +81,7 @@ async function ermittleDatumFuerVirtuelleGutschrift(
 }
 
 export const createKostenposition = mitMeldung(async function createKostenposition(formData: FormData) {
-  await requireEditor();
+  const user = await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
   const { wert: explizitesDatum } = parseDatumFeld(formData);
@@ -100,6 +100,7 @@ export const createKostenposition = mitMeldung(async function createKostenpositi
       einheitId: einheitId || null,
       bezugTyp: virtuelleKautionBuchungId ? "Buchung" : null,
       bezugId: virtuelleKautionBuchungId || null,
+      erstelltVon: benutzerLabel(user),
     },
   });
 
@@ -111,7 +112,7 @@ export const createKostenposition = mitMeldung(async function createKostenpositi
 // "Bearbeiten" heißt beim Storno-Prinzip: die alte Buchung stornieren und mit den korrigierten
 // Werten neu anlegen — importBatchId/rohdaten/aufteilungGruppeId wandern dabei mit.
 export const updateKostenposition = mitMeldung(async function updateKostenposition(id: string, formData: FormData) {
-  await requireEditor();
+  const user = await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
     parseForm(formData);
   // Bei einer importierten Position (Datumsfeld deaktiviert) war "datum" gar nicht im FormData
@@ -124,8 +125,9 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
     ? (explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId)))
     : bisherige.datum;
 
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
     await tx.buchung.create({
       data: {
         ...rest,
@@ -141,6 +143,7 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
         rohdaten: bisherige.rohdaten ?? undefined,
         importBatchId: bisherige.importBatchId,
         aufteilungGruppeId: bisherige.aufteilungGruppeId,
+        erstelltVon,
       },
     });
   });
@@ -152,20 +155,21 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
 });
 
 export async function deleteKostenposition(id: string) {
-  await requireEditor();
+  const user = await requireEditor();
   await prisma.$transaction(async (tx) => {
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, benutzerLabel(user));
   });
   revalidatePath("/kosten");
   redirect("/kosten");
 }
 
 export async function deleteKostenpositionen(ids: string[]) {
-  await requireEditor();
+  const user = await requireEditor();
   if (ids.length === 0) return;
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     for (const id of ids) {
-      await storniereBuchung(tx, id);
+      await storniereBuchung(tx, id, erstelltVon);
     }
   });
   revalidatePath("/kosten");
@@ -195,7 +199,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const raw = formData.get("teile");
   if (typeof raw !== "string") return "Keine Aufteilung übermittelt.";
@@ -222,6 +226,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
   }
 
   const gruppeId = original.aufteilungGruppeId ?? original.id;
+  const erstelltVon = benutzerLabel(user);
 
   await prisma.$transaction(async (tx) => {
     const neuePositionen = [];
@@ -242,6 +247,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
+          erstelltVon,
         },
       });
       neuePositionen.push(neu);
@@ -252,7 +258,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
       where: { buchungId: id },
       data: { buchungId: neuePositionen[0].id },
     });
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
   });
 
   revalidatePath("/kosten");
@@ -264,15 +270,16 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
 // Kostenart der Position, von der aus die Aktion aufgerufen wurde. Belege aller Teile wandern auf
 // die neue Position.
 export async function hebeAufteilungAuf(positionId: string) {
-  await requireEditor();
+  const user = await requireEditor();
   const position = await prisma.buchung.findFirst({ where: { id: positionId, ...AKTIVE_BUCHUNG_FILTER } });
   if (!position) throw new AktionsFehler("Kostenposition nicht gefunden.");
   if (!position.aufteilungGruppeId) throw new AktionsFehler("Diese Position ist nicht Teil einer Aufteilung.");
+  const erstelltVon = benutzerLabel(user);
 
   // Stammt die Aufteilung aus einer Zahlung (Miete + Kosten), wird die ursprüngliche Zahlung
   // wiederhergestellt statt die Teile fälschlich zu einer einzigen Kostenposition zu addieren.
   if (await istGemischteAufteilung(position.aufteilungGruppeId)) {
-    const mietvertraege = await hebeZahlungAufteilungAuf(position.aufteilungGruppeId, position.id);
+    const mietvertraege = await hebeZahlungAufteilungAuf(position.aufteilungGruppeId, position.id, erstelltVon);
     revalidatePath("/kosten");
     revalidatePath("/zahlungen");
     revalidatePath("/offene-posten");
@@ -316,6 +323,7 @@ export async function hebeAufteilungAuf(positionId: string) {
         datum: position.datum,
         rohdaten: position.rohdaten ?? undefined,
         importBatchId: position.importBatchId,
+        erstelltVon,
       },
     });
     await tx.dokument.updateMany({
@@ -323,7 +331,7 @@ export async function hebeAufteilungAuf(positionId: string) {
       data: { buchungId: neu.id },
     });
     for (const teil of gruppe) {
-      await storniereBuchung(tx, teil.id);
+      await storniereBuchung(tx, teil.id, erstelltVon);
     }
   });
 
@@ -346,7 +354,7 @@ export const ordneNichtZugeordneteBuchungZu = mitMeldung(async function ordneNic
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const parsed = nichtZugeordneteBuchungZuordnenSchema.safeParse({
     kostenartId: formData.get("kostenartId"),
@@ -380,6 +388,7 @@ export const ordneNichtZugeordneteBuchungZu = mitMeldung(async function ordneNic
         verwendungszweck: buchung.verwendungszweck,
         rohdaten: buchung.rohdaten ?? undefined,
         importBatchId: buchung.importBatchId,
+        erstelltVon: benutzerLabel(user),
       },
     }),
     prisma.nichtZugeordneteBuchung.delete({ where: { id } }),

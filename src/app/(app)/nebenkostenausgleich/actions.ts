@@ -4,16 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 
 export async function deleteNebenkostenausgleichZahlungen(ids: string[]) {
-  await requireEditor();
+  const user = await requireEditor();
   if (ids.length === 0) return;
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     for (const id of ids) {
-      await storniereBuchung(tx, id);
+      await storniereBuchung(tx, id, erstelltVon);
     }
   });
   revalidatePath("/nebenkostenausgleich");
@@ -42,7 +43,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const raw = formData.get("teile");
   if (typeof raw !== "string") return "Keine Aufteilung übermittelt.";
@@ -72,6 +73,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
   const gruppeId = original.aufteilungGruppeId ?? original.id;
 
   const ausgleichArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
+  const erstelltVon = benutzerLabel(user);
 
   await prisma.$transaction(async (tx) => {
     for (const teil of teile) {
@@ -84,12 +86,13 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
         rohdaten: original.rohdaten ?? undefined,
         importBatchId: original.importBatchId,
         aufteilungGruppeId: gruppeId,
+        erstelltVon,
       };
       await tx.buchung.create({
         data: { ...gemeinsam, buchungsartId: ausgleichArt.id, jahr: teil.jahr ?? null, bemerkung: original.bemerkung },
       });
     }
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
   });
 
   revalidateAusgleich(new Set([original.mietvertragId, ...teile.map((t) => t.mietvertragId)]));
@@ -102,7 +105,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
  * größten Ausgleich-Teils (bzw. des ursprünglichen Originals).
  */
 export async function hebeNebenkostenausgleichAufteilungAuf(id: string) {
-  await requireEditor();
+  const user = await requireEditor();
   const teil = await prisma.buchung.findFirst({ where: { id, ...AKTIVE_BUCHUNG_FILTER } });
   if (!teil?.aufteilungGruppeId) throw new AktionsFehler("Diese Buchung ist nicht Teil einer Aufteilung.");
 
@@ -121,6 +124,7 @@ export async function hebeNebenkostenausgleichAufteilungAuf(id: string) {
   if (!vorlage) throw new AktionsFehler("Keine Nebenkostenausgleich-Buchung in dieser Aufteilung gefunden.");
 
   const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
+  const erstelltVon = benutzerLabel(user);
 
   await prisma.$transaction(async (tx) => {
     await tx.buchung.create({
@@ -135,9 +139,10 @@ export async function hebeNebenkostenausgleichAufteilungAuf(id: string) {
         bemerkung: vorlage.bemerkung,
         rohdaten: vorlage.rohdaten ?? undefined,
         importBatchId: vorlage.importBatchId,
+        erstelltVon,
       },
     });
-    for (const b of gruppe) await storniereBuchung(tx, b.id);
+    for (const b of gruppe) await storniereBuchung(tx, b.id, erstelltVon);
   });
 
   revalidateAusgleich(new Set([vorlage.mietvertragId, ...gruppe.map((b) => b.mietvertragId)]));

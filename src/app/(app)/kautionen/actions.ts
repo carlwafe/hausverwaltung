@@ -7,7 +7,7 @@ import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
@@ -28,11 +28,12 @@ export async function speichereKautionNotiz(kautionId: string, text: string) {
 // "Löschen" heißt beim Storno-Prinzip: die Buchung bleibt stehen, bekommt aber eine
 // Gegenbuchung mit negiertem Betrag (siehe storniereBuchung) statt echt gelöscht zu werden.
 export async function deleteKautionsbuchungen(ids: string[]) {
-  await requireEditor();
+  const user = await requireEditor();
   if (ids.length === 0) return;
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     for (const id of ids) {
-      await storniereBuchung(tx, id);
+      await storniereBuchung(tx, id, erstelltVon);
     }
   });
   revalidatePath("/kautionen");
@@ -66,12 +67,13 @@ const KATEGORIE_ZU_CODE: Record<KautionBuchungKategorie, string> = {
 // Gegeneintrag), weil die neue Zeile weiterhin dieselbe reale Buchung repräsentiert und z.B. in
 // der Vollständigkeitsprüfung ihres ursprünglichen Import-Batches mitzählen soll.
 export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie: KautionBuchungKategorie) {
-  await requireEditor();
+  const user = await requireEditor();
   if (!KATEGORIE_WERTE.includes(kategorie)) return;
   const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: KATEGORIE_ZU_CODE[kategorie] } });
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     const original = await tx.buchung.findUniqueOrThrow({ where: { id } });
-    await storniereBuchung(tx, id);
+    await storniereBuchung(tx, id, erstelltVon);
     await tx.buchung.create({
       data: {
         mietvertragId: original.mietvertragId,
@@ -84,6 +86,7 @@ export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie
         rohdaten: original.rohdaten ?? undefined,
         importBatchId: original.importBatchId,
         aufteilungGruppeId: original.aufteilungGruppeId,
+        erstelltVon,
       },
     });
   });
@@ -103,7 +106,7 @@ const kautionAufteilungSchema = z.object({
  * damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
  */
 export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbuchungAuf(id: string, _prev: string | null, formData: FormData): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
   const parsed = kautionAufteilungSchema.safeParse({
     kautionBetrag: String(formData.get("kautionBetrag") ?? "").replace(",", "."),
     nkJahr: formData.get("nkJahr"),
@@ -140,10 +143,11 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
     importBatchId: original.importBatchId,
     aufteilungGruppeId: original.aufteilungGruppeId ?? original.id,
   };
+  const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
-    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: original.buchungsartId, betrag: kautionBetrag } });
-    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: nkArt.id, betrag: nkBetrag, jahr: nkJahr } });
-    await storniereBuchung(tx, id);
+    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: original.buchungsartId, betrag: kautionBetrag, erstelltVon } });
+    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: nkArt.id, betrag: nkBetrag, jahr: nkJahr, erstelltVon } });
+    await storniereBuchung(tx, id, erstelltVon);
   });
 
   revalidiereKautionAufteilung(original.mietvertragId);
@@ -167,7 +171,7 @@ function revalidiereKautionAufteilung(mietvertragId: string | null) {
  * (Betrag = Summe, Bankvorzeichen) zusammengeführt.
  */
 export async function hebeKautionAufteilungAuf(id: string) {
-  await requireEditor();
+  const user = await requireEditor();
   const teil = await prisma.buchung.findFirst({ where: { id, ...AKTIVE_BUCHUNG_FILTER } });
   if (!teil?.aufteilungGruppeId) throw new AktionsFehler("Diese Buchung ist nicht Teil einer Aufteilung.");
 
@@ -183,6 +187,7 @@ export async function hebeKautionAufteilungAuf(id: string) {
 
   const vorlage = kautionsTeile[0];
   const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
+  const erstelltVon = benutzerLabel(user);
 
   await prisma.$transaction(async (tx) => {
     await tx.buchung.create({
@@ -196,9 +201,10 @@ export async function hebeKautionAufteilungAuf(id: string) {
         bemerkung: vorlage.bemerkung,
         rohdaten: vorlage.rohdaten ?? undefined,
         importBatchId: vorlage.importBatchId,
+        erstelltVon,
       },
     });
-    for (const b of gruppe) await storniereBuchung(tx, b.id);
+    for (const b of gruppe) await storniereBuchung(tx, b.id, erstelltVon);
   });
 
   revalidiereKautionAufteilung(vorlage.mietvertragId);
@@ -226,7 +232,7 @@ const kautionsbuchungSchema = z.object({
 // auf der Kautionen-Seite trotzdem korrekt berechnen, siehe kautionsbuchungen-table.tsx
 // ("manuell" statt Rohdaten-Anzeige).
 export const erstelleKautionsbuchung = mitMeldung(async function erstelleKautionsbuchung(_prev: string | null, formData: FormData): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const parsed = kautionsbuchungSchema.safeParse({
     mietvertragId: formData.get("mietvertragId"),
@@ -241,10 +247,11 @@ export const erstelleKautionsbuchung = mitMeldung(async function erstelleKaution
   }
   const { mietvertragId, datum, betrag, kategorie, verwendungszweck, verknuepfteKostenpositionId } = parsed.data;
   const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: KATEGORIE_ZU_CODE[kategorie] } });
+  const erstelltVon = benutzerLabel(user);
 
   await prisma.$transaction(async (tx) => {
     const buchung = await tx.buchung.create({
-      data: { mietvertragId, buchungsartId: buchungsart.id, datum, betrag, verwendungszweck },
+      data: { mietvertragId, buchungsartId: buchungsart.id, datum, betrag, verwendungszweck, erstelltVon },
     });
     if (verknuepfteKostenpositionId) {
       const kosten = await tx.buchung.findUniqueOrThrow({ where: { id: verknuepfteKostenpositionId } });
@@ -277,6 +284,7 @@ export const erstelleKautionsbuchung = mitMeldung(async function erstelleKaution
             verwendungszweck: `Verrechnet mit Kaution: ${kosten.verwendungszweck ?? ""}`.trim(),
             bezugTyp: "Buchung",
             bezugId: buchung.id,
+            erstelltVon,
           },
         });
       }
@@ -339,6 +347,7 @@ async function synchronisiereKautionEinbehaltBuchung(
     bezugId: string | null;
     datum: Date | null;
   },
+  erstelltVon: string | null,
 ): Promise<void> {
   const soll = sollBuchungExistieren(einbehalt.status);
   if (soll && !einbehalt.buchungId) {
@@ -361,11 +370,12 @@ async function synchronisiereKautionEinbehaltBuchung(
         // zählt (siehe sonderforderungen.ts); bezugId verweist wie immer auf den Einbehalt.
         bezugTyp: einbehalt.bezugTyp === MIETERKONTO_BEZUG ? MIETERKONTO_VERRECHNUNG_BEZUG : KAUTION_EINBEHALT_BEZUG,
         bezugId: einbehalt.id,
+        erstelltVon,
       },
     });
     await tx.kautionEinbehalt.update({ where: { id: einbehalt.id }, data: { buchungId: buchung.id } });
   } else if (!soll && einbehalt.buchungId) {
-    await storniereBuchung(tx, einbehalt.buchungId);
+    await storniereBuchung(tx, einbehalt.buchungId, erstelltVon);
     await tx.kautionEinbehalt.update({ where: { id: einbehalt.id }, data: { buchungId: null } });
   }
 }
@@ -374,7 +384,7 @@ async function synchronisiereKautionEinbehaltBuchung(
 // Schema. Setzt zwingend einen Kaution-Stammdatensatz voraus (kautionId), im Unterschied zu einer
 // normalen Kautionsbuchung, die auch ohne einen solchen erfasst werden kann.
 export const erfasseKautionEinbehalt = mitMeldung(async function erfasseKautionEinbehalt(_prev: string | null, formData: FormData): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
 
   const parsed = einbehaltSchema.safeParse({
     mietvertragId: formData.get("mietvertragId"),
@@ -417,7 +427,7 @@ export const erfasseKautionEinbehalt = mitMeldung(async function erfasseKautionE
         pauschal,
       },
     });
-    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
+    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt, benutzerLabel(user));
   });
 
   revalidatePath("/kautionen");
@@ -433,7 +443,7 @@ export const erfasseKautionEinbehalt = mitMeldung(async function erfasseKautionE
 // dass ausschließlich UNSTRITTIG/STRITTIG_BESTAETIGT in die "Einbehalten, bestätigt"-Summe einfließen,
 // und sorgt dafür, dass genau für diese beiden Status eine echte Buchung im Journal existiert.
 export async function aendereKautionEinbehaltStatus(id: string, status: KautionEinbehaltStatus) {
-  await requireEditor();
+  const user = await requireEditor();
   if (!EINBEHALT_STATUS_WERTE.includes(status)) return;
   await prisma.$transaction(async (tx) => {
     const einbehalt = await tx.kautionEinbehalt.update({
@@ -441,7 +451,7 @@ export async function aendereKautionEinbehaltStatus(id: string, status: KautionE
       // Pauschal gilt nur für unstrittige Einbehalte — wird der Streit neu aufgerollt, ist er es nicht mehr.
       data: { status, statusGeaendertAm: new Date(), ...(status !== "UNSTRITTIG" ? { pauschal: false } : {}) },
     });
-    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
+    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt, benutzerLabel(user));
   });
   revalidatePath("/kautionen");
   revalidatePath("/jahresuebersicht");
@@ -451,7 +461,7 @@ export async function aendereKautionEinbehaltStatus(id: string, status: KautionE
 // endgültig gutgeschriebenem Einbehalt. Pauschal heißt immer unstrittig — ein bisher strittiger
 // Einbehalt wird dabei also gebucht.
 export async function setzeKautionEinbehaltPauschal(id: string, pauschal: boolean) {
-  await requireEditor();
+  const user = await requireEditor();
   await prisma.$transaction(async (tx) => {
     const bisher = await tx.kautionEinbehalt.findUniqueOrThrow({ where: { id } });
     const einbehalt = await tx.kautionEinbehalt.update({
@@ -461,18 +471,18 @@ export async function setzeKautionEinbehaltPauschal(id: string, pauschal: boolea
         ...(pauschal && bisher.status !== "UNSTRITTIG" ? { status: "UNSTRITTIG" as const, statusGeaendertAm: new Date() } : {}),
       },
     });
-    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt);
+    await synchronisiereKautionEinbehaltBuchung(tx, einbehalt, benutzerLabel(user));
   });
   revalidatePath("/kautionen");
   revalidatePath("/jahresuebersicht");
 }
 
 export async function loescheKautionEinbehalt(id: string) {
-  await requireEditor();
+  const user = await requireEditor();
   await prisma.$transaction(async (tx) => {
     const einbehalt = await tx.kautionEinbehalt.findUniqueOrThrow({ where: { id } });
     if (einbehalt.buchungId) {
-      await storniereBuchung(tx, einbehalt.buchungId);
+      await storniereBuchung(tx, einbehalt.buchungId, benutzerLabel(user));
     }
     await tx.kautionEinbehalt.delete({ where: { id } });
   });

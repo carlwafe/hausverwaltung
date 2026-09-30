@@ -27,7 +27,11 @@ export async function istGemischteAufteilung(aufteilungGruppeId: string): Promis
  *
  * Gibt die betroffenen Mietvertrag-IDs zurück (für revalidatePath).
  */
-export async function hebeZahlungAufteilungAuf(aufteilungGruppeId: string, vorlageId: string) {
+export async function hebeZahlungAufteilungAuf(
+  aufteilungGruppeId: string,
+  vorlageId: string,
+  erstelltVon: string | null,
+) {
   const gruppe = await prisma.buchung.findMany({
     where: { aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
     include: { buchungsart: { select: { code: true } } },
@@ -70,13 +74,14 @@ export async function hebeZahlungAufteilungAuf(aufteilungGruppeId: string, vorla
         verwendungszweck: vorlage.verwendungszweck?.replace(/^Storno: /, "") ?? null,
         rohdaten: vorlage.rohdaten ?? undefined,
         importBatchId: vorlage.importBatchId,
+        erstelltVon,
       },
     });
     for (const teil of gruppe) {
-      await storniereBuchung(tx, teil.id);
+      await storniereBuchung(tx, teil.id, erstelltVon);
     }
     for (const forderung of forderungen) {
-      await storniereBuchung(tx, forderung.id);
+      await storniereBuchung(tx, forderung.id, erstelltVon);
     }
   });
 
