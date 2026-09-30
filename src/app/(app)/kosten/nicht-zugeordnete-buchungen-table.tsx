@@ -10,6 +10,7 @@ import {
   type GebaeudeMitGruppen,
 } from "@/lib/gebaeude-gruppen";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
+import { ermittleKostenjahrVorschlag } from "@/lib/import/kostenjahr";
 import { ordneNichtZugeordneteBuchungZu, loescheNichtZugeordneteBuchung } from "./actions";
 
 function formatEuro(value: number) {
@@ -105,7 +106,11 @@ function Zeile({
             <input
               type="number"
               name="jahr"
-              defaultValue={new Date(buchung.datum).getFullYear()}
+              defaultValue={
+                ermittleKostenjahrVorschlag(buchung.verwendungszweck, buchung.datum) ??
+                new Date(buchung.datum).getFullYear()
+              }
+              title="Kostenjahr (nur Nebenkostenabrechnung)"
               className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
             />
             <button

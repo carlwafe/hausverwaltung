@@ -15,6 +15,7 @@ import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { gruppiereGebaeude, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { datumBetragSchluessel } from "@/lib/import/bank-csv";
+import { ermittleKostenjahrVorschlag } from "@/lib/import/kostenjahr";
 import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
 
 function formatEuro(value: number) {
@@ -215,7 +216,10 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
     periodeJahr: jahr,
     kostenartId: r.vorgeschlageneKostenartId ?? "",
     gebaeudeAuswahl: r.vorgeschlageneGebaeudeAuswahl ?? "",
-    jahrEingabe: gruppe === "NEBENKOSTENAUSGLEICH" ? ermittleJahrVorschlag(r.verwendungszweck, r.datum) : String(jahr),
+    jahrEingabe:
+      gruppe === "NEBENKOSTENAUSGLEICH"
+        ? ermittleJahrVorschlag(r.verwendungszweck, r.datum)
+        : String(ermittleKostenjahrVorschlag(r.verwendungszweck, r.datum) ?? jahr),
     ausgewaehlt: false,
   };
   row.ausgewaehlt =
@@ -639,7 +643,16 @@ export function BuchungenTabelle({
                             value={r.jahrEingabe}
                             onChange={(e) => updateRow(r.rowNumber, { jahrEingabe: e.target.value })}
                             placeholder="Jahr"
-                            className="w-20 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                            title={
+                              r.datum && r.jahrEingabe !== r.datum.slice(0, 4)
+                                ? "Kostenjahr weicht vom Abbuchungsjahr ab (Vorjahres-Abrechnung erkannt) — zählt nur für die Nebenkostenabrechnung"
+                                : "Kostenjahr (nur Nebenkostenabrechnung)"
+                            }
+                            className={`w-20 rounded-md border bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 ${
+                              r.datum && r.jahrEingabe !== r.datum.slice(0, 4)
+                                ? "border-amber-500 text-amber-300"
+                                : "border-neutral-700"
+                            }`}
                           />
                         </div>
                       )}
