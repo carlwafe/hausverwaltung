@@ -48,6 +48,10 @@ export default async function NebenkostenausgleichPage() {
             Abrechnungsjahr wird eine Zahlung automatisch mit der passenden Position verknüpft,
             sobald eine Abrechnung für dieses Jahr erstellt oder neu berechnet wird; ohne Jahr
             bleibt sie rein archivarisch.
+            Der Ausgleich ist immer der Bankbetrag; weicht er von der Abrechnung ab, weil ein
+            Mietkonto-Guthaben oder ein Rückstand mit verrechnet wurde, wird die Differenz als
+            &quot;Verrechnung Nebenkostenabrechnung&quot; unter Zahlungen → Neu erfasst (nicht durch
+            Aufteilen der Buchung).
           </p>
         </div>
         <Link

@@ -94,6 +94,14 @@ export function ZahlungForm({
               Gutschrift. Ohne Geldfluss, zählt nicht zu den Mieteinnahmen — die passende
               Abrechnung gilt danach automatisch als erledigt.
             </p>
+            <p className="mt-1 text-xs text-neutral-500">
+              <span className="text-neutral-300">Bevorzugte Form bei Abweichung zwischen Überweisung und Abrechnung:</span>{" "}
+              Der Nebenkostenausgleich bleibt immer der Bankbetrag (nicht aufteilen). Die Differenz zur Abrechnung, die
+              über das Mietkonto lief, wird hier als Verrechnung erfasst, mit dem Vorzeichen als Wirkung aufs Mietkonto:{" "}
+              <span className="text-neutral-300">Minus</span> = BK-Guthaben deckt einen Rückstand (z.B. −6 €),{" "}
+              <span className="text-neutral-300">Plus</span> = Mietkonto-Guthaben wurde mit der BK ausgezahlt oder mit einer
+              Nachzahlung verrechnet (z.B. +3 €). Datum = Datum der Überweisung.
+            </p>
           )}
         </div>
       )}
