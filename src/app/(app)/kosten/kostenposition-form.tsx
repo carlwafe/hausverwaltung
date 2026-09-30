@@ -115,7 +115,7 @@ export function KostenpositionForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="jahr">
-            Jahr
+            Kostenjahr
           </label>
           <input
             id="jahr"
@@ -125,6 +125,9 @@ export function KostenpositionForm({
             defaultValue={initial?.jahr ?? new Date().getFullYear()}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
+          <p className="mt-1 text-xs text-neutral-500">
+            Nur für die Nebenkostenabrechnung. Die Jahresübersicht zählt nach Datum (Abbuchung).
+          </p>
         </div>
         <div>
           <DateInput

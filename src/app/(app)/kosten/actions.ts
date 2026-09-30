@@ -173,8 +173,12 @@ export async function deleteKostenpositionen(ids: string[]) {
 
 const aufteilungTeilSchema = z.object({
   kostenartId: z.string().min(1, "Kostenart ist erforderlich"),
-  betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
+  // Gemischte Vorzeichen erlaubt, z.B. Stadtwerke-Saldo = Schlussrechnung-Guthaben (negativ) +
+  // neue Abschläge (positiv); nur die Summe muss dem Gesamtbetrag entsprechen.
+  betrag: z.coerce.number().refine((b) => b !== 0, "Betrag darf nicht 0 sein"),
   beschreibung: z.string().optional(),
+  // Kostenjahr je Teil (nur Nebenkostenabrechnung), z.B. Schlussrechnung fürs Vorjahr.
+  jahr: z.coerce.number().int().min(2000, "Kostenjahr ungültig").max(2100, "Kostenjahr ungültig").optional(),
 });
 
 /**
@@ -233,7 +237,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
           hausId: original.hausId,
           kostengruppeId: original.kostengruppeId,
           einheitId: original.einheitId,
-          jahr: original.jahr,
+          jahr: teil.jahr ?? original.jahr,
           datum: original.datum,
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,

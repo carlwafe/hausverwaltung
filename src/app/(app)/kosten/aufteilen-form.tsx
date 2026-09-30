@@ -3,14 +3,14 @@
 import { useActionState, useState } from "react";
 import { teileKostenpositionAuf } from "./actions";
 
-type Zeile = { kostenartId: string; betrag: string; beschreibung: string };
+type Zeile = { kostenartId: string; betrag: string; jahr: string; beschreibung: string };
 
-function neueZeile(): Zeile {
-  return { kostenartId: "", betrag: "", beschreibung: "" };
+function neueZeile(jahr: number): Zeile {
+  return { kostenartId: "", betrag: "", jahr: String(jahr), beschreibung: "" };
 }
 
 function parseKommaBetrag(text: string): number {
-  const bereinigt = text.trim().replace(",", ".");
+  const bereinigt = text.trim().replace("−", "-").replace(",", ".");
   const wert = Number(bereinigt);
   return Number.isFinite(wert) ? wert : 0;
 }
@@ -26,16 +26,23 @@ export function AufteilenForm({
   betragGesamt,
   kostenarten,
   aktuelleKostenartId,
+  kostenjahr,
 }: {
   kostenpositionId: string;
   betragGesamt: number;
   kostenarten: { id: string; name: string }[];
   aktuelleKostenartId: string;
+  kostenjahr: number;
 }) {
   const [offen, setOffen] = useState(false);
   const [zeilen, setZeilen] = useState<Zeile[]>([
-    { kostenartId: aktuelleKostenartId, betrag: betragGesamt.toFixed(2).replace(".", ","), beschreibung: "" },
-    neueZeile(),
+    {
+      kostenartId: aktuelleKostenartId,
+      betrag: betragGesamt.toFixed(2).replace(".", ","),
+      jahr: String(kostenjahr),
+      beschreibung: "",
+    },
+    neueZeile(kostenjahr),
   ]);
 
   const action = teileKostenpositionAuf.bind(null, kostenpositionId);
@@ -59,6 +66,7 @@ export function AufteilenForm({
         zeilen.map((z) => ({
           kostenartId: z.kostenartId,
           betrag: parseKommaBetrag(z.betrag),
+          jahr: Number(z.jahr),
           beschreibung: z.beschreibung || undefined,
         })),
       ),
@@ -91,7 +99,12 @@ export function AufteilenForm({
         Stadtwerke Wasser/Abwasser: Der Kontoauszug zeigt pro Haus nur den Saldo aus Schlussrechnung
         und neuen Abschlägen — wie im Verwalter-Journal in Wasser SR, Abwasser SR, Abschlag Wasser und
         Abschlag Abwasser aufteilen. Vorzeichen umgekehrt zum Kontoauszug: Guthaben negativ,
-        Abschläge/Nachzahlungen positiv (z.B. −70,62 − 143,50 + 111,00 + 60,00 = −43,12 €).
+        Abschläge/Nachzahlungen positiv (z.B. −70,62 − 143,50 + 111,00 + 60,00 = −43,12 €). Die
+        Schlussrechnungs-Teile bekommen das Vorjahr als Kostenjahr.
+      </p>
+      <p className="mb-3 text-xs text-neutral-500">
+        Kostenjahr gilt nur für die Nebenkostenabrechnung; die Jahresübersicht zählt alle Teile im
+        Jahr der Abbuchung.
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
@@ -124,6 +137,16 @@ export function AufteilenForm({
                 className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
               />
             </div>
+            <div className="w-24">
+              {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Kostenjahr</label>}
+              <input
+                type="number"
+                value={zeile.jahr}
+                onChange={(e) => aktualisiereZeile(i, { jahr: e.target.value })}
+                required
+                className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+              />
+            </div>
             <div className="flex-1">
               {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Beschreibung</label>}
               <input
@@ -148,7 +171,7 @@ export function AufteilenForm({
         <div className="flex items-center justify-between pt-1">
           <button
             type="button"
-            onClick={() => setZeilen((z) => [...z, neueZeile()])}
+            onClick={() => setZeilen((z) => [...z, neueZeile(kostenjahr)])}
             className="text-sm text-neutral-400 hover:text-white hover:underline"
           >
             + weitere Zeile

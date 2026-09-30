@@ -59,7 +59,7 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
 
   const [datumsBasiert, kostenpositionen] = await Promise.all([
     // Alle eur-relevanten Buchungen mit echtem Buchungsdatum im Jahr — außer Kostenpositionen,
-    // die stattdessen nach Abrechnungsjahr zählen, nicht nach Buchungsdatum (siehe unten). Die
+    // die wegen des Fallbacks ohne Datum eine eigene Abfrage haben (siehe unten). Die
     // Auswahl läuft über das eurRelevant-Flag im Buchungsart-Katalog statt einer von Hand
     // gepflegten Code-Liste — eine künftige eur-relevante, datumsbasierte Buchungsart landet damit
     // automatisch hier, ohne dass diese Datei angefasst werden muss.
@@ -74,10 +74,14 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     prisma.buchung.findMany({
       where: {
         buchungsart: { eurRelevant: true, code: "KOSTENPOSITION" },
-        jahr,
-        // Im Quartal zählt zusätzlich das Buchungsdatum; Positionen ohne Datum sind keinem Quartal
-        // zuordenbar (siehe Hinweis unter der Kostentabelle).
-        ...(quartal === 0 ? {} : { datum: { gte: jahresanfang, lt: jahresende } }),
+        // Abflussprinzip: es zählt das Abbuchungsdatum, nicht das Kostenjahr (`jahr` gilt nur für
+        // die Nebenkostenabrechnung) — z.B. ein Abfallbescheid 2024, abgebucht am 2.1.2025, zählt
+        // für 2025. Die 10-Tage-Regel (§ 11 Abs. 2 Satz 2 EStG) ist bewusst nicht umgesetzt.
+        // Positionen ohne Datum fallen aufs Kostenjahr zurück und sind keinem Quartal zuordenbar.
+        OR: [
+          { datum: { gte: jahresanfang, lt: jahresende } },
+          ...(quartal === 0 ? [{ datum: null, jahr }] : []),
+        ],
         ...AKTIVE_BUCHUNG_FILTER,
       },
       include: { kostenart: true },
@@ -347,9 +351,11 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
         <p className="text-sm text-neutral-400">
           Mieteinnahmen ./. Ausgaben nach dem Zuflussprinzip (Anlage V) — Einnahmen nach
           tatsächlichem Zahlungseingang,{" "}
+          Kosten nach Abbuchungsdatum (Abflussprinzip, auch wenn sie ein anderes Kostenjahr betreffen —
+          z.B. Abfallbescheid des Vorjahres im Januar; die 10-Tage-Regel ist nicht berücksichtigt).
           {istQuartal
-            ? "Kosten nach Buchungsdatum innerhalb des erfassten Abrechnungsjahrs. Zum Abgleich mit den Quartalsberichten des früheren Verwalters."
-            : "Kosten nach dem erfassten Abrechnungsjahr."}
+            ? " Zum Abgleich mit den Quartalsberichten des früheren Verwalters."
+            : " Kostenpositionen ohne Datum zählen im Kostenjahr."}
         </p>
       </div>
 

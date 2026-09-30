@@ -166,6 +166,7 @@ export default async function KostenpositionDetailPage({
           betragGesamt={Number(kostenposition.betrag)}
           kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
           aktuelleKostenartId={kostenposition.kostenartId!}
+          kostenjahr={kostenposition.jahr!}
         />
       )}
 
