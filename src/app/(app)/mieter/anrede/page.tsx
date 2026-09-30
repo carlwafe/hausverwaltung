@@ -36,7 +36,8 @@ export default async function MieterAnredePage() {
         <h1 className="text-2xl font-semibold">Anrede erfassen</h1>
         <p className="text-sm text-neutral-400">
           {zeilen.filter((z) => z.anrede === null).length} von {zeilen.length} Mietern ohne Anrede. Ohne Anrede beginnen
-          Schreiben neutral mit „Guten Tag Vorname Nachname“.
+          Schreiben neutral mit „Guten Tag Vorname Nachname“ (bei mehreren Mietern für alle, sobald einem die Anrede
+          fehlt). Nicht nach dem Vornamen raten — im Zweifel „keine“; Firmen bekommen keine Anrede.
         </p>
       </div>
       <AnredeListe zeilen={zeilen} />

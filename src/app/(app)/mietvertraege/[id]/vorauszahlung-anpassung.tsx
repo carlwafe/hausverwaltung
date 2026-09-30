@@ -269,6 +269,12 @@ export function VorauszahlungAnpassung({
               <option value="LASTSCHRIFT">SEPA-Lastschrift</option>
               <option value="UEBERWEISUNG">Überweisung / Dauerauftrag</option>
             </select>
+            {zahlungsweg === "LASTSCHRIFT" && (
+              <p className="mt-1 text-xs text-neutral-500">
+                Das Schreiben gilt als Vorabankündigung. Nach der Übernahme den neuen Betrag ab „Gültig ab“ auch im
+                Lastschrifteinzug bei der Bank eintragen.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
