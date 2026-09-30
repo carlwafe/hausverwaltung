@@ -45,3 +45,6 @@ next-env.d.ts
 
 # lokaler Datei-Storage (hochgeladene Import-/Belegdateien)
 /var/storage
+
+# Einmal-Skripte gegen die DB
+/scripts-tmp
