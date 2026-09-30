@@ -18,29 +18,20 @@ export async function deleteNebenkostenausgleichZahlungen(ids: string[]) {
   revalidatePath("/nebenkostenausgleich");
 }
 
-const aufteilungTeilSchema = z.discriminatedUnion("typ", [
-  z.object({
-    typ: z.literal("nebenkostenausgleich"),
-    mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
-    // Bankvorzeichen wie die ursprüngliche Buchung (Auszahlung an den Mieter negativ).
-    betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
-    jahr: z.coerce.number().int().min(2000).max(2100).nullable().optional(),
-    beschreibung: z.string().optional(),
-  }),
-  // Z.B. das Mietkonto-Guthaben (Saldovortrag), das in derselben Überweisung mit ausgezahlt wurde:
-  // wirkt als Zahlung auf den Mietsaldo (siehe sonderforderungen.ts), nicht auf die Abrechnung.
-  z.object({
-    typ: z.literal("sonderzahlung"),
-    mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
-    betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
-    beschreibung: z.string().optional(),
-  }),
-]);
+const aufteilungTeilSchema = z.object({
+  typ: z.literal("nebenkostenausgleich"),
+  mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
+  // Bankvorzeichen wie die ursprüngliche Buchung (Auszahlung an den Mieter negativ).
+  betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
+  jahr: z.coerce.number().int().min(2000).max(2100).nullable().optional(),
+  beschreibung: z.string().optional(),
+});
 
 /**
- * Teilt eine Nebenkostenausgleich-Buchung (eine Überweisung) in mehrere Teile auf — z.B. die
- * BK-Rückzahlung und ein zugleich mit ausgezahltes Mietkonto-Guthaben, oder eine Überweisung, die
- * zwei Abrechnungsjahre/Mietverträge auf einmal begleicht. Alle Teile tragen das Bankvorzeichen und
+ * Teilt eine Nebenkostenausgleich-Buchung (eine Überweisung) in mehrere Teile auf — z.B. eine Überweisung,
+ * die zwei Abrechnungsjahre/Mietverträge auf einmal begleicht. Ein mit ausgezahltes Mietkonto-Guthaben
+ * bzw. ein damit verrechneter Rückstand wird dagegen als NK-Verrechnung (MAHNGEBUEHR, siehe
+ * nk-verrechnung.ts) gebucht, nicht durch Aufteilen. Alle Teile tragen das Bankvorzeichen und
  * summieren sich zum Originalbetrag. Das Original wird storniert; die gemeinsame
  * aufteilungGruppeId (= Id des Originals) hält die Teile zusammen und lässt die Zeile beim
  * Kontoauszug-Import weiter als "bereits importiert" erkennen. Analog zu teileZahlungAuf.
@@ -79,10 +70,7 @@ export async function teileNebenkostenausgleichAuf(
   // Gruppe, deren Summe (= Bankbetrag) sich nicht ändert.
   const gruppeId = original.aufteilungGruppeId ?? original.id;
 
-  const [ausgleichArt, sonderzahlungArt] = await Promise.all([
-    prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } }),
-    prisma.buchungsart.findUniqueOrThrow({ where: { code: "SONDERZAHLUNG" } }),
-  ]);
+  const ausgleichArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
 
   await prisma.$transaction(async (tx) => {
     for (const teil of teile) {
@@ -96,13 +84,9 @@ export async function teileNebenkostenausgleichAuf(
         importBatchId: original.importBatchId,
         aufteilungGruppeId: gruppeId,
       };
-      if (teil.typ === "nebenkostenausgleich") {
-        await tx.buchung.create({
-          data: { ...gemeinsam, buchungsartId: ausgleichArt.id, jahr: teil.jahr ?? null, bemerkung: original.bemerkung },
-        });
-      } else {
-        await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: sonderzahlungArt.id } });
-      }
+      await tx.buchung.create({
+        data: { ...gemeinsam, buchungsartId: ausgleichArt.id, jahr: teil.jahr ?? null, bemerkung: original.bemerkung },
+      });
     }
     await storniereBuchung(tx, id);
   });

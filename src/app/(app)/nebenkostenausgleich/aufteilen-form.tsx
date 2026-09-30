@@ -5,7 +5,6 @@ import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { teileNebenkostenausgleichAuf } from "./actions";
 
 type Zeile = {
-  typ: "nebenkostenausgleich" | "sonderzahlung";
   mietvertragId: string;
   betrag: string;
   jahr: string;
@@ -23,7 +22,8 @@ const eingabe =
 /**
  * Eingeklappt hinter "Aufteilen…", da selten nötig — z.B. wenn eine Auszahlung neben der
  * BK-Rückzahlung ein Mietkonto-Guthaben enthält oder zwei Abrechnungsjahre/Mietverträge auf einmal
- * begleicht. Gegenstück zu zahlungen/aufteilen-form.tsx.
+ * begleicht. Gegenstück zu zahlungen/aufteilen-form.tsx. Verrechnungen mit dem Mietkonto laufen bewusst nicht hierüber,
+ * sondern über die NK-Verrechnung (siehe nk-verrechnung.ts).
  */
 export function NebenkostenausgleichAufteilenForm({
   id,
@@ -41,13 +41,12 @@ export function NebenkostenausgleichAufteilenForm({
   const [offen, setOffen] = useState(false);
   const [zeilen, setZeilen] = useState<Zeile[]>([
     {
-      typ: "nebenkostenausgleich",
       mietvertragId: aktuelleMietvertragId,
       betrag: betragGesamt.toFixed(2).replace(".", ","),
       jahr: jahr ? String(jahr) : "",
       beschreibung: "",
     },
-    { typ: "sonderzahlung", mietvertragId: aktuelleMietvertragId, betrag: "", jahr: "", beschreibung: "" },
+    { mietvertragId: aktuelleMietvertragId, betrag: "", jahr: jahr ? String(jahr) : "", beschreibung: "" },
   ]);
   const [fehler, formAction, pending] = useActionState(teileNebenkostenausgleichAuf.bind(null, id), null);
 
@@ -63,10 +62,10 @@ export function NebenkostenausgleichAufteilenForm({
       "teile",
       JSON.stringify(
         zeilen.map((z) => ({
-          typ: z.typ,
+          typ: "nebenkostenausgleich",
           mietvertragId: z.mietvertragId,
           betrag: parseKommaBetrag(z.betrag),
-          jahr: z.typ === "nebenkostenausgleich" && z.jahr ? Number(z.jahr) : null,
+          jahr: z.jahr ? Number(z.jahr) : null,
           beschreibung: z.beschreibung || undefined,
         })),
       ),
@@ -92,28 +91,13 @@ export function NebenkostenausgleichAufteilenForm({
         Nebenkostenausgleich ({betragGesamt.toFixed(2).replace(".", ",")} €) aufteilen
       </p>
       <p className="mb-3 text-xs text-neutral-500">
-        Ersetzt diese Buchung durch die unten angegebenen Teile (Bankvorzeichen, Summe = Gesamtbetrag). &quot;Gebühren-Zahlung&quot; bucht
-        einen Teil als Zahlung auf dem Mietkonto — z.B. ein zusammen mit der BK-Rückzahlung überwiesenes
-        Mietkonto-Guthaben (Auszahlung negativ).
+        Ersetzt diese Buchung durch die unten angegebenen Teile (Bankvorzeichen, Summe = Gesamtbetrag) — für eine Überweisung, die
+        mehrere Mietverträge oder Abrechnungsjahre auf einmal betrifft. Ein mit ausgezahltes/abgezogenes Mietkonto-Guthaben oder
+        ein Rückstand gehört nicht hierher, sondern als &quot;Verrechnung Nebenkostenabrechnung&quot; unter Zahlungen → Neu.
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
           <div key={i} className="flex items-end gap-2">
-            <div className="w-36">
-              {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Typ</label>}
-              <select
-                value={zeile.typ}
-                onChange={(e) => aktualisiere(i, { typ: e.target.value as Zeile["typ"] })}
-                className={eingabe}
-              >
-                <option value="nebenkostenausgleich" className="bg-neutral-900">
-                  BK-Ausgleich
-                </option>
-                <option value="sonderzahlung" className="bg-neutral-900">
-                  Gebühren-Zahlung
-                </option>
-              </select>
-            </div>
             <div className="min-w-0 flex-1">
               {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Mietvertrag</label>}
               <MietvertragAuswahl
@@ -139,10 +123,9 @@ export function NebenkostenausgleichAufteilenForm({
               {i === 0 && <label className="mb-1 block text-xs text-neutral-400">Jahr</label>}
               <input
                 type="number"
-                value={zeile.typ === "nebenkostenausgleich" ? zeile.jahr : ""}
-                disabled={zeile.typ !== "nebenkostenausgleich"}
+                value={zeile.jahr}
                 onChange={(e) => aktualisiere(i, { jahr: e.target.value })}
-                className={`${eingabe} disabled:opacity-30`}
+                className={eingabe}
               />
             </div>
             <div className="flex-1">
@@ -172,7 +155,7 @@ export function NebenkostenausgleichAufteilenForm({
             onClick={() =>
               setZeilen((z) => [
                 ...z,
-                { typ: "nebenkostenausgleich", mietvertragId: aktuelleMietvertragId, betrag: "", jahr: "", beschreibung: "" },
+                { mietvertragId: aktuelleMietvertragId, betrag: "", jahr: jahr ? String(jahr) : "", beschreibung: "" },
               ])
             }
             className="text-sm text-neutral-400 hover:text-white hover:underline"
