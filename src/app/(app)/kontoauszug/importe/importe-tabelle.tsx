@@ -112,6 +112,17 @@ function jahrAusDateiname(name: string): string {
   return name.match(/(?:19|20)\d{2}/)?.[0] ?? "";
 }
 
+function zuordnungsTeile(r: GruppierterImportRow): { label: string; anzahl: number }[] {
+  return [
+    { label: "Zahlungen", anzahl: r.anzahlZahlungen },
+    { label: "Kosten", anzahl: r.anzahlKosten },
+    { label: "Mietweiterleitungen", anzahl: r.anzahlMietweiterleitungen },
+    { label: "Kaution", anzahl: r.anzahlKautionsbuchungen },
+    { label: "Sonstige", anzahl: r.anzahlSonstige },
+    { label: "Geparkt", anzahl: r.anzahlNichtZugeordnet },
+  ].filter((t) => t.anzahl > 0);
+}
+
 export function ImporteTabelle({
   rows,
   verwaisteAnzahl,
@@ -171,12 +182,6 @@ export function ImporteTabelle({
       ),
     },
     {
-      key: "jahr",
-      label: "Jahr",
-      sortValue: (r) => jahrAusDateiname(r.dateiname),
-      render: (r) => <span className="text-neutral-300">{jahrAusDateiname(r.dateiname) || "–"}</span>,
-    },
-    {
       key: "erstelltAm",
       label: "Importiert am",
       sortValue: (r) => r.erstelltAm,
@@ -189,40 +194,18 @@ export function ImporteTabelle({
       render: (r) => <span className="text-neutral-300">{r.anzahlZeilen ?? "–"}</span>,
     },
     {
-      key: "zahlungen",
-      label: "Zahlungen",
-      sortValue: (r) => r.anzahlZahlungen,
-      render: (r) => <span className="text-neutral-300">{r.anzahlZahlungen}</span>,
-    },
-    {
-      key: "kosten",
-      label: "Kosten",
-      sortValue: (r) => r.anzahlKosten,
-      render: (r) => <span className="text-neutral-300">{r.anzahlKosten}</span>,
-    },
-    {
-      key: "weiterleitungen",
-      label: "Mietweiterleitungen",
-      sortValue: (r) => r.anzahlMietweiterleitungen,
-      render: (r) => <span className="text-neutral-300">{r.anzahlMietweiterleitungen}</span>,
-    },
-    {
-      key: "kaution",
-      label: "Kaution",
-      sortValue: (r) => r.anzahlKautionsbuchungen,
-      render: (r) => <span className="text-neutral-300">{r.anzahlKautionsbuchungen}</span>,
-    },
-    {
-      key: "sonstige",
-      label: "Sonstige",
-      sortValue: (r) => r.anzahlSonstige,
-      render: (r) => <span className="text-neutral-300">{r.anzahlSonstige}</span>,
-    },
-    {
-      key: "geparkt",
-      label: "Geparkt",
-      sortValue: (r) => r.anzahlNichtZugeordnet,
-      render: (r) => <span className="text-neutral-300">{r.anzahlNichtZugeordnet}</span>,
+      key: "zuordnung",
+      label: "Zugeordnet",
+      sortValue: (r) => zuordnungsTeile(r).reduce((summe, t) => summe + t.anzahl, 0),
+      render: (r) => {
+        const teile = zuordnungsTeile(r);
+        if (teile.length === 0) return <span className="text-neutral-500">–</span>;
+        return (
+          <span className="text-xs text-neutral-300">
+            {teile.map((t) => `${t.anzahl} ${t.label}`).join(" · ")}
+          </span>
+        );
+      },
     },
     {
       key: "vollstaendigkeit",
