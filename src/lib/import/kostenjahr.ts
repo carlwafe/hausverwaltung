@@ -1,7 +1,7 @@
 // Vorschlag fürs Kostenjahr (Buchung.jahr, nur für die Nebenkostenabrechnung relevant) einer
 // importierten Kostenposition. Standard ist das Jahr der Abbuchung; nur bei einem klaren Hinweis
-// auf eine Vorjahres-Abrechnung wird das Vorjahr vorgeschlagen, z.B. "NW 2024" (Niederschlagswasser-
-// Bescheid, abgebucht im März 2025), "Wartung Rauchwarnmelder 2022" oder "Hausmeister 12/2025"
+// auf eine Vorjahres-Abrechnung wird das Vorjahr vorgeschlagen, z.B.
+// "Wartung Rauchwarnmelder 2022" oder "Hausmeister 12/2025"
 // (abgebucht im Januar 2026). Bewusst nur das direkte Vorjahr: ältere Jahreszahlen sind meist
 // Bezüge wie "offene Miete aus 2023", keine Leistungszeiträume.
 
@@ -20,6 +20,10 @@ export function ermittleKostenjahrVorschlag(verwendungszweck: string | null, dat
   if (!Number.isFinite(buchungsjahr)) return null;
   const text = verwendungszweck ?? "";
   const vorjahr = buchungsjahr - 1;
+
+  // Entscheidung (01.10.2026): Niederschlagswasser-Bescheide ("NW 2024", abgebucht im März 2025)
+  // bleiben im Abbuchungsjahr — mit dem Vorjahr stimmten die Nebenkostenabrechnungen nicht mehr.
+  if (/\bNW\s+20\d{2}\b|niederschlagswasser/i.test(text)) return buchungsjahr;
 
   for (const treffer of text.matchAll(/(?<!\d)(20\d{2})(?!\d)/g)) {
     if (Number(treffer[1]) !== vorjahr) continue;
