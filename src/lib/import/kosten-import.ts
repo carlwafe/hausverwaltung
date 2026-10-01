@@ -5,6 +5,7 @@ import {
   KAUTION_PATTERN,
   KLEINREPARATUR_PATTERN,
   leseBetrag,
+  MIETMINDERUNG_PATTERN,
   NEBENKOSTENAUSGLEICH_PATTERN,
   normalizeText,
   parseGermanDate,
@@ -81,6 +82,7 @@ export type ParsedKostenRow = {
   // Rückerstattung/Gutschrift, keine Mieteinnahme.
   gutschrift: boolean;
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Kostenposition, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
+  mietminderung: boolean; // ausgehende Erstattung einer Mietminderung – Kostenposition der Kostenart "Mietminderung"
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Kostenposition, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
   // Erstattung einer vom Mieter zu tragenden Kleinreparatur (siehe KLEINREPARATUR_PATTERN) —
   // trotz Mieter-Absender eine Gutschrift auf "Reparaturen", keine Miete.
@@ -537,6 +539,8 @@ export function mapKostenRows(
   // Dienstleister-Stammdaten: ein Treffer legt Kostenart (und ggf. Gebäude) fest und hat Vorrang
   // vor der aus der Historie gelernten Zuordnung.
   dienstleister: DienstleisterKandidat[] = [],
+  // Id der Kostenart "Mietminderung" (siehe MIETMINDERUNG_PATTERN).
+  mietminderungKostenartId: string | null = null,
 ): ParsedKostenRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
     findeKontoauszugSpalten(headers);
@@ -556,6 +560,7 @@ export function mapKostenRows(
 
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const istEingehend = rohBetrag !== null && rohBetrag > 0;
+    const mietminderung = !istEingehend && MIETMINDERUNG_PATTERN.test(verwendungszweck);
     // Ein Kaution-Treffer hat Vorrang vor der Eigentümer-Erkennung: eine Kaution landet oft auf
     // einem Konto, das rechtlich auf die Eigentümerin läuft (Kautionskonto), ist aber weder eine
     // Mietweiterleitung/Einlage an sie persönlich noch eine normale Kosten-Gutschrift. Bewusst
@@ -651,6 +656,9 @@ export function mapKostenRows(
       if (kleinreparatur && !vorgeschlageneKostenartId) {
         vorgeschlageneKostenartId = reparaturenKostenartId;
       }
+      if (mietminderung && mietminderungKostenartId) {
+        vorgeschlageneKostenartId = mietminderungKostenartId;
+      }
       if (dienstleisterTreffer) {
         // Genau eine Kostenart: fest. Mehrere: der Verlaufs-Vorschlag bleibt, ein Vorschlag
         // außerhalb der Kostenarten des Dienstleisters wird verworfen (die Zeile bleibt dann
@@ -679,6 +687,7 @@ export function mapKostenRows(
       kaution,
       nebenkostenausgleich,
       kleinreparatur,
+      mietminderung,
       ignorieren,
       rohdaten: row,
       errors,

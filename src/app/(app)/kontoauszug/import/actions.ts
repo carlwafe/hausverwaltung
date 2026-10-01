@@ -529,6 +529,7 @@ export async function previewImport(
     // die Id der Kostenart "Reparaturen" sowie alle bereits dort erfassten Beträge, auf den Cent
     // gerundet.
     const reparaturenKostenartId = kostenartenRaw.find((k) => k.name === "Reparaturen")?.id ?? null;
+    const mietminderungKostenartId = kostenartenRaw.find((k) => k.name === "Mietminderung")?.id ?? null;
     const bekannteReparaturBetraege = new Set(
       bestehendeKostenpositionen
         .filter((k) => k.kostenartId === reparaturenKostenartId)
@@ -611,6 +612,7 @@ export async function previewImport(
       bekannteWarmmieten,
       einheitKandidaten,
       dienstleisterKandidaten,
+      mietminderungKostenartId,
     );
     const buchungenRohdaten = await prisma.buchung.findMany({ where: dedup, select: { rohdaten: true } });
     const bestehendeSets = berechneBestehendeImportSets({

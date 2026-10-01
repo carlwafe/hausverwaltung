@@ -182,6 +182,13 @@ export const NEBENKOSTENAUSGLEICH_PATTERN =
 // versehentlich hier mitgefangen werden.
 export const KLEINREPARATUR_PATTERN = /kleinreparatur/i;
 
+// Erstattung einer gewährten Mietminderung an den Mieter (ausgehende Überweisung). Entscheidung:
+// zunächst wie beim Vorverwalter als Kostenposition (Kostenart "Mietminderung") erfassen, nicht
+// als negative Mietzahlung — die Minderung selbst steht nie als Gutschrift auf dem Mieterkonto,
+// die Auszahlung muss daher auch keine Forderung dort begleichen. Ohne dieses Muster ordnet der
+// Import die Zeile über den Mieternamen als Zahlung ein.
+export const MIETMINDERUNG_PATTERN = /mietminderung/i;
+
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
 // Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
 // Adresstext (das oft mitgelieferte "Ext.Ref."-Feld ist häufig leer oder nicht brauchbar). Die

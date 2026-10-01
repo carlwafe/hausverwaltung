@@ -55,6 +55,7 @@ export type VereinheitlichteZeile = {
  *    Waschgeld-Ausnahme)
  * 3. Kaution -> passende KAUTION_*-Buchungsart, sicher (Betrag+IBAN-basiert, aus zahlungZeile)
  * 4. Nebenkostenausgleich -> NEBENKOSTENAUSGLEICH, sicher
+ * 4b. Erstattung einer Mietminderung (ausgehend) -> KOSTENPOSITION, sicher (Kostenart "Mietminderung")
  * 5. Kleinreparatur -> KOSTENPOSITION, sicher (Kostenart bereits von mapKostenRows auf
  *    "Reparaturen" vorbelegt)
  * 6. Rücklastschrift -> MIETZAHLUNG, sicher (negative Korrektur — anders als im bisherigen
@@ -86,6 +87,9 @@ export function ermittleBuchungsartKandidaten(
   }
   if (zahlungZeile.nebenkostenausgleich || kostenZeile.nebenkostenausgleich) {
     return [{ code: "NEBENKOSTENAUSGLEICH", hinweis: "vorschlag" }];
+  }
+  if (kostenZeile.mietminderung) {
+    return [{ code: "KOSTENPOSITION", hinweis: "vorschlag" }];
   }
   if (zahlungZeile.kleinreparatur || kostenZeile.kleinreparatur) {
     return [{ code: "KOSTENPOSITION", hinweis: "vorschlag" }];
