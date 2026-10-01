@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { DataTable, type Column } from "@/components/data-table";
 import { DeleteButton } from "@/components/delete-button";
 import { pruefeImportVollstaendigkeit, raeumeVerwaisteImporteAuf } from "./actions";
 import type { VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
@@ -14,6 +15,8 @@ function formatEuro(value: number) {
 }
 
 export type GruppierterImportRow = {
+  /** = pruefBatchId; DataTable braucht ein id-Feld. */
+  id: string;
   dateiname: string;
   erstelltAm: string;
   anzahlZeilen: number | null;
@@ -104,6 +107,11 @@ function VollstaendigkeitsZelle({
   );
 }
 
+/** Jahr aus dem Dateinamen (die CSV-Dateien tragen eine Jahreszahl); ohne → "". */
+function jahrAusDateiname(name: string): string {
+  return name.match(/(?:19|20)\d{2}/)?.[0] ?? "";
+}
+
 export function ImporteTabelle({
   rows,
   verwaisteAnzahl,
@@ -113,6 +121,7 @@ export function ImporteTabelle({
 }) {
   const [ergebnisse, setErgebnisse] = useState<Map<string, Ergebnis>>(new Map());
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [ausgewaehlt, setAusgewaehlt] = useState<GruppierterImportRow[]>([]);
   const [, startTransition] = useTransition();
 
   function pruefeEinzeln(batchId: string) {
@@ -128,35 +137,109 @@ export function ImporteTabelle({
     });
   }
 
-  function pruefeAlle() {
-    for (const r of rows) {
+  function pruefeAusgewaehlte() {
+    for (const r of ausgewaehlt) {
       if (!ergebnisse.has(r.pruefBatchId) && !pendingIds.has(r.pruefBatchId)) {
         pruefeEinzeln(r.pruefBatchId);
       }
     }
   }
 
-  const alleGeprueft = rows.length > 0 && rows.every((r) => ergebnisse.has(r.pruefBatchId));
+  const offeneAuswahl = ausgewaehlt.filter(
+    (r) => !ergebnisse.has(r.pruefBatchId) && !pendingIds.has(r.pruefBatchId),
+  ).length;
   const irgendeinePruefungLaeuft = pendingIds.size > 0;
+
+  const jahre = [...new Set(rows.map((r) => jahrAusDateiname(r.dateiname)))]
+    .sort()
+    .reverse();
+  const jahrOptionen = jahre.map((j) => ({ value: j, label: j || "Ohne Jahr" }));
+
+  const columns: Column<GruppierterImportRow>[] = [
+    {
+      key: "dateiname",
+      label: "Datei",
+      sortValue: (r) => r.dateiname.toLowerCase(),
+      searchValue: (r) => r.dateiname,
+      render: (r) => (
+        <span className="text-white">
+          {r.dateiname}
+          {r.anzahlImporte > 1 && (
+            <span className="ml-1 text-xs text-neutral-500">({r.anzahlImporte}x importiert)</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "jahr",
+      label: "Jahr",
+      sortValue: (r) => jahrAusDateiname(r.dateiname),
+      render: (r) => <span className="text-neutral-300">{jahrAusDateiname(r.dateiname) || "–"}</span>,
+    },
+    {
+      key: "erstelltAm",
+      label: "Importiert am",
+      sortValue: (r) => r.erstelltAm,
+      render: (r) => <span className="text-white">{formatDatum(r.erstelltAm)}</span>,
+    },
+    {
+      key: "zeilen",
+      label: "Zeilen",
+      sortValue: (r) => r.anzahlZeilen ?? -1,
+      render: (r) => <span className="text-neutral-300">{r.anzahlZeilen ?? "–"}</span>,
+    },
+    {
+      key: "zahlungen",
+      label: "Zahlungen",
+      sortValue: (r) => r.anzahlZahlungen,
+      render: (r) => <span className="text-neutral-300">{r.anzahlZahlungen}</span>,
+    },
+    {
+      key: "kosten",
+      label: "Kosten",
+      sortValue: (r) => r.anzahlKosten,
+      render: (r) => <span className="text-neutral-300">{r.anzahlKosten}</span>,
+    },
+    {
+      key: "weiterleitungen",
+      label: "Mietweiterleitungen",
+      sortValue: (r) => r.anzahlMietweiterleitungen,
+      render: (r) => <span className="text-neutral-300">{r.anzahlMietweiterleitungen}</span>,
+    },
+    {
+      key: "kaution",
+      label: "Kaution",
+      sortValue: (r) => r.anzahlKautionsbuchungen,
+      render: (r) => <span className="text-neutral-300">{r.anzahlKautionsbuchungen}</span>,
+    },
+    {
+      key: "sonstige",
+      label: "Sonstige",
+      sortValue: (r) => r.anzahlSonstige,
+      render: (r) => <span className="text-neutral-300">{r.anzahlSonstige}</span>,
+    },
+    {
+      key: "geparkt",
+      label: "Geparkt",
+      sortValue: (r) => r.anzahlNichtZugeordnet,
+      render: (r) => <span className="text-neutral-300">{r.anzahlNichtZugeordnet}</span>,
+    },
+    {
+      key: "vollstaendigkeit",
+      label: "Vollständigkeit",
+      render: (r) => (
+        <VollstaendigkeitsZelle
+          batchId={r.pruefBatchId}
+          ergebnis={ergebnisse.get(r.pruefBatchId) ?? null}
+          pending={pendingIds.has(r.pruefBatchId)}
+          onPruefen={pruefeEinzeln}
+        />
+      ),
+    },
+  ];
 
   return (
     <div>
-      {rows.length > 0 && (
-        <div className="mb-4 flex justify-end">
-          <button
-            type="button"
-            disabled={alleGeprueft || irgendeinePruefungLaeuft}
-            onClick={pruefeAlle}
-            className="text-xs text-neutral-400 underline hover:text-white disabled:opacity-50"
-          >
-            {irgendeinePruefungLaeuft
-              ? "Prüfe…"
-              : alleGeprueft
-                ? "Alle geprüft"
-                : "Vollständigkeit prüfen (alle)"}
-          </button>
-        </div>
-      )}
       {verwaisteAnzahl > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3">
           <p className="text-sm text-neutral-300">
@@ -171,61 +254,33 @@ export function ImporteTabelle({
         </div>
       )}
 
-      <div className="rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Datei</th>
-              <th className="px-4 py-2">Importiert am</th>
-              <th className="px-4 py-2">Zeilen</th>
-              <th className="px-4 py-2">Zahlungen</th>
-              <th className="px-4 py-2">Kosten</th>
-              <th className="px-4 py-2">Mietweiterleitungen</th>
-              <th className="px-4 py-2">Kaution</th>
-              <th className="px-4 py-2">Sonstige</th>
-              <th className="px-4 py-2">Geparkt</th>
-              <th className="px-4 py-2">Vollständigkeit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <Fragment key={r.dateiname}>
-                <tr className="border-t border-neutral-800 align-top">
-                  <td className="px-4 py-2 text-white">
-                    {r.dateiname}
-                    {r.anzahlImporte > 1 && (
-                      <span className="ml-1 text-xs text-neutral-500">({r.anzahlImporte}x importiert)</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-white">{formatDatum(r.erstelltAm)}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlZeilen ?? "–"}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlZahlungen}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlKosten}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlMietweiterleitungen}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlKautionsbuchungen}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlSonstige}</td>
-                  <td className="px-4 py-2 text-neutral-300">{r.anzahlNichtZugeordnet}</td>
-                  <td className="px-4 py-2">
-                    <VollstaendigkeitsZelle
-                      batchId={r.pruefBatchId}
-                      ergebnis={ergebnisse.get(r.pruefBatchId) ?? null}
-                      pending={pendingIds.has(r.pruefBatchId)}
-                      onPruefen={pruefeEinzeln}
-                    />
-                  </td>
-                </tr>
-              </Fragment>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Kontoauszug-Importe mit übernommenen Buchungen.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="mb-3 flex items-center justify-end gap-3">
+        <span className="text-xs text-neutral-500">{ausgewaehlt.length} ausgewählt</span>
+        <button
+          type="button"
+          disabled={offeneAuswahl === 0 || irgendeinePruefungLaeuft}
+          onClick={pruefeAusgewaehlte}
+          className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-50"
+        >
+          {irgendeinePruefungLaeuft ? "Prüfe…" : "Ausgewählte prüfen"}
+        </button>
       </div>
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        emptyMessage="Noch keine Kontoauszug-Importe mit übernommenen Buchungen."
+        searchPlaceholder="Datei suchen…"
+        selectable
+        onSelectionChange={setAusgewaehlt}
+        selectFilter={{
+          label: "Jahr",
+          value: (r) => jahrAusDateiname(r.dateiname),
+          options: jahrOptionen,
+          placeholder: "Alle Jahre",
+        }}
+        defaultSort={{ key: "erstelltAm", dir: "desc" }}
+      />
     </div>
   );
 }

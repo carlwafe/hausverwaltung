@@ -102,6 +102,7 @@ export default async function KontoauszugImportePage() {
         anzahlSonstige: liste.reduce((s, r) => s + r.anzahlSonstige, 0),
         anzahlNichtZugeordnet: liste.reduce((s, r) => s + r.anzahlNichtZugeordnet, 0),
         anzahlImporte: liste.length,
+        id: neuesteZuerst[0].id,
         pruefBatchId: neuesteZuerst[0].id,
       };
     })
