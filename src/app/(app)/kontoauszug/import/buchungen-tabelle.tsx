@@ -750,12 +750,18 @@ export function BuchungenTabelle({
                         </div>
                       )}
                       {gruppe === "SONDERZAHLUNG" && (
-                        <MietvertragAuswahl
-                          kandidaten={mietvertragKandidaten}
-                          value={r.mietvertragId}
-                          leerLabel="– Mietvertrag wählen –"
-                          onChange={(id) => updateRow(r.rowNumber, { mietvertragId: id })}
-                        />
+                        <div className="space-y-1">
+                          <MietvertragAuswahl
+                            kandidaten={mietvertragKandidaten}
+                            value={r.mietvertragId}
+                            leerLabel="– Mietvertrag wählen –"
+                            onChange={(id) => updateRow(r.rowNumber, { mietvertragId: id })}
+                          />
+                          <p className="text-[11px] text-neutral-500">
+                            Zahlung auf eine Gebühr (z.B. Mahngebühr), kein Teil der Miete. Die Gebühr selbst
+                            als Sonderforderung auf dem Mieterkonto buchen, sonst steigt der Mietsaldo.
+                          </p>
+                        </div>
                       )}
                       {gruppe === "MIETWEITERLEITUNG" && <span className="text-xs text-neutral-500">–</span>}
                       {!gruppe && <span className="text-xs text-neutral-500">Buchungsart wählen</span>}

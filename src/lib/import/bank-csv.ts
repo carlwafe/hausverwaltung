@@ -189,6 +189,17 @@ export const KLEINREPARATUR_PATTERN = /kleinreparatur/i;
 // Import die Zeile über den Mieternamen als Zahlung ein.
 export const MIETMINDERUNG_PATTERN = /mietminderung/i;
 
+// Zahlung des Mieters auf eine Gebühr (Mahngebühr, Rücklastschrift-/Bankgebühr), die er mit der Miete
+// zusammen überweist/einzieht. Entscheidung: kein Teil der Miete, sondern SONDERZAHLUNG (Gebühren-
+// Zahlung) — sie begleicht die Sonderforderung (MAHNGEBUEHR) auf dem Mieterkonto; als Mietzahlung
+// gebucht, hebt sie den Mietsaldo ohne Forderung um den Betrag an (echter Fall: 5 € "Mahngebühr"
+// als Teil einer Lastschrift, Abweichung 5 € zum Bericht des Vorverwalters). Der Verwendungszweck
+// einer solchen Sammelzeile nennt die Gebühr oft bei JEDEM Teilbetrag ("Miete+NK Januar + Bankgebuehr
+// + Mahngebuehr"), deshalb gilt der Treffer nur zusammen mit dem kleinen Betrag (siehe
+// GEBUEHR_MAX_BETRAG). Schreibweisen wie "Manhgebuehr" (Buchstabendreher) sind eingerechnet.
+export const GEBUEHR_ZAHLUNG_PATTERN = /m(ah|ha)ngeb|bankgeb/i;
+export const GEBUEHR_MAX_BETRAG = 15;
+
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
 // Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
 // Adresstext (das oft mitgelieferte "Ext.Ref."-Feld ist häufig leer oder nicht brauchbar). Die

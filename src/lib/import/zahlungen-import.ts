@@ -2,6 +2,8 @@ import {
   findeKontoauszugSpalten,
   istEigentuemerBuchung,
   istKautionskontoIban,
+  GEBUEHR_MAX_BETRAG,
+  GEBUEHR_ZAHLUNG_PATTERN,
   KAUTION_ANLAGE_PATTERN,
   KAUTION_PATTERN,
   KLEINREPARATUR_PATTERN,
@@ -48,6 +50,7 @@ export type ParsedZahlungRow = {
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Miete, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
   kautionKategorieVorschlag: KautionKategorieVorschlag | null; // nur gesetzt, wenn kaution === true
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Miete, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
+  gebuehrZahlung: boolean; // kleiner Eingang mit Gebühr im Verwendungszweck (Mahn-/Bankgebühr) – keine Miete, sondern Sonderzahlung auf die Gebühren-Forderung (siehe GEBUEHR_ZAHLUNG_PATTERN)
   kleinreparatur: boolean; // Erstattung einer vom Mieter zu tragenden Kleinreparatur – keine Miete, gehört als Gutschrift in den Kosten-Import (siehe kosten-import.ts)
   rohdaten: Record<string, string>; // die vollständige Originalzeile aus der Datei (alle Spalten)
   errors: string[];
@@ -270,6 +273,14 @@ export function mapZahlungenRows(
             ? "AUFLOESUNG"
             : "EINZAHLUNG_MIETER";
     const nebenkostenausgleich = NEBENKOSTENAUSGLEICH_PATTERN.test(verwendungszweck);
+    const gebuehrZahlung =
+      !rueckbuchung &&
+      !kaution &&
+      !nebenkostenausgleich &&
+      betrag !== null &&
+      betrag > 0 &&
+      betrag <= GEBUEHR_MAX_BETRAG &&
+      GEBUEHR_ZAHLUNG_PATTERN.test(verwendungszweck);
     const gerundeterBetrag = betrag !== null ? Math.round(betrag * 100) / 100 : null;
     const kleinreparatur =
       KLEINREPARATUR_PATTERN.test(verwendungszweck) ||
@@ -342,6 +353,7 @@ export function mapZahlungenRows(
       kaution,
       kautionKategorieVorschlag,
       nebenkostenausgleich,
+      gebuehrZahlung,
       kleinreparatur,
       rohdaten: row,
       errors,
