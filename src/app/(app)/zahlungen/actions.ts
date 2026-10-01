@@ -9,6 +9,7 @@ import { requireEditor, benutzerLabel } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { hebeZahlungAufteilungAuf as hebeZahlungAufteilungAufLib } from "@/lib/aufteilung-aufheben";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
+import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 async function ladeBuchungsartId(code: string): Promise<string> {
@@ -84,6 +85,7 @@ export const createZahlung = mitMeldung(async function createZahlung(formData: F
         erstelltVon: benutzerLabel(user),
       },
     });
+    await stelleNkPositionSicher(prisma, mietvertragId, nkJahr);
     revalidatePath("/zahlungen");
     revalidatePath("/offene-posten");
     revalidatePath("/jahresuebersicht");

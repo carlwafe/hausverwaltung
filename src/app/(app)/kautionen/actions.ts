@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { pflichtDatum, parseStrengesDatum } from "@/lib/zod-datum";
 import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
+import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
 import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -379,6 +380,8 @@ async function synchronisiereKautionEinbehaltBuchung(
       },
     });
     await tx.kautionEinbehalt.update({ where: { id: einbehalt.id }, data: { buchungId: buchung.id } });
+    // Mit einer NK-Abrechnung verrechnet, aber ohne Position dort: Platzhalter-Position anlegen.
+    if (buchung.jahr) await stelleNkPositionSicher(tx, kaution.mietvertragId, buchung.jahr);
   } else if (!soll && einbehalt.buchungId) {
     await storniereBuchung(tx, einbehalt.buchungId, erstelltVon);
     await tx.kautionEinbehalt.update({ where: { id: einbehalt.id }, data: { buchungId: null } });
