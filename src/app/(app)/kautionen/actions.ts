@@ -99,11 +99,13 @@ const kautionAufteilungSchema = z.object({
 });
 
 /**
- * Teilt eine Kautionsbuchung, deren Überweisung zugleich ein Nebenkosten-Guthaben/-Nachzahlung
- * enthält (z.B. "Guthaben BK-Abr 2023 + Kaution"), in den Kautionsanteil (gleiche Kategorie) und
+ * Teilt eine Kautionsbuchung, deren Überweisung zugleich ein ausgezahltes Nebenkosten-Guthaben
+ * enthält (Sammelüberweisung, z.B. "Guthaben BK-Abr 2023 + Kaution"), in den Kautionsanteil (gleiche Kategorie) und
  * einen NEBENKOSTENAUSGLEICH fürs angegebene Abrechnungsjahr auf. Beide Teile behalten Bankvorzeichen,
  * Rohdaten und Import-Bezug und teilen sich die aufteilungGruppeId (= Id des stornierten Originals),
  * damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
+ * Eine mit der Kaution verrechnete Nachzahlung (positiver Nebenkostenanteil) wird nicht aufgeteilt,
+ * sondern als Einbehalt "Verrechnung mit Nebenkostenabrechnung" gebucht.
  */
 export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbuchungAuf(id: string, _prev: string | null, formData: FormData): Promise<string | null> {
   const user = await requireEditor();
@@ -127,9 +129,12 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
     return "Diese Buchung ist mit einer anderen Buchung verknüpft und kann nicht aufgeteilt werden.";
 
   const gesamt = Number(original.betrag);
-  // Beide Teile dürfen in unterschiedliche Richtungen gehen: z.B. Kaution -100 € ausgezahlt und
-  // damit eine NK-Nachzahlung von +67,34 € verrechnet = Überweisung -32,66 €.
   const nkBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
+  // Ein positiver Nebenkostenanteil wäre eine mit der Kaution verrechnete Nachzahlung (z.B. Kaution
+  // -100 €, Nachzahlung +67,34 €, überwiesen -32,66 €): die Bankzeile bleibt dann 1:1 die Auszahlung,
+  // die Verrechnung ist ein Einbehalt (Kautionen → Einbehalt erfassen → Verrechnung mit NK-Abrechnung).
+  if (nkBetrag > 0.005 && gesamt < 0)
+    return "Eine mit der Kaution verrechnete Nachzahlung wird nicht aufgeteilt: Auszahlung unverändert lassen und die Verrechnung als Einbehalt \"Verrechnung mit Nebenkostenabrechnung\" erfassen.";
   if (Math.abs(nkBetrag) < 0.005)
     return `Der Kautionsanteil entspricht der ganzen Buchung (${gesamt.toFixed(2)} €) — dann gibt es nichts aufzuteilen.`;
 

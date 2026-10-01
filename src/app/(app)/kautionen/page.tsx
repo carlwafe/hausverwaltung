@@ -72,25 +72,6 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     }),
   ]);
 
-  // Aufgeteilte Kautionsbuchungen ("Aufteilen…"): ein positiver Nebenkostenteil derselben Aufteilung
-  // ist eine Nachzahlung, die mit der Kaution verrechnet wurde (z.B. Kaution -100 €, Nachzahlung
-  // +67,34 €, überwiesen -32,66 €). Der Kautionsteil zählt dann nur mit dem tatsächlich überwiesenen
-  // Anteil als ausgezahlt, der Rest als "mit NK verrechnet". Ein negativer Nebenkostenteil (Guthaben,
-  // zusammen mit der Kaution ausgezahlt) berührt die Kaution nicht.
-  const kautionsGruppen = [...new Set(buchungen.map((b) => b.aufteilungGruppeId).filter((g): g is string => !!g))];
-  const nkNachzahlungen = kautionsGruppen.length
-    ? await prisma.buchung.findMany({
-        where: {
-          aufteilungGruppeId: { in: kautionsGruppen },
-          buchungsart: { code: "NEBENKOSTENAUSGLEICH" },
-          betrag: { gt: 0 },
-          mietvertragId: { not: null },
-          ...AKTIVE_BUCHUNG_FILTER,
-        },
-        select: { mietvertragId: true, betrag: true },
-      })
-    : [];
-
   // Pro Mietvertrag nach Kategorie aufsummieren, statt einer eigenen Query pro Kaution — die
   // Gesamtmenge an Kautionsbuchungen ist klein genug, um sie einmal komplett zu laden. Mehrere
   // Auszahlungen (z.B. ein späterer Nachschlag auf einen zunächst nur teilweise ausgezahlten
@@ -141,12 +122,6 @@ async function ladeKautionen(): Promise<KautionRow[]> {
       eintrag.verrechnet += Math.abs(betrag);
     else if (code === "KAUTION_SONSTIGES") eintrag.sonstiges += betrag;
     summenProMietvertrag.set(key, eintrag);
-  }
-  for (const n of nkNachzahlungen) {
-    const eintrag = summenProMietvertrag.get(n.mietvertragId!);
-    if (!eintrag) continue;
-    eintrag.ausgezahlt -= Number(n.betrag);
-    eintrag.verrechnet += Number(n.betrag);
   }
 
   // Kautionsgeld, das direkt aufs Geschäftskonto ging und nie aufs Kautionskonto angelegt wurde (z.B.

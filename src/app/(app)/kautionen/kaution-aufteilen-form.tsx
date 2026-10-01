@@ -44,13 +44,13 @@ export function KautionAufteilenForm({
     <form action={formAction} className="mt-4 rounded-lg border border-neutral-800 p-4 text-sm">
       <p className="mb-1 font-medium text-white">Kautionsbuchung ({formatEuro(betragGesamt)}) aufteilen</p>
       <p className="mb-3 text-xs text-neutral-500">
-        Ersetzt diese Buchung durch Kautionsanteil + Nebenkostenausgleich (Bankvorzeichen: ausgehend negativ; eine
-        verrechnete Nachzahlung ergibt einen positiven Nebenkostenanteil).
+        Nur für Sammelüberweisungen: Kaution und ein zugleich ausgezahltes BK-Guthaben (Bankvorzeichen, ausgehend
+        negativ). Beispiel: −694,90 € = Kautionsanteil −273,10 € + Nebenkostenausgleich −421,80 €.
       </p>
       <p className="mb-3 text-xs text-neutral-500">
-        Beispiel: Kaution −100 €, verrechnete Nachzahlung +67,34 €, überwiesen −32,66 € → Kautionsanteil −100,00,
-        Nebenkostenausgleich +67,34 €. Der Kautionsteil zählt dann nur mit dem überwiesenen Anteil als ausgezahlt, der
-        Rest als mit der Nebenkostenabrechnung verrechnet.
+        Eine mit der Kaution verrechnete Nachzahlung wird <strong>nicht</strong> aufgeteilt: Die Auszahlung bleibt der
+        Bankbetrag, die Verrechnung wird als Einbehalt &quot;Verrechnung mit Nebenkostenabrechnung&quot; erfasst
+        (z.B. Kaution 100 €, Nachzahlung 67,34 € → Auszahlung −32,66 € + Einbehalt 67,34 €).
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-neutral-400">
