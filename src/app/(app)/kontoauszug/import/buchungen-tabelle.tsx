@@ -17,6 +17,7 @@ import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { datumBetragSchluessel } from "@/lib/import/bank-csv";
 import { ermittleKostenjahrVorschlag } from "@/lib/import/kostenjahr";
 import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
+import { kiPruefeZeilen } from "./ki-actions";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -122,6 +123,8 @@ type BuchungEditRow = VereinheitlichteZeile & {
   gebaeudeAuswahl: string;
   jahrEingabe: string;
   ausgewaehlt: boolean;
+  // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung) — nur Vorschlag + Begründung.
+  ki?: { kommentar: string; konfidenz: "hoch" | "mittel" | "niedrig" };
 };
 
 function pflichtfeldErfuellt(gruppe: BuchungsartGruppe | null, r: { mietvertragId: string; kostenartId: string }): boolean {
@@ -264,11 +267,71 @@ export function BuchungenTabelle({
   const [hinweisFilter, setHinweisFilter] = useState<HinweisFilter>("alle");
   const [familieFilter, setFamilieFilter] = useState<"alle" | BuchungsartGruppe>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [kiPending, setKiPending] = useState(false);
+  const [kiMeldung, setKiMeldung] = useState<string | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
 
   function updateRow(rowNumber: number, patch: Partial<BuchungEditRow>) {
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
+  }
+
+  // Zeilen, die die Regeln nicht sicher zugeordnet haben und die noch keine KI-Einschätzung haben.
+  const kiKandidaten = editRows.filter(
+    (r) =>
+      r.errors.length === 0 &&
+      !r.ki &&
+      hinweisFuerAuswahl(r) !== "vorschlag" &&
+      !istBereitsImportiert(ermittleBuchungsartGruppe(r.buchungsartCode), r, bestehendeSets),
+  );
+
+  async function runKiPruefung() {
+    setKiMeldung(null);
+    setKiPending(true);
+    try {
+      const antwort = await kiPruefeZeilen(
+        kiKandidaten.map((r) => ({
+          rowNumber: r.rowNumber,
+          datum: r.datum,
+          betrag: r.betrag,
+          name: r.name,
+          verwendungszweck: r.verwendungszweck,
+        })),
+        {
+          buchungsarten: buchungsarten
+            .filter((b) => b.zahlungswirksam && b.code !== "MAHNGEBUEHR")
+            .map((b) => ({ code: b.code, bezeichnung: b.bezeichnung })),
+          kostenarten,
+          mietvertraege: mietvertragKandidaten,
+        },
+      );
+      if (typeof antwort === "string") {
+        setKiMeldung(antwort);
+        return;
+      }
+      const nachRow = new Map(antwort.vorschlaege.map((v) => [v.rowNumber, v]));
+      // Vorschläge werden nur vorbelegt, nie automatisch zum Import ausgewählt.
+      setEditRows((rs) =>
+        rs.map((r) => {
+          const v = nachRow.get(r.rowNumber);
+          if (!v) return r;
+          const neu: BuchungEditRow = { ...r, ki: { kommentar: v.kommentar, konfidenz: v.konfidenz }, ausgewaehlt: false };
+          if (v.buchungsartCode) {
+            const gruppe = ermittleBuchungsartGruppe(v.buchungsartCode);
+            neu.buchungsartCode = v.buchungsartCode;
+            if (v.mietvertragId) neu.mietvertragId = v.mietvertragId;
+            if (gruppe === "KOSTEN" && v.kostenartId) neu.kostenartId = v.kostenartId;
+            if ((gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH") && v.jahr) neu.jahrEingabe = String(v.jahr);
+          }
+          return neu;
+        }),
+      );
+      setKiMeldung(`${antwort.vorschlaege.length} Zeile(n) von der KI eingeschätzt — Vorschläge bitte prüfen und selbst auswählen.`);
+    } catch {
+      setKiMeldung("KI-Prüfung fehlgeschlagen.");
+    } finally {
+      setKiPending(false);
+    }
   }
 
   function handleBuchungsartChange(r: BuchungEditRow, code: string) {
@@ -420,6 +483,15 @@ export function BuchungenTabelle({
           Buchungen ({editRows.length} Zeile{editRows.length === 1 ? "" : "n"})
         </h2>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={runKiPruefung}
+            disabled={kiPending || kiKandidaten.length === 0}
+            title="Schickt nur unsichere, noch nicht importierte Zeilen (ohne IBAN) an Claude. Ergebnis sind Vorschläge mit Begründung."
+            className="rounded-md border border-violet-500/60 px-3 py-1.5 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40"
+          >
+            {kiPending ? "KI prüft…" : `Offene Zeilen mit KI prüfen (${kiKandidaten.length})`}
+          </button>
           <select
             value={hinweisFilter}
             onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
@@ -444,6 +516,7 @@ export function BuchungenTabelle({
           </select>
         </div>
       </div>
+      {kiMeldung && <p className="mb-2 text-sm text-violet-300">{kiMeldung}</p>}
       <p className="mb-3 text-sm text-neutral-300">
         {importierbareRows.length} werden importiert.{" "}
         {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
@@ -472,6 +545,7 @@ export function BuchungenTabelle({
               <th className="min-w-[160px] px-3 py-2">Buchungsart</th>
               <th className="min-w-[220px] px-3 py-2">Details</th>
               <th className="px-3 py-2">Hinweis</th>
+              <th className="min-w-[200px] px-3 py-2">KI-Einschätzung</th>
               <th className="px-3 py-2">Rohdaten</th>
               <th className="px-3 py-2">Aktion</th>
             </tr>
@@ -705,6 +779,19 @@ export function BuchungenTabelle({
                         </span>
                       )}
                     </td>
+                    <td className="max-w-[260px] px-3 py-1.5 text-xs">
+                      {r.ki ? (
+                        <span
+                          title={r.ki.kommentar}
+                          className={r.ki.konfidenz === "hoch" ? "text-violet-300" : r.ki.konfidenz === "mittel" ? "text-amber-300" : "text-neutral-400"}
+                        >
+                          <span className="mr-1 font-medium">KI ({r.ki.konfidenz}):</span>
+                          {r.ki.kommentar}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-600">–</span>
+                      )}
+                    </td>
                     <td className="px-3 py-1.5">
                       <RohdatenToggleButton expanded={expanded} onClick={() => setExpandedRow(expanded ? null : r.rowNumber)} />
                     </td>
@@ -722,13 +809,13 @@ export function BuchungenTabelle({
                       />
                     </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={9} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={10} />}
                 </Fragment>
               );
             })}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={10} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
