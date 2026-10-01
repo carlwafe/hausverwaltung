@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { redirect } from "next/navigation";
@@ -7,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher } from "@/lib/nk-position-sicherstellen";
+import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher, PLATZHALTER_KOMMENTAR_PRAEFIX } from "@/lib/nk-position-sicherstellen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import {
@@ -455,20 +456,41 @@ export async function neuBerechnen(id: string) {
     technischerAbzug,
   );
 
+  // Von Hand erfasste Positionen (fuegePositionManuellHinzu, keine details) bleiben unangetastet und
+  // werden nicht durch die Berechnung ersetzt — sonst gingen die manuell eingetragenen Werte verloren.
+  // Automatisch angelegte Platzhalter (siehe nk-position-sicherstellen.ts) sind dagegen ersetzbar.
+  const [vorhandene, pruefungen] = await Promise.all([
+    prisma.nebenkostenabrechnungPosition.findMany({
+      where: { abrechnungId: id, details: { equals: Prisma.DbNull } },
+      select: { id: true, mietvertragId: true },
+    }),
+    prisma.nebenkostenabrechnungPruefung.findMany({
+      where: { abrechnungId: id, kommentar: { startsWith: PLATZHALTER_KOMMENTAR_PRAEFIX } },
+      select: { mietvertragId: true },
+    }),
+  ]);
+  const platzhalter = new Set(pruefungen.map((p) => p.mietvertragId));
+  const manuell = vorhandene.filter((p) => !p.mietvertragId || !platzhalter.has(p.mietvertragId));
+  const manuelleVertraege = new Set(manuell.map((p) => p.mietvertragId));
+
   await prisma.$transaction(async (tx) => {
-    await tx.nebenkostenabrechnungPosition.deleteMany({ where: { abrechnungId: id } });
+    await tx.nebenkostenabrechnungPosition.deleteMany({
+      where: { abrechnungId: id, id: { notIn: manuell.map((p) => p.id) } },
+    });
     await tx.nebenkostenabrechnungPosition.createMany({
-      data: ergebnis.positionen.map((p) => ({
-        abrechnungId: id,
-        einheitId: p.einheitId,
-        mietvertragId: p.mietvertragId,
-        zeitraumVon: p.zeitraumVon,
-        zeitraumBis: p.zeitraumBis,
-        kostenanteilGesamt: p.kostenanteilGesamt,
-        vorauszahlungGesamt: p.vorauszahlungGesamt,
-        saldo: p.saldo,
-        details: p.details,
-      })),
+      data: ergebnis.positionen
+        .filter((p) => !manuelleVertraege.has(p.mietvertragId))
+        .map((p) => ({
+          abrechnungId: id,
+          einheitId: p.einheitId,
+          mietvertragId: p.mietvertragId,
+          zeitraumVon: p.zeitraumVon,
+          zeitraumBis: p.zeitraumBis,
+          kostenanteilGesamt: p.kostenanteilGesamt,
+          vorauszahlungGesamt: p.vorauszahlungGesamt,
+          saldo: p.saldo,
+          details: p.details,
+        })),
     });
     await stelleNkPositionenFuerJahrSicher(tx, abrechnung.jahr);
   });

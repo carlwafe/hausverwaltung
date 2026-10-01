@@ -438,9 +438,10 @@ export default async function NebenkostenabrechnungDetailPage({
         <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
         &quot;Automatisch angelegt …&quot;) entstehen, wenn für einen Mietvertrag eine Zahlung oder
         Verrechnung dieses Jahres gebucht wurde, die Abrechnung aber keine Position für ihn enthält.
-        Kostenanteil/Vorauszahlung sind dann nur aus der Begleichung abgeleitet — Beträge prüfen und
-        kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine Wohnungs-Auszahlung
-        fälschlich auf dem Garagenvertrag).
+        Sie enthalten bewusst keine Beträge (alles 0): Kostenanteil/Vorauszahlung von Hand eintragen
+        oder kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine
+        Wohnungs-Auszahlung fälschlich auf dem Garagenvertrag). &quot;Neu berechnen&quot; lässt von
+        Hand erfasste Positionen unverändert.
       </p>
       <p className="mb-3 text-sm text-neutral-400">
         <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
