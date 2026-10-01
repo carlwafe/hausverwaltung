@@ -1,5 +1,6 @@
 "use server";
 
+import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -93,6 +94,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
       });
     }
     await storniereBuchung(tx, id, erstelltVon);
+    for (const t of teile) if (t.typ === "nebenkostenausgleich") await stelleNkPositionSicher(tx, t.mietvertragId, t.jahr ?? original.jahr);
   });
 
   revalidateAusgleich(new Set([original.mietvertragId, ...teile.map((t) => t.mietvertragId)]));

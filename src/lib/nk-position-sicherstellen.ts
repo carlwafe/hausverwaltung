@@ -63,3 +63,24 @@ export async function stelleNkPositionSicher(
     update: {},
   });
 }
+
+/**
+ * Wie stelleNkPositionSicher für alle Mietverträge mit einer Begleichung im Jahr — nötig nach dem
+ * (Neu-)Berechnen einer Abrechnung, weil dabei alle Positionen (auch Platzhalter) ersetzt werden.
+ */
+export async function stelleNkPositionenFuerJahrSicher(db: PrismaClient | Prisma.TransactionClient, jahr: number) {
+  const abrechnung = await db.nebenkostenabrechnung.findUnique({ where: { jahr }, select: { id: true } });
+  if (!abrechnung) return;
+  const [buchungen, positionen] = await Promise.all([
+    db.buchung.findMany({
+      where: { ...NK_AUSGLEICH_ODER_VERRECHNUNG, jahr, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
+      select: { mietvertragId: true },
+      distinct: ["mietvertragId"],
+    }),
+    db.nebenkostenabrechnungPosition.findMany({ where: { abrechnungId: abrechnung.id }, select: { mietvertragId: true } }),
+  ]);
+  const vorhanden = new Set(positionen.map((p) => p.mietvertragId));
+  for (const b of buchungen) {
+    if (b.mietvertragId && !vorhanden.has(b.mietvertragId)) await stelleNkPositionSicher(db, b.mietvertragId, jahr);
+  }
+}

@@ -1,5 +1,6 @@
 "use server";
 
+import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
@@ -864,6 +865,17 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
         };
       }),
     });
+  }
+
+  // Importierter Nebenkostenausgleich ohne Position in der Abrechnung des Jahres: Platzhalter anlegen.
+  const nkPaare = new Set(
+    neu
+      .filter((r) => r.gruppe === "NEBENKOSTENAUSGLEICH" && r.mietvertragId && r.jahr)
+      .map((r) => `${r.mietvertragId}|${r.jahr}`),
+  );
+  for (const paar of nkPaare) {
+    const [mietvertragId, jahr] = paar.split("|");
+    await stelleNkPositionSicher(prisma, mietvertragId, Number(jahr));
   }
 
   if (typeof importBatchId === "string") {

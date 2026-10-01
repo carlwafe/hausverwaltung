@@ -154,6 +154,7 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
     await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: original.buchungsartId, betrag: kautionBetrag, erstelltVon } });
     await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: nkArt.id, betrag: nkBetrag, jahr: nkJahr, erstelltVon } });
     await storniereBuchung(tx, id, erstelltVon);
+    await stelleNkPositionSicher(tx, original.mietvertragId!, nkJahr);
   });
 
   revalidiereKautionAufteilung(original.mietvertragId);

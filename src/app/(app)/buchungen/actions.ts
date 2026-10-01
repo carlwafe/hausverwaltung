@@ -1,5 +1,6 @@
 "use server";
 
+import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -82,6 +83,7 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
     await storniereBuchung(tx, id, erstelltVon);
     return angelegt;
   });
+  if (gruppe === "NEBENKOSTENAUSGLEICH") await stelleNkPositionSicher(prisma, neu.mietvertragId!, neu.jahr);
 
   for (const pfad of [
     "/zahlungen",
