@@ -435,6 +435,14 @@ export default async function NebenkostenabrechnungDetailPage({
         ist, falls einer offen ist; ist er 0, gilt die Position als erledigt.
       </p>
       <p className="mb-3 text-sm text-neutral-400">
+        <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
+        &quot;Automatisch angelegt …&quot;) entstehen, wenn für einen Mietvertrag eine Zahlung oder
+        Verrechnung dieses Jahres gebucht wurde, die Abrechnung aber keine Position für ihn enthält.
+        Kostenanteil/Vorauszahlung sind dann nur aus der Begleichung abgeleitet — Beträge prüfen und
+        kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine Wohnungs-Auszahlung
+        fälschlich auf dem Garagenvertrag).
+      </p>
+      <p className="mb-3 text-sm text-neutral-400">
         <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
         Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
         dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
