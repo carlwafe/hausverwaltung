@@ -44,6 +44,10 @@ export default async function MieterPage() {
         <div>
           <h1 className="text-2xl font-semibold">Mieter</h1>
           <p className="text-sm text-neutral-400">{mieter.length} Mieter insgesamt, {mieter.filter((m) => m.status === "AKTIV").length} aktiv</p>
+          <p className="text-xs text-neutral-500">
+            Status: Aktiv = mindestens ein laufender Mietvertrag, Geplant = nur ein künftiger
+            Vertrag, Inaktiv = kein laufender oder geplanter Vertrag mehr.
+          </p>
         </div>
         <div className="flex gap-2">
           <Link
