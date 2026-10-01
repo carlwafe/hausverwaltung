@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { requireUser, requireEditor } from "@/lib/session";
 import { leseDatei, loescheDatei } from "@/lib/storage";
 import { pruefeVollstaendigkeit, zeilenSchluesselAusRohdaten, type VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
@@ -23,6 +24,8 @@ export async function pruefeImportVollstaendigkeit(
     return { error: "Originaldatei nicht mehr verfügbar." };
   }
 
+  // Stornierte Buchungen (und Storno-Gegenbuchungen) zählen nicht: sonst meldet z.B. ein nach
+  // "Umbuchen" stornierter Nebenkostenausgleich neben der neuen Zahlung fälschlich "mehrfach erfasst".
   // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
   // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
   // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.
@@ -35,17 +38,17 @@ export async function pruefeImportVollstaendigkeit(
     alleNichtZugeordneten,
     alleAufgeteilten,
   ] = await Promise.all([
-      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETZAHLUNG" } }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: "KOSTENPOSITION" } }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETWEITERLEITUNG" } }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { kontokreis: "KAUTIONSKONTO" } }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" } }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
       // Nur nicht stornierte Teile einer Aufteilung (das stornierte Original zählt nicht mehr mit).
       prisma.buchung.findMany({
         where: {
           OR: [{ aufteilungGruppeId: { not: null } }, { bezugTyp: "Umbuchung" }],
-          storniertDurchBuchungId: null,
+          ...AKTIVE_BUCHUNG_FILTER,
         },
         select: { rohdaten: true },
       }),
