@@ -5,6 +5,9 @@ import {
   KAUTION_PATTERN,
   KLEINREPARATUR_PATTERN,
   leseBetrag,
+  MAHNGEBUEHR_EINGANG_PATTERN,
+  GEBUEHR_MAX_BETRAG,
+  RUECKLASTSCHRIFTGEBUEHR_PATTERN,
   MIETMINDERUNG_PATTERN,
   NEBENKOSTENAUSGLEICH_PATTERN,
   normalizeText,
@@ -82,6 +85,7 @@ export type ParsedKostenRow = {
   // Rückerstattung/Gutschrift, keine Mieteinnahme.
   gutschrift: boolean;
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Kostenposition, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
+  mahngebuehr: boolean; // kleiner Eingang mit Mahngebühr im Verwendungszweck – negative Kostenposition der Kostenart "Mahngebühren", keine Miete (siehe MAHNGEBUEHR_EINGANG_PATTERN)
   mietminderung: boolean; // ausgehende Erstattung einer Mietminderung – Kostenposition der Kostenart "Mietminderung"
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Kostenposition, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
   // Erstattung einer vom Mieter zu tragenden Kleinreparatur (siehe KLEINREPARATUR_PATTERN) —
@@ -541,6 +545,8 @@ export function mapKostenRows(
   dienstleister: DienstleisterKandidat[] = [],
   // Id der Kostenart "Mietminderung" (siehe MIETMINDERUNG_PATTERN).
   mietminderungKostenartId: string | null = null,
+  // Id der Kostenart "Mahngebühren" (siehe MAHNGEBUEHR_EINGANG_PATTERN).
+  mahngebuehrKostenartId: string | null = null,
 ): ParsedKostenRow[] {
   const { datumCol, betragCol, habenCol, sollCol, zweckCol, nameCol, mandatsrefCol } =
     findeKontoauszugSpalten(headers);
@@ -560,6 +566,12 @@ export function mapKostenRows(
 
     const rueckbuchung = RUECKBUCHUNG_PATTERN.test(verwendungszweck);
     const istEingehend = rohBetrag !== null && rohBetrag > 0;
+    const mahngebuehr =
+      istEingehend &&
+      rohBetrag <= GEBUEHR_MAX_BETRAG &&
+      !rueckbuchung &&
+      MAHNGEBUEHR_EINGANG_PATTERN.test(verwendungszweck) &&
+      !RUECKLASTSCHRIFTGEBUEHR_PATTERN.test(verwendungszweck);
     const mietminderung = !istEingehend && MIETMINDERUNG_PATTERN.test(verwendungszweck);
     // Ein Kaution-Treffer hat Vorrang vor der Eigentümer-Erkennung: eine Kaution landet oft auf
     // einem Konto, das rechtlich auf die Eigentümerin läuft (Kautionskonto), ist aber weder eine
@@ -618,7 +630,12 @@ export function mapKostenRows(
       kaution ||
       nebenkostenausgleich ||
       rueckbuchung ||
-      (istEingehend && !kaution && !nebenkostenausgleich && !bekannterKostenEmpfaenger && !kleinreparatur);
+      (istEingehend &&
+        !kaution &&
+        !nebenkostenausgleich &&
+        !bekannterKostenEmpfaenger &&
+        !kleinreparatur &&
+        !mahngebuehr);
 
     const betrag = rohBetrag !== null ? -rohBetrag : null;
     const jahr = datum ? Number(datum.slice(0, 4)) : null;
@@ -656,6 +673,10 @@ export function mapKostenRows(
       if (kleinreparatur && !vorgeschlageneKostenartId) {
         vorgeschlageneKostenartId = reparaturenKostenartId;
       }
+      if (mahngebuehr && mahngebuehrKostenartId) {
+        vorgeschlageneKostenartId = mahngebuehrKostenartId;
+        vorgeschlageneGebaeudeAuswahl = null; // objektweit, ohne Gebäude
+      }
       if (mietminderung && mietminderungKostenartId) {
         vorgeschlageneKostenartId = mietminderungKostenartId;
       }
@@ -687,6 +708,7 @@ export function mapKostenRows(
       kaution,
       nebenkostenausgleich,
       kleinreparatur,
+      mahngebuehr,
       mietminderung,
       ignorieren,
       rohdaten: row,

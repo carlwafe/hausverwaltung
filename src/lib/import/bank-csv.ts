@@ -189,15 +189,20 @@ export const KLEINREPARATUR_PATTERN = /kleinreparatur/i;
 // Import die Zeile über den Mieternamen als Zahlung ein.
 export const MIETMINDERUNG_PATTERN = /mietminderung/i;
 
-// Zahlung des Mieters auf eine Gebühr (Mahngebühr, Rücklastschrift-/Bankgebühr), die er mit der Miete
-// zusammen überweist/einzieht. Entscheidung: kein Teil der Miete, sondern SONDERZAHLUNG (Gebühren-
-// Zahlung) — sie begleicht die Sonderforderung (MAHNGEBUEHR) auf dem Mieterkonto; als Mietzahlung
-// gebucht, hebt sie den Mietsaldo ohne Forderung um den Betrag an (echter Fall: 5 € "Mahngebühr"
-// als Teil einer Lastschrift, Abweichung 5 € zum Bericht des Vorverwalters). Der Verwendungszweck
-// einer solchen Sammelzeile nennt die Gebühr oft bei JEDEM Teilbetrag ("Miete+NK Januar + Bankgebuehr
-// + Mahngebuehr"), deshalb gilt der Treffer nur zusammen mit dem kleinen Betrag (siehe
-// GEBUEHR_MAX_BETRAG). Schreibweisen wie "Manhgebuehr" (Buchstabendreher) sind eingerechnet.
-export const GEBUEHR_ZAHLUNG_PATTERN = /m(ah|ha)ngeb|bankgeb/i;
+// Mahngebühr, die der Mieter zusammen mit der Miete zahlt/einziehen lässt. Entscheidung (wie bisher
+// gebucht): Einnahme des Vermieters als Kostenposition mit negativem Betrag der Kostenart
+// "Mahngebühren" (nicht umlagefähig, ohne Gebäude/Mieter) — NICHT als Teil der Miete: eine
+// Mietzahlung ohne Forderung hebt den Mietsaldo künstlich an (echter Fall: 5 € als Mietzahlung,
+// Abweichung 5 € zum Q1-Bericht des Vorverwalters, der die Mahngebühr nicht auf dem Mieterkonto
+// führt). Der Verwendungszweck einer solchen Sammelzeile nennt die Gebühren bei JEDEM Teilbetrag
+// ("Miete+NK Januar + Bankgebuehr + Manhgebuehr ..."), die Bank hängt die Bezeichnung des
+// jeweiligen Postens ans Ende — deshalb zählt nur ein Text, der auf "Mahngebühr(en)" endet, zusammen
+// mit dem kleinen Betrag (GEBUEHR_MAX_BETRAG). Endet er auf "Rücklastschriftgebühr", ist es die
+// Erstattung der Bankgebühr (bleibt wie bisher Mietzahlung/Sonderzahlung auf die Forderung); ein
+// Text, der beides nennt (RL-Gebühr + Mahngebühr in einer Summe), wird ebenfalls nicht erkannt.
+// Schreibweisen wie "Manhgebuehr" (Buchstabendreher) sind eingerechnet.
+export const MAHNGEBUEHR_EINGANG_PATTERN = /m(ah|ha)ngeb\w*\s*$/i;
+export const RUECKLASTSCHRIFTGEBUEHR_PATTERN = /r(ue|ü)ckl\w*schriftgeb/i;
 export const GEBUEHR_MAX_BETRAG = 15;
 
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
