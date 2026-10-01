@@ -8,13 +8,19 @@ async function ladeMieter(): Promise<MieterRow[]> {
     orderBy: { nachname: "asc" },
     include: {
       mietvertraege: {
-        where: { status: "AKTIV" },
         include: { einheit: true },
       },
     },
   });
 
-  return mieter.map((m) => ({
+  return mieter.map((m) => {
+    const aktive = m.mietvertraege.filter((v) => v.status === "AKTIV");
+    const status: MieterRow["status"] = aktive.length
+      ? "AKTIV"
+      : m.mietvertraege.some((v) => v.status === "GEPLANT")
+        ? "GEPLANT"
+        : "INAKTIV";
+    return {
     id: m.id,
     vorname: m.vorname,
     nachname: m.nachname,
@@ -22,8 +28,10 @@ async function ladeMieter(): Promise<MieterRow[]> {
     handynummer: m.handynummer,
     festnetznummer: m.festnetznummer,
     buergergeldEmpfaenger: m.buergergeldEmpfaenger,
-    einheiten: m.mietvertraege.map((v) => v.einheit.bezeichnung),
-  }));
+    einheiten: aktive.map((v) => v.einheit.bezeichnung),
+    status,
+  };
+  });
 }
 
 export default async function MieterPage() {
@@ -35,7 +43,7 @@ export default async function MieterPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Mieter</h1>
-          <p className="text-sm text-neutral-400">{mieter.length} Mieter insgesamt</p>
+          <p className="text-sm text-neutral-400">{mieter.length} Mieter insgesamt, {mieter.filter((m) => m.status === "AKTIV").length} aktiv</p>
         </div>
         <div className="flex gap-2">
           <Link

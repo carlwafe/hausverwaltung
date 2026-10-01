@@ -14,7 +14,16 @@ export type MieterRow = {
   festnetznummer: string | null;
   buergergeldEmpfaenger: boolean;
   einheiten: string[];
+  // Aktiv = mindestens ein laufender Mietvertrag; Geplant = nur künftige; sonst Inaktiv.
+  status: "AKTIV" | "GEPLANT" | "INAKTIV";
 };
+
+const STATUS_LABEL = { AKTIV: "Aktiv", GEPLANT: "Geplant", INAKTIV: "Inaktiv" } as const;
+const STATUS_KLASSE = {
+  AKTIV: "bg-emerald-500/15 text-emerald-400",
+  GEPLANT: "bg-blue-500/15 text-blue-400",
+  INAKTIV: "bg-neutral-700/40 text-neutral-400",
+} as const;
 
 const columns: Column<MieterRow>[] = [
   {
@@ -26,6 +35,17 @@ const columns: Column<MieterRow>[] = [
       <Link href={`/mieter/${m.id}`} className="font-medium hover:underline">
         {mieterName(m)}
       </Link>
+    ),
+  },
+  {
+    key: "status",
+    label: "Status",
+    sortValue: (m) => STATUS_LABEL[m.status],
+    searchValue: (m) => STATUS_LABEL[m.status],
+    render: (m) => (
+      <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_KLASSE[m.status]}`}>
+        {STATUS_LABEL[m.status]}
+      </span>
     ),
   },
   {
@@ -67,10 +87,29 @@ export function MieterTable({
 }) {
   const [nurDuplikate, setNurDuplikate] = useState(false);
   const duplikatSet = new Set(duplikatIds);
-  const angezeigteRows = nurDuplikate ? rows.filter((r) => duplikatSet.has(r.id)) : rows;
+  const [statusFilter, setStatusFilter] = useState<"ALLE" | MieterRow["status"]>("ALLE");
+  const angezeigteRows = rows
+    .filter((r) => !nurDuplikate || duplikatSet.has(r.id))
+    .filter((r) => statusFilter === "ALLE" || r.status === statusFilter);
 
   return (
     <div>
+      <div className="mb-3 flex gap-1">
+        {(["ALLE", "AKTIV", "GEPLANT", "INAKTIV"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setStatusFilter(f)}
+            className={`rounded-md border px-3 py-1.5 text-sm ${
+              statusFilter === f
+                ? "border-neutral-500 bg-neutral-800 text-white"
+                : "border-neutral-700 text-neutral-400 hover:bg-neutral-900"
+            }`}
+          >
+            {f === "ALLE" ? "Alle" : STATUS_LABEL[f]}
+          </button>
+        ))}
+      </div>
       {duplikatIds.length > 0 && (
         <div className="mb-3">
           <button
