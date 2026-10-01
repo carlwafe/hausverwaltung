@@ -31,13 +31,13 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
       include: { einheit: true, mieter: true },
     }),
   ]);
-  if (!buchung || !buchung.mietvertrag || !buchung.datum) notFound();
+  if (!buchung || !buchung.datum) notFound();
   vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
   const mietvertraegeOptionen = vertraege.map((v) => ({
     id: v.id,
     label: `${v.einheit.bezeichnung} — ${v.mieter.map((m) => mieterName(m)).join(" & ")}`,
   }));
-  const mieterNamen = buchung.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ");
+  const mieterNamen = buchung.mietvertrag?.mieter.map((m) => mieterName(m)).join(" & ") ?? "";
 
   const geschwister = buchung.aufteilungGruppeId
     ? await prisma.buchung.findMany({
@@ -58,7 +58,8 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          Nebenkostenausgleich — {buchung.mietvertrag.einheit.bezeichnung} ({mieterNamen})
+          Nebenkostenausgleich
+          {buchung.mietvertrag ? ` — ${buchung.mietvertrag.einheit.bezeichnung} (${mieterNamen})` : " — ohne Mietvertrag"}
         </h1>
         <DeleteButton action={loescheUndZurueck.bind(null, id)} confirmText="Nebenkostenausgleich wirklich stornieren?" />
       </div>
@@ -86,9 +87,13 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
         </p>
         <p className="flex justify-between">
           <span className="text-neutral-400">Mietvertrag</span>
-          <Link href={`/mietvertraege/${buchung.mietvertragId}`} className="text-white hover:underline">
-            {buchung.mietvertrag.einheit.bezeichnung} — {mieterNamen}
-          </Link>
+          {buchung.mietvertrag ? (
+            <Link href={`/mietvertraege/${buchung.mietvertragId}`} className="text-white hover:underline">
+              {buchung.mietvertrag.einheit.bezeichnung} — {mieterNamen}
+            </Link>
+          ) : (
+            <span className="text-amber-400">nicht zugeordnet</span>
+          )}
         </p>
       </div>
 
@@ -139,7 +144,8 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
       <NebenkostenausgleichAufteilenForm
         id={id}
         betragGesamt={Number(buchung.betrag)}
-        aktuelleMietvertragId={buchung.mietvertragId!}
+        aktuelleMietvertragId={buchung.mietvertragId ?? ""}
+        ohneMietvertrag={!buchung.mietvertragId}
         jahr={buchung.jahr}
         mietvertraege={mietvertraegeOptionen}
       />

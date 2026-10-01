@@ -54,7 +54,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
   } catch {
     return "Aufteilung konnte nicht gelesen werden.";
   }
-  const parsed = z.array(aufteilungTeilSchema).min(2, "Mindestens zwei Teile nötig").safeParse(teileRoh);
+  const parsed = z.array(aufteilungTeilSchema).min(1, "Mindestens ein Teil nötig").safeParse(teileRoh);
   if (!parsed.success) return parsed.error.issues.map((i) => i.message).join(", ");
   const teile = parsed.data;
 
@@ -62,6 +62,9 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
     where: { id, buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
   });
   if (!original) return "Nebenkostenausgleich nicht gefunden.";
+
+  // Ohne Mietvertrag genügt ein Teil: das ist dann die nachträgliche Zuordnung (Storno + Neuanlage).
+  if (teile.length < 2 && original.mietvertragId) return "Mindestens zwei Teile nötig";
 
   const summe = teile.reduce((s, t) => s + t.betrag, 0);
   if (Math.abs(summe - Number(original.betrag)) > 0.005) {

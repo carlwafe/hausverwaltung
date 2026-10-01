@@ -29,12 +29,14 @@ export function NebenkostenausgleichAufteilenForm({
   id,
   betragGesamt,
   aktuelleMietvertragId,
+  ohneMietvertrag = false,
   jahr,
   mietvertraege,
 }: {
   id: string;
   betragGesamt: number;
   aktuelleMietvertragId: string;
+  ohneMietvertrag?: boolean;
   jahr: number | null;
   mietvertraege: { id: string; label: string }[];
 }) {
@@ -46,7 +48,9 @@ export function NebenkostenausgleichAufteilenForm({
       jahr: jahr ? String(jahr) : "",
       beschreibung: "",
     },
-    { mietvertragId: aktuelleMietvertragId, betrag: "", jahr: jahr ? String(jahr) : "", beschreibung: "" },
+    ...(ohneMietvertrag
+      ? []
+      : [{ mietvertragId: aktuelleMietvertragId, betrag: "", jahr: jahr ? String(jahr) : "", beschreibung: "" }]),
   ]);
   const [fehler, formAction, pending] = useActionState(teileNebenkostenausgleichAuf.bind(null, id), null);
 
@@ -80,7 +84,7 @@ export function NebenkostenausgleichAufteilenForm({
         onClick={() => setOffen(true)}
         className="mt-4 rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
       >
-        Aufteilen…
+        {ohneMietvertrag ? "Mietvertrag zuordnen…" : "Aufteilen…"}
       </button>
     );
   }
@@ -141,7 +145,7 @@ export function NebenkostenausgleichAufteilenForm({
             <button
               type="button"
               onClick={() => setZeilen((z) => z.filter((_, k) => k !== i))}
-              disabled={zeilen.length <= 2}
+              disabled={zeilen.length <= (ohneMietvertrag ? 1 : 2)}
               className="rounded-md border border-neutral-700 px-2 py-1.5 text-sm text-neutral-400 hover:bg-neutral-900 disabled:opacity-30"
             >
               −
