@@ -12,16 +12,18 @@ export function SubmitButton({
   children,
   pendingLabel,
   className,
+  disabled = false,
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={`inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ""}`}
     >
       {pending && (

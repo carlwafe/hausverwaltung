@@ -79,3 +79,12 @@ export async function stelleNkPositionenFuerJahrSicher(db: PrismaClient | Prisma
     if (b.mietvertragId && !vorhanden.has(b.mietvertragId)) await stelleNkPositionSicher(db, b.mietvertragId, jahr);
   }
 }
+
+/**
+ * Eine Abrechnung gilt als manuell geführt, wenn sie keine berechnete Position (mit `details`)
+ * enthält — also leer angelegt (erstelleLeereAbrechnung) und nur von Hand befüllt ist. "Neu
+ * berechnen" ist dort gesperrt, weil die Berechnung auf unvollständigen Kostendaten beruht.
+ */
+export function istManuelleAbrechnung(positionen: { details: unknown }[]): boolean {
+  return positionen.every((p) => p.details === null || p.details === undefined);
+}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { istManuelleAbrechnung } from "@/lib/nk-position-sicherstellen";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
@@ -200,6 +201,7 @@ export default async function NebenkostenabrechnungDetailPage({
   const naechsterStatus = abrechnung.status === "ENTWURF" ? "FINAL" : "ENTWURF";
   const naechsterStatusAction = setAbrechnungStatus.bind(null, id, naechsterStatus);
   const neuBerechnenAction = neuBerechnen.bind(null, id);
+  const neuBerechnenGesperrt = istManuelleAbrechnung(abrechnung.positionen);
 
   // Kostenaufschlüsselung: Objekt gesamt sowie je Haus (mehrere Hausnummern) und je Gebäude, jeweils
   // aus den gespeicherten Aufschlüsselungen der Positionen (siehe nk-uebersicht.ts).
@@ -282,9 +284,10 @@ export default async function NebenkostenabrechnungDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <form action={neuBerechnenAction} title="Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand.">
+          <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung ist leer bzw. wird manuell geführt — die Berechnung würde die von Hand erfassten Positionen nicht abbilden." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
             <SubmitButton
               pendingLabel="Berechne…"
+              disabled={neuBerechnenGesperrt}
               className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
             >
               Neu berechnen

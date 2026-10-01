@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher, PLATZHALTER_KOMMENTAR_PRAEFIX } from "@/lib/nk-position-sicherstellen";
+import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher, PLATZHALTER_KOMMENTAR_PRAEFIX, istManuelleAbrechnung } from "@/lib/nk-position-sicherstellen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import {
@@ -443,7 +443,12 @@ export async function ladeNebenkostenausgleichSummen(
 // wechselnden) Position-ID.
 export async function neuBerechnen(id: string) {
   await requireEditor();
-  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
+  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({
+    where: { id },
+    include: { positionen: { select: { details: true } } },
+  });
+  // Leer/manuell geführte Abrechnung: Berechnung gesperrt (Button auf der Seite ist deaktiviert).
+  if (istManuelleAbrechnung(abrechnung.positionen)) return;
   const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
     await ladeBerechnungsdaten(abrechnung.jahr);
   const ergebnis = berechneNebenkostenabrechnung(
