@@ -63,14 +63,11 @@ export default async function KontoauszugImportePage() {
       anzahlNichtZugeordnet: b._count.nichtZugeordneteBuchungen,
     };
   });
+  // Muss zu raeumeVerwaisteImporteAuf passen: verwaist = gar keine Buchung (egal welcher Art)
+  // und keine geparkte Buchung. Sonst zählt die Seite Batches, die das Aufräumen nie löscht.
+  const batchesMitBuchung = new Set(buchungenRaw.map((b) => b.importBatchId));
   const verwaisteAnzahl = rows.filter(
-    (r) =>
-      r.anzahlZahlungen === 0 &&
-      r.anzahlKosten === 0 &&
-      r.anzahlMietweiterleitungen === 0 &&
-      r.anzahlKautionsbuchungen === 0 &&
-      r.anzahlSonstige === 0 &&
-      r.anzahlNichtZugeordnet === 0,
+    (r) => !batchesMitBuchung.has(r.id) && r.anzahlNichtZugeordnet === 0,
   ).length;
   const genutzteRows = rows.filter(
     (r) =>
