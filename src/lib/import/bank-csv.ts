@@ -156,7 +156,8 @@ export const WASCHGELD_PATTERN = /waschgeld/i;
 // Sachbearbeiters, z.B. "Beriebskostenarechnung" — deshalb die verkürzten, tippfehlertoleranten
 // Fragmente "enkosten…rechnung"/"riebskosten…rechnung" statt der vollen Wörter), oder (z.B. bei
 // einer Ratenzahlung oder einem frei formulierten Klärungs-Verwendungszweck eines Mieters) nur
-// "BK Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt. Die
+// "BK Nachzahlung"/"Betriebskosten Nachzahlung" ohne das Wort "Abrechnung" benannt, oder mit
+// abgekürztem "Betriebskosten Abr. 2022" (z.B. "Guthaben Betriebskosten Abr. 2022 …"). Die
 // Toleranzlücke zwischen Fragment und "rechnung"/"nachzahlung" erlaubt auch einen Bindestrich
 // (z.B. "Betriebskosten-abrechnung", wie es die Sparkasse in ganzen Sammelüberweisungen so
 // schreibt) — ohne \- dort würde jede so benannte Buchung diesen Trigger verfehlen und
@@ -169,7 +170,7 @@ export const WASCHGELD_PATTERN = /waschgeld/i;
 // Zahlung/Kostenposition — sonst verfälscht der Betrag dauerhaft die Offene-Posten-Berechnung,
 // die die tatsächliche Abrechnung nie einbezieht.
 export const NEBENKOSTENAUSGLEICH_PATTERN =
-  /^\s*(rueckueberweisung\s+konto\s+aufgeloest\s+)?\d{4}\.\d+\s*$|bk[\s-]*abr|bk\s*nachzahlung|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
+  /^\s*(rueckueberweisung\s+konto\s+aufgeloest\s+)?\d{4}\.\d+\s*$|bk[\s-]*abr|bk\s*nachzahlung|(riebs|neben)kosten[\s-]*abr|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
 
 // Eine Kleinreparatur, die laut Mietvertrag vom Mieter direkt getragen wird: der Vermieter zahlt
 // zunächst die Handwerkerrechnung (normale ausgehende Kostenposition unter "Reparaturen"), der
