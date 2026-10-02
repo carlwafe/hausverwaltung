@@ -292,14 +292,28 @@ const columns: Column<PositionRow>[] = [
     key: "saldoNachGutschrift",
     label: "Saldo nach Gutschrift",
     sortValue: (p) => p.saldoNachGutschrift,
-    render: (p) =>
-      p.erledigt ? (
-        <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>
-      ) : (
-        <span className={p.saldoNachGutschrift >= 0 ? "text-green-400" : "text-red-400"}>
-          {formatEuro(p.saldoNachGutschrift)}
+    render: (p) => {
+      const zelle = (saldo: number) =>
+        Math.abs(saldo) < 0.01 ? (
+          <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>
+        ) : (
+          <span className={saldo >= 0 ? "text-green-400" : "text-red-400"}>{formatEuro(saldo)}</span>
+        );
+      if (!p.berechnet) return zelle(p.saldoNachGutschrift);
+      const berechnetNach = Math.round((p.berechnet.saldo - (p.gutschriftSumme ?? 0)) * 100) / 100;
+      return (
+        <span className="flex flex-col items-start gap-0.5 whitespace-nowrap">
+          <span>
+            <span className="mr-1.5 text-xs text-violet-400">manuell</span>
+            {zelle(p.saldoNachGutschrift)}
+          </span>
+          <span className="text-xs">
+            <span className="mr-1.5 text-neutral-500">berechnet</span>
+            {zelle(berechnetNach)}
+          </span>
         </span>
-      ),
+      );
+    },
   },
   {
     key: "saldoNachGutschriftVerwalter",
