@@ -155,9 +155,18 @@ export function gruppiereGebaeude(
   // Alle Adressen bleiben zusätzlich einzeln wählbar — Haus-, Kostengruppen- und Gebäude-IDs
   // kommen aus unterschiedlichen Tabellen, es gibt also keine Kollisionsgefahr mit den Optionen
   // oben.
-  const einzelOptionen: GebaeudeAuswahlOption[] = gebaeude
-    .map((g) => ({ value: gebaeudeWert(g.id), label: `${g.strasse} ${g.hausnummer}` }))
-    .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  // Sortiert wie die Einheiten in der Haus-Reihenfolge des Objekts (vergleicheGebaeudeNachHaus),
+  // innerhalb eines Hauses nach Hausnummer — nicht alphabetisch ("10" käme sonst vor "2").
+  const einzelOptionen: GebaeudeAuswahlOption[] = [...gebaeude]
+    .sort((a, b) => {
+      const haeuserVergleich = vergleicheGebaeudeNachHaus(
+        { ...a, haus: a.haus ? { reihenfolge: a.haus.reihenfolge, gebaeude: hausGruppen.get(a.haus.id) ?? [] } : null },
+        { ...b, haus: b.haus ? { reihenfolge: b.haus.reihenfolge, gebaeude: hausGruppen.get(b.haus.id) ?? [] } : null },
+      );
+      if (haeuserVergleich !== 0) return haeuserVergleich;
+      return a.hausnummer.localeCompare(b.hausnummer, "de", { numeric: true });
+    })
+    .map((g) => ({ value: gebaeudeWert(g.id), label: `${g.strasse} ${g.hausnummer}` }));
 
   // Führendes "HS <Hausnummer> " aus der Bezeichnung entfernt, da Straße+Hausnummer bereits im
   // Label davor stehen (siehe Muster in src/lib/einheit-sort.ts) — ohne den Schnitt stünde die
