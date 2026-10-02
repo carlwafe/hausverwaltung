@@ -490,7 +490,7 @@ export default async function NebenkostenabrechnungDetailPage({
         &quot;Neu berechnen&quot; sowie beim Umstellen auf &quot;manuell&quot; erhalten; berechnete
         Positionen entstehen nur bei &quot;berechnet&quot; (für Mietverträge ohne manuelle Position)
         und verschwinden beim Umstellen auf &quot;manuell&quot;. Bei einer manuellen Position zeigt
-        die berechnete Abrechnung in Kostenanteil, Vorauszahlung und Saldo zusätzlich zwei Zeilen:
+        die berechnete Abrechnung in Kostenanteil, Vorauszahlung, Saldo und Saldo nach Gutschrift zusätzlich zwei Zeilen:
         &quot;manuell&quot; und &quot;berechnet&quot; (live, nicht gespeichert). Eine berechnete
         Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
       </p>
