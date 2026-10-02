@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher, PLATZHALTER_KOMMENTAR_PRAEFIX } from "@/lib/nk-position-sicherstellen";
+import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher } from "@/lib/nk-position-sicherstellen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import {
@@ -354,6 +354,9 @@ export const bearbeitePosition = mitMeldung(async function bearbeitePosition(
       kostenanteilGesamt: kostenanteil,
       vorauszahlungGesamt: vorauszahlung,
       saldo,
+      // Eine bearbeitete Position ist ab jetzt manuell (ohne details) und bleibt von der
+      // Berechnung/dem Umstellen auf manuell unberührt.
+      details: Prisma.DbNull,
     },
   });
 
@@ -446,10 +449,18 @@ export async function neuBerechnen(id: string) {
   const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
   // Manuell geführte Abrechnung: Berechnung gesperrt (Button auf der Seite ist deaktiviert).
   if (abrechnung.manuell) return;
+  await berechnePositionenNeu(abrechnung.id, abrechnung.jahr);
+  revalidatePath(`/nebenkostenabrechnungen/${id}`);
+}
+
+// Zwei Arten von Positionen: manuelle (details = null: von Hand angelegt, bearbeitet oder
+// Platzhalter) und berechnete (details gesetzt). Die Berechnung ersetzt nur berechnete Positionen
+// und legt keine an, wo für den Mietvertrag schon eine manuelle existiert.
+async function berechnePositionenNeu(id: string, jahr: number) {
   const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
-    await ladeBerechnungsdaten(abrechnung.jahr);
+    await ladeBerechnungsdaten(jahr);
   const ergebnis = berechneNebenkostenabrechnung(
-    abrechnung.jahr,
+    jahr,
     kostenpositionen,
     einheiten,
     mietvertraege,
@@ -457,27 +468,15 @@ export async function neuBerechnen(id: string) {
     vorverteilteAnteile,
     technischerAbzug,
   );
-
-  // Von Hand erfasste Positionen (fuegePositionManuellHinzu, keine details) bleiben unangetastet und
-  // werden nicht durch die Berechnung ersetzt — sonst gingen die manuell eingetragenen Werte verloren.
-  // Automatisch angelegte Platzhalter (siehe nk-position-sicherstellen.ts) sind dagegen ersetzbar.
-  const [vorhandene, pruefungen] = await Promise.all([
-    prisma.nebenkostenabrechnungPosition.findMany({
-      where: { abrechnungId: id, details: { equals: Prisma.DbNull } },
-      select: { id: true, mietvertragId: true },
-    }),
-    prisma.nebenkostenabrechnungPruefung.findMany({
-      where: { abrechnungId: id, kommentar: { startsWith: PLATZHALTER_KOMMENTAR_PRAEFIX } },
-      select: { mietvertragId: true },
-    }),
-  ]);
-  const platzhalter = new Set(pruefungen.map((p) => p.mietvertragId));
-  const manuell = vorhandene.filter((p) => !p.mietvertragId || !platzhalter.has(p.mietvertragId));
+  const manuell = await prisma.nebenkostenabrechnungPosition.findMany({
+    where: { abrechnungId: id, details: { equals: Prisma.DbNull } },
+    select: { mietvertragId: true },
+  });
   const manuelleVertraege = new Set(manuell.map((p) => p.mietvertragId));
 
   await prisma.$transaction(async (tx) => {
     await tx.nebenkostenabrechnungPosition.deleteMany({
-      where: { abrechnungId: id, id: { notIn: manuell.map((p) => p.id) } },
+      where: { abrechnungId: id, NOT: { details: { equals: Prisma.DbNull } } },
     });
     await tx.nebenkostenabrechnungPosition.createMany({
       data: ergebnis.positionen
@@ -494,10 +493,8 @@ export async function neuBerechnen(id: string) {
           details: p.details,
         })),
     });
-    await stelleNkPositionenFuerJahrSicher(tx, abrechnung.jahr);
+    await stelleNkPositionenFuerJahrSicher(tx, jahr);
   });
-
-  revalidatePath(`/nebenkostenabrechnungen/${id}`);
 }
 
 // Manuelle Erfassung für Fälle außerhalb des Kontoauszug-Imports (z.B. Barzahlung, oder eine
@@ -705,12 +702,24 @@ export async function loescheQmAbweichung(id: string, abrechnungId: string) {
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
 }
 
-// Stellt eine Abrechnung zwischen "manuell geführt" (Positionen von Hand, "Neu berechnen" gesperrt,
-// Berechnung nur als Live-Vergleich) und "berechnet" um. Es werden keine Positionen verändert; bei
-// "berechnet" ersetzt "Neu berechnen" danach nur die berechneten Positionen, manuell erfasste bleiben.
+// Stellt eine Abrechnung zwischen "manuell geführt" und "berechnet" um. Auf manuell: die berechneten
+// Positionen verschwinden (nur manuelle bleiben, "Neu berechnen" gesperrt). Auf berechnet: die
+// Berechnung legt berechnete Positionen an, wo es keine manuelle gibt; manuelle bleiben und zeigen
+// die berechneten Werte als zweite Zeile zum Vergleich.
 export async function setAbrechnungManuell(id: string, manuell: boolean) {
   await requireEditor();
-  await prisma.nebenkostenabrechnung.update({ where: { id }, data: { manuell } });
+  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
+  if (manuell) {
+    await prisma.$transaction([
+      prisma.nebenkostenabrechnungPosition.deleteMany({
+        where: { abrechnungId: id, NOT: { details: { equals: Prisma.DbNull } } },
+      }),
+      prisma.nebenkostenabrechnung.update({ where: { id }, data: { manuell: true } }),
+    ]);
+  } else {
+    await prisma.nebenkostenabrechnung.update({ where: { id }, data: { manuell: false } });
+    await berechnePositionenNeu(id, abrechnung.jahr);
+  }
   revalidatePath(`/nebenkostenabrechnungen/${id}`);
   revalidatePath("/nebenkostenabrechnungen");
 }

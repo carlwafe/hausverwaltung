@@ -75,15 +75,32 @@ export type PositionRow = {
   // Kostenanteil mit den vom Verwalter angesetzten Gesamtflächen (Vergleichsrechnung, siehe
   // QmAbweichungen); null = keine Abweichung eingetragen.
   kostenanteilSimuliert: number | null;
-  // Live-Berechnung zum Vergleich (nur bei manuell geführter Abrechnung, nie gespeichert).
-  berechnetKostenanteil: number | null;
-  berechnetSaldo: number | null;
+  // Manuelle Position (von Hand angelegt/bearbeitet); sonst berechnet.
+  manuell: boolean;
+  // Live-Berechnung neben einer manuellen Position (nur bei berechneter Abrechnung, nie gespeichert).
+  berechnet: { kostenanteil: number; vorauszahlung: number; saldo: number } | null;
   // Manuelle Prüfnotizen (siehe NebenkostenabrechnungPruefung): Stern = Berechnung stimmt mit der
   // des Verwalters überein, dazu ein kurzer Kommentar.
   stimmtMitVerwalter: boolean;
   kommentar: string;
   details: KostenanteilDetailEintrag[];
 };
+
+// Manuelle Position mit Live-Berechnung daneben: zwei Zeilen "manuell" / "berechnet".
+function ZweiZeilen({ manuell, berechnet }: { manuell: string; berechnet: string }) {
+  return (
+    <span className="flex flex-col items-end gap-0.5 whitespace-nowrap">
+      <span>
+        <span className="mr-1.5 text-xs text-violet-400">manuell</span>
+        {manuell}
+      </span>
+      <span className="text-xs text-neutral-400">
+        <span className="mr-1.5 text-neutral-500">berechnet</span>
+        {berechnet}
+      </span>
+    </span>
+  );
+}
 
 const columns: Column<PositionRow>[] = [
   {
@@ -95,9 +112,19 @@ const columns: Column<PositionRow>[] = [
     },
     searchValue: (p) => p.einheitBezeichnung,
     render: (p) => (
-      <Link href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
-        {p.einheitBezeichnung}
-      </Link>
+      <span>
+        <Link href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
+          {p.einheitBezeichnung}
+        </Link>
+        {p.manuell && (
+          <span
+            title="Manuell angelegte/bearbeitete Position — bleibt bei Berechnung und Umstellen erhalten"
+            className="ml-1.5 inline-block rounded-full bg-violet-500/10 px-1.5 text-xs text-violet-400"
+          >
+            manuell
+          </span>
+        )}
+      </span>
     ),
   },
   {
@@ -125,7 +152,12 @@ const columns: Column<PositionRow>[] = [
     label: "Kostenanteil",
     align: "right",
     sortValue: (p) => p.kostenanteilGesamt,
-    render: (p) => formatEuro(p.kostenanteilGesamt),
+    render: (p) =>
+      p.berechnet ? (
+        <ZweiZeilen manuell={formatEuro(p.kostenanteilGesamt)} berechnet={formatEuro(p.berechnet.kostenanteil)} />
+      ) : (
+        formatEuro(p.kostenanteilGesamt)
+      ),
   },
   {
     key: "kostenanteilSimuliert",
@@ -138,27 +170,6 @@ const columns: Column<PositionRow>[] = [
       return (
         <span className="whitespace-nowrap">
           <span className="text-white">{formatEuro(p.kostenanteilSimuliert)}</span>
-          {diff !== 0 && (
-            <span className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${diff > 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}>
-              {diff > 0 ? "+" : ""}
-              {formatEuro(diff)}
-            </span>
-          )}
-        </span>
-      );
-    },
-  },
-  {
-    key: "berechnung",
-    label: "Berechnung (Vergleich)",
-    align: "right",
-    sortValue: (p) => (p.berechnetKostenanteil !== null ? p.berechnetKostenanteil - p.kostenanteilGesamt : 0),
-    render: (p) => {
-      if (p.berechnetKostenanteil === null || p.berechnetSaldo === null) return <span className="text-neutral-600">–</span>;
-      const diff = Math.round((p.berechnetKostenanteil - p.kostenanteilGesamt) * 100) / 100;
-      return (
-        <span className="whitespace-nowrap" title={`Saldo laut Berechnung: ${formatEuro(p.berechnetSaldo)}`}>
-          <span className="text-white">{formatEuro(p.berechnetKostenanteil)}</span>
           {diff !== 0 && (
             <span className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${diff > 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}>
               {diff > 0 ? "+" : ""}
@@ -196,18 +207,37 @@ const columns: Column<PositionRow>[] = [
     title:
       "Tatsächlich gezahlte NK-Vorauszahlung: je Mietmonat zuerst auf die NK (bis zum NK-Soll), erst der Rest auf die Kaltmiete (§ 366 Abs. 2 BGB)",
     sortValue: (p) => p.vorauszahlungGesamt,
-    render: (p) => formatEuro(p.vorauszahlungGesamt),
+    render: (p) =>
+      p.berechnet ? (
+        <ZweiZeilen manuell={formatEuro(p.vorauszahlungGesamt)} berechnet={formatEuro(p.berechnet.vorauszahlung)} />
+      ) : (
+        formatEuro(p.vorauszahlungGesamt)
+      ),
   },
   {
     key: "saldo",
     label: "Saldo",
     align: "right",
     sortValue: (p) => p.saldo,
-    render: (p) => (
-      <span className={`font-medium ${p.saldo >= 0 ? "text-green-400" : "text-red-400"}`}>
-        {formatEuro(p.saldo)} {p.saldo >= 0 ? "(Guthaben)" : "(Nachzahlung)"}
-      </span>
-    ),
+    render: (p) => {
+      const saldoText = (v: number) => `${formatEuro(v)} ${v >= 0 ? "(Guthaben)" : "(Nachzahlung)"}`;
+      const farbe = (v: number) => (v >= 0 ? "text-green-400" : "text-red-400");
+      if (p.berechnet) {
+        return (
+          <span className="flex flex-col items-end gap-0.5 whitespace-nowrap">
+            <span className={`font-medium ${farbe(p.saldo)}`}>
+              <span className="mr-1.5 text-xs font-normal text-violet-400">manuell</span>
+              {saldoText(p.saldo)}
+            </span>
+            <span className={`text-xs ${farbe(p.berechnet.saldo)}`}>
+              <span className="mr-1.5 text-neutral-500">berechnet</span>
+              {saldoText(p.berechnet.saldo)}
+            </span>
+          </span>
+        );
+      }
+      return <span className={`font-medium ${farbe(p.saldo)}`}>{saldoText(p.saldo)}</span>;
+    },
   },
   {
     key: "gutschrift",
@@ -316,10 +346,10 @@ const columns: Column<PositionRow>[] = [
   },
 ];
 
-export function PositionenTable({ rows, zeigeBerechnung }: { rows: PositionRow[]; zeigeBerechnung: boolean }) {
+export function PositionenTable({ rows }: { rows: PositionRow[] }) {
   return (
     <DataTable
-      columns={zeigeBerechnung ? columns : columns.filter((c) => c.key !== "berechnung")}
+      columns={columns}
       rows={rows}
       emptyMessage="Keine Positionen vorhanden."
       searchPlaceholder="Positionen durchsuchen…"
@@ -384,6 +414,16 @@ export function PositionenTable({ rows, zeigeBerechnung }: { rows: PositionRow[]
                     </table>
                   </div>
                 </details>
+                {p.mietvertragId && (
+                  <PositionBearbeitenForm
+                    positionId={p.id}
+                    berechnet
+                    initialZeitraumVon={toDateInputValue(p.zeitraumVon)}
+                    initialZeitraumBis={toDateInputValue(p.zeitraumBis)}
+                    initialKostenanteil={p.kostenanteilGesamt}
+                    initialVorauszahlung={p.vorauszahlungGesamt}
+                  />
+                )}
               </td>
             </tr>
           );

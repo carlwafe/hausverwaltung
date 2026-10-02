@@ -204,9 +204,10 @@ export default async function NebenkostenabrechnungDetailPage({
   const neuBerechnenGesperrt = abrechnung.manuell;
   const modusAction = setAbrechnungManuell.bind(null, id, !abrechnung.manuell);
 
-  // Manuell geführte Abrechnung: die Berechnung läuft nur live zum Vergleich mit, gespeichert wird nichts.
+  // Berechnete Abrechnung mit manuellen Positionen: die Berechnung läuft live als zweite Zeile mit,
+  // gespeichert wird sie nur für Mietverträge ohne manuelle Position.
   const berechnet = new Map<string, { kostenanteil: number; vorauszahlung: number; saldo: number }>();
-  if (abrechnung.manuell) {
+  if (!abrechnung.manuell && abrechnung.positionen.some((p) => p.details === null)) {
     const live = berechneNebenkostenabrechnung(
       abrechnung.jahr,
       kostenpositionen,
@@ -305,7 +306,7 @@ export default async function NebenkostenabrechnungDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung wird manuell geführt. Die Berechnung läuft nur als Vergleichsspalte mit; zum Berechnen erst „Auf berechnet umstellen“." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
+          <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung wird manuell geführt — zum Berechnen erst „Auf berechnet umstellen“." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
             <SubmitButton
               pendingLabel="Berechne…"
               disabled={neuBerechnenGesperrt}
@@ -314,14 +315,22 @@ export default async function NebenkostenabrechnungDetailPage({
               Neu berechnen
             </SubmitButton>
           </form>
-          <form action={modusAction}>
-            <SubmitButton
-              pendingLabel="Speichere…"
-              className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-            >
-              {abrechnung.manuell ? "Auf berechnet umstellen" : "Als manuell führen"}
-            </SubmitButton>
-          </form>
+          {abrechnung.manuell ? (
+            <form action={modusAction}>
+              <SubmitButton
+                pendingLabel="Berechne…"
+                className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+              >
+                Auf berechnet umstellen
+              </SubmitButton>
+            </form>
+          ) : (
+            <DeleteButton
+              action={modusAction}
+              confirmText="Auf manuell umstellen? Alle berechneten Positionen verschwinden, manuell erfasste bleiben."
+              label="Auf manuell umstellen"
+            />
+          )}
           <form action={naechsterStatusAction}>
             <SubmitButton
               pendingLabel="Speichere…"
@@ -476,6 +485,16 @@ export default async function NebenkostenabrechnungDetailPage({
         Hand erfasste Positionen unverändert.
       </p>
       <p className="mb-3 text-sm text-neutral-400">
+        <strong className="text-neutral-300">Manuelle und berechnete Positionen:</strong> Positionen
+        mit dem Etikett &quot;manuell&quot; sind von Hand angelegt oder bearbeitet und bleiben bei
+        &quot;Neu berechnen&quot; sowie beim Umstellen auf &quot;manuell&quot; erhalten; berechnete
+        Positionen entstehen nur bei &quot;berechnet&quot; (für Mietverträge ohne manuelle Position)
+        und verschwinden beim Umstellen auf &quot;manuell&quot;. Bei einer manuellen Position zeigt
+        die berechnete Abrechnung in Kostenanteil, Vorauszahlung und Saldo zusätzlich zwei Zeilen:
+        &quot;manuell&quot; und &quot;berechnet&quot; (live, nicht gespeichert). Eine berechnete
+        Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
+      </p>
+      <p className="mb-3 text-sm text-neutral-400">
         <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
         Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
         dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
@@ -488,7 +507,6 @@ export default async function NebenkostenabrechnungDetailPage({
       </p>
 
       <PositionenTable
-        zeigeBerechnung={abrechnung.manuell}
         rows={abrechnung.positionen.map((p) => {
           const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
           const gutschriftSumme = eintrag?.summe ?? 0;
@@ -522,8 +540,8 @@ export default async function NebenkostenabrechnungDetailPage({
             kostenanteilSimuliert: p.mietvertragId
               ? (simulierterKostenanteil.get(`${p.mietvertragId}|${p.einheitId}`) ?? null)
               : null,
-            berechnetKostenanteil: berechnet.get(`${p.mietvertragId}|${p.einheitId}`)?.kostenanteil ?? null,
-            berechnetSaldo: berechnet.get(`${p.mietvertragId}|${p.einheitId}`)?.saldo ?? null,
+            manuell: p.details === null,
+            berechnet: p.details === null ? (berechnet.get(`${p.mietvertragId}|${p.einheitId}`) ?? null) : null,
             stimmtMitVerwalter: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.stimmtMitVerwalter ?? false) : false,
             kommentar: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.kommentar ?? "") : "",
             details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],

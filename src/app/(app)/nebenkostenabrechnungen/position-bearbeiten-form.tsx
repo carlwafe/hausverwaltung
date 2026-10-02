@@ -27,12 +27,15 @@ export function PositionBearbeitenForm({
   initialZeitraumBis,
   initialKostenanteil,
   initialVorauszahlung,
+  berechnet = false,
 }: {
   positionId: string;
   initialZeitraumVon: string;
   initialZeitraumBis: string;
   initialKostenanteil: number;
   initialVorauszahlung: number;
+  // Berechnete Position: Speichern ersetzt sie durch eine manuelle (die Berechnung läuft daneben mit).
+  berechnet?: boolean;
 }) {
   const [kostenanteil, setKostenanteil] = useState(initialKostenanteil.toFixed(2).replace(".", ","));
   const [vorauszahlung, setVorauszahlung] = useState(initialVorauszahlung.toFixed(2).replace(".", ","));
@@ -44,7 +47,7 @@ export function PositionBearbeitenForm({
   return (
     <details className="mt-2 text-xs">
       <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
-        Position bearbeiten
+        {berechnet ? "Manuell überschreiben" : "Position bearbeiten"}
       </summary>
       {/* DeleteButton ist selbst ein <form> — als Kind eines anderen <form> wäre das verschachtelt
           und damit ungültiges HTML (Hydration-Warnung). Das äußere <div> trägt deshalb das
@@ -96,16 +99,18 @@ export function PositionBearbeitenForm({
             disabled={pending}
             className="rounded-md bg-white px-3 py-1 font-medium text-black hover:bg-neutral-200 disabled:opacity-40"
           >
-            {pending ? "Speichere…" : "Speichern"}
+            {pending ? "Speichere…" : berechnet ? "Als manuelle Position speichern" : "Speichern"}
           </button>
           {fehler && <p className="w-full text-red-400">{fehler}</p>}
         </form>
-        <DeleteButton
-          action={loeschePosition.bind(null, positionId)}
-          confirmText="Position wirklich löschen?"
-          label="Position löschen"
-          size="sm"
-        />
+        {!berechnet && (
+          <DeleteButton
+            action={loeschePosition.bind(null, positionId)}
+            confirmText="Position wirklich löschen?"
+            label="Position löschen"
+            size="sm"
+          />
+        )}
       </div>
     </details>
   );
