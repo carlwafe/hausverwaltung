@@ -6,7 +6,7 @@ import { updateEinheit, deleteEinheit, loescheWohnflaecheKorrektur } from "../ac
 import { DeleteButton } from "@/components/delete-button";
 import { FotosSektion } from "@/components/fotos-sektion";
 import { uploadDokument } from "../../dokumente/actions";
-import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
+import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { KostenTable } from "../../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 import { WohnflaecheKorrekturForm } from "../wohnflaeche-korrektur-form";
@@ -37,7 +37,7 @@ export default async function EinheitDetailPage({
   const { id } = await params;
   const [einheit, gebaeudeRaw, mietvertraege, fotos, kosten, wohnflaecheKorrekturen] = await Promise.all([
     prisma.einheit.findUnique({ where: { id } }),
-    prisma.gebaeude.findMany(),
+    prisma.gebaeude.findMany({ include: { haus: { include: { gebaeude: true } } } }),
     prisma.mietvertrag.findMany({
       where: { einheitId: id },
       include: { mieter: true },
@@ -55,7 +55,7 @@ export default async function EinheitDetailPage({
     }),
   ]);
   if (!einheit) notFound();
-  const gebaeude = sortByStrasseUndHausnummer(gebaeudeRaw);
+  const gebaeude = sortGebaeudeNachHaus(gebaeudeRaw);
 
   return (
     <div>

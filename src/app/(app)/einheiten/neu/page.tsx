@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { EinheitForm } from "../einheit-form";
 import { createEinheit } from "../actions";
-import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
+import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 
 export default async function NeueEinheitPage() {
-  const gebaeude = sortByStrasseUndHausnummer(await prisma.gebaeude.findMany());
+  const gebaeude = sortGebaeudeNachHaus(
+    await prisma.gebaeude.findMany({ include: { haus: { include: { gebaeude: true } } } }),
+  );
 
   return (
     <div>

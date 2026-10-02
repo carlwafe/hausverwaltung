@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { sortByStrasseUndHausnummer } from "@/lib/sort-gebaeude";
+import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { mieterName } from "@/lib/mieter-name";
 import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 
@@ -14,7 +14,7 @@ export async function ladeTicketOptionen(aktuell?: { mietvertragId?: string | nu
       where: { OR: [{ status: "AKTIV" }, ...(aktuell?.mietvertragId ? [{ id: aktuell.mietvertragId }] : [])] },
       include: { mieter: true, einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } } },
     }),
-    prisma.gebaeude.findMany(),
+    prisma.gebaeude.findMany({ include: { haus: { include: { gebaeude: true } } } }),
     prisma.haus.findMany({ include: { gebaeude: true } }),
     prisma.dienstleister.findMany({ orderBy: { name: "asc" } }),
     prisma.user.findMany({ orderBy: { email: "asc" }, select: { id: true, name: true, email: true } }),
@@ -32,7 +32,7 @@ export async function ladeTicketOptionen(aktuell?: { mietvertragId?: string | nu
         label: `${einheitLabel(v.einheit)} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})`,
       }),
     ),
-    gebaeude: sortByStrasseUndHausnummer(gebaeude).map((g): Option => ({ id: g.id, label: `${g.strasse} ${g.hausnummer}` })),
+    gebaeude: sortGebaeudeNachHaus(gebaeude).map((g): Option => ({ id: g.id, label: `${g.strasse} ${g.hausnummer}` })),
     haeuser: [...haeuser].sort(vergleicheHaus).map((h): Option => ({ id: h.id, label: hausLabel(h.gebaeude) })),
     dienstleister: dienstleister.map((d): Option => ({ id: d.id, label: d.name })),
     benutzer: benutzer.map((u): Option => ({ id: u.id, label: u.name ?? u.email })),

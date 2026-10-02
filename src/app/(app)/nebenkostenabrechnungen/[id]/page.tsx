@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
 import { SubmitButton } from "@/components/submit-button";
 import { gebaeudeOderHausLabel, hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
+import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
 import { PositionenTable } from "./positionen-table";
@@ -256,9 +257,7 @@ export default async function NebenkostenabrechnungDetailPage({
       positionenFuerUebersicht,
     );
   }
-  for (const g of [...gebaeudeInAbrechnung.values()].sort((a, b) =>
-    `${a.strasse} ${a.hausnummer}`.localeCompare(`${b.strasse} ${b.hausnummer}`, "de", { numeric: true }),
-  )) {
+  for (const g of sortGebaeudeNachHaus([...gebaeudeInAbrechnung.values()])) {
     const key = `gebaeude:${g.id}`;
     uebersichtAuswahl.push({ value: key, label: `${g.strasse} ${g.hausnummer}`, gruppe: "gebaeude" });
     uebersichtDaten[key] = baueKostenUebersicht(positionenFuerUebersicht.filter((p) => p.gebaeudeId === g.id),
