@@ -1,3 +1,5 @@
+import { sortEinheitenNachGebaeude } from "./sort-einheiten";
+
 // Baut die Gebäude-Auswahl für Formulare: ein ganzes Haus (mehrere Hausnummern desselben
 // Bauwerks, z.B. "Haus 2, 4, 6" für Grundsteuer, die pro Bauwerk statt pro Adresse abgerechnet
 // wird), eine Kostengruppe (frei zusammengestellte Gebäude über Haus-Grenzen hinweg, z.B. wenn
@@ -160,12 +162,24 @@ export function gruppiereGebaeude(
   // Führendes "HS <Hausnummer> " aus der Bezeichnung entfernt, da Straße+Hausnummer bereits im
   // Label davor stehen (siehe Muster in src/lib/einheit-sort.ts) — ohne den Schnitt stünde die
   // Hausnummer redundant doppelt im Label.
-  const einheitOptionen: GebaeudeAuswahlOption[] = einheiten
-    .map((e) => ({
-      value: einheitWert(e.id),
-      label: `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} — ${e.bezeichnung.replace(/^HS\s*\S+\s*/i, "")}`,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  // Sortiert in der Haus-Reihenfolge des Objekts (sortEinheitenNachGebaeude), nicht alphabetisch
+  // ("HS 15" käme sonst vor "HS 9"). Das Haus der Einheit kommt über ihr Gebäude aus `gebaeude`.
+  const gebaeudeNachId = new Map(gebaeude.map((g) => [g.id, g]));
+  const einheitOptionen: GebaeudeAuswahlOption[] = sortEinheitenNachGebaeude(
+    einheiten.map((e) => {
+      const haus = gebaeudeNachId.get(e.gebaeudeId)?.haus;
+      return {
+        ...e,
+        gebaeude: {
+          ...e.gebaeude,
+          haus: haus ? { reihenfolge: haus.reihenfolge, gebaeude: hausGruppen.get(haus.id) ?? [] } : null,
+        },
+      };
+    }),
+  ).map((e) => ({
+    value: einheitWert(e.id),
+    label: `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} — ${e.bezeichnung.replace(/^HS\s*\S+\s*/i, "")}`,
+  }));
 
   const gruppen: GebaeudeAuswahlGruppe[] = [];
   if (hausOptionen.length > 0) gruppen.push({ label: "Ganzes Haus", optionen: hausOptionen });
