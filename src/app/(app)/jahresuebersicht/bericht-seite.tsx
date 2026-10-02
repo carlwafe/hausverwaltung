@@ -320,7 +320,24 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     ).map((v, i) => [v.id, i]),
   );
 
-  return berechneMieterBericht(vertraege, zeitraum, objekt?.buchhaltungAb ?? null, objekt?.buchhaltungBis ?? null)
+  // Mieter mit Kommentar bleiben auch bei Saldo 0 und ohne Bewegung sichtbar — der Kommentar dient
+  // dem Abgleich mit dem Vorverwalter (z.B. "Fehler bei Kanthak"), sonst wäre er danach nicht mehr zu sehen.
+  const mitKommentar = new Set(
+    (
+      await prisma.jahresberichtKommentar.findMany({
+        where: { jahr: zeitraum.jahr, quartal: zeitraum.quartal },
+        select: { mietvertragId: true },
+      })
+    ).map((k) => k.mietvertragId),
+  );
+
+  return berechneMieterBericht(
+    vertraege,
+    zeitraum,
+    objekt?.buchhaltungAb ?? null,
+    objekt?.buchhaltungBis ?? null,
+    mitKommentar,
+  )
     .map((z) => ({ ...z, einheitRang: einheitRang.get(z.mietvertragId) ?? 0 }))
     .sort((a, b) => a.einheitRang - b.einheitRang);
 }
@@ -605,6 +622,12 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           einer Zahlung, nicht nach ihrem tatsächlichen Buchungsdatum — eine z.B. Ende Dezember
           schon für Januar überwiesene Miete zählt so korrekt zum Folgejahr, statt das laufende
           Jahr künstlich ins Plus zu ziehen.
+        </p>
+        <p className="mb-3 text-sm text-neutral-400">
+          Mieter ohne Bewegung und mit Saldo 0 werden ausgeblendet — außer sie haben einen
+          Kommentar: Diese Zeilen bleiben sichtbar, damit der Kommentar zum Abgleich mit dem früheren
+          Verwalter erhalten bleibt (z.B. ein dort noch offener Rückstand, der in der App längst
+          beglichen ist).
         </p>
         <MieterTabelle
           zeilen={mieterZeilen.map((z) => ({

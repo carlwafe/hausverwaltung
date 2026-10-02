@@ -117,7 +117,8 @@ function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr:
  * Folgejahr statt das laufende Jahr künstlich ins Plus zu ziehen.
  *
  * Nur Mietverträge, die für das Jahr oder den offenen Nebenkostenabrechnung-Saldo tatsächlich
- * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf.
+ * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf,
+ * außer er steht in `immerAnzeigen` (nur bei berechneMieterBericht).
  */
 export function berechneMieterJahresbericht(
   vertraege: MietvertragFuerJahresbericht[],
@@ -145,6 +146,9 @@ export function berechneMieterBericht(
   zeitraum: { jahr: number; von: Date; bis: Date; mitNkOffen?: boolean },
   buchhaltungAb: Date | null,
   buchhaltungBisGlobal: Date | null,
+  // Mietverträge, die auch ohne jede Bewegung/Saldo in der Tabelle bleiben (z.B. weil ein Kommentar
+  // zum Abgleich mit dem Vorverwalter daran hängt).
+  immerAnzeigen?: ReadonlySet<string>,
 ): MieterJahresberichtZeile[] {
   const { jahr } = zeitraum;
   const saldoAltBis = new Date(zeitraum.von.getTime() - 1);
@@ -181,6 +185,7 @@ export function berechneMieterBericht(
     const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0);
 
     if (
+      !immerAnzeigen?.has(v.id) &&
       saldoAlt === 0 &&
       soll === 0 &&
       miete === 0 &&
