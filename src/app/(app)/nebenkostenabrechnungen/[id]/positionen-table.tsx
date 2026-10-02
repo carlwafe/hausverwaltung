@@ -75,6 +75,9 @@ export type PositionRow = {
   // Kostenanteil mit den vom Verwalter angesetzten Gesamtflächen (Vergleichsrechnung, siehe
   // QmAbweichungen); null = keine Abweichung eingetragen.
   kostenanteilSimuliert: number | null;
+  // Live-Berechnung zum Vergleich (nur bei manuell geführter Abrechnung, nie gespeichert).
+  berechnetKostenanteil: number | null;
+  berechnetSaldo: number | null;
   // Manuelle Prüfnotizen (siehe NebenkostenabrechnungPruefung): Stern = Berechnung stimmt mit der
   // des Verwalters überein, dazu ein kurzer Kommentar.
   stimmtMitVerwalter: boolean;
@@ -135,6 +138,27 @@ const columns: Column<PositionRow>[] = [
       return (
         <span className="whitespace-nowrap">
           <span className="text-white">{formatEuro(p.kostenanteilSimuliert)}</span>
+          {diff !== 0 && (
+            <span className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${diff > 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}>
+              {diff > 0 ? "+" : ""}
+              {formatEuro(diff)}
+            </span>
+          )}
+        </span>
+      );
+    },
+  },
+  {
+    key: "berechnung",
+    label: "Berechnung (Vergleich)",
+    align: "right",
+    sortValue: (p) => (p.berechnetKostenanteil !== null ? p.berechnetKostenanteil - p.kostenanteilGesamt : 0),
+    render: (p) => {
+      if (p.berechnetKostenanteil === null || p.berechnetSaldo === null) return <span className="text-neutral-600">–</span>;
+      const diff = Math.round((p.berechnetKostenanteil - p.kostenanteilGesamt) * 100) / 100;
+      return (
+        <span className="whitespace-nowrap" title={`Saldo laut Berechnung: ${formatEuro(p.berechnetSaldo)}`}>
+          <span className="text-white">{formatEuro(p.berechnetKostenanteil)}</span>
           {diff !== 0 && (
             <span className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${diff > 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}>
               {diff > 0 ? "+" : ""}
@@ -292,10 +316,10 @@ const columns: Column<PositionRow>[] = [
   },
 ];
 
-export function PositionenTable({ rows }: { rows: PositionRow[] }) {
+export function PositionenTable({ rows, zeigeBerechnung }: { rows: PositionRow[]; zeigeBerechnung: boolean }) {
   return (
     <DataTable
-      columns={columns}
+      columns={zeigeBerechnung ? columns : columns.filter((c) => c.key !== "berechnung")}
       rows={rows}
       emptyMessage="Keine Positionen vorhanden."
       searchPlaceholder="Positionen durchsuchen…"

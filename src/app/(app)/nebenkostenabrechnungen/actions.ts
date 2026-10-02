@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher, PLATZHALTER_KOMMENTAR_PRAEFIX, istManuelleAbrechnung } from "@/lib/nk-position-sicherstellen";
+import { stelleNkPositionSicher, stelleNkPositionenFuerJahrSicher, PLATZHALTER_KOMMENTAR_PRAEFIX } from "@/lib/nk-position-sicherstellen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import {
@@ -257,7 +257,7 @@ export const erstelleLeereAbrechnung = mitMeldung(async function erstelleLeereAb
     throw new AktionsFehler(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
-  const abrechnung = await prisma.nebenkostenabrechnung.create({ data: { jahr } });
+  const abrechnung = await prisma.nebenkostenabrechnung.create({ data: { jahr, manuell: true } });
 
   revalidatePath("/nebenkostenabrechnungen");
   redirect(`/nebenkostenabrechnungen/${abrechnung.id}`);
@@ -443,12 +443,9 @@ export async function ladeNebenkostenausgleichSummen(
 // wechselnden) Position-ID.
 export async function neuBerechnen(id: string) {
   await requireEditor();
-  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({
-    where: { id },
-    include: { positionen: { select: { details: true } } },
-  });
-  // Leer/manuell geführte Abrechnung: Berechnung gesperrt (Button auf der Seite ist deaktiviert).
-  if (istManuelleAbrechnung(abrechnung.positionen)) return;
+  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id } });
+  // Manuell geführte Abrechnung: Berechnung gesperrt (Button auf der Seite ist deaktiviert).
+  if (abrechnung.manuell) return;
   const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
     await ladeBerechnungsdaten(abrechnung.jahr);
   const ergebnis = berechneNebenkostenabrechnung(
@@ -706,6 +703,16 @@ export async function loescheQmAbweichung(id: string, abrechnungId: string) {
   await requireEditor();
   await prisma.nebenkostenQmAbweichung.delete({ where: { id } });
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+}
+
+// Stellt eine Abrechnung zwischen "manuell geführt" (Positionen von Hand, "Neu berechnen" gesperrt,
+// Berechnung nur als Live-Vergleich) und "berechnet" um. Es werden keine Positionen verändert; bei
+// "berechnet" ersetzt "Neu berechnen" danach nur die berechneten Positionen, manuell erfasste bleiben.
+export async function setAbrechnungManuell(id: string, manuell: boolean) {
+  await requireEditor();
+  await prisma.nebenkostenabrechnung.update({ where: { id }, data: { manuell } });
+  revalidatePath(`/nebenkostenabrechnungen/${id}`);
+  revalidatePath("/nebenkostenabrechnungen");
 }
 
 export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL") {

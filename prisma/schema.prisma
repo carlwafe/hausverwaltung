@@ -771,6 +771,8 @@ model Nebenkostenabrechnung {
   jahr       Int              @unique
   status     AbrechnungStatus @default(ENTWURF)
   erstelltAm DateTime         @default(now())
+  // Manuell geführt: Positionen von Hand, "Neu berechnen" gesperrt (Berechnung nur als Live-Vergleich).
+  manuell    Boolean          @default(false)
 
   positionen     NebenkostenabrechnungPosition[]
   pruefungen     NebenkostenabrechnungPruefung[]

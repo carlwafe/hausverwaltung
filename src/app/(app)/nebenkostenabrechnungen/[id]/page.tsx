@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { istManuelleAbrechnung } from "@/lib/nk-position-sicherstellen";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DeleteButton } from "@/components/delete-button";
@@ -16,6 +15,7 @@ import {
   ladeBerechnungsdaten,
   ladeNebenkostenausgleichSummen,
   neuBerechnen,
+  setAbrechnungManuell,
   setAbrechnungStatus,
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
@@ -201,7 +201,28 @@ export default async function NebenkostenabrechnungDetailPage({
   const naechsterStatus = abrechnung.status === "ENTWURF" ? "FINAL" : "ENTWURF";
   const naechsterStatusAction = setAbrechnungStatus.bind(null, id, naechsterStatus);
   const neuBerechnenAction = neuBerechnen.bind(null, id);
-  const neuBerechnenGesperrt = istManuelleAbrechnung(abrechnung.positionen);
+  const neuBerechnenGesperrt = abrechnung.manuell;
+  const modusAction = setAbrechnungManuell.bind(null, id, !abrechnung.manuell);
+
+  // Manuell geführte Abrechnung: die Berechnung läuft nur live zum Vergleich mit, gespeichert wird nichts.
+  const berechnet = new Map<string, { kostenanteil: number; vorauszahlung: number; saldo: number }>();
+  if (abrechnung.manuell) {
+    const live = berechneNebenkostenabrechnung(
+      abrechnung.jahr,
+      kostenpositionen,
+      einheiten,
+      mietvertraegeEngine,
+      verbrauchswerte,
+      vorverteilteAnteile,
+      technischerAbzug,
+    );
+    for (const p of live.positionen)
+      berechnet.set(`${p.mietvertragId}|${p.einheitId}`, {
+        kostenanteil: p.kostenanteilGesamt,
+        vorauszahlung: p.vorauszahlungGesamt,
+        saldo: p.saldo,
+      });
+  }
 
   // Kostenaufschlüsselung: Objekt gesamt sowie je Haus (mehrere Hausnummern) und je Gebäude, jeweils
   // aus den gespeicherten Aufschlüsselungen der Positionen (siehe nk-uebersicht.ts).
@@ -279,18 +300,26 @@ export default async function NebenkostenabrechnungDetailPage({
             Nebenkostenabrechnung {abrechnung.jahr}
           </h1>
           <p className="text-sm text-neutral-400">
-            Status: {STATUS_LABEL[abrechnung.status] ?? abrechnung.status} · erstellt am{" "}
+            Status: {STATUS_LABEL[abrechnung.status] ?? abrechnung.status} · {abrechnung.manuell ? "manuell geführt" : "berechnet"} · erstellt am{" "}
             {formatDate(abrechnung.erstelltAm)}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung ist leer bzw. wird manuell geführt — die Berechnung würde die von Hand erfassten Positionen nicht abbilden." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
+          <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung wird manuell geführt. Die Berechnung läuft nur als Vergleichsspalte mit; zum Berechnen erst „Auf berechnet umstellen“." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
             <SubmitButton
               pendingLabel="Berechne…"
               disabled={neuBerechnenGesperrt}
               className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
             >
               Neu berechnen
+            </SubmitButton>
+          </form>
+          <form action={modusAction}>
+            <SubmitButton
+              pendingLabel="Speichere…"
+              className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+            >
+              {abrechnung.manuell ? "Auf berechnet umstellen" : "Als manuell führen"}
             </SubmitButton>
           </form>
           <form action={naechsterStatusAction}>
@@ -459,6 +488,7 @@ export default async function NebenkostenabrechnungDetailPage({
       </p>
 
       <PositionenTable
+        zeigeBerechnung={abrechnung.manuell}
         rows={abrechnung.positionen.map((p) => {
           const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
           const gutschriftSumme = eintrag?.summe ?? 0;
@@ -492,6 +522,8 @@ export default async function NebenkostenabrechnungDetailPage({
             kostenanteilSimuliert: p.mietvertragId
               ? (simulierterKostenanteil.get(`${p.mietvertragId}|${p.einheitId}`) ?? null)
               : null,
+            berechnetKostenanteil: berechnet.get(`${p.mietvertragId}|${p.einheitId}`)?.kostenanteil ?? null,
+            berechnetSaldo: berechnet.get(`${p.mietvertragId}|${p.einheitId}`)?.saldo ?? null,
             stimmtMitVerwalter: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.stimmtMitVerwalter ?? false) : false,
             kommentar: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.kommentar ?? "") : "",
             details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
