@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
@@ -30,7 +31,7 @@ function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
 // auf den abgerechneten Zeitraum skaliert wie der Anteil selbst. Cent-genau gerundet.
 // Saldo nach Gutschrift mit dem Kostenanteil der Vergleichsrechnung (Vorauszahlung und
 // Rückzahlung/Gutschrift unverändert); null, solange keine abweichende Fläche eingetragen ist.
-function saldoNachGutschriftVerwalter(p: PositionRow): number | null {
+function saldoNachGutschriftVergleich(p: PositionRow): number | null {
   if (p.kostenanteilSimuliert === null) return null;
   return Math.round((p.vorauszahlungGesamt - p.kostenanteilSimuliert - (p.gutschriftSumme ?? 0)) * 100) / 100;
 }
@@ -102,274 +103,253 @@ function ZweiZeilen({ manuell, berechnet }: { manuell: string; berechnet: string
   );
 }
 
-const columns: Column<PositionRow>[] = [
-  {
-    key: "einheit",
-    label: "Einheit",
-    sortValue: (p) => {
-      const [haus, whg] = einheitSortSchluessel(p.einheitBezeichnung);
-      return haus * 100000 + whg;
-    },
-    searchValue: (p) => p.einheitBezeichnung,
-    render: (p) => (
-      <span>
-        <Link href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
-          {p.einheitBezeichnung}
-        </Link>
-        {p.manuell && (
-          <span
-            title="Manuell angelegte/bearbeitete Position — bleibt bei Berechnung und Umstellen erhalten"
-            className="ml-1.5 inline-block rounded-full bg-violet-500/10 px-1.5 text-xs text-violet-400"
-          >
-            manuell
-          </span>
-        )}
-      </span>
-    ),
-  },
-  {
-    key: "gebaeude",
-    label: "Gebäude",
-    sortValue: (p) => p.gebaeudeSortSchluessel,
-    searchValue: (p) => p.gebaeudeLabel,
-    render: (p) => p.gebaeudeLabel,
-  },
-  {
-    key: "mieter",
-    label: "Mieter",
-    sortValue: (p) => p.mieterNamen,
-    searchValue: (p) => p.mieterNamen,
-    render: (p) => p.mieterNamen,
-  },
-  {
-    key: "zeitraum",
-    label: "Zeitraum",
-    sortValue: (p) => p.zeitraumVon,
-    render: (p) => `${formatDate(p.zeitraumVon)} – ${formatDate(p.zeitraumBis)}`,
-  },
-  {
-    key: "kostenanteil",
-    label: "Kostenanteil",
-    align: "right",
-    sortValue: (p) => p.kostenanteilGesamt,
-    render: (p) =>
-      p.berechnet ? (
-        <ZweiZeilen manuell={formatEuro(p.kostenanteilGesamt)} berechnet={formatEuro(p.berechnet.kostenanteil)} />
-      ) : (
-        formatEuro(p.kostenanteilGesamt)
-      ),
-  },
-  {
-    key: "kostenanteilSimuliert",
-    label: "Kostenanteil wie Verwalter",
-    align: "right",
-    sortValue: (p) => (p.kostenanteilSimuliert !== null ? p.kostenanteilSimuliert - p.kostenanteilGesamt : 0),
-    render: (p) => {
-      if (p.kostenanteilSimuliert === null) return <span className="text-neutral-600">–</span>;
-      const diff = Math.round((p.kostenanteilSimuliert - p.kostenanteilGesamt) * 100) / 100;
-      return (
-        <span className="whitespace-nowrap">
-          <span className="text-white">{formatEuro(p.kostenanteilSimuliert)}</span>
-          {diff !== 0 && (
-            <span className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${diff > 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}>
-              {diff > 0 ? "+" : ""}
-              {formatEuro(diff)}
+// vergleichName: Bezeichnung der Vergleichsrechnung zur Gesamtfläche, die unter dem Wert steht —
+// "Flächen wie Verwalter" (Abrechnung mit unseren Flächen) oder "mit korrekten Flächen" (Abrechnung
+// mit Verwalter-Flächen).
+function baueSpalten(vergleichName: string): Column<PositionRow>[] {
+  return [
+    {
+      key: "einheit",
+      label: "Einheit",
+      sortValue: (p) => {
+        const [haus, whg] = einheitSortSchluessel(p.einheitBezeichnung);
+        return haus * 100000 + whg;
+      },
+      searchValue: (p) => p.einheitBezeichnung,
+      render: (p) => (
+        <span>
+          <Link href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
+            {p.einheitBezeichnung}
+          </Link>
+          {p.manuell && (
+            <span
+              title="Manuell angelegte/bearbeitete Position — bleibt bei Berechnung und Umstellen erhalten"
+              className="ml-1.5 inline-block rounded-full bg-violet-500/10 px-1.5 text-xs text-violet-400"
+            >
+              manuell
             </span>
           )}
         </span>
-      );
-    },
-  },
-  {
-    key: "restcent",
-    label: "Restcent",
-    align: "right",
-    sortValue: (p) => restcentSumme(p.details),
-    render: (p) => {
-      const r = restcentSumme(p.details);
-      const kostenarten = p.details.filter((d) => d.restcent).map((d) => d.kostenartName);
-      if (r === 0 && kostenarten.length === 0) return <span className="text-neutral-600">–</span>;
-      return (
-        <span
-          title={`Restcent-Ausgleich bei: ${kostenarten.join(", ")}`}
-          className={`rounded px-1.5 py-0.5 text-xs ${r >= 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}
-        >
-          {r > 0 ? "+" : ""}
-          {formatEuro(r)}
-        </span>
-      );
-    },
-  },
-  {
-    key: "vorauszahlung",
-    label: "Vorauszahlung",
-    align: "right",
-    title:
-      "Tatsächlich gezahlte NK-Vorauszahlung: je Mietmonat zuerst auf die NK (bis zum NK-Soll), erst der Rest auf die Kaltmiete (§ 366 Abs. 2 BGB)",
-    sortValue: (p) => p.vorauszahlungGesamt,
-    render: (p) =>
-      p.berechnet ? (
-        <ZweiZeilen manuell={formatEuro(p.vorauszahlungGesamt)} berechnet={formatEuro(p.berechnet.vorauszahlung)} />
-      ) : (
-        formatEuro(p.vorauszahlungGesamt)
       ),
-  },
-  {
-    key: "saldo",
-    label: "Saldo",
-    align: "right",
-    sortValue: (p) => p.saldo,
-    render: (p) => {
-      const saldoText = (v: number) => `${formatEuro(v)} ${v >= 0 ? "(Guthaben)" : "(Nachzahlung)"}`;
-      const farbe = (v: number) => (v >= 0 ? "text-green-400" : "text-red-400");
-      if (p.berechnet) {
+    },
+    {
+      key: "gebaeude",
+      label: "Gebäude",
+      sortValue: (p) => p.gebaeudeSortSchluessel,
+      searchValue: (p) => p.gebaeudeLabel,
+      render: (p) => p.gebaeudeLabel,
+    },
+    {
+      key: "mieter",
+      label: "Mieter",
+      sortValue: (p) => p.mieterNamen,
+      searchValue: (p) => p.mieterNamen,
+      render: (p) => p.mieterNamen,
+    },
+    {
+      key: "zeitraum",
+      label: "Zeitraum",
+      sortValue: (p) => p.zeitraumVon,
+      render: (p) => `${formatDate(p.zeitraumVon)} – ${formatDate(p.zeitraumBis)}`,
+    },
+    {
+      key: "kostenanteil",
+      label: "Kostenanteil",
+      align: "right",
+      sortValue: (p) => p.kostenanteilGesamt,
+      render: (p) => {
+        if (p.berechnet) {
+          return <ZweiZeilen manuell={formatEuro(p.kostenanteilGesamt)} berechnet={formatEuro(p.berechnet.kostenanteil)} />;
+        }
+        if (p.kostenanteilSimuliert === null) return formatEuro(p.kostenanteilGesamt);
         return (
           <span className="flex flex-col items-end gap-0.5 whitespace-nowrap">
-            <span className={`font-medium ${farbe(p.saldo)}`}>
-              <span className="mr-1.5 text-xs font-normal text-violet-400">manuell</span>
-              {saldoText(p.saldo)}
-            </span>
-            <span className={`text-xs ${farbe(p.berechnet.saldo)}`}>
-              <span className="mr-1.5 text-neutral-500">berechnet</span>
-              {saldoText(p.berechnet.saldo)}
+            <span>{formatEuro(p.kostenanteilGesamt)}</span>
+            <span className="text-xs text-neutral-400">
+              {formatEuro(p.kostenanteilSimuliert)} <span className="text-neutral-500">({vergleichName})</span>
             </span>
           </span>
         );
-      }
-      return <span className={`font-medium ${farbe(p.saldo)}`}>{saldoText(p.saldo)}</span>;
+      },
     },
-  },
-  {
-    key: "gutschrift",
-    label: "Rückzahlung/Gutschrift",
-    sortValue: (p) => p.gutschriftSumme ?? 0,
-    render: (p) => {
-      if (p.gutschriftSumme === null) return <span className="text-neutral-500">–</span>;
-      // Gesamtsumme in Auszahlung/Einzug und die beiden Verrechnungsarten aufgeteilt.
-      const ausgezahlt = Math.round((p.gutschriftSumme - p.verrechnetSumme - p.kautionSumme) * 100) / 100;
-      const teile: { key: string; betrag: number; label: string; datum: string | null; title: string; farbe: string }[] = [
-        {
-          key: "auszahlung",
-          betrag: ausgezahlt,
-          label: ausgezahlt >= 0 ? "ausgezahlt" : "eingezogen",
-          datum: p.auszahlungDatum,
-          title: "Tatsächliche Kontobewegung (Nebenkostenausgleich)",
-          farbe: "bg-green-500/10 text-green-400",
-        },
-        {
-          key: "verrechnet",
-          betrag: p.verrechnetSumme,
-          label: "verrechnet",
-          datum: p.verrechnetDatum,
-          title: "Auf das Mieterkonto verrechnet, ohne Kontobewegung (Buchung unter Zahlungen)",
-          farbe: "bg-sky-500/10 text-sky-400",
-        },
-        {
-          key: "kaution",
-          betrag: p.kautionSumme,
-          label: "mit Kaution verrechnet",
-          datum: p.kautionDatum,
-          title: "Mit der Kaution verrechnet (Einbehalt unter Kautionen)",
-          farbe: "bg-sky-500/10 text-sky-400",
-        },
-      ].filter((t) => Math.abs(t.betrag) >= 0.005);
-      return (
-        <div className="space-y-0.5">
-          {teile.map((t) => (
-            <div key={t.key} className="whitespace-nowrap">
-              <span className="text-white">{formatEuro(t.betrag)}</span>
-              <span title={t.title} className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${t.farbe}`}>
-                {t.label}
-              </span>
-              {t.datum && <span className="ml-1 text-xs text-neutral-500">({formatDate(t.datum)})</span>}
-            </div>
-          ))}
-        </div>
-      );
+    {
+      key: "restcent",
+      label: "Restcent",
+      align: "right",
+      sortValue: (p) => restcentSumme(p.details),
+      render: (p) => {
+        const r = restcentSumme(p.details);
+        const kostenarten = p.details.filter((d) => d.restcent).map((d) => d.kostenartName);
+        if (r === 0 && kostenarten.length === 0) return <span className="text-neutral-600">–</span>;
+        return (
+          <span
+            title={`Restcent-Ausgleich bei: ${kostenarten.join(", ")}`}
+            className={`rounded px-1.5 py-0.5 text-xs ${r >= 0 ? "bg-amber-500/10 text-amber-400" : "bg-sky-500/10 text-sky-400"}`}
+          >
+            {r > 0 ? "+" : ""}
+            {formatEuro(r)}
+          </span>
+        );
+      },
     },
-  },
-  {
-    key: "saldoNachGutschrift",
-    label: "Saldo nach Gutschrift",
-    sortValue: (p) => p.saldoNachGutschrift,
-    render: (p) => {
-      const zelle = (saldo: number) =>
-        Math.abs(saldo) < 0.01 ? (
-          <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>
+    {
+      key: "vorauszahlung",
+      label: "Vorauszahlung",
+      align: "right",
+      title:
+        "Tatsächlich gezahlte NK-Vorauszahlung: je Mietmonat zuerst auf die NK (bis zum NK-Soll), erst der Rest auf die Kaltmiete (§ 366 Abs. 2 BGB)",
+      sortValue: (p) => p.vorauszahlungGesamt,
+      render: (p) =>
+        p.berechnet ? (
+          <ZweiZeilen manuell={formatEuro(p.vorauszahlungGesamt)} berechnet={formatEuro(p.berechnet.vorauszahlung)} />
         ) : (
-          <span className={saldo >= 0 ? "text-green-400" : "text-red-400"}>{formatEuro(saldo)}</span>
+          formatEuro(p.vorauszahlungGesamt)
+        ),
+    },
+    {
+      key: "saldo",
+      label: "Saldo",
+      align: "right",
+      sortValue: (p) => p.saldo,
+      render: (p) => {
+        const saldoText = (v: number) => `${formatEuro(v)} ${v >= 0 ? "(Guthaben)" : "(Nachzahlung)"}`;
+        const farbe = (v: number) => (v >= 0 ? "text-green-400" : "text-red-400");
+        if (p.berechnet) {
+          return (
+            <span className="flex flex-col items-end gap-0.5 whitespace-nowrap">
+              <span className={`font-medium ${farbe(p.saldo)}`}>
+                <span className="mr-1.5 text-xs font-normal text-violet-400">manuell</span>
+                {saldoText(p.saldo)}
+              </span>
+              <span className={`text-xs ${farbe(p.berechnet.saldo)}`}>
+                <span className="mr-1.5 text-neutral-500">berechnet</span>
+                {saldoText(p.berechnet.saldo)}
+              </span>
+            </span>
+          );
+        }
+        return <span className={`font-medium ${farbe(p.saldo)}`}>{saldoText(p.saldo)}</span>;
+      },
+    },
+    {
+      key: "gutschrift",
+      label: "Rückzahlung/Gutschrift",
+      sortValue: (p) => p.gutschriftSumme ?? 0,
+      render: (p) => {
+        if (p.gutschriftSumme === null) return <span className="text-neutral-500">–</span>;
+        // Gesamtsumme in Auszahlung/Einzug und die beiden Verrechnungsarten aufgeteilt.
+        const ausgezahlt = Math.round((p.gutschriftSumme - p.verrechnetSumme - p.kautionSumme) * 100) / 100;
+        const teile: { key: string; betrag: number; label: string; datum: string | null; title: string; farbe: string }[] = [
+          {
+            key: "auszahlung",
+            betrag: ausgezahlt,
+            label: ausgezahlt >= 0 ? "ausgezahlt" : "eingezogen",
+            datum: p.auszahlungDatum,
+            title: "Tatsächliche Kontobewegung (Nebenkostenausgleich)",
+            farbe: "bg-green-500/10 text-green-400",
+          },
+          {
+            key: "verrechnet",
+            betrag: p.verrechnetSumme,
+            label: "verrechnet",
+            datum: p.verrechnetDatum,
+            title: "Auf das Mieterkonto verrechnet, ohne Kontobewegung (Buchung unter Zahlungen)",
+            farbe: "bg-sky-500/10 text-sky-400",
+          },
+          {
+            key: "kaution",
+            betrag: p.kautionSumme,
+            label: "mit Kaution verrechnet",
+            datum: p.kautionDatum,
+            title: "Mit der Kaution verrechnet (Einbehalt unter Kautionen)",
+            farbe: "bg-sky-500/10 text-sky-400",
+          },
+        ].filter((t) => Math.abs(t.betrag) >= 0.005);
+        return (
+          <div className="space-y-0.5">
+            {teile.map((t) => (
+              <div key={t.key} className="whitespace-nowrap">
+                <span className="text-white">{formatEuro(t.betrag)}</span>
+                <span title={t.title} className={`ml-1.5 rounded px-1.5 py-0.5 text-xs ${t.farbe}`}>
+                  {t.label}
+                </span>
+                {t.datum && <span className="ml-1 text-xs text-neutral-500">({formatDate(t.datum)})</span>}
+              </div>
+            ))}
+          </div>
         );
-      if (!p.berechnet) return zelle(p.saldoNachGutschrift);
-      const berechnetNach = Math.round((p.berechnet.saldo - (p.gutschriftSumme ?? 0)) * 100) / 100;
-      return (
-        <span className="flex flex-col items-start gap-0.5 whitespace-nowrap">
-          <span>
-            <span className="mr-1.5 text-xs text-violet-400">manuell</span>
-            {zelle(p.saldoNachGutschrift)}
-          </span>
-          <span className="text-xs">
-            <span className="mr-1.5 text-neutral-500">berechnet</span>
-            {zelle(berechnetNach)}
-          </span>
-        </span>
-      );
+      },
     },
-  },
-  {
-    key: "saldoNachGutschriftVerwalter",
-    label: "Saldo nach Gutschrift wie Verwalter",
-    align: "right",
-    sortValue: (p) => saldoNachGutschriftVerwalter(p) ?? 0,
-    render: (p) => {
-      const saldo = saldoNachGutschriftVerwalter(p);
-      if (saldo === null) return <span className="text-neutral-600">–</span>;
-      if (Math.abs(saldo) < 0.01) {
-        return <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>;
-      }
-      return (
-        <span className={`whitespace-nowrap ${saldo >= 0 ? "text-green-400" : "text-red-400"}`}>{formatEuro(saldo)}</span>
-      );
+    {
+      key: "saldoNachGutschrift",
+      label: "Saldo nach Gutschrift",
+      sortValue: (p) => p.saldoNachGutschrift,
+      render: (p) => {
+        const zelle = (saldo: number) =>
+          Math.abs(saldo) < 0.01 ? (
+            <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>
+          ) : (
+            <span className={saldo >= 0 ? "text-green-400" : "text-red-400"}>{formatEuro(saldo)}</span>
+          );
+        if (p.berechnet) {
+          const berechnetNach = Math.round((p.berechnet.saldo - (p.gutschriftSumme ?? 0)) * 100) / 100;
+          return (
+            <span className="flex flex-col items-start gap-0.5 whitespace-nowrap">
+              <span>
+                <span className="mr-1.5 text-xs text-violet-400">manuell</span>
+                {zelle(p.saldoNachGutschrift)}
+              </span>
+              <span className="text-xs">
+                <span className="mr-1.5 text-neutral-500">berechnet</span>
+                {zelle(berechnetNach)}
+              </span>
+            </span>
+          );
+        }
+        const vergleich = saldoNachGutschriftVergleich(p);
+        if (vergleich === null) return zelle(p.saldoNachGutschrift);
+        return (
+          <span className="flex flex-col items-start gap-0.5 whitespace-nowrap">
+            <span>{zelle(p.saldoNachGutschrift)}</span>
+            <span className="text-xs">
+              {zelle(vergleich)} <span className="text-neutral-500">({vergleichName})</span>
+            </span>
+          </span>
+        );
+      },
     },
-  },
-  {
-    key: "verwalter",
-    label: "★ Verwalter",
-    sortValue: (p) => (p.stimmtMitVerwalter ? 1 : 0),
-    render: (p) =>
-      p.mietvertragId ? (
-        <VerwalterAbgleichStern
-          abrechnungId={p.abrechnungId}
-          mietvertragId={p.mietvertragId}
-          stimmt={p.stimmtMitVerwalter}
-        />
-      ) : (
-        <span className="text-neutral-600">–</span>
-      ),
-  },
-  {
-    key: "kommentar",
-    label: "Kommentar",
-    sortValue: (p) => p.kommentar,
-    searchValue: (p) => p.kommentar,
-    render: (p) =>
-      p.mietvertragId ? (
-        <KommentarFeld abrechnungId={p.abrechnungId} mietvertragId={p.mietvertragId} kommentar={p.kommentar} />
-      ) : (
-        <span className="text-neutral-600">–</span>
-      ),
-  },
-];
+    {
+      key: "verwalter",
+      label: "★ Verwalter",
+      sortValue: (p) => (p.stimmtMitVerwalter ? 1 : 0),
+      render: (p) =>
+        p.mietvertragId ? (
+          <VerwalterAbgleichStern
+            abrechnungId={p.abrechnungId}
+            mietvertragId={p.mietvertragId}
+            stimmt={p.stimmtMitVerwalter}
+          />
+        ) : (
+          <span className="text-neutral-600">–</span>
+        ),
+    },
+    {
+      key: "kommentar",
+      label: "Kommentar",
+      sortValue: (p) => p.kommentar,
+      searchValue: (p) => p.kommentar,
+      render: (p) =>
+        p.mietvertragId ? (
+          <KommentarFeld abrechnungId={p.abrechnungId} mietvertragId={p.mietvertragId} kommentar={p.kommentar} />
+        ) : (
+          <span className="text-neutral-600">–</span>
+        ),
+    },
+  ];
+}
 
-// vergleichName: Bezeichnung der Vergleichsrechnung in den beiden Vergleichsspalten — "wie Verwalter"
-// (Abrechnung mit unseren Flächen) oder "mit korrekten Flächen" (Abrechnung mit Verwalter-Flächen).
 export function PositionenTable({ rows, vergleichName }: { rows: PositionRow[]; vergleichName: string }) {
-  const spalten = columns.map((c) =>
-    c.key === "kostenanteilSimuliert"
-      ? { ...c, label: `Kostenanteil ${vergleichName}` }
-      : c.key === "saldoNachGutschriftVerwalter"
-        ? { ...c, label: `Saldo nach Gutschrift ${vergleichName}` }
-        : c,
-  );
+  const spalten = useMemo(() => baueSpalten(vergleichName), [vergleichName]);
   return (
     <DataTable
       columns={spalten}

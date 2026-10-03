@@ -522,7 +522,7 @@ export default async function NebenkostenabrechnungDetailPage({
       </p>
 
       <PositionenTable
-        vergleichName={verwalterFlaechen ? "mit korrekten Flächen" : "wie Verwalter"}
+        vergleichName={verwalterFlaechen ? "mit korrekten Flächen" : "Flächen wie Verwalter"}
         rows={abrechnung.positionen.map((p) => {
           const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
           const gutschriftSumme = eintrag?.summe ?? 0;
