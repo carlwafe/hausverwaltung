@@ -568,6 +568,7 @@ export default async function NebenkostenabrechnungDetailPage({
 
       <QmAbweichungen
         abrechnungId={id}
+        jahr={abrechnung.jahr}
         kostenkreise={qmKostenkreise}
         abweichungen={qmAbweichungZeilen}
         verwalterFlaechen={verwalterFlaechen}

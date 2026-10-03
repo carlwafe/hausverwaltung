@@ -21,12 +21,14 @@ export type QmAbweichungZeile = { id: string; label: string; qmEcht: number | nu
  */
 export function QmAbweichungen({
   abrechnungId,
+  jahr,
   kostenkreise,
   abweichungen,
   verwalterFlaechen,
   manuell,
 }: {
   abrechnungId: string;
+  jahr: number;
   kostenkreise: QmKostenkreis[];
   abweichungen: QmAbweichungZeile[];
   verwalterFlaechen: boolean;
@@ -65,12 +67,24 @@ export function QmAbweichungen({
           </button>
         </form>
         <p className="mt-1.5 text-xs text-neutral-500">
-          Für Jahre, die der Verwalter bereits so abgerechnet hat und die unverändert bleiben sollen. Mit
+          Regel: Jahre bis einschließlich 2025 werden mit den Flächen des Verwalters gerechnet (so hat er bereits
+          abgerechnet), ab 2026 gilt unsere Fläche. Mit
           zu kleiner Gesamtfläche verteilt die Rechnung mehr als die Kosten (kein Restcent-Ausgleich). Beim
           Umstellen und bei jeder Änderung der Flächen werden die berechneten Positionen sofort neu berechnet
           {manuell ? " — bei dieser manuell geführten Abrechnung bleibt die Berechnung gesperrt" : " (manuelle bleiben unberührt)"}.
         </p>
       </div>
+
+      {jahr === 2025 && (
+        <p className="mb-4 max-w-2xl text-xs text-neutral-500">
+          Offen: Beim Verwalter ist Haus 11/13/15 mit 489,466 m² angesetzt, unsere Wohnungen ergeben 492,87 m² (Differenz
+          3,404 m², keine Wohnung erklärt sie). Seine eigene Abrechnung nennt für den Schlüssel „Nutzfl. m² gesamt“ zwei
+          Gesamtflächen: 2.673,534 m² (mit 492,87 m² für dieses Haus, wie bei uns) und 2.670,128 m² bei
+          Gebäudeversicherung und Straßenreinigung (mit 489,466 m²). Welche Wohnung in seiner Gruppe „Haus 11–15“
+          abweicht, ist beim Verwalter noch zu klären. Mit seiner kleineren Fläche liegt die Umlage 2025 um rund 19 €
+          über den Kosten.
+        </p>
+      )}
 
       {abweichungen.length > 0 && (
         <table className="mb-3 w-full max-w-2xl text-sm">
