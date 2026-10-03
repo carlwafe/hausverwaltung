@@ -35,6 +35,12 @@ export default async function KostenPage() {
           <h1 className="text-2xl font-semibold text-white">Kosten</h1>
           <p className="mb-1 text-sm text-neutral-400">{kosten.length} Kostenpositionen erfasst</p>
           <BuchungsartInfo code="KOSTENPOSITION" />
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+            Grundsteuer-Rate der Stadt: Jede Abbuchung besteht aus Grundsteuer und Straßenreinigung —
+            beide Teile aufteilen (Grundsteuer am Haus, Straßenreinigung ohne Gebäude für alle).
+            Ungeteilt würde die Straßenreinigung nur den Mietern des Hauses als Grundsteuer
+            angerechnet.
+          </p>
         </div>
         <div className="flex gap-2">
           <Link

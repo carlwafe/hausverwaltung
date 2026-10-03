@@ -54,6 +54,11 @@ export default function KontoauszugImportPage() {
         Verwendungszweck nennt oft die falsche Sparte (&bdquo;Allgemeinstrom + Wasser&ldquo;, &bdquo;Wasser +
         Gas&ldquo;). Kostenart am Betrag prüfen und die Kostenposition danach unter Kosten aufteilen.
       </p>
+      <p className="mb-6 max-w-2xl text-xs text-neutral-500">
+        Von Hand prüfen: Die Rauchmelder-Wartung von Techem (Rechnung im Januar) gehört zum Vorjahr,
+        der Verwendungszweck nennt aber keine Jahreszahl &mdash; Kostenjahr auf das Vorjahr setzen und
+        die Kostengruppe je Haus-Gruppe wählen.
+      </p>
 
       {!hasPreview && (
         <form action={previewAction} className="mb-8 flex items-end gap-4">

@@ -411,6 +411,11 @@ export default async function KautionenPage() {
           {aufgeloest.length > 0 && ` (davon ${aufgeloest.length} aufgelöst, noch nicht vollständig ausgezahlt)`}
           {kautionen.length !== offen.length && `, ${kautionen.length - offen.length} erledigt`}.
         </p>
+        <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+          Trägt der Mieter eine Rechnung über die Kaution: virtuelle Auszahlung mit Verknüpfung zur
+          Kostenposition (die Gegenbuchung &bdquo;Verrechnet mit Kaution&ldquo; entsteht automatisch, Kosten netto 0).
+          Ohne Rechnung (z.B. Schlüssel) einen pauschalen Einbehalt buchen &mdash; er zählt als Einnahme.
+        </p>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">

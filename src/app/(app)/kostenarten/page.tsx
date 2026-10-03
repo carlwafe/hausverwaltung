@@ -33,6 +33,12 @@ export default async function KostenartenPage() {
             {kostenarten.length} Kostenarten — legt fest, ob eine Kostenart auf Mieter umlagefähig
             ist und mit welchem Verteilerschlüssel.
           </p>
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+            Umlagefähig ohne Verteilerschlüssel heißt: die Kosten werden erfasst, aber nicht in die
+            Nebenkostenabrechnung umgelegt (z.B. &bdquo;Wartungsarbeiten Heizung (über Techem
+            verrechnet)&ldquo;, weil Techem sie in der Heizkostenabrechnung berechnet). Die Warnung
+            &bdquo;kein Verteilerschlüssel&ldquo; in der Abrechnung ist dann erwartet.
+          </p>
         </div>
         <Link
           href="/kostenarten/neu"

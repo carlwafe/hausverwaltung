@@ -374,6 +374,14 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             ? " Zum Abgleich mit den Quartalsberichten des früheren Verwalters."
             : " Kostenpositionen ohne Datum zählen im Kostenjahr."}
         </p>
+        {istQuartal && (
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+            Abweichungen zum Verwalterbericht, die kein Fehler sind: Rücklastschrift-Gebühren (hier
+            Kosten, beim Verwalter Abzug bei den Mietern), Waschgeld (beim Verwalter netto mit der
+            Entnahme) und Mahngebühren (beim Verwalter Einnahme). Im Zweifel gilt der
+            Bankverwendungszweck, nicht der Verwaltertext.
+          </p>
+        )}
       </div>
 
       <div className="mb-6 rounded-lg border border-neutral-800 p-4">
