@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 import { PositionBearbeitenForm } from "../position-bearbeiten-form";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
+import { saldoMitToleranz } from "@/lib/nk-saldo";
 import { toDateInputValue } from "@/lib/date-utils";
 import { VerwalterAbgleichStern, KommentarFeld } from "./pruefung-zellen";
 
@@ -33,7 +34,7 @@ function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
 // Rückzahlung/Gutschrift unverändert); null, solange keine abweichende Fläche eingetragen ist.
 function saldoNachGutschriftVergleich(p: PositionRow): number | null {
   if (p.kostenanteilSimuliert === null) return null;
-  return Math.round((p.vorauszahlungGesamt - p.kostenanteilSimuliert - (p.gutschriftSumme ?? 0)) * 100) / 100;
+  return saldoMitToleranz(p.vorauszahlungGesamt - p.kostenanteilSimuliert - (p.gutschriftSumme ?? 0));
 }
 
 function restcentSumme(details: KostenanteilDetailEintrag[]): number {
@@ -286,13 +287,13 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
       sortValue: (p) => p.saldoNachGutschrift,
       render: (p) => {
         const zelle = (saldo: number) =>
-          Math.abs(saldo) < 0.01 ? (
+          saldo === 0 ? (
             <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">erledigt</span>
           ) : (
             <span className={saldo >= 0 ? "text-green-400" : "text-red-400"}>{formatEuro(saldo)}</span>
           );
         if (p.berechnet) {
-          const berechnetNach = Math.round((p.berechnet.saldo - (p.gutschriftSumme ?? 0)) * 100) / 100;
+          const berechnetNach = saldoMitToleranz(p.berechnet.saldo - (p.gutschriftSumme ?? 0));
           return (
             <span className="flex flex-col items-start gap-0.5 whitespace-nowrap">
               <span>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { saldoMitToleranz } from "@/lib/nk-saldo";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { VorauszahlungAnpassung, type VorauszahlungBriefDaten } from "./vorauszahlung-anpassung";
 
@@ -165,7 +166,7 @@ export function NebenkostenAnsicht({
   const nachzahlung = saldoMuster > 0.005;
   const erledigt = daten.erledigungen.reduce((s, e) => s + e.betrag, 0);
   // Im Vorzeichen des gespeicherten Saldos: positiv = noch auszuzahlen, negativ = noch zu fordern.
-  const offen = Math.round((daten.saldo - erledigt) * 100) / 100;
+  const offen = saldoMitToleranz(daten.saldo - erledigt);
 
   return (
     <div>
@@ -308,18 +309,18 @@ export function NebenkostenAnsicht({
               </tr>
             ))}
             <tr className="border-t border-neutral-700 font-medium">
-              <td className={`px-4 py-2 text-right ${Math.abs(offen) < 0.005 ? "text-green-400" : "text-amber-400"}`}>
+              <td className={`px-4 py-2 text-right ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
                 {formatEuro(Math.abs(offen))}
               </td>
               <td colSpan={3} className="px-4 py-2 text-neutral-300">
-                {Math.abs(offen) < 0.005
+                {offen === 0
                   ? "Saldo vollständig erledigt"
                   : offen > 0
                     ? "noch an den Mieter auszuzahlen oder mit der Miete zu verrechnen"
                     : "noch vom Mieter zu zahlen"}
               </td>
-              <td className={`px-4 py-2 ${Math.abs(offen) < 0.005 ? "text-green-400" : "text-amber-400"}`}>
-                {Math.abs(offen) < 0.005 ? "erledigt" : "offen"}
+              <td className={`px-4 py-2 ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
+                {offen === 0 ? "erledigt" : "offen"}
               </td>
             </tr>
           </tbody>

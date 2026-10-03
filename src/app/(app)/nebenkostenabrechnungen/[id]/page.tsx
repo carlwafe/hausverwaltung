@@ -8,6 +8,7 @@ import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
 import { PositionenTable } from "./positionen-table";
+import { saldoMitToleranz } from "@/lib/nk-saldo";
 import { QmAbweichungen, type QmKostenkreis, type QmAbweichungZeile } from "./qm-abweichungen";
 import { ermittleNichtBeruecksichtigteKostenarten, berechneNebenkostenabrechnung } from "@/lib/nebenkostenabrechnung";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
@@ -488,7 +489,7 @@ export default async function NebenkostenabrechnungDetailPage({
         </Link>{" "}
         einsehen und korrigieren. <strong className="text-neutral-300">Saldo nach Gutschrift</strong>{" "}
         = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
-        ist, falls einer offen ist; ist er 0, gilt die Position als erledigt.
+        ist, falls einer offen ist; ist er 0 (ein Rest bis 1 Cent zählt als 0), gilt die Position als erledigt.
       </p>
       <p className="mb-3 text-sm text-neutral-400">
         <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
@@ -526,7 +527,7 @@ export default async function NebenkostenabrechnungDetailPage({
         rows={abrechnung.positionen.map((p) => {
           const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
           const gutschriftSumme = eintrag?.summe ?? 0;
-          const saldoNachGutschrift = Number(p.saldo) - gutschriftSumme;
+          const saldoNachGutschrift = saldoMitToleranz(Number(p.saldo) - gutschriftSumme);
           return {
             id: p.id,
             einheitId: p.einheitId,
@@ -550,7 +551,7 @@ export default async function NebenkostenabrechnungDetailPage({
             auszahlungDatum: eintrag?.datumAuszahlung?.toISOString() ?? null,
             verrechnetDatum: eintrag?.datumVerrechnet?.toISOString() ?? null,
             kautionDatum: eintrag?.datumKaution?.toISOString() ?? null,
-            erledigt: Math.abs(saldoNachGutschrift) < 0.01,
+            erledigt: saldoNachGutschrift === 0,
             mietvertragId: p.mietvertragId,
             abrechnungId: id,
             kostenanteilSimuliert: p.mietvertragId
