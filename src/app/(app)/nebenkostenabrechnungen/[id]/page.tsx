@@ -61,7 +61,15 @@ export default async function NebenkostenabrechnungDetailPage({
   const pruefungen = new Map(abrechnung.pruefungen.map((p) => [p.mietvertragId, p]));
 
   const [
-    { kostenpositionen, einheiten, verbrauchswerte, mietvertraege: mietvertraegeEngine, vorverteilteAnteile, technischerAbzug },
+    {
+      kostenpositionen,
+      einheiten,
+      verbrauchswerte,
+      mietvertraege: mietvertraegeEngine,
+      vorverteilteAnteile,
+      technischerAbzug,
+      qmAbweichungen: qmAbweichungenAktiv,
+    },
     mietvertraegeRoh,
     vorverteilteKostenarten,
     vorverteilteKostenanteileRoh,
@@ -155,16 +163,20 @@ export default async function NebenkostenabrechnungDetailPage({
     }),
   );
 
-  // Vergleichsrechnung "wie der Verwalter" mit dessen abweichenden Gesamtflächen (nichts wird
-  // gespeichert): Kostenanteil je Mietvertrag+Einheit.
+  // Vergleichsrechnung zur Gesamtfläche: Ist "mit Verwalter-Flächen rechnen" aus, zeigt sie den Kostenanteil
+  // "wie der Verwalter" (mit dessen abweichenden Flächen); ist es an, rechnet die Abrechnung selbst damit,
+  // und die Vergleichsrechnung zeigt umgekehrt den Kostenanteil mit unseren korrekten Flächen. Nichts davon
+  // wird gespeichert: Kostenanteil je Mietvertrag+Einheit.
+  const verwalterFlaechen = abrechnung.verwalterFlaechen;
   const qmAbweichungenEngine = abrechnung.qmAbweichungen.map((a) => ({
     kostenartId: a.kostenartId,
     scopeLabel: a.scopeLabel,
     qmGesamt: Number(a.qmGesamt),
   }));
   const simulierterKostenanteil = new Map<string, number>();
+  let vergleich: ReturnType<typeof berechneNebenkostenabrechnung> | null = null;
   if (qmAbweichungenEngine.length > 0) {
-    const sim = berechneNebenkostenabrechnung(
+    vergleich = berechneNebenkostenabrechnung(
       abrechnung.jahr,
       kostenpositionen,
       einheiten,
@@ -172,13 +184,16 @@ export default async function NebenkostenabrechnungDetailPage({
       verbrauchswerte,
       vorverteilteAnteile,
       technischerAbzug,
-      qmAbweichungenEngine,
+      verwalterFlaechen ? [] : qmAbweichungenEngine,
     );
-    for (const p of sim.positionen) simulierterKostenanteil.set(`${p.mietvertragId}|${p.einheitId}`, p.kostenanteilGesamt);
+    for (const p of vergleich.positionen) simulierterKostenanteil.set(`${p.mietvertragId}|${p.einheitId}`, p.kostenanteilGesamt);
   }
-  // Wählbare Kostenkreise (nur Wohnflächen-Verteilung) aus den gespeicherten Aufschlüsselungen.
+  // Wählbare Kostenkreise (nur Wohnflächen-Verteilung) mit unserer Fläche: aus den gespeicherten
+  // Aufschlüsselungen — rechnet die Abrechnung mit Verwalter-Flächen, stünde dort deren Fläche, deshalb
+  // dann aus der Rechnung mit unseren Flächen.
   const kreisMap = new Map<string, QmKostenkreis>();
-  for (const p of abrechnung.positionen) {
+  const kreisQuellen: { details: unknown }[] = verwalterFlaechen && vergleich ? vergleich.positionen : abrechnung.positionen;
+  for (const p of kreisQuellen) {
     for (const d of (p.details as KostenanteilDetailEintrag[] | null) ?? []) {
       if (d.verteilerschluessel !== "WOHNFLAECHE") continue;
       const value = `${d.kostenartId}|${d.scopeLabel}`;
@@ -217,6 +232,7 @@ export default async function NebenkostenabrechnungDetailPage({
       verbrauchswerte,
       vorverteilteAnteile,
       technischerAbzug,
+      qmAbweichungenAktiv,
     );
     for (const p of live.positionen)
       berechnet.set(`${p.mietvertragId}|${p.einheitId}`, {
@@ -506,6 +522,7 @@ export default async function NebenkostenabrechnungDetailPage({
       </p>
 
       <PositionenTable
+        vergleichName={verwalterFlaechen ? "mit korrekten Flächen" : "wie Verwalter"}
         rows={abrechnung.positionen.map((p) => {
           const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
           const gutschriftSumme = eintrag?.summe ?? 0;
@@ -548,7 +565,13 @@ export default async function NebenkostenabrechnungDetailPage({
         })}
       />
 
-      <QmAbweichungen abrechnungId={id} kostenkreise={qmKostenkreise} abweichungen={qmAbweichungZeilen} />
+      <QmAbweichungen
+        abrechnungId={id}
+        kostenkreise={qmKostenkreise}
+        abweichungen={qmAbweichungZeilen}
+        verwalterFlaechen={verwalterFlaechen}
+        manuell={abrechnung.manuell}
+      />
 
       <ManuellePositionForm
         abrechnungId={id}

@@ -767,12 +767,16 @@ model KontostandKontrolle {
 // anteilig wieder zusammenrechnen. Die Berechnung selbst ordnet jeder Einheit intern korrekt zu,
 // welche Kosten sie betreffen (siehe src/lib/nebenkostenabrechnung.ts).
 model Nebenkostenabrechnung {
-  id         String           @id @default(cuid())
-  jahr       Int              @unique
-  status     AbrechnungStatus @default(ENTWURF)
-  erstelltAm DateTime         @default(now())
+  id                String           @id @default(cuid())
+  jahr              Int              @unique
+  status            AbrechnungStatus @default(ENTWURF)
+  erstelltAm        DateTime         @default(now())
   // Manuell geführt: Positionen von Hand, "Neu berechnen" gesperrt (Berechnung nur als Live-Vergleich).
-  manuell    Boolean          @default(false)
+  manuell           Boolean          @default(false)
+  // Mit den Gesamtflächen des Verwalters rechnen (NebenkostenQmAbweichung): die eingetragenen
+  // Flächen gelten dann für die echte Berechnung statt nur als Vergleichsspalte — für Jahre, die der
+  // Verwalter bereits mit (falschen) Flächen abgerechnet hat und die so bleiben sollen.
+  verwalterFlaechen Boolean          @default(false)
 
   positionen     NebenkostenabrechnungPosition[]
   pruefungen     NebenkostenabrechnungPruefung[]

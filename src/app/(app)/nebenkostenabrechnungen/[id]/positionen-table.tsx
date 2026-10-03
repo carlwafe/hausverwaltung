@@ -28,7 +28,7 @@ function formatVerteilungsbasis(d: KostenanteilDetailEintrag) {
 
 // Summe der Restcent-Ausgleiche (±0,01 € je Kostenart, siehe verteileRestcent) dieser Position,
 // auf den abgerechneten Zeitraum skaliert wie der Anteil selbst. Cent-genau gerundet.
-// Saldo nach Gutschrift mit dem Kostenanteil der Vergleichsrechnung "wie Verwalter" (Vorauszahlung und
+// Saldo nach Gutschrift mit dem Kostenanteil der Vergleichsrechnung (Vorauszahlung und
 // Rückzahlung/Gutschrift unverändert); null, solange keine abweichende Fläche eingetragen ist.
 function saldoNachGutschriftVerwalter(p: PositionRow): number | null {
   if (p.kostenanteilSimuliert === null) return null;
@@ -72,8 +72,8 @@ export type PositionRow = {
   erledigt: boolean;
   mietvertragId: string | null;
   abrechnungId: string;
-  // Kostenanteil mit den vom Verwalter angesetzten Gesamtflächen (Vergleichsrechnung, siehe
-  // QmAbweichungen); null = keine Abweichung eingetragen.
+  // Kostenanteil der Vergleichsrechnung zur Gesamtfläche (siehe QmAbweichungen: "wie Verwalter" bzw.
+  // "mit korrekten Flächen"); null = keine Abweichung eingetragen.
   kostenanteilSimuliert: number | null;
   // Manuelle Position (von Hand angelegt/bearbeitet); sonst berechnet.
   manuell: boolean;
@@ -360,10 +360,19 @@ const columns: Column<PositionRow>[] = [
   },
 ];
 
-export function PositionenTable({ rows }: { rows: PositionRow[] }) {
+// vergleichName: Bezeichnung der Vergleichsrechnung in den beiden Vergleichsspalten — "wie Verwalter"
+// (Abrechnung mit unseren Flächen) oder "mit korrekten Flächen" (Abrechnung mit Verwalter-Flächen).
+export function PositionenTable({ rows, vergleichName }: { rows: PositionRow[]; vergleichName: string }) {
+  const spalten = columns.map((c) =>
+    c.key === "kostenanteilSimuliert"
+      ? { ...c, label: `Kostenanteil ${vergleichName}` }
+      : c.key === "saldoNachGutschriftVerwalter"
+        ? { ...c, label: `Saldo nach Gutschrift ${vergleichName}` }
+        : c,
+  );
   return (
     <DataTable
-      columns={columns}
+      columns={spalten}
       rows={rows}
       emptyMessage="Keine Positionen vorhanden."
       searchPlaceholder="Positionen durchsuchen…"

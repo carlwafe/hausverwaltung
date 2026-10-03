@@ -19,6 +19,7 @@ import {
   type VerbrauchswertFuerAbrechnung,
   type VorverteilterKostenanteilFuerAbrechnung,
   type TechemAllgemeinstromAbzugFuerAbrechnung,
+  type QmAbweichungFuerAbrechnung,
 } from "@/lib/nebenkostenabrechnung";
 
 // Auch von der Detailseite genutzt (für die live geprüfte "nicht berücksichtigt"-Anzeige und die
@@ -35,6 +36,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
     allgemeinstromKostenart,
     mietzahlungenRaw,
     rueckstandVerrechnungenRaw,
+    qmAbweichungenRaw,
   ] = await Promise.all([
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, jahr, kostenart: { umlagefaehig: true }, ...AKTIVE_BUCHUNG_FILTER },
@@ -86,7 +88,15 @@ export async function ladeBerechnungsdaten(jahr: number) {
         },
         select: { mietvertragId: true, betrag: true },
       }),
+      // Gesamtflächen des Verwalters (NebenkostenQmAbweichung) — gelten nur für Abrechnungen, die auf
+      // "mit Verwalter-Flächen rechnen" gestellt sind; sonst bleiben sie bloße Vergleichsrechnung.
+      prisma.nebenkostenQmAbweichung.findMany({ where: { abrechnung: { jahr, verwalterFlaechen: true } } }),
     ]);
+  const qmAbweichungen: QmAbweichungFuerAbrechnung[] = qmAbweichungenRaw.map((a) => ({
+    kostenartId: a.kostenartId,
+    scopeLabel: a.scopeLabel,
+    qmGesamt: Number(a.qmGesamt),
+  }));
   const rueckstandVerrechnetNachVertrag = new Map<string, number>();
   for (const r of rueckstandVerrechnungenRaw) {
     rueckstandVerrechnetNachVertrag.set(
@@ -191,7 +201,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
       ).filter((a): a is TechemAllgemeinstromAbzugFuerAbrechnung => a !== null)
     : [];
 
-  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug };
+  return { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug, qmAbweichungen };
 }
 
 export const createAbrechnung = mitMeldung(async function createAbrechnung(formData: FormData) {
@@ -206,6 +216,7 @@ export const createAbrechnung = mitMeldung(async function createAbrechnung(formD
     throw new AktionsFehler(`Für ${jahr} existiert bereits eine Abrechnung.`);
   }
 
+  // Neue Abrechnung: noch keine Verwalter-Flächen (qmAbweichungen), es gelten die eigenen Flächen.
   const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
     await ladeBerechnungsdaten(jahr);
   const ergebnis = berechneNebenkostenabrechnung(
@@ -457,8 +468,15 @@ export async function neuBerechnen(id: string) {
 // Platzhalter) und berechnete (details gesetzt). Die Berechnung ersetzt nur berechnete Positionen
 // und legt keine an, wo für den Mietvertrag schon eine manuelle existiert.
 async function berechnePositionenNeu(id: string, jahr: number) {
-  const { kostenpositionen, einheiten, mietvertraege, verbrauchswerte, vorverteilteAnteile, technischerAbzug } =
-    await ladeBerechnungsdaten(jahr);
+  const {
+    kostenpositionen,
+    einheiten,
+    mietvertraege,
+    verbrauchswerte,
+    vorverteilteAnteile,
+    technischerAbzug,
+    qmAbweichungen,
+  } = await ladeBerechnungsdaten(jahr);
   const ergebnis = berechneNebenkostenabrechnung(
     jahr,
     kostenpositionen,
@@ -467,6 +485,7 @@ async function berechnePositionenNeu(id: string, jahr: number) {
     verbrauchswerte,
     vorverteilteAnteile,
     technischerAbzug,
+    qmAbweichungen,
   );
   const manuell = await prisma.nebenkostenabrechnungPosition.findMany({
     where: { abrechnungId: id, details: { equals: Prisma.DbNull } },
@@ -677,8 +696,9 @@ export async function speichereNkKommentar(abrechnungId: string, mietvertragId: 
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
 }
 
-// Vergleichsrechnung "wie der Verwalter": abweichende Gesamtwohnfläche eines Kostenkreises. Wirkt nur
-// auf die Simulation auf der Abrechnungsseite, nicht auf die gespeicherten Positionen.
+// Abweichende Gesamtwohnfläche eines Kostenkreises, wie sie der Verwalter angesetzt hat. Je nach
+// Schalter "verwalterFlaechen" der Abrechnung nur Vergleichsrechnung auf der Seite (aus) oder Grundlage
+// der echten Berechnung (an) — dann werden die Positionen mit jeder Änderung neu berechnet.
 export const speichereQmAbweichung = mitMeldung(async function speichereQmAbweichung(abrechnungId: string, formData: FormData) {
   await requireEditor();
   const kreis = String(formData.get("kostenkreis") ?? "");
@@ -693,13 +713,34 @@ export const speichereQmAbweichung = mitMeldung(async function speichereQmAbweic
     create: { abrechnungId, kostenartId, scopeLabel, qmGesamt },
     update: { qmGesamt },
   });
+  await berechneNeuWennVerwalterFlaechen(abrechnungId);
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
 });
 
 export async function loescheQmAbweichung(id: string, abrechnungId: string) {
   await requireEditor();
   await prisma.nebenkostenQmAbweichung.delete({ where: { id } });
+  await berechneNeuWennVerwalterFlaechen(abrechnungId);
   revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+}
+
+// Schaltet um, ob die Abrechnung mit den Gesamtflächen des Verwalters rechnet. Bei einer berechneten
+// Abrechnung werden die Positionen sofort neu berechnet (manuelle bleiben unberührt).
+export async function setVerwalterFlaechen(id: string, an: boolean) {
+  await requireEditor();
+  await prisma.nebenkostenabrechnung.update({ where: { id }, data: { verwalterFlaechen: an } });
+  await berechneNeuWennVerwalterFlaechen(id, true);
+  revalidatePath(`/nebenkostenabrechnungen/${id}`);
+  revalidatePath("/nebenkostenabrechnungen");
+}
+
+// Gespeicherte Positionen müssen zu den Verwalter-Flächen passen: ist der Schalter an (oder wird er
+// gerade umgestellt, "erzwingen"), die berechneten Positionen neu berechnen — außer bei einer manuell
+// geführten Abrechnung, dort rechnet die Engine nie.
+async function berechneNeuWennVerwalterFlaechen(abrechnungId: string, erzwingen = false) {
+  const abrechnung = await prisma.nebenkostenabrechnung.findUniqueOrThrow({ where: { id: abrechnungId } });
+  if (abrechnung.manuell || !(erzwingen || abrechnung.verwalterFlaechen)) return;
+  await berechnePositionenNeu(abrechnung.id, abrechnung.jahr);
 }
 
 // Stellt eine Abrechnung zwischen "manuell geführt" und "berechnet" um. Auf manuell: die berechneten

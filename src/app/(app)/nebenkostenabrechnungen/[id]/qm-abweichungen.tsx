@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { DeleteButton } from "@/components/delete-button";
 import { runFormAction } from "@/lib/form-utils";
-import { speichereQmAbweichung, loescheQmAbweichung } from "../actions";
+import { speichereQmAbweichung, loescheQmAbweichung, setVerwalterFlaechen } from "../actions";
 
 function formatQm(value: number) {
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 3 }).format(value)} m²`;
@@ -13,18 +13,24 @@ export type QmKostenkreis = { value: string; label: string; qmEcht: number };
 export type QmAbweichungZeile = { id: string; label: string; qmEcht: number | null; qmVerwalter: number };
 
 /**
- * Vergleichsrechnung "wie der Verwalter": pro Kostenkreis die vom Verwalter angesetzte (abweichende)
- * Gesamtwohnfläche eintragen. Die Positionstabelle zeigt dann zusätzlich den Kostenanteil mit diesen
- * Flächen — die echte, gespeicherte Abrechnung bleibt unverändert.
+ * Abweichende Gesamtwohnfläche je Kostenkreis, wie sie der Verwalter angesetzt hat. Zwei Modi je
+ * Abrechnung: aus = nur Vergleichsrechnung (die Positionstabelle zeigt zusätzlich den Kostenanteil mit
+ * diesen Flächen, die gespeicherte Abrechnung bleibt unverändert); an = die Abrechnung rechnet selbst mit
+ * den Verwalter-Flächen (für Jahre, die so bleiben sollen), die Vergleichsspalte zeigt dann umgekehrt die
+ * Rechnung mit unseren korrekten Flächen.
  */
 export function QmAbweichungen({
   abrechnungId,
   kostenkreise,
   abweichungen,
+  verwalterFlaechen,
+  manuell,
 }: {
   abrechnungId: string;
   kostenkreise: QmKostenkreis[];
   abweichungen: QmAbweichungZeile[];
+  verwalterFlaechen: boolean;
+  manuell: boolean;
 }) {
   const [fehler, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) =>
@@ -37,13 +43,34 @@ export function QmAbweichungen({
   return (
     <details className="mb-6" open={abweichungen.length > 0}>
       <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300 hover:text-white">
-        Vergleich mit dem Verwalter: abweichende Gesamtfläche je Kostenkreis ({abweichungen.length})
+        Verwalter: abweichende Gesamtfläche je Kostenkreis ({abweichungen.length})
       </summary>
       <p className="mb-3 mt-2 text-xs text-neutral-500">
-        Hat der Verwalter für einen Kostenkreis eine falsche Gesamtwohnfläche angesetzt, trag sie hier ein. In der
-        Positionstabelle erscheint dann zusätzlich der Kostenanteil mit dieser Fläche zum Vergleich — die
-        gespeicherte Abrechnung ändert sich dadurch nicht.
+        Hat der Verwalter für einen Kostenkreis eine falsche Gesamtwohnfläche angesetzt, trag sie hier ein.{" "}
+        {verwalterFlaechen
+          ? "Die Abrechnung rechnet mit diesen Flächen; in der Positionstabelle erscheint zum Vergleich der Kostenanteil mit unseren korrekten Flächen."
+          : "In der Positionstabelle erscheint dann zusätzlich der Kostenanteil mit dieser Fläche zum Vergleich — die gespeicherte Abrechnung ändert sich dadurch nicht."}
       </p>
+
+      <div className="mb-4 max-w-2xl rounded-md border border-neutral-800 px-3 py-2">
+        <form action={setVerwalterFlaechen.bind(null, abrechnungId, !verwalterFlaechen)} className="flex flex-wrap items-center gap-3">
+          <span className={`text-sm ${verwalterFlaechen ? "text-amber-400" : "text-neutral-300"}`}>
+            {verwalterFlaechen ? "Mit Verwalter-Flächen gerechnet" : "Mit eigenen Flächen gerechnet"}
+          </span>
+          <button
+            type="submit"
+            className="rounded-md border border-neutral-700 px-3 py-1 text-xs font-medium text-white hover:bg-neutral-900"
+          >
+            {verwalterFlaechen ? "Auf eigene Flächen umstellen" : "Mit Verwalter-Flächen rechnen"}
+          </button>
+        </form>
+        <p className="mt-1.5 text-xs text-neutral-500">
+          Für Jahre, die der Verwalter bereits so abgerechnet hat und die unverändert bleiben sollen. Mit
+          zu kleiner Gesamtfläche verteilt die Rechnung mehr als die Kosten (kein Restcent-Ausgleich). Beim
+          Umstellen und bei jeder Änderung der Flächen werden die berechneten Positionen sofort neu berechnet
+          {manuell ? " — bei dieser manuell geführten Abrechnung bleibt die Berechnung gesperrt" : " (manuelle bleiben unberührt)"}.
+        </p>
+      </div>
 
       {abweichungen.length > 0 && (
         <table className="mb-3 w-full max-w-2xl text-sm">
