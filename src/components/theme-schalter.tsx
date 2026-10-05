@@ -8,7 +8,7 @@ const listeners = new Set<() => void>();
 
 function liesWahl(): Wahl {
   const w = document.cookie.match(/(?:^|; )theme=(\w+)/)?.[1];
-  return w === "dark" || w === "system" ? w : "light";
+  return w === "dark" || w === "light" ? w : "system";
 }
 
 function subscribe(cb: () => void) {
@@ -28,7 +28,7 @@ function waehle(neu: Wahl) {
 // Geräts; das Mitlaufen bei Wechsel übernimmt das Skript im <head> (layout.tsx). Gilt pro Browser,
 // nicht pro Benutzerkonto.
 export function ThemeSchalter() {
-  const wahl = useSyncExternalStore(subscribe, liesWahl, () => "light" as Wahl);
+  const wahl = useSyncExternalStore(subscribe, liesWahl, () => "system" as Wahl);
 
   const optionen: { wert: Wahl; label: string }[] = [
     { wert: "light", label: "Hell" },

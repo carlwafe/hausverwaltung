@@ -20,9 +20,10 @@ export const metadata: Metadata = {
 };
 
 // Setzt vor dem ersten Zeichnen das Design und folgt bei „System“ dem Modus des Geräts.
-const THEME_SKRIPT = `(function(){try{var q=matchMedia("(prefers-color-scheme: dark)");function a(){var m=document.cookie.match(/(?:^|; )theme=(\\w+)/),p=m?m[1]:"light";document.documentElement.dataset.theme=p==="dark"||(p==="system"&&q.matches)?"dark":"light"}a();q.addEventListener("change",a)}catch(e){}})();`;
+const THEME_SKRIPT = `(function(){try{var q=matchMedia("(prefers-color-scheme: dark)");function a(){var m=document.cookie.match(/(?:^|; )theme=(\\w+)/),p=m?m[1]:"system";document.documentElement.dataset.theme=p==="dark"||(p!=="light"&&q.matches)?"dark":"light"}a();q.addEventListener("change",a)}catch(e){}})();`;
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Ohne Cookie gilt „System“; das Skript im <head> löst es sofort auf, hier nur der Ausgangswert.
   const theme = (await cookies()).get("theme")?.value === "dark" ? "dark" : "light";
   return (
     <html
