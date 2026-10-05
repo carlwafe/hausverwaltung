@@ -17,6 +17,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mietverwaltung Eutin",
   description: "Buchhaltung für das Mietobjekt in Eutin",
+  // Bewusst neue Dateinamen (Version im Namen): Safari hält Icons je URL sehr lange im Speicher und
+  // zeigte nach dem Logo-Wechsel weiter das alte. Bei einer erneuten Änderung "v3" o. ä. verwenden.
+  icons: {
+    icon: [
+      { url: "/icons/logo-v2.svg", type: "image/svg+xml" },
+      { url: "/icons/logo-v2-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/logo-v2.ico", sizes: "48x48" },
+    ],
+    apple: [{ url: "/icons/logo-v2-apple.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 // Setzt vor dem ersten Zeichnen das Design und folgt bei „System“ dem Modus des Geräts.
