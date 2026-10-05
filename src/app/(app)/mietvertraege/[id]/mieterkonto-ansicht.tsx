@@ -143,6 +143,14 @@ export function MieterkontoAnsicht({
               </td>
               <td className="py-0.5 text-right text-neutral-200">{formatEuro(konto.nebenkostenabrechnungOffen)}</td>
             </tr>
+            {konto.nebenkostenGegenrechnung !== 0 && (
+              <tr>
+                <td colSpan={2} className="pb-1 text-right text-xs text-neutral-500">
+                  darin {formatEuro(konto.nebenkostenGegenrechnung)} Gegenrechnung der unbezahlten NK-Vorauszahlung{" "}
+                  {konto.jahr - 1} (steht schon im Rückstand)
+                </td>
+              </tr>
+            )}
             <tr className="border-t border-neutral-700 font-medium">
               <td className="py-1 pr-8 text-white">Saldo inkl. offener Nebenkostenabrechnung</td>
               <td className={`py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>

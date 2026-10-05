@@ -14,7 +14,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
-import { saldoMitToleranz } from "@/lib/nk-saldo";
+import { saldoMitToleranz, unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 
 function formatEuro(value: number) {
@@ -241,9 +241,27 @@ export default async function MietvertragDetailPage({
       mieterkonto: e.bezugTyp === "Mieterkonto",
     })),
   });
-  const nkOffenFuerJahr = (jahr: number): number | null => {
+  // Offene NK-Abrechnung des Vorjahres. Bei berechneten Positionen (details gesetzt) wird die unbezahlte
+  // NK-Vorauszahlung gegengerechnet: sie steht schon als Rückstand im Saldo und würde sonst zusätzlich
+  // in der Nachzahlung zählen (siehe unbezahlteNkVorauszahlung).
+  const nkOffenFuerJahr = (jahr: number): { offen: number; gegenrechnung: number } | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
-    return position ? saldoMitToleranz(Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0)) : null;
+    if (!position) return null;
+    const gegenrechnung = Array.isArray(position.details)
+      ? unbezahlteNkVorauszahlung(
+          vertragFuerSollIst,
+          {
+            zeitraumVon: position.zeitraumVon,
+            zeitraumBis: position.zeitraumBis,
+            vorauszahlungGesamt: Number(position.vorauszahlungGesamt),
+          },
+          objekt?.buchhaltungAb ?? null,
+        )
+      : 0;
+    return {
+      offen: saldoMitToleranz(Number(position.saldo) + gegenrechnung - (nkZahlungNachJahr.get(jahr - 1) ?? 0)),
+      gegenrechnung,
+    };
   };
   const letztesJahr = bis.getFullYear();
   const erstesJahr = Math.min(
@@ -258,6 +276,7 @@ export default async function MietvertragDetailPage({
   for (let j = letztesJahr; j >= erstesJahr; j--) {
     kontoJahre.push(j);
     const vorStichtag = stichtagAb !== null && j < stichtagAb.getFullYear();
+    const nkOffen = nkOffenFuerJahr(j);
     konten[j] = baueMieterkontoJahr({
       jahr: j,
       saldovortrag: vorStichtag ? 0 : saldovortrag,
@@ -266,7 +285,8 @@ export default async function MietvertragDetailPage({
       sonderBuchungen: sonderListe,
       ab: vorStichtag ? null : stichtagAb,
       bis,
-      nebenkostenabrechnungOffen: nkOffenFuerJahr(j),
+      nebenkostenabrechnungOffen: nkOffen?.offen ?? null,
+      nebenkostenGegenrechnung: nkOffen?.gegenrechnung ?? 0,
     });
   }
 

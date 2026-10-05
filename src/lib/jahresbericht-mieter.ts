@@ -20,7 +20,10 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   // Abrechnung herausgesucht (siehe nebenkostenabrechnungOffenBetrag), nicht die Bewegung des
   // Berichtsjahres selbst. zahlungSumme = tatsächlich gezahlte/erhaltene Summe für
   // Mietvertrag+Jahr aus dem Nebenkostenausgleich-Archiv (0 = noch nichts erfasst).
-  nebenkostenPositionen: { jahr: number; saldo: number; zahlungSumme: number }[];
+  // unbezahlteVorauszahlung = Gegenrechnung bei berechneten Positionen (siehe unbezahlteNkVorauszahlung
+  // in nk-saldo.ts): NK-Soll, das schon als Rückstand im Mietsaldo steht, aber in der Abrechnung nicht
+  // als gezahlt zählt. Fehlt sie (manuelle Positionen), gilt 0.
+  nebenkostenPositionen: { jahr: number; saldo: number; zahlungSumme: number; unbezahlteVorauszahlung?: number }[];
 };
 
 export type MieterJahresberichtZeile = {
@@ -45,6 +48,9 @@ export type MieterJahresberichtZeile = {
   // Anzeige bewusst nicht von "0" — beides zeigt "–", da ein bestätigter Nullsaldo von "nie
   // erfasst" ohnehin nicht unterscheidbar wäre).
   nebenkostenabrechnungOffen: number | null;
+  // Teil von nebenkostenabrechnungOffen, der die unbezahlte NK-Vorauszahlung des Vorjahres gegenrechnet
+  // (steht schon im Mietrückstand, siehe unbezahlteNkVorauszahlung) — nur zur Anzeige, 0 = keine.
+  nebenkostenGegenrechnung: number;
 };
 
 /** Jahr+Monat als einzelne, vergleichbare Zahl (z.B. 2025-03 -> 2025*12+3). */
@@ -97,10 +103,19 @@ function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltung
  * wird. Ältere, noch offene Jahre fließen hier bewusst nicht mehr mit ein (die vollständige
  * Historie bleibt über /nebenkostenabrechnungen einsehbar).
  */
-function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr: number): number | null {
+function nebenkostenabrechnungOffenBetrag(
+  v: MietvertragFuerJahresbericht,
+  jahr: number,
+): { offen: number; gegenrechnung: number } | null {
   const vorjahresPosition = v.nebenkostenPositionen.find((p) => p.jahr === jahr - 1);
   if (!vorjahresPosition) return null;
-  return saldoMitToleranz(vorjahresPosition.saldo - vorjahresPosition.zahlungSumme);
+  // Die unbezahlte Vorauszahlung steht schon als Rückstand im Mietsaldo und wird hier gegengerechnet,
+  // sonst zählt sie zusätzlich in der Nachzahlung (Doppelzählung, siehe unbezahlteNkVorauszahlung).
+  const gegenrechnung = vorjahresPosition.unbezahlteVorauszahlung ?? 0;
+  return {
+    offen: saldoMitToleranz(vorjahresPosition.saldo + gegenrechnung - vorjahresPosition.zahlungSumme),
+    gegenrechnung,
+  };
 }
 
 /**
@@ -179,8 +194,8 @@ export function berechneMieterBericht(
         return periode >= vonPeriode && periode <= saldoNeuBisPeriode;
       })
       .reduce((sum, z) => sum + z.betrag, 0);
-    const nebenkostenabrechnungOffen =
-      zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr);
+    const nkOffen = zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr);
+    const nebenkostenabrechnungOffen = nkOffen?.offen ?? null;
     // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
@@ -212,6 +227,8 @@ export function berechneMieterBericht(
       miete,
       saldoNeu,
       nebenkostenabrechnungOffen,
+      // Nur sichtbar, wenn die Position überhaupt etwas offen lässt (sonst "–" ohne Zusatz).
+      nebenkostenGegenrechnung: nebenkostenabrechnungOffen ? (nkOffen?.gegenrechnung ?? 0) : 0,
     });
   }
 

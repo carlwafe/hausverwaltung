@@ -24,6 +24,8 @@ export type MieterTabellenZeile = {
   soll: number;
   miete: number;
   nebenkostenabrechnungOffen: number | null;
+  // Teil davon: Gegenrechnung der unbezahlten NK-Vorauszahlung des Vorjahres (steht schon im Rückstand).
+  nebenkostenGegenrechnung: number;
   saldoNeu: number;
   verifiziert: boolean;
   kommentar: string;
@@ -96,6 +98,14 @@ export function MieterTabelle({
       render: (z) => (
         <span className="text-neutral-300">
           {z.nebenkostenabrechnungOffen ? formatEuro(z.nebenkostenabrechnungOffen) : "–"}
+          {z.nebenkostenabrechnungOffen && z.nebenkostenGegenrechnung ? (
+            <span
+              className="block text-xs text-neutral-500"
+              title="Unbezahlte NK-Vorauszahlung des Vorjahres: steht schon im Mietrückstand (Saldo alt/Soll) und wird hier gegengerechnet, damit sie nicht zusätzlich in der Nachzahlung zählt."
+            >
+              davon {formatEuro(z.nebenkostenGegenrechnung)} Gegenrechnung
+            </span>
+          ) : null}
         </span>
       ),
     } satisfies Column<MieterTabellenZeile>,

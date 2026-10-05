@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { MieterTabelle } from "./mieter-tabelle";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
@@ -11,6 +12,7 @@ import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
 import { kontostandAmStichtag } from "@/lib/kontostand";
 import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-form";
 import { mieterName } from "@/lib/mieter-name";
+import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -236,7 +238,14 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
         einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
         mieter: true,
         abrechnungspositionen: {
-          select: { saldo: true, abrechnung: { select: { jahr: true } } },
+          select: {
+            id: true,
+            saldo: true,
+            zeitraumVon: true,
+            zeitraumBis: true,
+            vorauszahlungGesamt: true,
+            abrechnung: { select: { jahr: true } },
+          },
         },
         mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
       },
@@ -244,6 +253,16 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
   ]);
 
   const mietvertragIds = vertraegeRaw.map((v) => v.id);
+  // Nur berechnete Positionen (details gesetzt) bekommen die Gegenrechnung der unbezahlten
+  // NK-Vorauszahlung; manuelle haben von Hand eingetragene Beträge (siehe unbezahlteNkVorauszahlung).
+  const berechnetePositionIds = new Set(
+    (
+      await prisma.nebenkostenabrechnungPosition.findMany({
+        where: { NOT: { details: { equals: Prisma.DbNull } } },
+        select: { id: true },
+      })
+    ).map((p) => p.id),
+  );
   const [zahlungenRaw, nebenkostenausgleichZahlungen, sonderRaw] = await Promise.all([
     prisma.buchung.findMany({
       where: { mietvertragId: { in: mietvertragIds }, buchungsart: { code: "MIETZAHLUNG" } },
@@ -310,6 +329,21 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
       jahr: p.abrechnung.jahr,
       saldo: Number(p.saldo),
       zahlungSumme: zahlungSummenMap.get(`${v.id}|${p.abrechnung.jahr}`) ?? 0,
+      unbezahlteVorauszahlung: berechnetePositionIds.has(p.id)
+        ? unbezahlteNkVorauszahlung(
+            {
+              kaltmiete: Number(v.kaltmiete),
+              nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+              mieterhoehungen: v.mieterhoehungen.map((m) => ({
+                gueltigAb: m.gueltigAb,
+                kaltmiete: Number(m.kaltmiete),
+                nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+              })),
+            },
+            { zeitraumVon: p.zeitraumVon, zeitraumBis: p.zeitraumBis, vorauszahlungGesamt: Number(p.vorauszahlungGesamt) },
+            objekt?.buchhaltungAb ?? null,
+          )
+        : 0,
     })),
   }));
 
@@ -652,6 +686,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             soll: z.soll,
             miete: z.miete,
             nebenkostenabrechnungOffen: z.nebenkostenabrechnungOffen,
+            nebenkostenGegenrechnung: z.nebenkostenGegenrechnung,
             saldoNeu: z.saldoNeu,
             verifiziert: verifizierteIds.has(z.mietvertragId),
             kommentar: kommentarNachMietvertrag.get(z.mietvertragId) ?? "",

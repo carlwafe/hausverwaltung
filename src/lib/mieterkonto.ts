@@ -34,6 +34,9 @@ export type MieterkontoJahr = {
   // negativ = noch einzuziehende Nachzahlung), null = keine Abrechnung vorhanden. Wie in der
   // Jahresübersicht fließt sie nur in den Saldo am Jahresende ein, nicht in den Übertrag.
   nebenkostenabrechnungOffen: number | null;
+  // Teil von nebenkostenabrechnungOffen: Gegenrechnung der unbezahlten NK-Vorauszahlung des Vorjahres
+  // (steht schon als Rückstand im Saldo, siehe unbezahlteNkVorauszahlung); 0 = keine.
+  nebenkostenGegenrechnung: number;
   saldoInklNebenkostenabrechnung: number;
   zeilen: MieterkontoZeile[];
   summe: { sollKaltmiete: number; sollNebenkosten: number; sollGesamt: number; betrag: number; differenz: number; saldo: number };
@@ -91,6 +94,7 @@ export function baueMieterkontoJahr(input: {
   ab: Date | null;
   bis: Date;
   nebenkostenabrechnungOffen?: number | null;
+  nebenkostenGegenrechnung?: number;
 }): MieterkontoJahr {
   const { jahr } = input;
   // Zahlungen zählen nach ihrer Mietperiode: von der Periode des Stichtags `ab` bis zur Periode von
@@ -206,6 +210,7 @@ export function baueMieterkontoJahr(input: {
     sollKaltmieteMonatlich: letzteMiete.kalt,
     sollNebenkostenMonatlich: letzteMiete.nk,
     nebenkostenabrechnungOffen: input.nebenkostenabrechnungOffen ?? null,
+    nebenkostenGegenrechnung: input.nebenkostenabrechnungOffen ? (input.nebenkostenGegenrechnung ?? 0) : 0,
     saldoInklNebenkostenabrechnung: saldo + (input.nebenkostenabrechnungOffen ?? 0),
     zeilen,
     summe,
