@@ -169,8 +169,11 @@ export const WASCHGELD_PATTERN = /waschgeld/i;
 // passende offene NebenkostenabrechnungPosition abgeglichen (siehe kontoauszug/import), nicht in
 // Zahlung/Kostenposition — sonst verfälscht der Betrag dauerhaft die Offene-Posten-Berechnung,
 // die die tatsächliche Abrechnung nie einbezieht.
+// Auch Ratenzahlungen einer Nachzahlung, die ohne das Wort "Abrechnung" auskommen (echter Fall:
+// "Betr.Kosren für 2024 1.Rate für <Mieter>", gezahlt von einem Dritten) — sonst gilt nur das
+// kurze Zeitfenster für laufende Mieten, und ein bereits ausgezogener Mieter wird nicht gefunden.
 export const NEBENKOSTENAUSGLEICH_PATTERN =
-  /^\s*(rueckueberweisung\s+konto\s+aufgeloest\s+)?\d{4}\.\d+\s*$|bk[\s-]*abr|bk\s*nachzahlung|(riebs|neben)kosten[\s-]*abr|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis/i;
+  /^\s*(rueckueberweisung\s+konto\s+aufgeloest\s+)?\d{4}\.\d+\s*$|bk[\s-]*abr|bk\s*nachzahlung|(riebs|neben)kosten[\s-]*abr|enkosten[\w\s-]{0,3}rechnung|riebskosten[\w\s-]{0,3}(rechnung|nachzahlung)|abrechnun?gsergebnis|betr(iebs)?\.?\s*kos\w{0,4}\s+f\S{1,2}r\s+(19|20)\d{2}|betr(iebs)?\.?\s*kos\w{0,4}\b.{0,40}\d\.\s*rate/i;
 
 // Eine Kleinreparatur, die laut Mietvertrag vom Mieter direkt getragen wird: der Vermieter zahlt
 // zunächst die Handwerkerrechnung (normale ausgehende Kostenposition unter "Reparaturen"), der

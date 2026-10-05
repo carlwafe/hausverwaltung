@@ -515,6 +515,7 @@ export async function previewImport(
       // sichtbar, auch wenn die Einheit selbst nicht mehr angezeigt wird.
       label: `${v.mieter.map((m) => mieterName(m)).join(" & ")} — ${v.einheit.bezeichnung}`,
       warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
+      nebenkosten: Number(v.nebenkostenVorauszahlung),
       mieterNamen: v.mieter.map((m) => ({ vorname: m.vorname, nachname: m.nachname })),
       einheitBezeichnung: v.einheit.bezeichnung,
       beginn: v.beginn ? v.beginn.toISOString().slice(0, 10) : null,

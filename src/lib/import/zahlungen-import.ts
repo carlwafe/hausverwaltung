@@ -26,6 +26,8 @@ export type MietvertragKandidat = {
   id: string;
   label: string;
   warmmiete: number;
+  // Nebenkosten-Vorauszahlung — Garagen/Stellplätze haben keine (und damit keine Nebenkostenabrechnung).
+  nebenkosten?: number;
   // Vor- und Nachname pro Mieter getrennt (nicht als flache Liste) — die Erkennung unten braucht
   // die Zuordnung, welcher Vorname zu welchem Nachnamen gehört, siehe findeMietvertrag.
   mieterNamen: { vorname: string; nachname: string }[];
@@ -206,7 +208,13 @@ function findeMietvertrag(
   const maxScore = Math.max(0, ...infrage.map((s) => s.score));
   if (maxScore < 3) return { id: null, mehrdeutig: false };
 
-  const beste = infrage.filter((s) => s.score === maxScore);
+  let beste = infrage.filter((s) => s.score === maxScore);
+  // Nebenkostenzahlung eines Mieters mit Wohnung und Garage (gleicher Name, gleicher Score): eine
+  // Nachzahlung/Erstattung betrifft nur den Vertrag mit Nebenkosten, nie die Garage ohne.
+  if (beste.length > 1 && weiteresZeitfenster && !kaution) {
+    const mitNebenkosten = beste.filter((s) => (kandidaten.find((k) => k.id === s.id)?.nebenkosten ?? 0) > 0);
+    if (mitNebenkosten.length === 1) beste = mitNebenkosten;
+  }
   if (beste.length > 1) return { id: null, mehrdeutig: true };
 
   return { id: beste[0].id, mehrdeutig: false };
