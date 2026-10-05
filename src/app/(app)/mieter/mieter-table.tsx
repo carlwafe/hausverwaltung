@@ -117,7 +117,7 @@ export function MieterTable({
             onClick={() => setNurDuplikate((v) => !v)}
             className={`rounded-md border px-3 py-2 text-sm font-medium ${
               nurDuplikate
-                ? "border-amber-700 bg-amber-950/30 text-amber-400"
+                ? "border-amber-500/60 bg-amber-950/30 text-amber-400"
                 : "border-neutral-700 text-white hover:bg-neutral-900"
             }`}
           >

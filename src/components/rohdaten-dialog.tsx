@@ -27,7 +27,7 @@ export function RohdatenDialog({
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        className="m-auto w-full max-w-md rounded-md border border-neutral-700 bg-neutral-950 p-0 text-white backdrop:bg-black/60"
+        className="m-auto w-full max-w-md rounded-md border border-neutral-700 bg-neutral-950 p-0 text-white backdrop:bg-[#000000]/60"
       >
         <div className="p-4">
           <div className="mb-3 flex items-center justify-between">
