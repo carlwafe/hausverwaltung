@@ -37,7 +37,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-lg border border-neutral-800 p-8">
-        <Logo size={48} className="mb-4 text-yellow-400" />
+        <Logo size={48} className="mb-4 text-white" />
         <h1 className="mb-1 text-xl font-semibold text-white">Mietverwaltung Eutin</h1>
         <p className="mb-6 text-sm text-neutral-400">Bitte anmelden</p>
 

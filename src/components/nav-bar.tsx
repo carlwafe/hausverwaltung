@@ -133,7 +133,7 @@ export function NavBar({
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <div className="flex min-w-0 items-center gap-8">
           <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold text-white">
-            <Logo size={26} className="text-yellow-400" />
+            <Logo size={26} className="text-white" />
             Mietverwaltung Eutin
           </span>
           {/* Ab md nebeneinander mit Dropdowns (wie bisher) — darunter reicht die Breite nicht
