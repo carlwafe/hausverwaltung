@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useEffect } from "react";
 import { changePassword } from "./actions";
+import { ThemeSchalter } from "@/components/theme-schalter";
 
 export default function KontoPage() {
   const [message, formAction, pending] = useActionState(changePassword, null);
@@ -15,6 +16,11 @@ export default function KontoPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Mein Konto</h1>
+      <h2 className="mb-4 text-lg font-medium">Darstellung</h2>
+      <div className="mb-8">
+        <ThemeSchalter />
+        <p className="mt-2 text-sm text-neutral-500">Gilt für diesen Browser.</p>
+      </div>
       <h2 className="mb-4 text-lg font-medium">Passwort ändern</h2>
       <form ref={formRef} action={formAction} className="max-w-md space-y-4">
         <div>

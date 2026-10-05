@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
@@ -18,10 +19,12 @@ export const metadata: Metadata = {
   description: "Buchhaltung für das Mietobjekt in Eutin",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = (await cookies()).get("theme")?.value === "dark" ? "dark" : "light";
   return (
     <html
       lang="de"
+      data-theme={theme}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
