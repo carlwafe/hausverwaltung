@@ -14,6 +14,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
+import { saldoMitToleranz } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 
 function formatEuro(value: number) {
@@ -242,7 +243,7 @@ export default async function MietvertragDetailPage({
   });
   const nkOffenFuerJahr = (jahr: number): number | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
-    return position ? Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0) : null;
+    return position ? saldoMitToleranz(Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0)) : null;
   };
   const letztesJahr = bis.getFullYear();
   const erstesJahr = Math.min(

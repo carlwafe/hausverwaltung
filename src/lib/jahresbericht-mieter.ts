@@ -1,3 +1,4 @@
+import { saldoMitToleranz } from "./nk-saldo";
 import { berechneSoll, berechneSollKaltmiete, ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "./soll-ist";
 
 export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
@@ -99,7 +100,7 @@ function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltung
 function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr: number): number | null {
   const vorjahresPosition = v.nebenkostenPositionen.find((p) => p.jahr === jahr - 1);
   if (!vorjahresPosition) return null;
-  return vorjahresPosition.saldo - vorjahresPosition.zahlungSumme;
+  return saldoMitToleranz(vorjahresPosition.saldo - vorjahresPosition.zahlungSumme);
 }
 
 /**
@@ -182,7 +183,9 @@ export function berechneMieterBericht(
       zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr);
     // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
-    const saldoNeu = saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0);
+    // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
+    const saldoNeu =
+      Math.round((saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
 
     if (
       !immerAnzeigen?.has(v.id) &&
