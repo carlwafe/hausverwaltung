@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Logo } from "@/components/logo";
 import { signOut } from "next-auth/react";
 
 type NavLink = { href: string; label: string };
@@ -131,7 +132,8 @@ export function NavBar({
     <header className="border-b border-neutral-800">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <div className="flex min-w-0 items-center gap-8">
-          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-white">
+          <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold text-white">
+            <Logo size={26} className="text-yellow-400" />
             Mietverwaltung Eutin
           </span>
           {/* Ab md nebeneinander mit Dropdowns (wie bisher) — darunter reicht die Breite nicht
