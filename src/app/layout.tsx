@@ -19,14 +19,21 @@ export const metadata: Metadata = {
   description: "Buchhaltung für das Mietobjekt in Eutin",
 };
 
+// Setzt vor dem ersten Zeichnen das Design und folgt bei „System“ dem Modus des Geräts.
+const THEME_SKRIPT = `(function(){try{var q=matchMedia("(prefers-color-scheme: dark)");function a(){var m=document.cookie.match(/(?:^|; )theme=(\\w+)/),p=m?m[1]:"light";document.documentElement.dataset.theme=p==="dark"||(p==="system"&&q.matches)?"dark":"light"}a();q.addEventListener("change",a)}catch(e){}})();`;
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const theme = (await cookies()).get("theme")?.value === "dark" ? "dark" : "light";
   return (
     <html
       lang="de"
       data-theme={theme}
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SKRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
         <Providers>{children}</Providers>
       </body>

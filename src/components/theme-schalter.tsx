@@ -1,25 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 
-type Theme = "light" | "dark";
+type Wahl = "light" | "dark" | "system";
 
-// Darstellung wählen: Cookie "theme" (vom Root-Layout gelesen, damit es beim Laden nicht flackert)
-// und sofort das Attribut am <html> setzen. Gilt pro Browser, nicht pro Benutzerkonto.
+const listeners = new Set<() => void>();
+
+function liesWahl(): Wahl {
+  const w = document.cookie.match(/(?:^|; )theme=(\w+)/)?.[1];
+  return w === "dark" || w === "system" ? w : "light";
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function waehle(neu: Wahl) {
+  document.cookie = `theme=${neu}; path=/; max-age=31536000; samesite=lax`;
+  const dunkel = neu === "dark" || (neu === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dunkel ? "dark" : "light";
+  listeners.forEach((l) => l());
+}
+
+// Darstellung wählen: Cookie "theme" (vom Root-Layout und vom Skript im <head> gelesen, damit es
+// beim Laden nicht flackert) und sofort das Attribut am <html> setzen. "System" folgt dem Modus des
+// Geräts; das Mitlaufen bei Wechsel übernimmt das Skript im <head> (layout.tsx). Gilt pro Browser,
+// nicht pro Benutzerkonto.
 export function ThemeSchalter() {
-  const [theme, setTheme] = useState<Theme>(() =>
-    typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-  );
+  const wahl = useSyncExternalStore(subscribe, liesWahl, () => "light" as Wahl);
 
-  function waehle(neu: Theme) {
-    setTheme(neu);
-    document.documentElement.dataset.theme = neu;
-    document.cookie = `theme=${neu}; path=/; max-age=31536000; samesite=lax`;
-  }
-
-  const optionen: { wert: Theme; label: string }[] = [
+  const optionen: { wert: Wahl; label: string }[] = [
     { wert: "light", label: "Hell" },
     { wert: "dark", label: "Dunkel" },
+    { wert: "system", label: "System" },
   ];
 
   return (
@@ -29,9 +43,9 @@ export function ThemeSchalter() {
           key={o.wert}
           type="button"
           onClick={() => waehle(o.wert)}
-          aria-pressed={theme === o.wert}
+          aria-pressed={wahl === o.wert}
           className={`rounded px-4 py-1.5 text-sm ${
-            theme === o.wert ? "bg-white font-medium text-black" : "text-neutral-400 hover:text-white"
+            wahl === o.wert ? "bg-white font-medium text-black" : "text-neutral-400 hover:text-white"
           }`}
         >
           {o.label}
