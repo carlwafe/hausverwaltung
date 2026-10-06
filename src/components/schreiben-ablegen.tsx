@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { uploadDokument } from "@/app/(app)/dokumente/actions";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
+import { GroessenFehler } from "@/components/groessen-fehler";
 
 export type SchreibenKopie = {
   id: string;
@@ -71,7 +72,7 @@ export function SchreibenAblegen({
           {pending ? "Lädt hoch…" : "Ablegen"}
         </button>
       </form>
-      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
+      <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       {kopien.length > 0 && (
         <div className="mt-3">

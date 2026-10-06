@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { DeleteButton } from "./delete-button";
 import { deleteDokument } from "@/app/(app)/dokumente/actions";
 import { ermittleZuGrosseDateien } from "@/lib/upload-limits";
+import { GroessenFehler } from "@/components/groessen-fehler";
 
 export type FotoRow = {
   id: string;
@@ -88,7 +89,7 @@ export function FotosSektion({
         </button>
       </form>
       <p className="mt-1 text-xs text-neutral-500">Maximal 1 MB pro Datei.</p>
-      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
+      <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </div>
   );

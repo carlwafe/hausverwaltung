@@ -6,6 +6,7 @@ import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { ART_OPTIONEN, ORDNER_VORSCHLAEGE, formatBytes } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
 import { uploadDokumentZentral } from "./actions";
+import { GroessenFehler } from "@/components/groessen-fehler";
 
 type Option = { id: string; label: string };
 
@@ -167,7 +168,7 @@ export function DokumentUpload({
         Maximal {maxMb} MB pro Datei, eine Datei je Upload. Kostenbelege werden weiterhin an der jeweiligen Kostenposition
         hochgeladen (Kosten → Position) und erscheinen hier automatisch nach Jahr geordnet.
       </p>
-      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
+      <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </form>
   );

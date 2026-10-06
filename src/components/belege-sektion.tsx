@@ -6,6 +6,7 @@ import { DeleteButton } from "./delete-button";
 import { aendereBelegDatum, deleteDokument } from "@/app/(app)/dokumente/actions";
 import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
+import { GroessenFehler } from "@/components/groessen-fehler";
 
 export type BelegRow = {
   id: string;
@@ -148,7 +149,7 @@ export function BelegeSektion({
         Maximal {maxMb} MB pro Datei. Das Belegdatum ist das Datum des Belegs selbst (z.B. Rechnungsdatum) und gilt für
         alle Dateien dieses Uploads; es lässt sich in der Tabelle später ändern.
       </p>
-      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
+      <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </div>
   );
