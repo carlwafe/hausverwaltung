@@ -1,6 +1,7 @@
 "use client";
 
-// quartal: 0 = ganzes Jahr, 1–4 = einzelnes Quartal.
+// quartal: 0 = ganzes Jahr, 1–4 = einzelnes Quartal. Bewusst ohne automatisches Absenden beim
+// Ändern der Auswahl: jede Abfrage rechnet den ganzen Bericht (Vercel-CPU, siehe CLAUDE.md).
 export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: number }) {
   const bis = Math.max(new Date().getFullYear() + 1, jahr);
   const von = Math.min(2020, jahr);
@@ -19,7 +20,6 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
           id="jahr"
           name="jahr"
           defaultValue={jahr}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
           className={`w-28 ${selectCls}`}
         >
           {jahre.map((j) => (
@@ -37,7 +37,6 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
           id="quartal"
           name="quartal"
           defaultValue={quartal}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
           className={`w-28 ${selectCls}`}
         >
           <option value={0}>Gesamtjahr</option>
@@ -48,6 +47,12 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
           ))}
         </select>
       </div>
+      <button
+        type="submit"
+        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200"
+      >
+        Anzeigen
+      </button>
     </form>
   );
 }
