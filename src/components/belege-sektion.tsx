@@ -5,17 +5,7 @@ import { useActionState, useState, useTransition } from "react";
 import { DeleteButton } from "./delete-button";
 import { aendereBelegDatum, deleteDokument } from "@/app/(app)/dokumente/actions";
 import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
-
-function formatBytes(n: number | null) {
-  if (n === null) return "";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(d: Date) {
-  return new Intl.DateTimeFormat("de-DE").format(d);
-}
+import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
 
 export type BelegRow = {
   id: string;
@@ -29,7 +19,7 @@ export type BelegRow = {
 const zuInputWert = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
 // Belegdatum direkt in der Zeile änderbar; gespeichert wird beim Verlassen/Ändern des Feldes.
-function BelegDatumFeld({ id, wert, revalidatePath }: { id: string; wert: Date | null; revalidatePath: string }) {
+export function BelegDatumFeld({ id, wert, revalidatePath }: { id: string; wert: Date | null; revalidatePath: string }) {
   const [aktuell, setAktuell] = useState(zuInputWert(wert));
   const [pending, startTransition] = useTransition();
   return (

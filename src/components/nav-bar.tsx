@@ -17,6 +17,7 @@ const STAMMDATEN: NavLink[] = [
   { href: "/gebaeude", label: "Gebäude" },
   { href: "/buchungsarten", label: "Buchungsarten" },
   { href: "/dienstleister", label: "Handwerker & Dienstleister" },
+  { href: "/dokumente", label: "Dokumente" },
 ];
 
 const FINANZEN: NavLink[] = [
@@ -96,7 +97,6 @@ const SEITENTITEL: NavLink[] = [
   ...VERWALTUNG,
   { href: "/mietvertraege/vpi-werte", label: "VPI-Werte" },
   { href: "/buchungen", label: "Buchungen" },
-  { href: "/dokumente", label: "Dokumente" },
   { href: "/haeuser", label: "Häuser" },
   { href: "/kostenarten", label: "Kostenarten" },
   { href: "/tickets", label: "Tickets" },

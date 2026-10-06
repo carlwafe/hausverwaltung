@@ -902,6 +902,9 @@ model Dokument {
   // Anhang eines Tickets (Foto vom Mangel, Angebot, Schriftverkehr).
   ticket          Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   ticketId        String?
+  // Ordner für allgemeine Dokumente ohne Bezug (alle FK-Felder leer); mit Bezug ordnet sich das
+  // Dokument automatisch nach dem Bezug ein (Seite /dokumente).
+  ordner          String?
   hochgeladenVon  String?
   // Datum des Belegs selbst (z.B. Rechnungs-/Vertragsdatum) — vom Nutzer beim Upload angegeben und
   // später änderbar. createdAt bleibt das Upload-Datum. Die Belege-Tabelle sortiert nach
