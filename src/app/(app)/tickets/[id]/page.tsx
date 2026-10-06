@@ -41,8 +41,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         </Link>
       </p>
       <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">
+        <div className="min-w-0">
+          <h1 className="break-words text-2xl font-semibold text-white">
             <span className="text-neutral-500">#{ticket.nummer}</span> {ticket.titel}
           </h1>
           <p className="mt-1 text-sm text-neutral-400">

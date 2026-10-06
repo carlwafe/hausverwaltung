@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useLayoutEffect, useRef, useState } from "react";
 import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
@@ -28,6 +28,45 @@ const inputClass =
 const labelClass = "mb-1 block text-sm font-medium";
 
 const GESPEICHERT = "__gespeichert";
+
+// Textfeld, das mit dem Inhalt wächst — lange Titel/Beschreibungen (v.a. am Handy) werden sonst abgeschnitten bzw. müssen gescrollt werden.
+// `einzeilig`: Titel ohne Zeilenumbruch (Enter sendet das Formular wie bei einem normalen Eingabefeld).
+function WachsendesTextfeld({
+  einzeilig,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { einzeilig?: boolean }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  function anpassen() {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+  useLayoutEffect(anpassen, []);
+  return (
+    <textarea
+      ref={ref}
+      {...props}
+      onInput={(e) => {
+        if (einzeilig && e.currentTarget.value.includes("\n")) {
+          e.currentTarget.value = e.currentTarget.value.replace(/\s*\n+\s*/g, " ");
+        }
+        anpassen();
+      }}
+      onKeyDown={
+        einzeilig
+          ? (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }
+          : undefined
+      }
+      className={`${props.className ?? ""} resize-none overflow-hidden`}
+    />
+  );
+}
 
 export function TicketForm({
   initial,
@@ -78,7 +117,9 @@ export function TicketForm({
         <label className={labelClass} htmlFor="titel">
           Titel
         </label>
-        <input
+        <WachsendesTextfeld
+          einzeilig
+          rows={1}
           id="titel"
           name="titel"
           required
@@ -92,7 +133,7 @@ export function TicketForm({
         <label className={labelClass} htmlFor="beschreibung">
           Beschreibung (optional)
         </label>
-        <textarea id="beschreibung" name="beschreibung" rows={4} defaultValue={initial.beschreibung} className={inputClass} />
+        <WachsendesTextfeld id="beschreibung" name="beschreibung" rows={4} defaultValue={initial.beschreibung} className={inputClass} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
