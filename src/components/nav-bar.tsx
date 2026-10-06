@@ -21,6 +21,7 @@ const STAMMDATEN: NavLink[] = [
 
 const FINANZEN: NavLink[] = [
   { href: "/kontoauszug/import", label: "Importieren" },
+  { href: "/miete-monat", label: "Miete diesen Monat" },
   { href: "/offene-posten", label: "Offene Posten" },
   { href: "/zahlungen", label: "Zahlungen" },
   { href: "/kosten", label: "Kosten" },
