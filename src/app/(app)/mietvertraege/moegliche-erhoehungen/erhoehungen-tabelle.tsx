@@ -125,7 +125,7 @@ const columns: Column<ErhoehungZeile>[] = [
     key: "neueKalt",
     label: "Neue Kaltmiete",
     align: "right",
-    title: "Kaltmiete jetzt × neuer Index ÷ Basisindex (Vorschau, nicht gespeichert)",
+    title: "Kaltmiete jetzt × neuer Index ÷ Basisindex, auf volle Euro abgerundet (Vorschau, nicht gespeichert)",
     render: (z) =>
       z.neueKalt === null ? (
         leer

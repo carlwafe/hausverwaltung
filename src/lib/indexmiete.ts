@@ -39,7 +39,13 @@ export function basisIndexMonat(
   return { jahr: referenzDatum.getUTCFullYear(), monat: referenzDatum.getUTCMonth() + 1, gespeichert: false };
 }
 
-/** Neue Kaltmiete = Kaltmiete × neuer Index ÷ Basisindex, auf Cent gerundet. */
-export function neueIndexmiete(kaltmiete: number, basisIndex: number, neuerIndex: number): number {
-  return Math.round(kaltmiete * (neuerIndex / basisIndex) * 100) / 100;
+/**
+ * Neue Kaltmiete = Kaltmiete × neuer Index ÷ Basisindex. Entscheidung: standardmäßig auf volle Euro
+ * **abgerundet** (zugunsten des Mieters, bleibt sicher innerhalb der Indexänderung; Aufrunden würde
+ * über die Indexänderung hinausgehen). `abrunden = false` = auf den Cent genau gerundet. Der kleine
+ * Zuschlag verhindert, dass Gleitkomma-Reste einen exakt ganzzahligen Wert um 1 € drücken.
+ */
+export function neueIndexmiete(kaltmiete: number, basisIndex: number, neuerIndex: number, abrunden = true): number {
+  const roh = kaltmiete * (neuerIndex / basisIndex);
+  return abrunden ? Math.floor(roh + 1e-9) : Math.round(roh * 100) / 100;
 }

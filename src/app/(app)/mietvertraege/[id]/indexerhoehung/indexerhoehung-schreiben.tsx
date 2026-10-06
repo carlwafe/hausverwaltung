@@ -78,6 +78,8 @@ export function IndexerhoehungSchreiben({
   const [anrede, setAnrede] = useState(() => briefAnrede(mieter));
   const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG">(zahlungswegVertrag ?? "LASTSCHRIFT");
   const [mieteEigen, setMieteEigen] = useState<string | null>(null);
+  // Standard: auf volle Euro abrunden (zugunsten des Mieters); abgewählt = auf den Cent genau.
+  const [abrunden, setAbrunden] = useState(true);
   const [gespeichert, setGespeichert] = useState(false);
 
   useEffect(() => {
@@ -105,7 +107,7 @@ export function IndexerhoehungSchreiben({
     ? ermittleMieteFuerMonat(vertragStand, gueltigAb.getFullYear(), gueltigAb.getMonth())
     : ermittleMieteFuerMonat(vertragStand, new Date().getFullYear(), new Date().getMonth() + 1);
 
-  const rechnerisch = basis ? neueIndexmiete(bisher.kaltmiete, basis.wert, neu.wert) : null;
+  const rechnerisch = basis ? neueIndexmiete(bisher.kaltmiete, basis.wert, neu.wert, abrunden) : null;
   const neueKalt = mieteEigen !== null ? Math.max(0, Number(mieteEigen.replace(",", ".")) || 0) : rechnerisch;
   const aenderungProzent = basis ? (neu.wert / basis.wert - 1) * 100 : null;
   const erhoehungBetrag = neueKalt !== null ? Math.round((neueKalt - bisher.kaltmiete) * 100) / 100 : null;
@@ -171,6 +173,10 @@ export function IndexerhoehungSchreiben({
                 onChange={(e) => setMieteEigen(e.target.value)}
                 className={eingabeKlasse}
               />
+              <label className="mt-1 flex items-center gap-1.5 text-xs text-neutral-400">
+                <input type="checkbox" checked={abrunden} onChange={(e) => setAbrunden(e.target.checked)} />
+                auf volle Euro abrunden
+              </label>
               {mieteEigen !== null && (
                 <button type="button" onClick={() => setMieteEigen(null)} className="mt-1 text-xs text-neutral-400 hover:text-white">
                   auf Rechenwert zurücksetzen
