@@ -5,7 +5,7 @@ import { OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
 
 // Die Dokument-Tabelle hat bewusst keine eigene Ordnerstruktur: jedes Dokument hängt an genau
 // einem Bezug (Mietvertrag, Einheit, Kostenbuchung, Dienstleister, Ticket) oder an keinem
-// (= "Allgemein", dort gilt der freie Ordnername). Die Ordner der Seite /dokumente werden daraus
+// (= "Unkategorisiert", dort gilt der freie Ordnername). Die Ordner der Seite /dokumente werden daraus
 // abgeleitet — Bereich = oberste Ebene, Unterordner = das Bezugsobjekt (bzw. Jahr bei Kosten).
 
 export type DokumentZeile = {
@@ -168,7 +168,7 @@ export function ordnerVonBereich(zeilen: DokumentZeile[], bereich: BereichKey): 
   );
 }
 
-/** Vorhandene Ordnernamen im Bereich „Allgemein“ (für die Auswahl beim Upload). */
+/** Vorhandene Ordnernamen im Bereich „Unkategorisiert“ (für die Auswahl beim Upload). */
 export function allgemeineOrdnerNamen(zeilen: DokumentZeile[]): string[] {
   return ordnerVonBereich(zeilen, "allgemein")
     .map((o) => o.label)

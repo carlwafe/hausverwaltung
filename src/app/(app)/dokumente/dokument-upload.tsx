@@ -10,7 +10,7 @@ import { uploadDokumentZentral } from "./actions";
 type Option = { id: string; label: string };
 
 const ZIELE = [
-  { key: "allgemein", label: "Allgemein (Ordner)" },
+  { key: "allgemein", label: "Unkategorisiert (Ordner)" },
   { key: "mietvertraege", label: "Mieterakte (Mietvertrag)" },
   { key: "einheiten", label: "Einheit (Foto)" },
   { key: "dienstleister", label: "Dienstleister" },
@@ -27,7 +27,7 @@ export function DokumentUpload({
   vorgabe,
 }: {
   optionen: Record<Exclude<ZielKey, "allgemein">, Option[]>;
-  /** Vorhandene Ordner im Bereich „Allgemein“ (Vorschläge beim Tippen). */
+  /** Vorhandene Ordner im Bereich „Unkategorisiert“ (Vorschläge beim Tippen). */
   ordnerNamen: string[];
   /** Aus dem gerade geöffneten Ordner: Bereich und (je nach Bereich) Bezug bzw. Ordnername. */
   vorgabe: { bereich: ZielKey; bezugId: string; ordner: string };

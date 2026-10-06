@@ -81,9 +81,9 @@ export default async function DokumentePage({
         <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
         <p className="text-sm text-neutral-400">
           Alle hochgeladenen Dateien an einem Ort — {zeilen.length} Dateien, {formatBytes(gesamtGroesse)}. Die Ordner
-          ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Allgemeines legst du in
+          ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Unkategorisiertes legst du in
           frei benannten Ordnern ab. Der Bezug ist fest: ein Dokument lässt sich nicht in einen anderen Mietvertrag o.ä.
-          verschieben, dafür neu hochladen und das alte löschen (nur der Ordner von „Allgemein“ ist änderbar).
+          verschieben, dafür neu hochladen und das alte löschen (nur der Ordner von „Unkategorisiert“ ist änderbar).
         </p>
       </div>
 

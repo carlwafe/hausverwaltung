@@ -7,7 +7,7 @@ export const BEREICHE = [
   { key: "kosten", label: "Kostenbelege", hinweis: "je Kostenjahr" },
   { key: "dienstleister", label: "Dienstleister", hinweis: "je Dienstleister" },
   { key: "tickets", label: "Tickets", hinweis: "je Ticket" },
-  { key: "allgemein", label: "Allgemein", hinweis: "frei benannte Ordner" },
+  { key: "allgemein", label: "Unkategorisiert", hinweis: "frei benannte Ordner" },
 ] as const;
 
 export type BereichKey = (typeof BEREICHE)[number]["key"];
