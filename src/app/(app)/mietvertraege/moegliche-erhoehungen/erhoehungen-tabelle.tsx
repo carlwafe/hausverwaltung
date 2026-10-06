@@ -48,6 +48,19 @@ const columns: Column<ErhoehungZeile>[] = [
     searchValue: (z) => z.mieterNamen,
   },
   {
+    key: "schreiben",
+    label: "Schreiben",
+    render: (z) => (
+      <Link
+        href={`/mietvertraege/${z.id}/indexerhoehung`}
+        prefetch={false}
+        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
+      >
+        Erstellen
+      </Link>
+    ),
+  },
+  {
     key: "letzte",
     label: "Letzte Anpassung",
     render: (z) => (
@@ -135,15 +148,6 @@ const columns: Column<ErhoehungZeile>[] = [
         </span>
       ),
     sortValue: (z) => z.neueKalt ?? -1,
-  },
-  {
-    key: "schreiben",
-    label: "Schreiben",
-    render: (z) => (
-      <Link prefetch={false} href={`/mietvertraege/${z.id}/indexerhoehung`} className="text-xs text-neutral-300 underline hover:text-white">
-        Erstellen
-      </Link>
-    ),
   },
 ];
 
