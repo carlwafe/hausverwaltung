@@ -18,7 +18,7 @@ function Ordnerkarte({ href, titel, anzahl, groesse, hinweis }: { href: string; 
       <div className="flex items-start gap-3">
         <span aria-hidden className="text-xl leading-none">📁</span>
         <div className="min-w-0">
-          <div className="truncate font-medium text-white" title={titel}>{titel}</div>
+          <div className="font-medium text-white [overflow-wrap:anywhere]">{titel}</div>
           <div className="text-xs text-neutral-500">
             {anzahl} {anzahl === 1 ? "Datei" : "Dateien"}
             {groesse > 0 && ` · ${formatBytes(groesse)}`}
