@@ -377,6 +377,64 @@ export const passeNkVorauszahlungAn = mitMeldung(async function passeNkVorauszah
   revalidateNachMieterhoehung(mietvertragId);
 });
 
+const indexerhoehungSchema = z.object({
+  gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
+  kaltmiete: z.coerce.number().positive("Die neue Kaltmiete muss größer als 0 sein"),
+  notizen: z.string().optional(),
+});
+
+/**
+ * Übernimmt die Indexerhöhung (§ 557b BGB) als Mieterhöhung: neue Kaltmiete ab dem Monat von
+ * `gueltigAb`, die NK-Vorauszahlung bleibt wie sie zu diesem Zeitpunkt gilt. Gibt es im selben Monat
+ * schon eine Mieterhöhung, wird nur deren Kaltmiete ersetzt.
+ */
+export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeIndexerhoehung(mietvertragId: string, formData: FormData) {
+  await requireEditor();
+  const parsed = indexerhoehungSchema.safeParse({
+    gueltigAb: formData.get("gueltigAb"),
+    kaltmiete: formData.get("kaltmiete"),
+    notizen: formData.get("notizen") || undefined,
+  });
+  if (!parsed.success) throw zodFehler(parsed.error);
+  const { gueltigAb, kaltmiete, notizen } = parsed.data;
+
+  const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
+    where: { id: mietvertragId },
+    select: { beginn: true, ende: true, kaltmiete: true, nebenkostenVorauszahlung: true, mieterhoehungen: true },
+  });
+  if (vertrag.beginn && gueltigAb < vertrag.beginn) throw new AktionsFehler("Gültig ab darf nicht vor dem Mietbeginn liegen");
+  if (vertrag.ende && gueltigAb > vertrag.ende) throw new AktionsFehler("Gültig ab liegt nach dem Mietende");
+
+  const monatIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+  const imSelbenMonat = vertrag.mieterhoehungen.find((m) => monatIndex(m.gueltigAb) === monatIndex(gueltigAb));
+  if (imSelbenMonat) {
+    await prisma.mieterhoehung.update({
+      where: { id: imSelbenMonat.id },
+      data: { kaltmiete, notizen: [imSelbenMonat.notizen, notizen].filter(Boolean).join(" · ") || null },
+    });
+  } else {
+    const { nebenkostenVorauszahlung } = ermittleMieteFuerMonat(
+      {
+        kaltmiete: Number(vertrag.kaltmiete),
+        nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+        mieterhoehungen: vertrag.mieterhoehungen.map((m) => ({
+          gueltigAb: m.gueltigAb,
+          kaltmiete: Number(m.kaltmiete),
+          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+        })),
+      },
+      gueltigAb.getFullYear(),
+      gueltigAb.getMonth() + 1,
+    );
+    await prisma.mieterhoehung.create({
+      data: { mietvertragId, gueltigAb, kaltmiete, nebenkostenVorauszahlung, notizen },
+    });
+  }
+
+  revalidateNachMieterhoehung(mietvertragId);
+  revalidatePath("/mietvertraege/moegliche-erhoehungen");
+});
+
 export async function loescheMieterhoehung(id: string) {
   await requireEditor();
   const mieterhoehung = await prisma.mieterhoehung.delete({ where: { id } });

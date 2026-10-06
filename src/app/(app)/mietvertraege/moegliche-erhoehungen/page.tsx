@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { letzteKaltmietenAenderung, monatVorReferenz, neueIndexmiete } from "@/lib/indexmiete";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { ErhoehungenTabelle, type ErhoehungZeile } from "./erhoehungen-tabelle";
 
@@ -44,16 +45,12 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
   for (const v of vertraege) {
     // Ausgangspunkt laut Indexmiete-Klausel: das Datum der letzten Mietanpassung, oder — falls
     // noch nie angepasst — der Mietbeginn. Ein unbekannter Mietbeginn lässt sich nicht berechnen.
-    // Nur Einträge, bei denen sich die Kaltmiete gegenüber dem Vorgänger ändert: Reine Anpassungen
-    // der NK-Vorauszahlung (§ 560 BGB, kaltmiete unverändert) setzen das Wartejahr laut Vertrag
-    // nicht zurück ("abgesehen von Erhöhungen nach den §§ 559 bis 560 BGB").
-    let vorherigeKaltmiete = v.kaltmiete;
-    let letzteMieterhoehung: (typeof v.mieterhoehungen)[number] | undefined;
-    for (const e of v.mieterhoehungen) {
-      if (!e.kaltmiete.equals(vorherigeKaltmiete)) letzteMieterhoehung = e;
-      vorherigeKaltmiete = e.kaltmiete;
-    }
-    const referenzDatum = letzteMieterhoehung?.gueltigAb ?? v.beginn;
+    // Nur Kaltmieten-Änderungen zählen (siehe letzteKaltmietenAenderung in src/lib/indexmiete.ts).
+    const letzteAenderung = letzteKaltmietenAenderung(
+      Number(v.kaltmiete),
+      v.mieterhoehungen.map((e) => ({ gueltigAb: e.gueltigAb, kaltmiete: Number(e.kaltmiete) })),
+    );
+    const referenzDatum = letzteAenderung ?? v.beginn;
     if (!referenzDatum) continue;
 
     const naechsteMoeglich = plusEinJahr(referenzDatum);
@@ -69,7 +66,8 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
         nebenkostenVorauszahlung: Number(e.nebenkostenVorauszahlung),
       })),
     } as never).kaltmiete;
-    const basisSchluessel = referenzDatum.getUTCFullYear() * 12 + referenzDatum.getUTCMonth() - 1;
+    const basisMonatVor = monatVorReferenz(referenzDatum);
+    const basisSchluessel = basisMonatVor.jahr * 12 + basisMonatVor.monat - 1;
     const basisIndex = vpi.get(basisSchluessel) ?? null;
     const neuerIndex = neuester ? Number(neuester.wert) : null;
     const hatIndex = basisIndex !== null && neuerIndex !== null;
@@ -79,17 +77,17 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
       einheitRang: einheitRang.get(v.id) ?? 0,
       mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & ") || "– ohne Mieter –",
       referenzDatum: referenzDatum.toISOString(),
-      referenzQuelle: letzteMieterhoehung ? "letzte Mieterhöhung" : "Mietbeginn",
+      referenzQuelle: letzteAenderung ? "letzte Mieterhöhung" : "Mietbeginn",
       naechsteMoeglich: naechsteMoeglich.toISOString(),
       bereitsMoeglich: naechsteMoeglich <= heute,
       monateBis: monateBis(heute, naechsteMoeglich),
       aktuelleKalt,
-      basisMonat: `${String((basisSchluessel % 12) + 1).padStart(2, "0")}/${Math.floor(basisSchluessel / 12)}`,
+      basisMonat: `${String(basisMonatVor.monat).padStart(2, "0")}/${basisMonatVor.jahr}`,
       basisIndex,
       neuerMonat: neuester ? `${String(neuester.monat).padStart(2, "0")}/${neuester.jahr}` : null,
       neuerIndex,
       aenderungProzent: hatIndex ? (neuerIndex / basisIndex - 1) * 100 : null,
-      neueKalt: hatIndex ? Math.round(aktuelleKalt * (neuerIndex / basisIndex) * 100) / 100 : null,
+      neueKalt: hatIndex ? neueIndexmiete(aktuelleKalt, basisIndex, neuerIndex) : null,
     });
   }
 

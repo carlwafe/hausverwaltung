@@ -136,6 +136,15 @@ const columns: Column<ErhoehungZeile>[] = [
       ),
     sortValue: (z) => z.neueKalt ?? -1,
   },
+  {
+    key: "schreiben",
+    label: "Schreiben",
+    render: (z) => (
+      <Link href={`/mietvertraege/${z.id}/indexerhoehung`} className="text-xs text-neutral-300 underline hover:text-white">
+        Erstellen
+      </Link>
+    ),
+  },
 ];
 
 export function ErhoehungenTabelle({ rows }: { rows: ErhoehungZeile[] }) {
