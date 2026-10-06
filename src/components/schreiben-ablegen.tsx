@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { uploadDokument } from "@/app/(app)/dokumente/actions";
-import { formatDate } from "@/lib/dokumente-anzeige";
-import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
-import { DateiGroesseWarnung, useDateiGroesse } from "@/components/datei-groesse";
+import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
+import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
 
 export type SchreibenKopie = {
   id: string;
@@ -34,7 +33,8 @@ export function SchreibenAblegen({
   kopien: SchreibenKopie[];
 }) {
   const [error, formAction, pending] = useActionState(uploadDokument.bind(null, { mietvertragId, revalidatePath }), null);
-  const groesse = useDateiGroesse(MAX_DOKUMENT_GROESSE_BYTES);
+  const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
+  const maxMb = MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024);
 
   return (
     <div className="mt-4 rounded-md border border-neutral-800 p-3">
@@ -52,18 +52,26 @@ export function SchreibenAblegen({
           name="file"
           accept="application/pdf,.pdf"
           required
-          onChange={groesse.onChange}
+          onChange={(e) => {
+            const zuGross = ermittleZuGrosseDateien(e.target.files, MAX_DOKUMENT_GROESSE_BYTES);
+            if (zuGross.length > 0) {
+              setGroessenFehler(`Maximal ${maxMb} MB: ${zuGross.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")}.`);
+              e.target.value = "";
+            } else {
+              setGroessenFehler(null);
+            }
+          }}
           className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-sm file:text-white"
         />
         <button
           type="submit"
-          disabled={pending || groesse.blockiert}
+          disabled={pending || groessenFehler !== null}
           className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
         >
           {pending ? "Lädt hoch…" : "Ablegen"}
         </button>
       </form>
-      <DateiGroesseWarnung {...groesse.warnung} maxBytes={MAX_DOKUMENT_GROESSE_BYTES} />
+      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       {kopien.length > 0 && (
         <div className="mt-3">

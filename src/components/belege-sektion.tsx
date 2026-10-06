@@ -4,9 +4,8 @@ import { DateInput } from "@/components/date-input";
 import { useActionState, useState, useTransition } from "react";
 import { DeleteButton } from "./delete-button";
 import { aendereBelegDatum, deleteDokument } from "@/app/(app)/dokumente/actions";
-import { MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
+import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
-import { DateiGroesseWarnung, useDateiGroesse } from "@/components/datei-groesse";
 
 export type BelegRow = {
   id: string;
@@ -53,13 +52,25 @@ export function BelegeSektion({
   revalidatePath: string;
 }) {
   const [error, formAction, pending] = useActionState(uploadAction, null);
-  const groesse = useDateiGroesse(maxBytes);
+  const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
   // Nach Belegdatum sortiert (fehlt es: nach dem Upload-Datum), neueste zuerst.
   const sortiert = [...dokumente].sort(
     (a, b) => (b.belegDatum ?? b.createdAt).getTime() - (a.belegDatum ?? a.createdAt).getTime(),
   );
 
   const maxMb = maxBytes / (1024 * 1024);
+
+  function pruefeDateigroessen(e: React.ChangeEvent<HTMLInputElement>) {
+    const zuGross = ermittleZuGrosseDateien(e.target.files, maxBytes);
+    if (zuGross.length > 0) {
+      setGroessenFehler(
+        `Dateien dürfen maximal ${maxMb} MB groß sein: ${zuGross.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")}.`,
+      );
+      e.target.value = "";
+    } else {
+      setGroessenFehler(null);
+    }
+  }
 
   return (
     <div className="rounded-lg border border-neutral-800 p-4">
@@ -122,12 +133,12 @@ export function BelegeSektion({
           type="file"
           name="file"
           required
-          onChange={groesse.onChange}
+          onChange={pruefeDateigroessen}
           className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-sm file:text-white"
         />
         <button
           type="submit"
-          disabled={pending || groesse.blockiert}
+          disabled={pending || groessenFehler !== null}
           className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
         >
           {pending ? "Lädt hoch…" : "Hochladen"}
@@ -137,7 +148,7 @@ export function BelegeSektion({
         Maximal {maxMb} MB pro Datei. Das Belegdatum ist das Datum des Belegs selbst (z.B. Rechnungsdatum) und gilt für
         alle Dateien dieses Uploads; es lässt sich in der Tabelle später ändern.
       </p>
-      <DateiGroesseWarnung {...groesse.warnung} maxBytes={maxBytes} />
+      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </div>
   );

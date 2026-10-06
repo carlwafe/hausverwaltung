@@ -3,9 +3,8 @@
 import { useActionState, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
-import { ART_OPTIONEN, ORDNER_VORSCHLAEGE } from "@/lib/dokumente-anzeige";
-import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
-import { DateiGroesseWarnung, useDateiGroesse } from "@/components/datei-groesse";
+import { ART_OPTIONEN, ORDNER_VORSCHLAEGE, formatBytes } from "@/lib/dokumente-anzeige";
+import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
 import { uploadDokumentZentral } from "./actions";
 
 type Option = { id: string; label: string };
@@ -38,7 +37,7 @@ export function DokumentUpload({
   const [bereich, setBereich] = useState<ZielKey>(vorgabe.bereich);
   const [bezugId, setBezugId] = useState(vorgabe.bezugId);
   const [ordner, setOrdner] = useState(vorgabe.ordner);
-  const groesse = useDateiGroesse(MAX_DOKUMENT_GROESSE_BYTES);
+  const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
 
   const maxMb = MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024);
 
@@ -46,6 +45,16 @@ export function DokumentUpload({
   // Groß-/Kleinschreibung egal).
   const vorhanden = new Set(ordnerNamen.map((n) => n.toLowerCase()));
   const ordnerVorschlaege = [...ordnerNamen, ...ORDNER_VORSCHLAEGE.filter((n) => !vorhanden.has(n.toLowerCase()))];
+
+  function pruefeGroesse(e: React.ChangeEvent<HTMLInputElement>) {
+    const zuGross = ermittleZuGrosseDateien(e.target.files, MAX_DOKUMENT_GROESSE_BYTES);
+    if (zuGross.length > 0) {
+      setGroessenFehler(`Maximal ${maxMb} MB pro Datei: ${zuGross.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")}.`);
+      e.target.value = "";
+    } else {
+      setGroessenFehler(null);
+    }
+  }
 
   return (
     <form action={formAction} className="rounded-lg border border-neutral-800 p-4">
@@ -124,12 +133,12 @@ export function DokumentUpload({
           type="file"
           name="file"
           required
-          onChange={groesse.onChange}
+          onChange={pruefeGroesse}
           className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:py-2 file:text-sm file:text-white"
         />
         <button
           type="submit"
-          disabled={pending || groesse.blockiert}
+          disabled={pending || groessenFehler !== null}
           className="h-[38px] rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
         >
           {pending ? "Lädt hoch…" : "Hochladen"}
@@ -158,7 +167,7 @@ export function DokumentUpload({
         Maximal {maxMb} MB pro Datei, eine Datei je Upload. Kostenbelege werden weiterhin an der jeweiligen Kostenposition
         hochgeladen (Kosten → Position) und erscheinen hier automatisch nach Jahr geordnet.
       </p>
-      <DateiGroesseWarnung {...groesse.warnung} maxBytes={MAX_DOKUMENT_GROESSE_BYTES} />
+      {groessenFehler && <p className="mt-2 text-sm text-red-400">{groessenFehler}</p>}
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </form>
   );
