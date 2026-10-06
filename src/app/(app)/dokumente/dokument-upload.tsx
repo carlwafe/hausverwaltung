@@ -37,7 +37,6 @@ export function DokumentUpload({
   const [error, formAction, pending] = useActionState(uploadDokumentZentral, null);
   const [bereich, setBereich] = useState<ZielKey>(vorgabe.bereich);
   const [bezugId, setBezugId] = useState(vorgabe.bezugId);
-  const [ordner, setOrdner] = useState(vorgabe.ordner);
   const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
 
   const maxMb = MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024);
@@ -86,8 +85,7 @@ export function DokumentUpload({
             <input
               name="ordner"
               list="dokument-ordner"
-              value={ordner}
-              onChange={(e) => setOrdner(e.target.value)}
+              defaultValue={vorgabe.ordner}
               maxLength={80}
               placeholder="z.B. Versicherungen"
               className={`${FELD} w-56`}
@@ -145,25 +143,6 @@ export function DokumentUpload({
           {pending ? "Lädt hoch…" : "Hochladen"}
         </button>
       </div>
-      {bereich === "allgemein" && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-neutral-500">Ordner wählen:</span>
-          {ordnerVorschlaege.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setOrdner(n)}
-              className={`rounded-full border px-2.5 py-1 ${
-                ordner === n
-                  ? "border-white text-white"
-                  : "border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      )}
       <p className="mt-2 text-xs text-neutral-500">
         Maximal {maxMb} MB pro Datei, eine Datei je Upload. Kostenbelege werden weiterhin an der jeweiligen Kostenposition
         hochgeladen (Kosten → Position) und erscheinen hier automatisch nach Jahr geordnet.
