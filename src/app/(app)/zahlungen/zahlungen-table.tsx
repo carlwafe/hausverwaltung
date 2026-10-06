@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
-import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
 import { deleteZahlungen } from "./actions";
 import {
   exportiereAlsCsv,
@@ -48,7 +48,8 @@ export type ZahlungRow = {
   periodeJahr: number | null;
   betrag: number;
   verwendungszweck: string | null;
-  rohdaten: Record<string, string> | null;
+  // Die Bankzeile selbst wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
+  hatRohdaten: boolean;
   importBatchId: string | null;
   importDateiname: string | null;
   aufteilungGruppeId: string | null;
@@ -178,7 +179,7 @@ const columns: Column<ZahlungRow>[] = [
     key: "quelle",
     label: "Quelle",
     render: (z, { expanded, toggleExpanded }) =>
-      z.rohdaten ? (
+      z.hatRohdaten ? (
         <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
       ) : (
         <span className="text-xs text-neutral-600">manuell</span>
@@ -249,9 +250,9 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         onSelectionChange={setAusgewaehlt}
         dateValue={(z) => z.datum}
         renderExpanded={(z, colSpan) =>
-          z.rohdaten ? (
-            <RohdatenZeile
-              rohdaten={z.rohdaten}
+          z.hatRohdaten ? (
+            <RohdatenNachladenZeile
+              buchungId={z.id}
               colSpan={colSpan}
               downloadHref={z.importBatchId ? `/api/import-batches/${z.importBatchId}/download` : undefined}
               downloadLabel={`Originaldatei herunterladen${z.importDateiname ? ` (${z.importDateiname})` : ""}`}

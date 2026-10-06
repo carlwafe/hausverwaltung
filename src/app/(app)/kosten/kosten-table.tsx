@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
-import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
 import { deleteKostenpositionen } from "./actions";
 import {
   exportiereAlsCsv,
@@ -34,7 +34,8 @@ export type KostenpositionRow = {
   betrag: number;
   empfaenger: string | null;
   beschreibung: string | null;
-  rohdaten: Record<string, string> | null;
+  // Die Bankzeile selbst wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
+  hatRohdaten: boolean;
   importBatchId: string | null;
   importDateiname: string | null;
   // Gesetzt, wenn diese Zeile aus dem Aufteilen einer ursprünglich einzelnen Buchung entstanden
@@ -127,7 +128,7 @@ const columns: Column<KostenpositionRow>[] = [
     key: "quelle",
     label: "Quelle",
     render: (k, { expanded, toggleExpanded }) =>
-      k.rohdaten ? (
+      k.hatRohdaten ? (
         <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
       ) : (
         <span className="text-xs text-neutral-600">manuell</span>
@@ -211,9 +212,9 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
           placeholder: "Alle Kostenarten",
         }}
         renderExpanded={(k, colSpan) =>
-          k.rohdaten ? (
-            <RohdatenZeile
-              rohdaten={k.rohdaten}
+          k.hatRohdaten ? (
+            <RohdatenNachladenZeile
+              buchungId={k.id}
               colSpan={colSpan}
               downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
               downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}

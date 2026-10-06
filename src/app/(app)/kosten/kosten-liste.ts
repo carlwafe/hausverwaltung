@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
+import type { Prisma } from "@/generated/prisma/client";
 import type { KostenpositionRow } from "./kosten-table";
 import type { NichtZugeordneteBuchungRow } from "./nicht-zugeordnete-buchungen-table";
 
@@ -20,8 +22,16 @@ export async function ladeKosten(where: {
   einheitId?: string | null;
   kostenart?: { name: { in: string[] } };
 } = {}): Promise<KostenpositionRow[]> {
-  const positionen = await prisma.buchung.findMany({
-    where: { ...where, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
+  const abfrage: Prisma.BuchungWhereInput = { ...where, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER };
+  const [positionen, mitRohdaten] = await Promise.all([ladePositionen(abfrage), idsMitRohdaten(abfrage)]);
+  return mappePositionen(positionen, mitRohdaten);
+}
+
+async function ladePositionen(abfrage: Prisma.BuchungWhereInput) {
+  return prisma.buchung.findMany({
+    where: abfrage,
+    // rohdaten (die komplette Bankzeile) wird erst beim Aufklappen nachgeladen (ladeBuchungRohdaten).
+    omit: { rohdaten: true },
     // Nach Buchungsdatum statt Erfassungsdatum sortiert — sonst springt eine Position beim
     // Aufteilen oder Bearbeiten (Storno + Neuanlage, siehe hebeAufteilungAuf/
     // updateKostenposition) an den Anfang der Liste, obwohl sich ihr eigentliches Datum nicht
@@ -37,7 +47,11 @@ export async function ladeKosten(where: {
       importBatch: true,
     },
   });
+}
 
+type PositionBuchung = Awaited<ReturnType<typeof ladePositionen>>[number];
+
+function mappePositionen(positionen: PositionBuchung[], mitRohdaten: Set<string>): KostenpositionRow[] {
   return positionen
     .filter((k) => k.kostenart)
     .map((k) => ({
@@ -50,7 +64,7 @@ export async function ladeKosten(where: {
       betrag: Number(k.betrag),
       empfaenger: k.empfaenger,
       beschreibung: k.verwendungszweck,
-      rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
+      hatRohdaten: mitRohdaten.has(k.id),
       importBatchId: k.importBatchId,
       importDateiname: k.importBatch?.dateiname ?? null,
       aufteilungGruppeId: k.aufteilungGruppeId,

@@ -4,10 +4,24 @@ import { ZahlungenTable, type ZahlungRow } from "./zahlungen-table";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { mieterName } from "@/lib/mieter-name";
+import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
+import type { Prisma } from "@/generated/prisma/client";
 
 async function ladeZahlungen(): Promise<ZahlungRow[]> {
-  const zahlungen = await prisma.buchung.findMany({
-    where: { buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG", "MAHNGEBUEHR"] } }, ...AKTIVE_BUCHUNG_FILTER },
+  const where: Prisma.BuchungWhereInput = {
+    buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG", "MAHNGEBUEHR"] } },
+    ...AKTIVE_BUCHUNG_FILTER,
+  };
+  const [zahlungen, mitRohdaten] = await Promise.all([ladeZeilen(where), idsMitRohdaten(where)]);
+  return mappeZahlungen(zahlungen, mitRohdaten);
+}
+
+async function ladeZeilen(where: Prisma.BuchungWhereInput) {
+  return prisma.buchung.findMany({
+    where,
+    // rohdaten (die komplette Bankzeile) macht bei mehreren tausend Zahlungen den Großteil der
+    // Datenmenge aus — wird erst beim Aufklappen nachgeladen (ladeBuchungRohdaten).
+    omit: { rohdaten: true },
     // Bei gleichem Datum (z.B. zwei durch Aufteilung entstandene Zahlungen, siehe
     // aufteilungGruppeId) sonst unbestimmte Reihenfolge — zusätzlich nach Periode absteigend
     // sortiert, damit z.B. "Nov 2025, Okt 2025" statt eines zufällig wirkenden "Okt 2025,
@@ -15,6 +29,11 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     orderBy: [{ datum: "desc" }, { periodeJahr: "desc" }, { periodeMonat: "desc" }],
     include: { mietvertrag: { include: { einheit: true, mieter: true } }, importBatch: true, buchungsart: { select: { code: true } } },
   });
+}
+
+type ZahlungBuchung = Awaited<ReturnType<typeof ladeZeilen>>[number];
+
+function mappeZahlungen(zahlungen: ZahlungBuchung[], mitRohdaten: Set<string>): ZahlungRow[] {
 
   // mietvertragId/datum sind bei allen drei Arten immer gesetzt, die Periode nur bei MIETZAHLUNG
   // (siehe pflichtfeldErfuellt in commitBuchungen) — auf DB-Ebene bleiben sie nullable, weil
@@ -30,7 +49,7 @@ async function ladeZahlungen(): Promise<ZahlungRow[]> {
     periodeJahr: z.periodeJahr,
     betrag: Number(z.betrag),
     verwendungszweck: z.verwendungszweck,
-    rohdaten: (z.rohdaten as Record<string, string> | null) ?? null,
+    hatRohdaten: mitRohdaten.has(z.id),
     importBatchId: z.importBatchId,
     importDateiname: z.importBatch?.dateiname ?? null,
     aufteilungGruppeId: z.aufteilungGruppeId,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ladeBuchungRohdaten } from "@/app/(app)/buchungen/rohdaten-action";
 
 export function RohdatenToggleButton({
   expanded,
@@ -81,4 +82,40 @@ export function RohdatenZeile({
       </td>
     </tr>
   );
+}
+
+// Wie RohdatenZeile, holt die Bankzeile aber erst beim Einblenden vom Server (siehe
+// ladeBuchungRohdaten) — für Listen, die die Rohdaten nicht mitladen.
+export function RohdatenNachladenZeile({
+  buchungId,
+  colSpan,
+  downloadHref,
+  downloadLabel,
+}: {
+  buchungId: string;
+  colSpan: number;
+  downloadHref?: string;
+  downloadLabel?: string;
+}) {
+  const [rohdaten, setRohdaten] = useState<Record<string, string> | null | undefined>(undefined);
+  useEffect(() => {
+    let aktuell = true;
+    ladeBuchungRohdaten(buchungId)
+      .then((r) => aktuell && setRohdaten(r))
+      .catch(() => aktuell && setRohdaten(null));
+    return () => {
+      aktuell = false;
+    };
+  }, [buchungId]);
+
+  if (rohdaten === undefined || rohdaten === null) {
+    return (
+      <tr className="border-t border-neutral-800 bg-neutral-900/50">
+        <td colSpan={colSpan} className="px-4 py-3 text-xs text-neutral-500">
+          {rohdaten === undefined ? "Lädt …" : "Rohdaten konnten nicht geladen werden."}
+        </td>
+      </tr>
+    );
+  }
+  return <RohdatenZeile rohdaten={rohdaten} colSpan={colSpan} downloadHref={downloadHref} downloadLabel={downloadLabel} />;
 }
