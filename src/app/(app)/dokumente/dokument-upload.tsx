@@ -11,7 +11,7 @@ type Option = { id: string; label: string };
 
 const ZIELE = [
   { key: "allgemein", label: "Allgemein (Ordner)" },
-  { key: "mietvertraege", label: "Mietvertrag" },
+  { key: "mietvertraege", label: "Mieterakte (Mietvertrag)" },
   { key: "einheiten", label: "Einheit (Foto)" },
   { key: "dienstleister", label: "Dienstleister" },
   { key: "tickets", label: "Ticket" },

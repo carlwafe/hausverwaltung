@@ -2,7 +2,7 @@
 // Client-Komponenten (Tabelle, Upload) und Server-Seiten gleichermaßen nutzbar sind.
 
 export const BEREICHE = [
-  { key: "mietvertraege", label: "Mietverträge", hinweis: "je Mietvertrag" },
+  { key: "mietvertraege", label: "Mieterakten", hinweis: "je Mietvertrag: Vertrag, Schreiben, Übergabe …" },
   { key: "einheiten", label: "Einheiten (Fotos)", hinweis: "je Einheit" },
   { key: "kosten", label: "Kostenbelege", hinweis: "je Kostenjahr" },
   { key: "dienstleister", label: "Dienstleister", hinweis: "je Dienstleister" },

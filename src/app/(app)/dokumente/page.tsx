@@ -81,7 +81,7 @@ export default async function DokumentePage({
         <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
         <p className="text-sm text-neutral-400">
           Alle hochgeladenen Dateien an einem Ort — {zeilen.length} Dateien, {formatBytes(gesamtGroesse)}. Die Ordner
-          ergeben sich aus dem Bezug (Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Allgemeines legst du in
+          ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Allgemeines legst du in
           frei benannten Ordnern ab. Der Bezug ist fest: ein Dokument lässt sich nicht in einen anderen Mietvertrag o.ä.
           verschieben, dafür neu hochladen und das alte löschen (nur der Ordner von „Allgemein“ ist änderbar).
         </p>
@@ -144,6 +144,8 @@ export default async function DokumentePage({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {BEREICHE.map((b) => {
             const vonBereich = zeilen.filter((z) => z.bereich === b.key);
+            // Leere Bereiche blenden wir aus; hochladen kann man über das Formular oben trotzdem dorthin.
+            if (vonBereich.length === 0) return null;
             return (
               <Ordnerkarte
                 key={b.key}
