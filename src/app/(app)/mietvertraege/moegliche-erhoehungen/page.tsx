@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
+import { ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { ErhoehungenTabelle, type ErhoehungZeile } from "./erhoehungen-tabelle";
 
@@ -29,6 +30,10 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
 
   const heute = new Date();
   const zeilen: ErhoehungZeile[] = [];
+  // VPI-Monatswerte (Tabelle "VPI-Werte"): Schlüssel jahr*12+monat-1. Neuester Wert = "neuer Index".
+  const vpiWerte = await prisma.verbraucherpreisindex.findMany({ orderBy: [{ jahr: "desc" }, { monat: "desc" }] });
+  const vpi = new Map(vpiWerte.map((w) => [w.jahr * 12 + w.monat - 1, Number(w.wert)]));
+  const neuester = vpiWerte[0];
   // Rang in der Haus-Reihenfolge des Objekts (für die Spaltensortierung "Einheit").
   const einheitRang = new Map(
     sortEinheitenNachGebaeude(
@@ -52,6 +57,22 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
     if (!referenzDatum) continue;
 
     const naechsteMoeglich = plusEinJahr(referenzDatum);
+
+    // Indexmiete: Basis = VPI des Monats VOR dem Referenzmonat (letzter bei Festsetzung bekannter
+    // Wert), neu = neuester eingetragener VPI. Neue Kaltmiete = aktuelle Kaltmiete × neu ÷ Basis.
+    const aktuelleKalt = ermittleAktuelleMiete({
+      kaltmiete: Number(v.kaltmiete),
+      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+      mieterhoehungen: v.mieterhoehungen.map((e) => ({
+        gueltigAb: e.gueltigAb,
+        kaltmiete: Number(e.kaltmiete),
+        nebenkostenVorauszahlung: Number(e.nebenkostenVorauszahlung),
+      })),
+    } as never).kaltmiete;
+    const basisSchluessel = referenzDatum.getUTCFullYear() * 12 + referenzDatum.getUTCMonth() - 1;
+    const basisIndex = vpi.get(basisSchluessel) ?? null;
+    const neuerIndex = neuester ? Number(neuester.wert) : null;
+    const hatIndex = basisIndex !== null && neuerIndex !== null;
     zeilen.push({
       id: v.id,
       einheitBezeichnung: v.einheit.bezeichnung,
@@ -62,6 +83,13 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
       naechsteMoeglich: naechsteMoeglich.toISOString(),
       bereitsMoeglich: naechsteMoeglich <= heute,
       monateBis: monateBis(heute, naechsteMoeglich),
+      aktuelleKalt,
+      basisMonat: `${String((basisSchluessel % 12) + 1).padStart(2, "0")}/${Math.floor(basisSchluessel / 12)}`,
+      basisIndex,
+      neuerMonat: neuester ? `${String(neuester.monat).padStart(2, "0")}/${neuester.jahr}` : null,
+      neuerIndex,
+      aenderungProzent: hatIndex ? (neuerIndex / basisIndex - 1) * 100 : null,
+      neueKalt: hatIndex ? Math.round(aktuelleKalt * (neuerIndex / basisIndex) * 100) / 100 : null,
     });
   }
 
@@ -82,7 +110,9 @@ export default async function MoeglicheErhoehungenPage() {
           Mieterhöhung — oder, falls noch keine erfolgt ist, der Mietbeginn. Nur aktive
           Wohnungs-Mietverträge mit bekanntem Mietbeginn werden gezeigt — Garagen sind
           ausgenommen, da unklar ist, ob dort überhaupt eine Indexmiete vereinbart ist. Reine
-          Anpassungen der NK-Vorauszahlung setzen das Wartejahr nicht zurück (§ 560 BGB).{" "}
+          Anpassungen der NK-Vorauszahlung setzen das Wartejahr nicht zurück (§ 560 BGB). Die Spalten
+          rechts sind eine Vorschau: Basisindex = VPI des Monats vor der letzten Kaltmieten-Änderung
+          (bzw. vor dem Mietbeginn), neuer Index = neuester eingetragener VPI.{" "}
           <Link href="/mietvertraege/vpi-werte" className="underline">
             VPI-Werte pflegen
           </Link>

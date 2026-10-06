@@ -13,7 +13,18 @@ export type ErhoehungZeile = {
   naechsteMoeglich: string; // ISO
   bereitsMoeglich: boolean;
   monateBis: number;
+  aktuelleKalt: number;
+  basisMonat: string; // MM/JJJJ des Basisindex
+  basisIndex: number | null;
+  neuerMonat: string | null;
+  neuerIndex: number | null;
+  aenderungProzent: number | null;
+  neueKalt: number | null;
 };
+
+const euro = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const zahl = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 3 });
+const leer = <span className="text-neutral-600">–</span>;
 
 const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(new Date(iso));
 
@@ -65,6 +76,65 @@ const columns: Column<ErhoehungZeile>[] = [
       ),
     // Bereits mögliche zuerst (negativ), dann nach Restmonaten
     sortValue: (z) => (z.bereitsMoeglich ? -1 : z.monateBis),
+  },
+  {
+    key: "kalt",
+    label: "Kaltmiete jetzt",
+    align: "right",
+    render: (z) => <span className="text-neutral-300">{euro(z.aktuelleKalt)} €</span>,
+    sortValue: (z) => z.aktuelleKalt,
+  },
+  {
+    key: "basis",
+    label: "Basisindex",
+    align: "right",
+    title: "VPI des Monats vor der letzten Kaltmieten-Änderung bzw. vor dem Mietbeginn",
+    render: (z) =>
+      z.basisIndex === null ? (
+        <span title="Kein VPI-Wert für diesen Monat eingetragen">{leer}</span>
+      ) : (
+        <span className="text-neutral-300">
+          {zahl(z.basisIndex)} <span className="text-xs text-neutral-500">({z.basisMonat})</span>
+        </span>
+      ),
+    sortValue: (z) => z.basisIndex ?? -1,
+  },
+  {
+    key: "neuerIndex",
+    label: "Neuer Index",
+    align: "right",
+    title: "Neuester eingetragener VPI",
+    render: (z) =>
+      z.neuerIndex === null ? (
+        leer
+      ) : (
+        <span className="text-neutral-300">
+          {zahl(z.neuerIndex)} <span className="text-xs text-neutral-500">({z.neuerMonat})</span>
+        </span>
+      ),
+    sortValue: (z) => z.neuerIndex ?? -1,
+  },
+  {
+    key: "aenderung",
+    label: "Änderung",
+    align: "right",
+    render: (z) => (z.aenderungProzent === null ? leer : <span className="text-white">{euro(z.aenderungProzent)} %</span>),
+    sortValue: (z) => z.aenderungProzent ?? -999,
+  },
+  {
+    key: "neueKalt",
+    label: "Neue Kaltmiete",
+    align: "right",
+    title: "Kaltmiete jetzt × neuer Index ÷ Basisindex (Vorschau, nicht gespeichert)",
+    render: (z) =>
+      z.neueKalt === null ? (
+        leer
+      ) : (
+        <span className="text-white">
+          {euro(z.neueKalt)} € <span className="text-xs text-neutral-500">(+{euro(z.neueKalt - z.aktuelleKalt)})</span>
+        </span>
+      ),
+    sortValue: (z) => z.neueKalt ?? -1,
   },
 ];
 
