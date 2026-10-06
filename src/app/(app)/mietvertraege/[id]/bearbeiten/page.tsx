@@ -11,6 +11,7 @@ import {
   updateMietvertrag,
   deleteMietvertrag,
   erfasseMieterhoehung,
+  setzeIndexMonat,
   loescheMieterhoehung,
   erfasseMietnachlass,
   loescheMietnachlass,
@@ -61,6 +62,7 @@ export default async function MietvertragBearbeitenPage({
     kaltmiete: Number(m.kaltmiete),
     nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
     notizen: m.notizen,
+    indexMonat: m.indexMonat,
   }));
   const aktuelleMiete = ermittleAktuelleMiete({
     kaltmiete: Number(vertrag.kaltmiete),
@@ -118,6 +120,7 @@ export default async function MietvertragBearbeitenPage({
                 <th className="px-4 py-2">Gültig ab</th>
                 <th className="px-4 py-2">Kaltmiete</th>
                 <th className="px-4 py-2">NK-Vorauszahlung</th>
+                <th className="px-4 py-2" title="Bei einer Indexerhöhung: der zugrunde gelegte Preisindex (Monat) — Ausgangswert der nächsten Indexerhöhung">Index-Monat</th>
                 <th className="px-4 py-2">Notizen</th>
                 <th className="px-4 py-2" />
               </tr>
@@ -128,6 +131,19 @@ export default async function MietvertragBearbeitenPage({
                   <td className="px-4 py-2 text-white">{formatDate(m.gueltigAb)}</td>
                   <td className="px-4 py-2 text-white">{formatEuro(m.kaltmiete)}</td>
                   <td className="px-4 py-2 text-white">{formatEuro(m.nebenkostenVorauszahlung)}</td>
+                  <td className="px-4 py-2">
+                    <form action={setzeIndexMonat.bind(null, m.id)} className="flex items-center gap-1">
+                      <input
+                        type="month"
+                        name="indexMonat"
+                        defaultValue={m.indexMonat ?? ""}
+                        className="w-36 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-white"
+                      />
+                      <button type="submit" className="text-xs text-neutral-400 hover:text-white">
+                        Speichern
+                      </button>
+                    </form>
+                  </td>
                   <td className="max-w-[160px] truncate px-4 py-2 text-white" title={m.notizen ?? ""}>
                     {m.notizen || "–"}
                   </td>
@@ -142,7 +158,7 @@ export default async function MietvertragBearbeitenPage({
               ))}
               {mieterhoehungen.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-500">
                     Noch keine Mieterhöhung erfasst.
                   </td>
                 </tr>
@@ -182,6 +198,16 @@ export default async function MietvertragBearbeitenPage({
               required
               defaultValue={aktuelleMiete.nebenkostenVorauszahlung}
               className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-400" title="Nur bei Indexerhöhung: der im Schreiben zugrunde gelegte Preisindex">
+              Index-Monat (optional)
+            </label>
+            <input
+              type="month"
+              name="indexMonat"
+              className="mt-1 w-40 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
             />
           </div>
           <div className="flex-1">

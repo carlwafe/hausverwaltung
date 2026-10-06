@@ -88,7 +88,7 @@ const columns: Column<ErhoehungZeile>[] = [
     key: "basis",
     label: "Basisindex",
     align: "right",
-    title: "VPI des Monats vor der letzten Kaltmieten-Änderung bzw. vor dem Mietbeginn",
+    title: "Bei der letzten Erhöhung zugrunde gelegter Index (falls erfasst), sonst VPI des Monats der letzten Kaltmieten-Änderung bzw. des Mietbeginns",
     render: (z) =>
       z.basisIndex === null ? (
         <span title="Kein VPI-Wert für diesen Monat eingetragen">{leer}</span>

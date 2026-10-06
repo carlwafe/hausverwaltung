@@ -443,6 +443,10 @@ model Mieterhoehung {
   kaltmiete                Decimal     @db.Decimal(10, 2)
   nebenkostenVorauszahlung Decimal     @db.Decimal(10, 2)
   notizen                  String?
+  // Bei einer Indexerhöhung (§ 557b BGB): der dieser Erhöhung zugrunde gelegte Preisindex als Monat
+  // "JJJJ-MM" (= der "neue" Index des Erhöhungsschreibens). Ausgangswert der nächsten Indexerhöhung;
+  // ohne Angabe gilt der Monat der Erhöhung bzw. des Mietbeginns selbst.
+  indexMonat               String?
   createdAt                DateTime    @default(now())
 
   @@unique([mietvertragId, gueltigAb])

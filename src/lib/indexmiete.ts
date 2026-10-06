@@ -1,31 +1,42 @@
 /**
  * Hilfen für die Indexmiete (§ 557b BGB). Die Rechenregel steht an einer Stelle, damit die Liste
- * "Mieterhöhung möglich ab" und das Erhöhungsschreiben dasselbe Referenzdatum und dieselbe neue
- * Miete verwenden.
+ * "Mieterhöhung möglich ab" und das Erhöhungsschreiben dasselbe Referenzdatum, denselben Basisindex
+ * und dieselbe neue Miete verwenden.
  */
 
-type Erhoehung = { gueltigAb: Date; kaltmiete: number };
+type Erhoehung = { gueltigAb: Date; kaltmiete: number; indexMonat?: string | null };
 
 /**
- * Datum der letzten Kaltmieten-Änderung (nur Einträge, bei denen sich die Kaltmiete gegenüber dem
- * Vorgänger ändert: reine NK-Anpassungen nach § 560 BGB setzen das Wartejahr laut Vertrag nicht
- * zurück). `undefined` = noch nie geändert (dann zählt der Mietbeginn).
+ * Letzte Änderung der Kaltmiete (nur Einträge, bei denen sich die Kaltmiete gegenüber dem Vorgänger
+ * ändert: reine NK-Anpassungen nach § 560 BGB setzen das Wartejahr laut Vertrag nicht zurück) samt
+ * dem dabei zugrunde gelegten Index. `undefined` = noch nie geändert (dann zählt der Mietbeginn).
  */
-export function letzteKaltmietenAenderung(basisKaltmiete: number, erhoehungen: Erhoehung[]): Date | undefined {
+export function letzteKaltmietenAenderung(
+  basisKaltmiete: number,
+  erhoehungen: Erhoehung[],
+): { gueltigAb: Date; indexMonat: string | null } | undefined {
   const sortiert = [...erhoehungen].sort((a, b) => a.gueltigAb.getTime() - b.gueltigAb.getTime());
   let vorher = basisKaltmiete;
-  let letzte: Date | undefined;
+  let letzte: { gueltigAb: Date; indexMonat: string | null } | undefined;
   for (const e of sortiert) {
-    if (Math.abs(e.kaltmiete - vorher) > 0.0049) letzte = e.gueltigAb;
+    if (Math.abs(e.kaltmiete - vorher) > 0.0049) letzte = { gueltigAb: e.gueltigAb, indexMonat: e.indexMonat ?? null };
     vorher = e.kaltmiete;
   }
   return letzte;
 }
 
-/** Monat vor dem Referenzdatum (UTC-Datum, nur der Monat zählt) als { jahr, monat 1–12 }. */
-export function monatVorReferenz(referenz: Date): { jahr: number; monat: number } {
-  const index = referenz.getUTCFullYear() * 12 + referenz.getUTCMonth() - 1;
-  return { jahr: Math.floor(index / 12), monat: (index % 12) + 1 };
+/**
+ * Basisindex-Monat der nächsten Indexerhöhung. Entscheidung (Variante C): der bei der letzten
+ * Erhöhung zugrunde gelegte Index (`indexMonat`, falls erfasst), sonst der Monat der letzten
+ * Kaltmieten-Änderung bzw. des Mietbeginns selbst ("zum Zeitpunkt des Mietbeginns geltende" Index).
+ */
+export function basisIndexMonat(
+  referenzDatum: Date,
+  indexMonat: string | null,
+): { jahr: number; monat: number; gespeichert: boolean } {
+  const m = indexMonat ? /^(\d{4})-(\d{2})$/.exec(indexMonat) : null;
+  if (m) return { jahr: Number(m[1]), monat: Number(m[2]), gespeichert: true };
+  return { jahr: referenzDatum.getUTCFullYear(), monat: referenzDatum.getUTCMonth() + 1, gespeichert: false };
 }
 
 /** Neue Kaltmiete = Kaltmiete × neuer Index ÷ Basisindex, auf Cent gerundet. */

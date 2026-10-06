@@ -205,10 +205,13 @@ function revalidateNachMieterhoehung(mietvertragId: string) {
   revalidatePath("/jahresuebersicht");
 }
 
+const indexMonatSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Index-Monat im Format JJJJ-MM");
+
 const mieterhoehungSchema = z.object({
   gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
   kaltmiete: z.coerce.number().min(0, "Kaltmiete darf nicht negativ sein"),
   nebenkostenVorauszahlung: z.coerce.number().min(0, "NK-Vorauszahlung darf nicht negativ sein"),
+  indexMonat: indexMonatSchema.optional(),
   notizen: z.string().optional(),
 });
 
@@ -219,6 +222,7 @@ export async function erfasseMieterhoehung(mietvertragId: string, formData: Form
     gueltigAb: formData.get("gueltigAb"),
     kaltmiete: formData.get("kaltmiete"),
     nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
+    indexMonat: formData.get("indexMonat") || undefined,
     notizen: formData.get("notizen") || undefined,
   });
   if (!parsed.success) {
@@ -380,6 +384,7 @@ export const passeNkVorauszahlungAn = mitMeldung(async function passeNkVorauszah
 const indexerhoehungSchema = z.object({
   gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
   kaltmiete: z.coerce.number().positive("Die neue Kaltmiete muss größer als 0 sein"),
+  indexMonat: indexMonatSchema,
   notizen: z.string().optional(),
 });
 
@@ -393,10 +398,11 @@ export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeInde
   const parsed = indexerhoehungSchema.safeParse({
     gueltigAb: formData.get("gueltigAb"),
     kaltmiete: formData.get("kaltmiete"),
+    indexMonat: formData.get("indexMonat"),
     notizen: formData.get("notizen") || undefined,
   });
   if (!parsed.success) throw zodFehler(parsed.error);
-  const { gueltigAb, kaltmiete, notizen } = parsed.data;
+  const { gueltigAb, kaltmiete, indexMonat, notizen } = parsed.data;
 
   const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
     where: { id: mietvertragId },
@@ -410,7 +416,7 @@ export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeInde
   if (imSelbenMonat) {
     await prisma.mieterhoehung.update({
       where: { id: imSelbenMonat.id },
-      data: { kaltmiete, notizen: [imSelbenMonat.notizen, notizen].filter(Boolean).join(" · ") || null },
+      data: { kaltmiete, indexMonat, notizen: [imSelbenMonat.notizen, notizen].filter(Boolean).join(" · ") || null },
     });
   } else {
     const { nebenkostenVorauszahlung } = ermittleMieteFuerMonat(
@@ -427,13 +433,24 @@ export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeInde
       gueltigAb.getMonth() + 1,
     );
     await prisma.mieterhoehung.create({
-      data: { mietvertragId, gueltigAb, kaltmiete, nebenkostenVorauszahlung, notizen },
+      data: { mietvertragId, gueltigAb, kaltmiete, nebenkostenVorauszahlung, indexMonat, notizen },
     });
   }
 
   revalidateNachMieterhoehung(mietvertragId);
   revalidatePath("/mietvertraege/moegliche-erhoehungen");
 });
+
+/** Zugrunde gelegten Preisindex (Monat "JJJJ-MM") einer bestehenden Mieterhöhung setzen; leer = entfernen. */
+export async function setzeIndexMonat(id: string, formData: FormData): Promise<void> {
+  await requireEditor();
+  const roh = String(formData.get("indexMonat") ?? "").trim();
+  // <input type="month"> liefert immer JJJJ-MM oder leer; alles andere wird verworfen.
+  const indexMonat = indexMonatSchema.safeParse(roh).success ? roh : null;
+  const mieterhoehung = await prisma.mieterhoehung.update({ where: { id }, data: { indexMonat } });
+  revalidateNachMieterhoehung(mieterhoehung.mietvertragId);
+  revalidatePath("/mietvertraege/moegliche-erhoehungen");
+}
 
 export async function loescheMieterhoehung(id: string) {
   await requireEditor();

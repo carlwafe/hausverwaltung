@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
-import { letzteKaltmietenAenderung } from "@/lib/indexmiete";
+import { basisIndexMonat, letzteKaltmietenAenderung } from "@/lib/indexmiete";
 import { IndexerhoehungSchreiben } from "./indexerhoehung-schreiben";
 
 export default async function IndexerhoehungPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,9 +24,11 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
     gueltigAb: e.gueltigAb,
     kaltmiete: Number(e.kaltmiete),
     nebenkostenVorauszahlung: Number(e.nebenkostenVorauszahlung),
+    indexMonat: e.indexMonat,
   }));
   const letzteAenderung = letzteKaltmietenAenderung(Number(vertrag.kaltmiete), erhoehungen);
-  const referenzDatum = letzteAenderung ?? vertrag.beginn;
+  const referenzDatum = letzteAenderung?.gueltigAb ?? vertrag.beginn;
+  const basis = referenzDatum ? basisIndexMonat(referenzDatum, letzteAenderung?.indexMonat ?? null) : null;
 
   return (
     <div>
@@ -66,6 +68,7 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
           zahlungsweg={vertrag.zahlungsweg}
           referenzDatum={referenzDatum}
           referenzQuelle={letzteAenderung ? "letzte Mietanpassung" : "Mietbeginn"}
+          basisVorbelegung={basis}
           vpi={vpiWerte.map((w) => ({ jahr: w.jahr, monat: w.monat, wert: Number(w.wert) }))}
         />
       )}

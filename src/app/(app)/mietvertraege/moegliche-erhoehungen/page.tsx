@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { ermittleAktuelleMiete } from "@/lib/soll-ist";
-import { letzteKaltmietenAenderung, monatVorReferenz, neueIndexmiete } from "@/lib/indexmiete";
+import { basisIndexMonat, letzteKaltmietenAenderung, neueIndexmiete } from "@/lib/indexmiete";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { ErhoehungenTabelle, type ErhoehungZeile } from "./erhoehungen-tabelle";
 
@@ -48,15 +48,15 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
     // Nur Kaltmieten-Änderungen zählen (siehe letzteKaltmietenAenderung in src/lib/indexmiete.ts).
     const letzteAenderung = letzteKaltmietenAenderung(
       Number(v.kaltmiete),
-      v.mieterhoehungen.map((e) => ({ gueltigAb: e.gueltigAb, kaltmiete: Number(e.kaltmiete) })),
+      v.mieterhoehungen.map((e) => ({ gueltigAb: e.gueltigAb, kaltmiete: Number(e.kaltmiete), indexMonat: e.indexMonat })),
     );
-    const referenzDatum = letzteAenderung ?? v.beginn;
+    const referenzDatum = letzteAenderung?.gueltigAb ?? v.beginn;
     if (!referenzDatum) continue;
 
     const naechsteMoeglich = plusEinJahr(referenzDatum);
 
-    // Indexmiete: Basis = VPI des Monats VOR dem Referenzmonat (letzter bei Festsetzung bekannter
-    // Wert), neu = neuester eingetragener VPI. Neue Kaltmiete = aktuelle Kaltmiete × neu ÷ Basis.
+    // Indexmiete: Basis = bei der letzten Erhöhung zugrunde gelegter Index (falls erfasst), sonst der
+    // VPI des Referenzmonats selbst (Variante C); neu = neuester eingetragener VPI. Neue Kaltmiete = aktuelle Kaltmiete × neu ÷ Basis.
     const aktuelleKalt = ermittleAktuelleMiete({
       kaltmiete: Number(v.kaltmiete),
       nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
@@ -66,7 +66,7 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
         nebenkostenVorauszahlung: Number(e.nebenkostenVorauszahlung),
       })),
     } as never).kaltmiete;
-    const basisMonatVor = monatVorReferenz(referenzDatum);
+    const basisMonatVor = basisIndexMonat(referenzDatum, letzteAenderung?.indexMonat ?? null);
     const basisSchluessel = basisMonatVor.jahr * 12 + basisMonatVor.monat - 1;
     const basisIndex = vpi.get(basisSchluessel) ?? null;
     const neuerIndex = neuester ? Number(neuester.wert) : null;
@@ -109,8 +109,9 @@ export default async function MoeglicheErhoehungenPage() {
           Wohnungs-Mietverträge mit bekanntem Mietbeginn werden gezeigt — Garagen sind
           ausgenommen, da unklar ist, ob dort überhaupt eine Indexmiete vereinbart ist. Reine
           Anpassungen der NK-Vorauszahlung setzen das Wartejahr nicht zurück (§ 560 BGB). Die Spalten
-          rechts sind eine Vorschau: Basisindex = VPI des Monats vor der letzten Kaltmieten-Änderung
-          (bzw. vor dem Mietbeginn), neuer Index = neuester eingetragener VPI.{" "}
+          rechts sind eine Vorschau: Basisindex = bei der letzten Erhöhung zugrunde gelegter Index
+          (unter „Mietvertrag bearbeiten“ je Mieterhöhung erfassbar), sonst der VPI des Monats der
+          letzten Kaltmieten-Änderung bzw. des Mietbeginns; neuer Index = neuester eingetragener VPI.{" "}
           <Link href="/mietvertraege/vpi-werte" className="underline">
             VPI-Werte pflegen
           </Link>

@@ -6,7 +6,7 @@ import { DateInput } from "@/components/date-input";
 import { runFormAction } from "@/lib/form-utils";
 import { mieterName } from "@/lib/mieter-name";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
-import { monatVorReferenz, neueIndexmiete } from "@/lib/indexmiete";
+import { neueIndexmiete } from "@/lib/indexmiete";
 import { uebernehmeIndexerhoehung } from "../../actions";
 
 type Mieter = { anrede: "FRAU" | "HERR" | null; vorname: string; nachname: string };
@@ -46,7 +46,7 @@ const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparen
 
 export function IndexerhoehungSchreiben({
   mietvertragId, mieter, strasse, plzOrt, einheit, basisKaltmiete, basisNk, erhoehungen, mehrwertsteuer,
-  jobcenter, zahlungsweg: zahlungswegVertrag, referenzDatum, referenzQuelle, vpi,
+  jobcenter, zahlungsweg: zahlungswegVertrag, referenzDatum, referenzQuelle, basisVorbelegung, vpi,
 }: {
   mietvertragId: string;
   mieter: Mieter[];
@@ -55,16 +55,18 @@ export function IndexerhoehungSchreiben({
   einheit: string;
   basisKaltmiete: number;
   basisNk: number;
-  erhoehungen: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
+  erhoehungen: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number; indexMonat?: string | null }[];
   mehrwertsteuer: number;
   jobcenter: boolean;
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
   referenzDatum: Date;
   referenzQuelle: "letzte Mietanpassung" | "Mietbeginn";
+  // Vorbelegter Basisindex-Monat: bei der letzten Erhöhung gespeichert, sonst der Referenzmonat selbst.
+  basisVorbelegung: { jahr: number; monat: number; gespeichert: boolean } | null;
   vpi: { jahr: number; monat: number; wert: number }[];
 }) {
   const key = (w: { jahr: number; monat: number }) => `${w.jahr}-${w.monat}`;
-  const vorMonat = monatVorReferenz(referenzDatum);
+  const vorMonat = basisVorbelegung ?? { jahr: referenzDatum.getUTCFullYear(), monat: referenzDatum.getUTCMonth() + 1, gespeichert: false };
   const basisStandard = vpi.find((w) => w.jahr === vorMonat.jahr && w.monat === vorMonat.monat) ?? null;
   const neuesterStandard = vpi[vpi.length - 1];
 
@@ -129,8 +131,10 @@ export function IndexerhoehungSchreiben({
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
           <p className="mb-3 text-xs text-neutral-500">
-            Ausgangspunkt: {referenzQuelle} am {formatDate(referenzDatum)}. Vorbelegt ist der VPI des Monats davor
-            ({monatLabel(vorMonat.jahr, vorMonat.monat)}) und der neueste eingetragene Wert.
+            Ausgangspunkt: {referenzQuelle} am {formatDate(referenzDatum)}. Vorbelegt ist als Basisindex{" "}
+            {vorMonat.gespeichert ? "der bei der letzten Erhöhung zugrunde gelegte Index" : "der VPI des Monats selbst"}{" "}
+            ({monatLabel(vorMonat.jahr, vorMonat.monat)}) und als neuer Index der neueste eingetragene Wert.
+            Wurde die letzte Erhöhung nach einem anderen Index berechnet (Schreiben prüfen), den Monat hier ändern.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -221,6 +225,7 @@ export function IndexerhoehungSchreiben({
             <form action={formAction}>
               <input type="hidden" name="gueltigAb" value={gueltigAbIso} />
               <input type="hidden" name="kaltmiete" value={neueKalt ?? ""} />
+              <input type="hidden" name="indexMonat" value={`${neu.jahr}-${String(neu.monat).padStart(2, "0")}`} />
               <input
                 type="hidden"
                 name="notizen"
