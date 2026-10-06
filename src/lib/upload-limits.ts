@@ -4,10 +4,12 @@
 // genutzt, damit beide dieselbe Grenze durchsetzen.
 export const MAX_DATEIGROESSE_BYTES = 1024 * 1024;
 
-// Für einzelne, größere Dokumente (z.B. eingescannte Dienstleister-Verträge). Vercel lässt bei
-// Serverless-Funktionen nur 4,5 MB Request-Body zu — 4 MB pro Datei lässt Platz für den
-// Multipart-Overhead, deshalb pro Upload nur eine Datei.
-export const MAX_DOKUMENT_GROESSE_BYTES = 4 * 1024 * 1024;
+// Für einzelne Dokumente (Dienstleister-Verträge, zentraler Upload, Schreiben-Kopien). Entscheidung:
+// gleiche Grenze wie bei Belegen und Fotos (1 MB) — komprimierte Scans reichen dafür; ein früheres
+// Limit von 4 MB (Vercel erlaubt nur 4,5 MB Request-Body) wurde am 06.10.2026 wieder gesenkt, damit
+// Speicher und Blob-Verbrauch klein bleiben. Der Name bleibt, damit die Stellen weiter getrennt
+// anpassbar sind.
+export const MAX_DOKUMENT_GROESSE_BYTES = MAX_DATEIGROESSE_BYTES;
 
 export function ermittleZuGrosseDateien(files: FileList | null, maxBytes = MAX_DATEIGROESSE_BYTES): File[] {
   return [...(files ?? [])].filter((f) => f.size > maxBytes);
