@@ -89,10 +89,10 @@ export function BelegeSektion({
           <tbody className="divide-y divide-neutral-800">
             {sortiert.map((d) => (
               <tr key={d.id}>
-                <td className="max-w-[280px] py-2 pr-3">
+                <td className="max-w-[340px] py-2 pr-3">
                   <a
                     href={`/api/dokumente/${d.id}/download`}
-                    className="block truncate text-white hover:underline"
+                    className="block text-white [overflow-wrap:anywhere] hover:underline"
                     title={d.dateiname}
                   >
                     {d.dateiname}

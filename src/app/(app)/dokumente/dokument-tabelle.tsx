@@ -67,7 +67,7 @@ export function DokumentTabelle({
       render: (d) => (
         <a
           href={`/api/dokumente/${d.id}/download`}
-          className="block max-w-[220px] truncate text-white hover:underline"
+          className="block max-w-[340px] text-white [overflow-wrap:anywhere] hover:underline"
           title={d.dateiname}
         >
           {d.dateiname}
@@ -92,7 +92,7 @@ export function DokumentTabelle({
       label: "Zugeordnet zu",
       render: (d) =>
         d.bezugHref ? (
-          <Link href={d.bezugHref} className="block max-w-[220px] truncate text-neutral-300 hover:text-white hover:underline" title={d.bezugLabel}>
+          <Link href={d.bezugHref} className="block max-w-[260px] text-neutral-300 [overflow-wrap:anywhere] hover:text-white hover:underline" title={d.bezugLabel}>
             {d.bezugLabel}
           </Link>
         ) : editierbar ? (
