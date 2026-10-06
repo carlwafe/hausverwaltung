@@ -425,6 +425,75 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
         <JahrFilterForm jahr={jahr} quartal={quartal} />
       </div>
 
+      <div className="mb-6">
+        <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
+        <details className="mb-3">
+          <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">
+            Hinweise zur Berechnung
+          </summary>
+          <div className="mt-3">
+          <p className="mb-3 text-sm text-neutral-400">
+            Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Nebenkostenabrechnung offen (Vorjahr), wobei Soll =
+            Soll Kaltmiete + Soll Nebenkosten (letztere Spalte zeigt bei Garagen die Mehrwertsteuer
+            statt Nebenkosten). Negativer Saldo = Rückstand, positiver Saldo = Guthaben/
+            Vorauszahlung. &bdquo;Nebenkostenabrechnung
+            offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
+            Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
+            in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
+            noch einzuziehende Nachzahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
+            &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
+          </p>
+          {!zeitraum.mitNkOffen && (
+            <p className="mb-3 text-sm text-neutral-400">
+              In {label} ist die Nebenkostenabrechnung des Vorjahres noch nicht berücksichtigt (sie
+              liegt meist erst im 3. Quartal vor): Saldo neu = Saldo alt − Soll + Miete
+              (+ Gebühren/Sonderforderungen), ohne Spalte &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;.
+            </p>
+          )}
+          <p className="mb-3 text-sm text-neutral-400">
+            Miete sowie Saldo alt/neu zählen nach der{" "}
+            <Link href="/zahlungen" className="underline hover:text-white">
+              zugeordneten Periode
+            </Link>{" "}
+            einer Zahlung, nicht nach ihrem tatsächlichen Buchungsdatum — eine z.B. Ende Dezember
+            schon für Januar überwiesene Miete zählt so korrekt zum Folgejahr, statt das laufende
+            Jahr künstlich ins Plus zu ziehen.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            Mieter ohne Bewegung und mit Saldo 0 werden ausgeblendet — außer sie haben einen
+            Kommentar: Diese Zeilen bleiben sichtbar, damit der Kommentar zum Abgleich mit dem früheren
+            Verwalter erhalten bleibt (z.B. ein dort noch offener Rückstand, der in der App längst
+            beglichen ist).
+          </p>
+          </div>
+        </details>
+        <MieterTabelle
+          zeilen={mieterZeilen.map((z) => ({
+            id: z.mietvertragId,
+            einheit: z.einheitBezeichnung,
+            einheitRang: z.einheitRang,
+            mieter: z.mieterNamen,
+            kaltmieteMtl: z.kaltmieteMtl,
+            nebenkostenMtl: z.nebenkostenMtl,
+            warmMtl: z.warmMtl,
+            saldoAlt: z.saldoAlt,
+            sollKaltmiete: z.sollKaltmiete,
+            sollNebenkosten: z.sollNebenkosten,
+            soll: z.soll,
+            miete: z.miete,
+            nebenkostenabrechnungOffen: z.nebenkostenabrechnungOffen,
+            nebenkostenGegenrechnung: z.nebenkostenGegenrechnung,
+            saldoNeu: z.saldoNeu,
+            verifiziert: verifizierteIds.has(z.mietvertragId),
+            kommentar: kommentarNachMietvertrag.get(z.mietvertragId) ?? "",
+          }))}
+          jahr={jahr}
+          quartal={quartal}
+          label={label}
+          mitNkOffen={zeitraum.mitNkOffen}
+        />
+      </div>
+
       <div className="mb-6 grid grid-cols-3 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Einnahmen {label}</p>
@@ -638,69 +707,6 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           </>
         )}
       </div>
-
-      <div className="mb-6">
-        <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>
-        <p className="mb-3 text-sm text-neutral-400">
-          Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Nebenkostenabrechnung offen (Vorjahr), wobei Soll =
-          Soll Kaltmiete + Soll Nebenkosten (letztere Spalte zeigt bei Garagen die Mehrwertsteuer
-          statt Nebenkosten). Negativer Saldo = Rückstand, positiver Saldo = Guthaben/
-          Vorauszahlung. &bdquo;Nebenkostenabrechnung
-          offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
-          Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
-          in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
-          noch einzuziehende Nachzahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
-          &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
-        </p>
-        {!zeitraum.mitNkOffen && (
-          <p className="mb-3 text-sm text-neutral-400">
-            In {label} ist die Nebenkostenabrechnung des Vorjahres noch nicht berücksichtigt (sie
-            liegt meist erst im 3. Quartal vor): Saldo neu = Saldo alt − Soll + Miete
-            (+ Gebühren/Sonderforderungen), ohne Spalte &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;.
-          </p>
-        )}
-        <p className="mb-3 text-sm text-neutral-400">
-          Miete sowie Saldo alt/neu zählen nach der{" "}
-          <Link href="/zahlungen" className="underline hover:text-white">
-            zugeordneten Periode
-          </Link>{" "}
-          einer Zahlung, nicht nach ihrem tatsächlichen Buchungsdatum — eine z.B. Ende Dezember
-          schon für Januar überwiesene Miete zählt so korrekt zum Folgejahr, statt das laufende
-          Jahr künstlich ins Plus zu ziehen.
-        </p>
-        <p className="mb-3 text-sm text-neutral-400">
-          Mieter ohne Bewegung und mit Saldo 0 werden ausgeblendet — außer sie haben einen
-          Kommentar: Diese Zeilen bleiben sichtbar, damit der Kommentar zum Abgleich mit dem früheren
-          Verwalter erhalten bleibt (z.B. ein dort noch offener Rückstand, der in der App längst
-          beglichen ist).
-        </p>
-        <MieterTabelle
-          zeilen={mieterZeilen.map((z) => ({
-            id: z.mietvertragId,
-            einheit: z.einheitBezeichnung,
-            einheitRang: z.einheitRang,
-            mieter: z.mieterNamen,
-            kaltmieteMtl: z.kaltmieteMtl,
-            nebenkostenMtl: z.nebenkostenMtl,
-            warmMtl: z.warmMtl,
-            saldoAlt: z.saldoAlt,
-            sollKaltmiete: z.sollKaltmiete,
-            sollNebenkosten: z.sollNebenkosten,
-            soll: z.soll,
-            miete: z.miete,
-            nebenkostenabrechnungOffen: z.nebenkostenabrechnungOffen,
-            nebenkostenGegenrechnung: z.nebenkostenGegenrechnung,
-            saldoNeu: z.saldoNeu,
-            verifiziert: verifizierteIds.has(z.mietvertragId),
-            kommentar: kommentarNachMietvertrag.get(z.mietvertragId) ?? "",
-          }))}
-          jahr={jahr}
-          quartal={quartal}
-          label={label}
-          mitNkOffen={zeitraum.mitNkOffen}
-        />
-      </div>
-
     </div>
   );
 }
