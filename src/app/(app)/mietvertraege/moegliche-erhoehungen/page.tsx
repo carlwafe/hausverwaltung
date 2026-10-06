@@ -101,7 +101,7 @@ export default async function MoeglicheErhoehungenPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Mieterhöhung möglich ab</h1>
+        <h1 className="text-2xl font-semibold text-white">Mieterhöhung</h1>
         <p className="text-sm text-neutral-400">
           Laut Indexmiete-Klausel (§ 557b BGB) muss die Miete seit der letzten Anpassung
           mindestens ein Jahr unverändert geblieben sein. Ausgangspunkt ist die letzte erfasste

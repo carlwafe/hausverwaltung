@@ -35,7 +35,7 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
     <div>
       <div className="mb-6">
         <Link href="/mietvertraege/moegliche-erhoehungen" className="text-sm text-neutral-400 hover:text-white">
-          ← Mieterhöhung möglich ab
+          ← Mieterhöhung
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-white">Indexmieten-Schreiben</h1>
         <p className="text-sm text-neutral-400">

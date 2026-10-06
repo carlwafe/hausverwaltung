@@ -23,7 +23,7 @@ export default async function VpiWertePage() {
           eingetragen; ein vorhandener Monat wird überschrieben. Alle Werte müssen auf demselben
           Basisjahr stehen (aktuell 2020 = 100) — Werte aus älterem Basisjahr vorher umrechnen.{" "}
           <Link href="/mietvertraege/moegliche-erhoehungen" className="underline">
-            Zurück zu „Mieterhöhung möglich ab“
+            Zurück zu „Mieterhöhung“
           </Link>
         </p>
       </div>

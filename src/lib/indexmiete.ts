@@ -1,6 +1,6 @@
 /**
  * Hilfen für die Indexmiete (§ 557b BGB). Die Rechenregel steht an einer Stelle, damit die Liste
- * "Mieterhöhung möglich ab" und das Erhöhungsschreiben dasselbe Referenzdatum, denselben Basisindex
+ * "Mieterhöhung" und das Erhöhungsschreiben dasselbe Referenzdatum, denselben Basisindex
  * und dieselbe neue Miete verwenden.
  */
 
