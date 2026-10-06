@@ -16,6 +16,16 @@ export type BereichKey = (typeof BEREICHE)[number]["key"];
 
 export const OHNE_ORDNER = "Ohne Ordner";
 
+/** Vorschläge für Ordnernamen in „Unkategorisiert“ (Dokumente ohne Bezug zu einem Mietvertrag, einer
+ * Einheit usw.). Nur Vorschläge beim Upload — angelegt wird ein Ordner erst durch das erste Dokument. */
+export const ORDNER_VORSCHLAEGE = [
+  "Versicherungen",
+  "Steuer & Bescheide",
+  "Objekt (Grundbuch, Energieausweis)",
+  "Wartung & Prüfprotokolle",
+  "Berichte Vorverwalter",
+] as const;
+
 /** Wählbare Dokumentarten (Schlagwort, in `Dokument.art` gespeichert). */
 export const ART_OPTIONEN = [
   { key: "VERTRAG", label: "Vertrag" },

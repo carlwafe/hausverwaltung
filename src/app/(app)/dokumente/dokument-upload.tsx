@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
-import { ART_OPTIONEN, formatBytes } from "@/lib/dokumente-anzeige";
+import { ART_OPTIONEN, ORDNER_VORSCHLAEGE, formatBytes } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
 import { uploadDokumentZentral } from "./actions";
 
@@ -35,9 +35,15 @@ export function DokumentUpload({
   const [error, formAction, pending] = useActionState(uploadDokumentZentral, null);
   const [bereich, setBereich] = useState<ZielKey>(vorgabe.bereich);
   const [bezugId, setBezugId] = useState(vorgabe.bezugId);
+  const [ordner, setOrdner] = useState(vorgabe.ordner);
   const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
 
   const maxMb = MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024);
+
+  // Vorhandene Ordner zuerst, dann die noch nicht vorhandenen Standardvorschläge (ohne Dubletten,
+  // Groß-/Kleinschreibung egal).
+  const vorhanden = new Set(ordnerNamen.map((n) => n.toLowerCase()));
+  const ordnerVorschlaege = [...ordnerNamen, ...ORDNER_VORSCHLAEGE.filter((n) => !vorhanden.has(n.toLowerCase()))];
 
   function pruefeGroesse(e: React.ChangeEvent<HTMLInputElement>) {
     const zuGross = ermittleZuGrosseDateien(e.target.files, MAX_DOKUMENT_GROESSE_BYTES);
@@ -78,13 +84,14 @@ export function DokumentUpload({
             <input
               name="ordner"
               list="dokument-ordner"
-              defaultValue={vorgabe.ordner}
+              value={ordner}
+              onChange={(e) => setOrdner(e.target.value)}
               maxLength={80}
-              placeholder="z.B. Versicherung"
+              placeholder="z.B. Versicherungen"
               className={`${FELD} w-56`}
             />
             <datalist id="dokument-ordner">
-              {ordnerNamen.map((n) => (
+              {ordnerVorschlaege.map((n) => (
                 <option key={n} value={n} />
               ))}
             </datalist>
@@ -136,6 +143,25 @@ export function DokumentUpload({
           {pending ? "Lädt hoch…" : "Hochladen"}
         </button>
       </div>
+      {bereich === "allgemein" && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-neutral-500">Ordner wählen:</span>
+          {ordnerVorschlaege.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setOrdner(n)}
+              className={`rounded-full border px-2.5 py-1 ${
+                ordner === n
+                  ? "border-white text-white"
+                  : "border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
       <p className="mt-2 text-xs text-neutral-500">
         Maximal {maxMb} MB pro Datei, eine Datei je Upload. Kostenbelege werden weiterhin an der jeweiligen Kostenposition
         hochgeladen (Kosten → Position) und erscheinen hier automatisch nach Jahr geordnet.
