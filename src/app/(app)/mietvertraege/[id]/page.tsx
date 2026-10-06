@@ -388,6 +388,14 @@ export default async function MietvertragDetailPage({
           mehrwertsteuer: vertragFuerSollIst.mehrwertsteuer,
           jobcenter: vertrag.mieter.some((m) => m.buergergeldEmpfaenger),
           zahlungsweg: vertrag.zahlungsweg,
+          kopien: vertrag.dokumente
+            .filter((d) => d.art === "SCHREIBEN")
+            .map((d) => ({
+              id: d.id,
+              dateiname: d.dateiname,
+              belegDatum: d.belegDatum?.toISOString() ?? null,
+              createdAt: d.createdAt.toISOString(),
+            })),
         }}
         kaution={{
           konto: kautionskonto,

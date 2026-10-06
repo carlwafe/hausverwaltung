@@ -7,6 +7,7 @@ import { ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "@/lib/soll-
 import { schlageVorauszahlungVor, vorgeschlagenesGueltigAb } from "@/lib/vorauszahlung-vorschlag";
 import { passeNkVorauszahlungAn } from "../actions";
 import { mieterName } from "@/lib/mieter-name";
+import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -42,6 +43,8 @@ export type VorauszahlungBriefDaten = {
   jobcenter: boolean;
   // Aus dem Mietvertrag; null = nicht erfasst → Lastschrift vorbelegt (zahlen die meisten).
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
+  // Bereits abgelegte Kopien versandter Schreiben (Dokumente der Art „Schreiben“ dieses Vertrags).
+  kopien: SchreibenKopie[];
 };
 
 // "Sehr geehrte Frau Muster, sehr geehrter Herr Muster," — fehlt bei einem Mieter die Anrede, für
@@ -302,6 +305,12 @@ export function VorauszahlungAnpassung({
           {gespeichert && !fehler && (
             <p className="text-sm text-green-400">Übernommen — steht als Mieterhöhung (Kaltmiete unverändert) im Vertrag.</p>
           )}
+          <SchreibenAblegen
+            mietvertragId={brief.mietvertragId}
+            revalidatePath={`/mietvertraege/${brief.mietvertragId}`}
+            belegDatumIso={briefdatumIso}
+            kopien={brief.kopien}
+          />
         </div>
       </div>
 

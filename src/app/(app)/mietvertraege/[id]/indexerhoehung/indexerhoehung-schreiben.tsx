@@ -8,6 +8,7 @@ import { mieterName } from "@/lib/mieter-name";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { neueIndexmiete } from "@/lib/indexmiete";
 import { uebernehmeIndexerhoehung } from "../../actions";
+import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
 
 type Mieter = { anrede: "FRAU" | "HERR" | null; vorname: string; nachname: string };
 
@@ -46,7 +47,7 @@ const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparen
 
 export function IndexerhoehungSchreiben({
   mietvertragId, mieter, strasse, plzOrt, einheit, basisKaltmiete, basisNk, erhoehungen, mehrwertsteuer,
-  jobcenter, zahlungsweg: zahlungswegVertrag, referenzDatum, referenzQuelle, basisVorbelegung, vpi,
+  jobcenter, zahlungsweg: zahlungswegVertrag, referenzDatum, referenzQuelle, basisVorbelegung, kopien, vpi,
 }: {
   mietvertragId: string;
   mieter: Mieter[];
@@ -63,6 +64,7 @@ export function IndexerhoehungSchreiben({
   referenzQuelle: "letzte Mietanpassung" | "Mietbeginn";
   // Vorbelegter Basisindex-Monat: bei der letzten Erhöhung gespeichert, sonst der Referenzmonat selbst.
   basisVorbelegung: { jahr: number; monat: number; gespeichert: boolean } | null;
+  kopien: SchreibenKopie[];
   vpi: { jahr: number; monat: number; wert: number }[];
 }) {
   const key = (w: { jahr: number; monat: number }) => `${w.jahr}-${w.monat}`;
@@ -245,6 +247,12 @@ export function IndexerhoehungSchreiben({
           {fehler && <p className="text-sm text-red-400">{fehler}</p>}
           {gespeichert && !fehler && <p className="text-sm text-green-400">Übernommen — steht als Mieterhöhung (NK-Vorauszahlung unverändert) im Vertrag.</p>}
           <p className="text-xs text-neutral-500">Erst übernehmen, wenn das Schreiben verschickt ist: Die Miete gilt dann im Soll ab „Gültig ab“.</p>
+          <SchreibenAblegen
+            mietvertragId={mietvertragId}
+            revalidatePath={`/mietvertraege/${mietvertragId}/indexerhoehung`}
+            belegDatumIso={briefdatumIso}
+            kopien={kopien}
+          />
         </div>
       </div>
 

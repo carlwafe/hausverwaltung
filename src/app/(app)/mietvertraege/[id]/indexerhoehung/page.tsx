@@ -14,6 +14,7 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
         einheit: { include: { gebaeude: { select: { strasse: true, hausnummer: true, objekt: { select: { plz: true, ort: true } } } } } },
         mieter: true,
         mieterhoehungen: { orderBy: { gueltigAb: "asc" } },
+        dokumente: { where: { art: "SCHREIBEN" }, orderBy: { createdAt: "desc" } },
       },
     }),
     prisma.verbraucherpreisindex.findMany({ orderBy: [{ jahr: "asc" }, { monat: "asc" }] }),
@@ -69,6 +70,12 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
           referenzDatum={referenzDatum}
           referenzQuelle={letzteAenderung ? "letzte Mietanpassung" : "Mietbeginn"}
           basisVorbelegung={basis}
+          kopien={vertrag.dokumente.map((d) => ({
+            id: d.id,
+            dateiname: d.dateiname,
+            belegDatum: d.belegDatum?.toISOString() ?? null,
+            createdAt: d.createdAt.toISOString(),
+          }))}
           vpi={vpiWerte.map((w) => ({ jahr: w.jahr, monat: w.monat, wert: Number(w.wert) }))}
         />
       )}
