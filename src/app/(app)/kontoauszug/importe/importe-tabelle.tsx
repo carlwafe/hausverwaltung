@@ -5,6 +5,7 @@ import { DataTable, type Column } from "@/components/data-table";
 import { DeleteButton } from "@/components/delete-button";
 import { pruefeImportVollstaendigkeit, raeumeVerwaisteImporteAuf } from "./actions";
 import type { VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
+import { jahrAusDateiname } from "@/lib/dokumente-anzeige";
 
 function formatDatum(iso: string) {
   return new Intl.DateTimeFormat("de-DE").format(new Date(iso));
@@ -105,11 +106,6 @@ function VollstaendigkeitsZelle({
       )}
     </div>
   );
-}
-
-/** Jahr aus dem Dateinamen (die CSV-Dateien tragen eine Jahreszahl); ohne → "". */
-function jahrAusDateiname(name: string): string {
-  return name.match(/(?:19|20)\d{2}/)?.[0] ?? "";
 }
 
 function zuordnungsTeile(r: GruppierterImportRow): { label: string; anzahl: number }[] {

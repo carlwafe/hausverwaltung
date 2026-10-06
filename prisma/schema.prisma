@@ -905,6 +905,9 @@ model Dokument {
   // Ordner für allgemeine Dokumente ohne Bezug (alle FK-Felder leer); mit Bezug ordnet sich das
   // Dokument automatisch nach dem Bezug ein (Seite /dokumente).
   ordner          String?
+  // Dokumentart als Schlagwort (Schlüssel aus ART_OPTIONEN in src/lib/dokumente-anzeige.ts), leer =
+  // nicht angegeben.
+  art             String?
   hochgeladenVon  String?
   // Datum des Belegs selbst (z.B. Rechnungs-/Vertragsdatum) — vom Nutzer beim Upload angegeben und
   // später änderbar. createdAt bleibt das Upload-Datum. Die Belege-Tabelle sortiert nach

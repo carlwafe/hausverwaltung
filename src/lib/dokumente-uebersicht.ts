@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
+import { ART_KONTOAUSZUG, OHNE_ORDNER, jahrAusDateiname, type BereichKey } from "@/lib/dokumente-anzeige";
 
 // Die Dokument-Tabelle hat bewusst keine eigene Ordnerstruktur: jedes Dokument hängt an genau
 // einem Bezug (Mietvertrag, Einheit, Kostenbuchung, Dienstleister, Ticket) oder an keinem
@@ -10,6 +10,11 @@ import { OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
 
 export type DokumentZeile = {
   id: string;
+  /** Kontoauszug-Dateien (aus den Importen) sind nur zum Ansehen: nicht änderbar, nicht löschbar. */
+  schreibgeschuetzt: boolean;
+  downloadHref: string;
+  /** Dokumentart (Schlüssel, siehe ART_OPTIONEN) oder null. */
+  art: string | null;
   dateiname: string;
   groesseBytes: number | null;
   belegDatum: Date | null;
@@ -32,7 +37,7 @@ export type DokumentZeile = {
 const einheitLabel = (e: { bezeichnung: string; gebaeude: { strasse: string; hausnummer: string } }) =>
   `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} – ${e.bezeichnung}`;
 
-export async function ladeDokumente(): Promise<DokumentZeile[]> {
+async function ladeDokumenteAusTabelle(): Promise<DokumentZeile[]> {
   const dokumente = await prisma.dokument.findMany({
     include: {
       mietvertrag: {
@@ -58,6 +63,9 @@ export async function ladeDokumente(): Promise<DokumentZeile[]> {
   return dokumente.map((d): DokumentZeile => {
     const basis = {
       id: d.id,
+      schreibgeschuetzt: false,
+      downloadHref: `/api/dokumente/${d.id}/download`,
+      art: d.art,
       dateiname: d.dateiname,
       groesseBytes: d.groesseBytes,
       belegDatum: d.belegDatum,
@@ -147,6 +155,52 @@ export async function ladeDokumente(): Promise<DokumentZeile[]> {
   });
 }
 
+// Originaldateien der Kontoauszug-Importe (ImportBatch.speicherpfad), je Datei die neueste — wie
+// die Tabelle auf /kontoauszug/importe; nur Importe mit übernommenen oder geparkten Buchungen
+// (reine Vorschauen zählen nicht). Nur zum Ansehen, Verwaltung bleibt unter Kontoauszug → Importe.
+async function ladeKontoauszugDateien(): Promise<DokumentZeile[]> {
+  const batches = await prisma.importBatch.findMany({
+    where: {
+      typ: "KONTOAUSZUG",
+      speicherpfad: { not: null },
+      OR: [{ buchungen: { some: {} } }, { nichtZugeordneteBuchungen: { some: {} } }],
+    },
+    orderBy: { erstelltAm: "desc" },
+    select: { id: true, dateiname: true, erstelltAm: true, user: { select: { email: true, name: true } } },
+  });
+
+  const proDatei = new Map<string, (typeof batches)[number]>();
+  for (const b of batches) if (!proDatei.has(b.dateiname)) proDatei.set(b.dateiname, b);
+
+  return [...proDatei.values()].map((b): DokumentZeile => {
+    const jahr = jahrAusDateiname(b.dateiname);
+    return {
+      id: `import-${b.id}`,
+      schreibgeschuetzt: true,
+      downloadHref: `/api/import-batches/${b.id}/download`,
+      art: ART_KONTOAUSZUG,
+      dateiname: b.dateiname,
+      groesseBytes: null,
+      belegDatum: null,
+      createdAt: b.erstelltAm,
+      hochgeladenVon: b.user.email ?? b.user.name ?? null,
+      bereich: "kontoauszuege",
+      ordnerKey: jahr || "ohne",
+      ordnerLabel: jahr || "Ohne Jahr",
+      // Neueste Jahre zuerst, „Ohne Jahr“ ans Ende.
+      ordnerRang: jahr ? -Number(jahr) : 0,
+      bezugLabel: "Kontoauszug-Import",
+      bezugHref: "/kontoauszug/importe",
+      revalidatePath: "/kontoauszug/importe",
+    };
+  });
+}
+
+export async function ladeDokumente(): Promise<DokumentZeile[]> {
+  const [ausTabelle, kontoauszuege] = await Promise.all([ladeDokumenteAusTabelle(), ladeKontoauszugDateien()]);
+  return [...ausTabelle, ...kontoauszuege];
+}
+
 export type OrdnerInfo = { key: string; label: string; anzahl: number; rang: number; groesse: number };
 
 /** Unterordner eines Bereichs mit Anzahl/Größe, in sinnvoller Reihenfolge (Rang, dann Name). */
@@ -178,7 +232,7 @@ export function allgemeineOrdnerNamen(zeilen: DokumentZeile[]): string[] {
 export type BezugOption = { id: string; label: string };
 
 /** Auswahllisten für den zentralen Upload („Ablegen bei“). */
-export async function ladeBezugOptionen(): Promise<Record<Exclude<BereichKey, "allgemein" | "kosten">, BezugOption[]>> {
+export async function ladeBezugOptionen(): Promise<Record<Exclude<BereichKey, "allgemein" | "kosten" | "kontoauszuege">, BezugOption[]>> {
   const [einheiten, mietvertraege, dienstleister, tickets] = await Promise.all([
     prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
     prisma.mietvertrag.findMany({

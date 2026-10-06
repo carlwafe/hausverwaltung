@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
+import { istGueltigeArt } from "@/lib/dokumente-anzeige";
 import { speichereDatei, loescheDatei } from "@/lib/storage";
 
 type UploadZiel =
@@ -41,6 +42,9 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
 
   // Optionales Belegdatum (Datum des Belegs selbst), gilt für alle Dateien dieses Uploads.
   const belegDatum = parseBelegDatum(formData.get("belegDatum"));
+  // Optionale Dokumentart (leer = nicht angegeben), gilt für alle Dateien dieses Uploads.
+  const artWert = formData.get("art");
+  const art = istGueltigeArt(artWert) ? artWert : null;
 
   for (const file of files) {
     const speicherpfad = await speichereDatei(Buffer.from(await file.arrayBuffer()), file.name);
@@ -56,6 +60,7 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
         dienstleisterId: "dienstleisterId" in ziel ? ziel.dienstleisterId : undefined,
         ticketId: "ticketId" in ziel ? ziel.ticketId : undefined,
         ordner: "ordner" in ziel ? ziel.ordner : undefined,
+        art,
         hochgeladenVon: user.email ?? user.name ?? null,
         belegDatum,
       },
@@ -149,5 +154,12 @@ export async function aendereOrdner(id: string, ordner: string): Promise<void> {
   const dokument = await prisma.dokument.findUnique({ where: { id } });
   if (!dokument || dokument.buchungId || dokument.mietvertragId || dokument.einheitId || dokument.dienstleisterId || dokument.ticketId) return;
   await prisma.dokument.update({ where: { id }, data: { ordner: ordner.trim().slice(0, 80) || null } });
+  revalidatePath("/dokumente");
+}
+
+// Dokumentart nachträglich ändern (leer = keine Angabe).
+export async function aendereArt(id: string, art: string): Promise<void> {
+  await requireEditor();
+  await prisma.dokument.update({ where: { id }, data: { art: istGueltigeArt(art) ? art : null } });
   revalidatePath("/dokumente");
 }

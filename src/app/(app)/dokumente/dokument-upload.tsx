@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
-import { formatBytes } from "@/lib/dokumente-anzeige";
+import { ART_OPTIONEN, formatBytes } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
 import { uploadDokumentZentral } from "./actions";
 
@@ -106,6 +106,17 @@ export function DokumentUpload({
           </div>
         )}
 
+        <div>
+          <label className="mb-1 block text-xs text-neutral-400">Art (optional)</label>
+          <select name="art" defaultValue="" className={FELD}>
+            <option value="">–</option>
+            {ART_OPTIONEN.map((a) => (
+              <option key={a.key} value={a.key}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="mb-1 block text-xs text-neutral-400">Belegdatum (optional)</label>
           <DateInput name="belegDatum" size="sm" />

@@ -8,11 +8,41 @@ export const BEREICHE = [
   { key: "dienstleister", label: "Dienstleister", hinweis: "je Dienstleister" },
   { key: "tickets", label: "Tickets", hinweis: "je Ticket" },
   { key: "allgemein", label: "Unkategorisiert", hinweis: "frei benannte Ordner" },
+  // Nur Anzeige: die Originaldateien der Kontoauszug-Importe (gehören nicht zur Tabelle `dokumente`).
+  { key: "kontoauszuege", label: "Kontoauszüge", hinweis: "je Jahr, aus den Importen" },
 ] as const;
 
 export type BereichKey = (typeof BEREICHE)[number]["key"];
 
 export const OHNE_ORDNER = "Ohne Ordner";
+
+/** Wählbare Dokumentarten (Schlagwort, in `Dokument.art` gespeichert). */
+export const ART_OPTIONEN = [
+  { key: "VERTRAG", label: "Vertrag" },
+  { key: "SCHREIBEN", label: "Schreiben" },
+  { key: "PROTOKOLL", label: "Protokoll" },
+  { key: "RECHNUNG", label: "Rechnung" },
+  { key: "BESCHEID", label: "Bescheid" },
+  { key: "FOTO", label: "Foto" },
+  { key: "SONSTIGES", label: "Sonstiges" },
+] as const;
+
+/** Kontoauszug-Dateien tragen immer diese Art (nicht wählbar, nur Anzeige/Filter). */
+export const ART_KONTOAUSZUG = "KONTOAUSZUG";
+
+export function artLabel(art: string | null): string {
+  if (art === ART_KONTOAUSZUG) return "Kontoauszug";
+  return ART_OPTIONEN.find((a) => a.key === art)?.label ?? "–";
+}
+
+export function istGueltigeArt(art: unknown): art is (typeof ART_OPTIONEN)[number]["key"] {
+  return ART_OPTIONEN.some((a) => a.key === art);
+}
+
+/** Jahr aus dem Dateinamen (die CSV-Dateien der Importe tragen eine Jahreszahl); ohne → "". */
+export function jahrAusDateiname(name: string): string {
+  return name.match(/(?:19|20)\d{2}/)?.[0] ?? "";
+}
 
 export function formatBytes(n: number | null) {
   if (n === null) return "";

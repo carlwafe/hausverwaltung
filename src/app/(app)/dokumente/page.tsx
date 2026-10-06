@@ -63,13 +63,18 @@ export default async function DokumentePage({
     bezugLabel: z.bezugLabel,
     bezugHref: z.bezugHref,
     revalidatePath: z.revalidatePath,
+    schreibgeschuetzt: z.schreibgeschuetzt,
+    downloadHref: z.downloadHref,
+    art: z.art,
   }));
 
   // Upload vorbelegen mit dem gerade geöffneten Ordner.
   const vorBereich: BereichKey | null = bereich?.key ?? null;
   const vorgabe = {
-    bereich: vorBereich && vorBereich !== "kosten" ? vorBereich : ("allgemein" as const),
-    bezugId: bereich && ordner && bereich.key !== "kosten" && bereich.key !== "allgemein" ? ordner.key : "",
+    bereich: vorBereich && vorBereich !== "kosten" && vorBereich !== "kontoauszuege" ? vorBereich : ("allgemein" as const),
+    bezugId: bereich && ordner && bereich.key !== "kosten" && bereich.key !== "kontoauszuege" && bereich.key !== "allgemein"
+        ? ordner.key
+        : "",
     ordner: bereich?.key === "allgemein" && ordner && ordner.label !== "Ohne Ordner" ? ordner.label : "",
   };
 
@@ -82,7 +87,9 @@ export default async function DokumentePage({
         <p className="text-sm text-neutral-400">
           Alle hochgeladenen Dateien an einem Ort — {zeilen.length} Dateien, {formatBytes(gesamtGroesse)}. Die Ordner
           ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Unkategorisiertes legst du in
-          frei benannten Ordnern ab. Der Bezug ist fest: ein Dokument lässt sich nicht in einen anderen Mietvertrag o.ä.
+          frei benannten Ordnern ab. Mit „Art“ (Vertrag, Schreiben, Rechnung …) lässt sich die Liste filtern; die Art ist optional und
+          nachträglich änderbar. „Kontoauszüge“ zeigt die Originaldateien der Importe nach Jahr (nur ansehen, verwaltet unter
+          Kontoauszug → Importe). Der Bezug ist fest: ein Dokument lässt sich nicht in einen anderen Mietvertrag o.ä.
           verschieben, dafür neu hochladen und das alte löschen (nur der Ordner von „Unkategorisiert“ ist änderbar).
         </p>
       </div>
