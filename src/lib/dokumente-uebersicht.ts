@@ -13,6 +13,8 @@ export type DokumentZeile = {
   /** Kontoauszug-Dateien (aus den Importen) sind nur zum Ansehen: nicht änderbar, nicht löschbar. */
   schreibgeschuetzt: boolean;
   downloadHref: string;
+  /** Nur Mieterakten: Status des Mietvertrags (für „beendet“-Kennzeichnung und Filter), sonst null. */
+  vertragStatus: "AKTIV" | "GEPLANT" | "BEENDET" | null;
   /** Dokumentart (Schlüssel, siehe ART_OPTIONEN) oder null. */
   art: string | null;
   dateiname: string;
@@ -66,6 +68,7 @@ async function ladeDokumenteAusTabelle(): Promise<DokumentZeile[]> {
       schreibgeschuetzt: false,
       downloadHref: `/api/dokumente/${d.id}/download`,
       art: d.art,
+      vertragStatus: null as DokumentZeile["vertragStatus"],
       dateiname: d.dateiname,
       groesseBytes: d.groesseBytes,
       belegDatum: d.belegDatum,
@@ -78,6 +81,7 @@ async function ladeDokumenteAusTabelle(): Promise<DokumentZeile[]> {
       const label = `${einheitLabel(v.einheit)} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})`;
       return {
         ...basis,
+        vertragStatus: v.status,
         bereich: "mietvertraege",
         ordnerKey: v.id,
         ordnerLabel: label,
@@ -179,6 +183,7 @@ async function ladeKontoauszugDateien(): Promise<DokumentZeile[]> {
       schreibgeschuetzt: true,
       downloadHref: `/api/import-batches/${b.id}/download`,
       art: ART_KONTOAUSZUG,
+      vertragStatus: null,
       dateiname: b.dateiname,
       groesseBytes: null,
       belegDatum: null,
@@ -201,22 +206,38 @@ export async function ladeDokumente(): Promise<DokumentZeile[]> {
   return [...ausTabelle, ...kontoauszuege];
 }
 
-export type OrdnerInfo = { key: string; label: string; anzahl: number; rang: number; groesse: number };
+export type OrdnerInfo = {
+  key: string;
+  label: string;
+  anzahl: number;
+  rang: number;
+  groesse: number;
+  /** Nur Mieterakten: Status des Mietvertrags. */
+  vertragStatus: DokumentZeile["vertragStatus"];
+};
 
 /** Unterordner eines Bereichs mit Anzahl/Größe, in sinnvoller Reihenfolge (Rang, dann Name). */
 export function ordnerVonBereich(zeilen: DokumentZeile[], bereich: BereichKey): OrdnerInfo[] {
   const map = new Map<string, OrdnerInfo>();
   for (const z of zeilen) {
     if (z.bereich !== bereich) continue;
-    const o = map.get(z.ordnerKey) ?? { key: z.ordnerKey, label: z.ordnerLabel, anzahl: 0, rang: z.ordnerRang, groesse: 0 };
+    const o = map.get(z.ordnerKey) ?? {
+      key: z.ordnerKey,
+      label: z.ordnerLabel,
+      anzahl: 0,
+      rang: z.ordnerRang,
+      groesse: 0,
+      vertragStatus: z.vertragStatus,
+    };
     o.anzahl += 1;
     o.groesse += z.groesseBytes ?? 0;
     map.set(z.ordnerKey, o);
   }
   return [...map.values()].sort(
     (a, b) =>
-      // „Ohne Ordner“ ans Ende, sonst Rang, dann Name.
+      // „Ohne Ordner“ ans Ende, beendete Mietverträge hinter die laufenden, sonst Rang, dann Name.
       Number(a.label === OHNE_ORDNER) - Number(b.label === OHNE_ORDNER) ||
+      Number(a.vertragStatus === "BEENDET") - Number(b.vertragStatus === "BEENDET") ||
       a.rang - b.rang ||
       a.label.localeCompare(b.label, "de"),
   );

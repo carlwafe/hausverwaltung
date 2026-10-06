@@ -27,6 +27,7 @@ export type DokumentRow = {
   ordnerLabel: string;
   bezugLabel: string;
   bezugHref: string | null;
+  vertragStatus: "AKTIV" | "GEPLANT" | "BEENDET" | null;
   revalidatePath: string;
   /** Kontoauszug-Dateien aus den Importen: nur ansehen. */
   schreibgeschuetzt: boolean;
@@ -139,6 +140,7 @@ export function DokumentTabelle({
             title={d.bezugLabel}
           >
             {d.bezugLabel}
+            {d.vertragStatus === "BEENDET" && <span className="ml-1.5 text-xs text-neutral-500">(beendet)</span>}
           </Link>
         ) : editierbar ? (
           <OrdnerFeld
@@ -150,7 +152,7 @@ export function DokumentTabelle({
         ),
       sortValue: (d) =>
         d.bezugLabel.toLowerCase() + d.ordnerLabel.toLowerCase(),
-      searchValue: (d) => `${d.bezugLabel} ${d.ordnerLabel}`,
+      searchValue: (d) => `${d.bezugLabel} ${d.ordnerLabel}${d.vertragStatus === "BEENDET" ? " beendet" : ""}`,
     },
     {
       key: "art",
