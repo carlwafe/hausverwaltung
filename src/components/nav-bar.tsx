@@ -72,7 +72,7 @@ function NavDropdown({ label, links, pathname }: { label: string; links: NavLink
           {links.map((link) => {
             const linkActive = pathname === link.href;
             return (
-              <Link
+              <Link prefetch={false}
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
@@ -142,7 +142,7 @@ export function NavBar({
               für Titel + alle Menüpunkte + Konto/Abmelden in einer Zeile, siehe mobiles Menü
               unten. */}
           <nav className="hidden items-center gap-6 md:flex">
-            <Link
+            <Link prefetch={false}
               href="/"
               className={`shrink-0 whitespace-nowrap text-sm ${
                 pathname === "/" ? "font-medium text-white" : "text-neutral-400 hover:text-white"
@@ -150,7 +150,7 @@ export function NavBar({
             >
               Dashboard
             </Link>
-            <Link
+            <Link prefetch={false}
               href="/tickets"
               className={`shrink-0 whitespace-nowrap text-sm ${
                 pathname.startsWith("/tickets") ? "font-medium text-white" : "text-neutral-400 hover:text-white"
@@ -167,7 +167,7 @@ export function NavBar({
           </nav>
         </div>
         <div className="hidden shrink-0 items-center gap-4 md:flex">
-          <Link
+          <Link prefetch={false}
             href="/konto"
             className={`whitespace-nowrap text-sm ${
               pathname === "/konto" ? "font-medium text-white" : "text-neutral-400 hover:text-white"
@@ -196,7 +196,7 @@ export function NavBar({
       {mobileOpen && (
         <div className="border-t border-neutral-800 px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-4">
-            <Link
+            <Link prefetch={false}
               href="/"
               onClick={() => setMobileOpen(false)}
               className={`text-sm ${
@@ -205,7 +205,7 @@ export function NavBar({
             >
               Dashboard
             </Link>
-            <Link
+            <Link prefetch={false}
               href="/tickets"
               onClick={() => setMobileOpen(false)}
               className={`text-sm ${
@@ -221,7 +221,7 @@ export function NavBar({
                 </p>
                 <div className="flex flex-col gap-2">
                   {gruppe.links.map((link) => (
-                    <Link
+                    <Link prefetch={false}
                       key={link.href}
                       href={link.href}
                       onClick={() => setMobileOpen(false)}
@@ -237,7 +237,7 @@ export function NavBar({
             ))}
           </nav>
           <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-4">
-            <Link
+            <Link prefetch={false}
               href="/konto"
               onClick={() => setMobileOpen(false)}
               className={`text-sm ${

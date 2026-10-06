@@ -128,7 +128,7 @@ export function MieterTabelle({
       sortValue: (z) => (z.verifiziert ? 1 : 0),
       render: (z) => (
         <div className="text-center">
-          <VerifikationsStern mietvertragId={z.id} jahr={jahr} quartal={quartal} verifiziert={z.verifiziert} />
+          <VerifikationsStern key={`${jahr}-${quartal}-${z.verifiziert}`} mietvertragId={z.id} jahr={jahr} quartal={quartal} verifiziert={z.verifiziert} />
         </div>
       ),
     },

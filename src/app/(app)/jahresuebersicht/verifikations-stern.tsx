@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toggleJahresberichtVerifiziert } from "./actions";
 
 export function VerifikationsStern({
@@ -15,22 +15,36 @@ export function VerifikationsStern({
   verifiziert: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  // Zustand lokal halten und sofort umschalten; die Server-Aktion speichert nur und meldet den
+  // tatsächlichen Zustand zurück (kein Neuberechnen des Berichts, siehe actions.ts).
+  const [an, setAn] = useState(verifiziert);
+
+  function umschalten() {
+    setAn((vorher) => !vorher);
+    startTransition(async () => {
+      try {
+        setAn(await toggleJahresberichtVerifiziert(mietvertragId, jahr, quartal));
+      } catch {
+        setAn(verifiziert);
+      }
+    });
+  }
 
   return (
     <button
       type="button"
       title={
-        verifiziert
+        an
           ? "Saldo neu stimmt mit dem vorhandenen Bericht des früheren Verwalters überein — klicken zum Entfernen"
           : "Markieren: Saldo neu stimmt mit dem vorhandenen Bericht des früheren Verwalters überein"
       }
-      onClick={() => startTransition(() => toggleJahresberichtVerifiziert(mietvertragId, jahr, quartal))}
+      onClick={umschalten}
       disabled={isPending}
       className={`text-base leading-none disabled:opacity-50 ${
-        verifiziert ? "text-amber-400 hover:text-amber-300" : "text-neutral-700 hover:text-neutral-400"
+        an ? "text-amber-400 hover:text-amber-300" : "text-neutral-700 hover:text-neutral-400"
       }`}
     >
-      {verifiziert ? "★" : "☆"}
+      {an ? "★" : "☆"}
     </button>
   );
 }

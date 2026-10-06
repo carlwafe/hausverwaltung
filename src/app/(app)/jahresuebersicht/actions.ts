@@ -11,7 +11,7 @@ import { mitMeldung } from "@/lib/aktion";
  * (externen, vom früheren Verwalter erstellten) Jahresbericht abgeglichen und für übereinstimmend
  * befunden wurde — reine Existenz der Zeile, siehe Schema-Kommentar auf JahresberichtVerifikation.
  */
-export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr: number, quartal = 0) {
+export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr: number, quartal = 0): Promise<boolean> {
   await requireEditor();
 
   const bestehend = await prisma.jahresberichtVerifikation.findUnique({
@@ -24,8 +24,10 @@ export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr
     await prisma.jahresberichtVerifikation.create({ data: { mietvertragId, jahr, quartal } });
   }
 
-  revalidatePath("/jahresuebersicht");
-  revalidatePath("/quartalsuebersicht");
+  // Bewusst kein revalidatePath: Es würde den ganzen Bericht neu rechnen (Vercel-CPU), nur um einen
+  // Stern umzuschalten — der Stern hält seinen Zustand selbst (VerifikationsStern), die Seite lädt
+  // bei jedem Aufruf ohnehin frisch.
+  return !bestehend;
 }
 
 // Kommentar pro Mietvertrag und Jahr bzw. Quartal (0 = Jahr; leer = entfernt).
@@ -47,8 +49,7 @@ export async function speichereJahresberichtKommentar(
       update: { kommentar: text },
     });
   }
-  revalidatePath("/jahresuebersicht");
-  revalidatePath("/quartalsuebersicht");
+  // Kein revalidatePath (rechnet sonst den ganzen Bericht neu) — das Feld hält seinen Text selbst.
 }
 
 const kontenabgleichSchema = z.object({
