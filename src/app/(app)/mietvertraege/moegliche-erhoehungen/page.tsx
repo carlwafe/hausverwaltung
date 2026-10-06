@@ -35,7 +35,7 @@ async function ladeZeilen(): Promise<Zeile[]> {
     include: {
       einheit: true,
       mieter: true,
-      mieterhoehungen: { orderBy: { gueltigAb: "desc" }, take: 1 },
+      mieterhoehungen: { orderBy: { gueltigAb: "asc" } },
     },
   });
 
@@ -45,7 +45,15 @@ async function ladeZeilen(): Promise<Zeile[]> {
   for (const v of vertraege) {
     // Ausgangspunkt laut Indexmiete-Klausel: das Datum der letzten Mietanpassung, oder — falls
     // noch nie angepasst — der Mietbeginn. Ein unbekannter Mietbeginn lässt sich nicht berechnen.
-    const letzteMieterhoehung = v.mieterhoehungen[0];
+    // Nur Einträge, bei denen sich die Kaltmiete gegenüber dem Vorgänger ändert: Reine Anpassungen
+    // der NK-Vorauszahlung (§ 560 BGB, kaltmiete unverändert) setzen das Wartejahr laut Vertrag
+    // nicht zurück ("abgesehen von Erhöhungen nach den §§ 559 bis 560 BGB").
+    let vorherigeKaltmiete = v.kaltmiete;
+    let letzteMieterhoehung: (typeof v.mieterhoehungen)[number] | undefined;
+    for (const e of v.mieterhoehungen) {
+      if (!e.kaltmiete.equals(vorherigeKaltmiete)) letzteMieterhoehung = e;
+      vorherigeKaltmiete = e.kaltmiete;
+    }
     const referenzDatum = letzteMieterhoehung?.gueltigAb ?? v.beginn;
     if (!referenzDatum) continue;
 
@@ -78,7 +86,11 @@ export default async function MoeglicheErhoehungenPage() {
           mindestens ein Jahr unverändert geblieben sein. Ausgangspunkt ist die letzte erfasste
           Mieterhöhung — oder, falls noch keine erfolgt ist, der Mietbeginn. Nur aktive
           Wohnungs-Mietverträge mit bekanntem Mietbeginn werden gezeigt — Garagen sind
-          ausgenommen, da unklar ist, ob dort überhaupt eine Indexmiete vereinbart ist.
+          ausgenommen, da unklar ist, ob dort überhaupt eine Indexmiete vereinbart ist. Reine
+          Anpassungen der NK-Vorauszahlung setzen das Wartejahr nicht zurück (§ 560 BGB).{" "}
+          <Link href="/mietvertraege/vpi-werte" className="underline">
+            VPI-Werte pflegen
+          </Link>
         </p>
       </div>
 

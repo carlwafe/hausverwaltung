@@ -94,6 +94,7 @@ const SEITENTITEL: NavLink[] = [
   ...FINANZEN,
   ...ABRECHNUNG,
   ...VERWALTUNG,
+  { href: "/mietvertraege/vpi-werte", label: "VPI-Werte" },
   { href: "/buchungen", label: "Buchungen" },
   { href: "/dokumente", label: "Dokumente" },
   { href: "/haeuser", label: "Häuser" },

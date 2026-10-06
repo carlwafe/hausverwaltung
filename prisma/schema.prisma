@@ -448,6 +448,20 @@ model Mieterhoehung {
   @@map("mieterhoehungen")
 }
 
+// Verbraucherpreisindex für Deutschland (Destatis, Gesamtindex), Monatswerte für die Indexmiete
+// (§ 557b BGB). Basisjahr wie vom Statistischen Bundesamt veröffentlicht (aktuell 2020 = 100);
+// Werte werden von Hand eingetragen (Mietverwaltung → Mieterhöhung möglich ab → VPI-Werte).
+model Verbraucherpreisindex {
+  id        String   @id @default(cuid())
+  jahr      Int
+  monat     Int
+  wert      Decimal  @db.Decimal(7, 3)
+  createdAt DateTime @default(now())
+
+  @@unique([jahr, monat])
+  @@map("verbraucherpreisindex")
+}
+
 model Kaution {
   id                  String            @id @default(cuid())
   mietvertrag         Mietvertrag       @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
