@@ -362,21 +362,6 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       </div>
 
-      {uebersichtDaten.objekt.zeilen.length > 0 && (
-        <Kostenuebersicht jahr={abrechnung.jahr} auswahl={uebersichtAuswahl} daten={uebersichtDaten} />
-      )}
-
-      {nichtBeruecksichtigt.some((n) => n.grund === "in_abrechnung_enthalten") && (
-        <p className="mb-6 text-xs text-neutral-500">
-          Bereits in der Techem-Abrechnung (Heizkosten pro Mieter) enthalten und deshalb nicht gesondert abgerechnet:{" "}
-          {nichtBeruecksichtigt
-            .filter((n) => n.grund === "in_abrechnung_enthalten")
-            .map((n) => `${n.kostenartName} (${formatEuro(n.summe)})`)
-            .join(", ")}
-          .
-        </p>
-      )}
-
       {nichtBeruecksichtigt.some((n) => n.grund === "kein_verteilerschluessel") && (
         <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">
           <p className="mb-2 text-sm font-medium text-amber-400">
@@ -420,48 +405,6 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       )}
 
-      {vorverteilteGruppen.length > 0 && (
-        <details className="mb-6">
-          <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300 hover:text-white">
-            Extern vorverteilte Kostenarten — hier bewusst nicht selbst berechnet ({vorverteilteGruppen.length})
-          </summary>
-          <p className="mb-3 mt-2 text-xs text-neutral-500">
-            Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Gesamtabrechnung) — trag den
-            jeweiligen Betrag pro Mietvertrag ein und klicke danach auf &quot;Neu berechnen&quot;,
-            damit er in den Kostenanteil einfließt.
-          </p>
-          {vorverteilteGruppen.map((g) => (
-            <div key={g.kostenartId} className="mb-4">
-              <VorverteilteKostenanteileForm
-                jahr={abrechnung.jahr}
-                kostenartId={g.kostenartId}
-                kostenartName={g.kostenartName}
-                zeilen={g.zeilen}
-                leerstand={g.leerstand}
-                einheiten={g.einheitOptionen}
-              />
-              <TechemAllgemeinstromForm
-                jahr={abrechnung.jahr}
-                kostenartId={g.kostenartId}
-                betrag={techemAllgemeinstromAnteileById.get(g.kostenartId) ?? null}
-              />
-            </div>
-          ))}
-          {(() => {
-            const mieter = vorverteilteKostenanteileRoh.reduce((s, v) => s + Number(v.betrag), 0);
-            const leer = leerstandRoh.reduce((s, l) => s + Number(l.betrag), 0);
-            return (
-              <div className="ml-auto max-w-sm rounded-lg border border-neutral-700 p-3 text-sm">
-                <p className="mb-1 text-xs uppercase text-neutral-400">Summe aller Einträge {abrechnung.jahr}</p>
-                <div className="flex justify-between text-neutral-300"><span>Mieter</span><span>{formatEuro(mieter)}</span></div>
-                <div className="flex justify-between text-neutral-300"><span>Leerstand</span><span>{formatEuro(leer)}</span></div>
-                <div className="mt-1 flex justify-between border-t border-neutral-700 pt-1 font-medium text-white"><span>Gesamt</span><span>{formatEuro(mieter + leer)}</span></div>
-              </div>
-            );
-          })()}
-        </details>
-      )}
-
       <div className="mb-6 grid grid-cols-3 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Summe Kostenanteil</p>
@@ -476,51 +419,6 @@ export default async function NebenkostenabrechnungDetailPage({
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(summeSaldo)}</p>
         </div>
       </div>
-
-      <p className="mb-3 text-sm text-neutral-400">
-        <strong className="text-neutral-300">Saldo</strong> = Vorauszahlung − Kostenanteil (positiv
-        = Guthaben, negativ = Nachzahlung).{" "}
-        <strong className="text-neutral-300">Rückzahlung/Gutschrift</strong> zeigt die Summe der
-        tatsächlich importierten/erfassten Nebenkostenausgleich-Zahlungen für Mietvertrag und Jahr
-        — die echte Kontobewegung, unabhängig vom berechneten Saldo. Einzelne Zahlungen lassen sich
-        unter{" "}
-        <Link href="/nebenkostenausgleich" className="underline hover:text-white">
-          Nebenkostenausgleich
-        </Link>{" "}
-        einsehen und korrigieren. <strong className="text-neutral-300">Saldo nach Gutschrift</strong>{" "}
-        = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
-        ist, falls einer offen ist; ist er 0 (ein Rest bis 1 Cent zählt als 0), gilt die Position als erledigt.
-      </p>
-      <p className="mb-3 text-sm text-neutral-400">
-        <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
-        &quot;Automatisch angelegt …&quot;) entstehen, wenn für einen Mietvertrag eine Zahlung oder
-        Verrechnung dieses Jahres gebucht wurde, die Abrechnung aber keine Position für ihn enthält.
-        Sie enthalten bewusst keine Beträge (alles 0): Kostenanteil/Vorauszahlung von Hand eintragen
-        oder kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine
-        Wohnungs-Auszahlung fälschlich auf dem Garagenvertrag). &quot;Neu berechnen&quot; lässt von
-        Hand erfasste Positionen unverändert.
-      </p>
-      <p className="mb-3 text-sm text-neutral-400">
-        <strong className="text-neutral-300">Manuelle und berechnete Positionen:</strong> Positionen
-        mit dem Etikett &quot;manuell&quot; sind von Hand angelegt oder bearbeitet und bleiben bei
-        &quot;Neu berechnen&quot; sowie beim Umstellen auf &quot;manuell&quot; erhalten; berechnete
-        Positionen entstehen nur bei &quot;berechnet&quot; (für Mietverträge ohne manuelle Position)
-        und verschwinden beim Umstellen auf &quot;manuell&quot;. Bei einer manuellen Position zeigt
-        die berechnete Abrechnung in Kostenanteil, Vorauszahlung, Saldo und Saldo nach Gutschrift zusätzlich zwei Zeilen:
-        &quot;manuell&quot; und &quot;berechnet&quot; (live, nicht gespeichert). Eine berechnete
-        Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
-      </p>
-      <p className="mb-3 text-sm text-neutral-400">
-        <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
-        Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
-        dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
-        Kaltmiete (§ 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in einem
-        Monat weniger als das NK-Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € NK zählen von
-        380 € gezahlt 280 € als NK, 100 € Kaltmiete bleiben offen; ein Monat ohne Zahlung bringt 0 €
-        NK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
-        berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
-        an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
-      </p>
 
       <PositionenTable
         vergleichName={verwalterFlaechen ? "mit korrekten Flächen" : "Flächen wie Verwalter"}
@@ -565,6 +463,115 @@ export default async function NebenkostenabrechnungDetailPage({
           };
         })}
       />
+
+      <details className="mb-6 mt-6">
+        <summary className="cursor-pointer select-none text-sm text-neutral-400 hover:text-white">
+          Hinweise zur Berechnung
+        </summary>
+        <div className="mt-3">
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Saldo</strong> = Vorauszahlung − Kostenanteil (positiv
+            = Guthaben, negativ = Nachzahlung).{" "}
+            <strong className="text-neutral-300">Rückzahlung/Gutschrift</strong> zeigt die Summe der
+            tatsächlich importierten/erfassten Nebenkostenausgleich-Zahlungen für Mietvertrag und Jahr
+            — die echte Kontobewegung, unabhängig vom berechneten Saldo. Einzelne Zahlungen lassen sich
+            unter{" "}
+            <Link href="/nebenkostenausgleich" className="underline hover:text-white">
+              Nebenkostenausgleich
+            </Link>{" "}
+            einsehen und korrigieren. <strong className="text-neutral-300">Saldo nach Gutschrift</strong>{" "}
+            = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
+            ist, falls einer offen ist; ist er 0 (ein Rest bis 1 Cent zählt als 0), gilt die Position als erledigt.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
+            &quot;Automatisch angelegt …&quot;) entstehen, wenn für einen Mietvertrag eine Zahlung oder
+            Verrechnung dieses Jahres gebucht wurde, die Abrechnung aber keine Position für ihn enthält.
+            Sie enthalten bewusst keine Beträge (alles 0): Kostenanteil/Vorauszahlung von Hand eintragen
+            oder kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine
+            Wohnungs-Auszahlung fälschlich auf dem Garagenvertrag). &quot;Neu berechnen&quot; lässt von
+            Hand erfasste Positionen unverändert.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Manuelle und berechnete Positionen:</strong> Positionen
+            mit dem Etikett &quot;manuell&quot; sind von Hand angelegt oder bearbeitet und bleiben bei
+            &quot;Neu berechnen&quot; sowie beim Umstellen auf &quot;manuell&quot; erhalten; berechnete
+            Positionen entstehen nur bei &quot;berechnet&quot; (für Mietverträge ohne manuelle Position)
+            und verschwinden beim Umstellen auf &quot;manuell&quot;. Bei einer manuellen Position zeigt
+            die berechnete Abrechnung in Kostenanteil, Vorauszahlung, Saldo und Saldo nach Gutschrift zusätzlich zwei Zeilen:
+            &quot;manuell&quot; und &quot;berechnet&quot; (live, nicht gespeichert). Eine berechnete
+            Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
+            Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
+            dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
+            Kaltmiete (§ 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in einem
+            Monat weniger als das NK-Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € NK zählen von
+            380 € gezahlt 280 € als NK, 100 € Kaltmiete bleiben offen; ein Monat ohne Zahlung bringt 0 €
+            NK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
+            berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
+            an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
+          </p>
+        </div>
+      </details>
+
+      {uebersichtDaten.objekt.zeilen.length > 0 && (
+        <Kostenuebersicht jahr={abrechnung.jahr} auswahl={uebersichtAuswahl} daten={uebersichtDaten} />
+      )}
+
+      {nichtBeruecksichtigt.some((n) => n.grund === "in_abrechnung_enthalten") && (
+        <p className="mb-6 text-xs text-neutral-500">
+          Bereits in der Techem-Abrechnung (Heizkosten pro Mieter) enthalten und deshalb nicht gesondert abgerechnet:{" "}
+          {nichtBeruecksichtigt
+            .filter((n) => n.grund === "in_abrechnung_enthalten")
+            .map((n) => `${n.kostenartName} (${formatEuro(n.summe)})`)
+            .join(", ")}
+          .
+        </p>
+      )}
+
+      {vorverteilteGruppen.length > 0 && (
+        <details className="mb-6">
+          <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300 hover:text-white">
+            Extern vorverteilte Kostenarten — hier bewusst nicht selbst berechnet ({vorverteilteGruppen.length})
+          </summary>
+          <p className="mb-3 mt-2 text-xs text-neutral-500">
+            Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Gesamtabrechnung) — trag den
+            jeweiligen Betrag pro Mietvertrag ein und klicke danach auf &quot;Neu berechnen&quot;,
+            damit er in den Kostenanteil einfließt.
+          </p>
+          {vorverteilteGruppen.map((g) => (
+            <div key={g.kostenartId} className="mb-4">
+              <VorverteilteKostenanteileForm
+                jahr={abrechnung.jahr}
+                kostenartId={g.kostenartId}
+                kostenartName={g.kostenartName}
+                zeilen={g.zeilen}
+                leerstand={g.leerstand}
+                einheiten={g.einheitOptionen}
+              />
+              <TechemAllgemeinstromForm
+                jahr={abrechnung.jahr}
+                kostenartId={g.kostenartId}
+                betrag={techemAllgemeinstromAnteileById.get(g.kostenartId) ?? null}
+              />
+            </div>
+          ))}
+          {(() => {
+            const mieter = vorverteilteKostenanteileRoh.reduce((s, v) => s + Number(v.betrag), 0);
+            const leer = leerstandRoh.reduce((s, l) => s + Number(l.betrag), 0);
+            return (
+              <div className="ml-auto max-w-sm rounded-lg border border-neutral-700 p-3 text-sm">
+                <p className="mb-1 text-xs uppercase text-neutral-400">Summe aller Einträge {abrechnung.jahr}</p>
+                <div className="flex justify-between text-neutral-300"><span>Mieter</span><span>{formatEuro(mieter)}</span></div>
+                <div className="flex justify-between text-neutral-300"><span>Leerstand</span><span>{formatEuro(leer)}</span></div>
+                <div className="mt-1 flex justify-between border-t border-neutral-700 pt-1 font-medium text-white"><span>Gesamt</span><span>{formatEuro(mieter + leer)}</span></div>
+              </div>
+            );
+          })()}
+        </details>
+      )}
 
       <QmAbweichungen
         abrechnungId={id}
