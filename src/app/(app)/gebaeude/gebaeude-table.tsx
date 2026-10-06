@@ -19,7 +19,7 @@ const columns: Column<GebaeudeRow>[] = [
     sortValue: (g) => g.strasse,
     searchValue: (g) => g.strasse,
     render: (g) => (
-      <Link href={`/gebaeude/${g.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/gebaeude/${g.id}`} className="font-medium hover:underline">
         {g.strasse}
       </Link>
     ),
@@ -38,7 +38,7 @@ const columns: Column<GebaeudeRow>[] = [
     searchValue: (g) => g.haus ?? "",
     render: (g) =>
       g.haus && g.hausId ? (
-        <Link href={`/haeuser/${g.hausId}`} className="hover:underline">
+        <Link prefetch={false} href={`/haeuser/${g.hausId}`} className="hover:underline">
           {g.haus}
         </Link>
       ) : (

@@ -24,7 +24,7 @@ const columns: Column<DienstleisterRow>[] = [
     sortValue: (d) => d.name,
     searchValue: (d) => `${d.name} ${d.suchbegriffe} ${d.kostenarten} ${d.adresse}`,
     render: (d) => (
-      <Link href={`/dienstleister/${d.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/dienstleister/${d.id}`} className="font-medium hover:underline">
         {d.name}
       </Link>
     ),

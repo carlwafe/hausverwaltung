@@ -45,7 +45,7 @@ const columns: Column<NebenkostenausgleichZahlungRow>[] = [
     className: "whitespace-nowrap",
     render: (b) => (
       <span>
-        <Link href={`/nebenkostenausgleich/${b.id}`} className="hover:underline">
+        <Link prefetch={false} href={`/nebenkostenausgleich/${b.id}`} className="hover:underline">
           {formatDate(b.datum)}
         </Link>
         {b.aufteilungGruppeId && (
@@ -87,7 +87,7 @@ const columns: Column<NebenkostenausgleichZahlungRow>[] = [
     searchValue: (b) => `${b.mieterNamen ?? ""} ${b.einheitBezeichnung ?? ""}`,
     render: (b) =>
       b.mietvertragId ? (
-        <Link href={`/mietvertraege/${b.mietvertragId}`} className="font-medium hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${b.mietvertragId}`} className="font-medium hover:underline">
           {b.einheitBezeichnung} – {b.mieterNamen}
         </Link>
       ) : (

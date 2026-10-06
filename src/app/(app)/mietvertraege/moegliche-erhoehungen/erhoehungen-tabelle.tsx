@@ -33,7 +33,7 @@ const columns: Column<ErhoehungZeile>[] = [
     key: "einheit",
     label: "Einheit",
     render: (z) => (
-      <Link href={`/mietvertraege/${z.id}`} className="font-medium text-white hover:underline">
+      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium text-white hover:underline">
         {z.einheitBezeichnung}
       </Link>
     ),
@@ -140,7 +140,7 @@ const columns: Column<ErhoehungZeile>[] = [
     key: "schreiben",
     label: "Schreiben",
     render: (z) => (
-      <Link href={`/mietvertraege/${z.id}/indexerhoehung`} className="text-xs text-neutral-300 underline hover:text-white">
+      <Link prefetch={false} href={`/mietvertraege/${z.id}/indexerhoehung`} className="text-xs text-neutral-300 underline hover:text-white">
         Erstellen
       </Link>
     ),

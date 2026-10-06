@@ -66,7 +66,7 @@ export function MieterTabelle({
       sortValue: (z) => z.einheitRang,
       searchValue: (z) => z.einheit,
       render: (z) => (
-        <Link href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
           {z.einheit}
         </Link>
       ),

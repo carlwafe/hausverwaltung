@@ -36,7 +36,7 @@ const columns: Column<TicketRow>[] = [
     sortValue: (t) => t.titel,
     searchValue: (t) => t.titel,
     render: (t) => (
-      <Link href={`/tickets/${t.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/tickets/${t.id}`} className="font-medium hover:underline">
         {t.titel}
       </Link>
     ),

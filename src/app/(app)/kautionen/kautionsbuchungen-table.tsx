@@ -203,7 +203,7 @@ const columns: Column<KautionsbuchungRow>[] = [
         {k.einbehalt ? (
           formatEuro(k.betrag)
         ) : (
-          <Link href={`/kautionen/buchung/${k.id}`} className="font-medium hover:underline">
+          <Link prefetch={false} href={`/kautionen/buchung/${k.id}`} className="font-medium hover:underline">
             {formatEuro(k.betrag)}
           </Link>
         )}
@@ -225,7 +225,7 @@ const columns: Column<KautionsbuchungRow>[] = [
     searchValue: (k) => k.mieterNamen ?? "",
     render: (k) =>
       k.mietvertragId ? (
-        <Link href={`/mietvertraege/${k.mietvertragId}`} className="hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${k.mietvertragId}`} className="hover:underline">
           {k.einheitBezeichnung} — {k.mieterNamen}
         </Link>
       ) : (

@@ -107,7 +107,7 @@ const columns: Column<KautionRow>[] = [
     searchValue: (r) => r.einheitBezeichnung,
     render: (r) => (
       <span className="inline-flex items-center gap-1">
-        <Link href={`/mietvertraege/${r.mietvertragId}`} className="font-medium hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${r.mietvertragId}`} className="font-medium hover:underline">
           {r.einheitBezeichnung}
         </Link>
         {r.warnung && (

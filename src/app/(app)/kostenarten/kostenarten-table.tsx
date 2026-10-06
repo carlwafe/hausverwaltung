@@ -31,7 +31,7 @@ const columns: Column<KostenartRow>[] = [
     sortValue: (k) => k.name,
     searchValue: (k) => k.name,
     render: (k) => (
-      <Link href={`/kostenarten/${k.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/kostenarten/${k.id}`} className="font-medium hover:underline">
         {k.name}
       </Link>
     ),

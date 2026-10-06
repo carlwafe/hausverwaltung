@@ -54,7 +54,7 @@ const columns: Column<KostenpositionRow>[] = [
     label: "Datum",
     sortValue: (k) => k.datum ?? "",
     render: (k) => (
-      <Link href={`/kosten/${k.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/kosten/${k.id}`} className="font-medium hover:underline">
         {formatDate(k.datum)}
       </Link>
     ),

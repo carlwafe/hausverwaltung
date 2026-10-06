@@ -53,7 +53,7 @@ const columns: Column<EinheitRow>[] = [
     sortValue: (e) => e.bezeichnung,
     searchValue: (e) => e.bezeichnung,
     render: (e) => (
-      <Link href={`/einheiten/${e.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/einheiten/${e.id}`} className="font-medium hover:underline">
         {e.bezeichnung}
       </Link>
     ),
@@ -91,7 +91,7 @@ const columns: Column<EinheitRow>[] = [
             {v.mieter.map((m, mi) => (
               <span key={m.id}>
                 {mi > 0 && " & "}
-                <Link href={`/mieter/${m.id}`} className="hover:underline">
+                <Link prefetch={false} href={`/mieter/${m.id}`} className="hover:underline">
                   {mieterName(m)}
                 </Link>
               </span>

@@ -68,7 +68,7 @@ const columns: Column<ZahlungRow>[] = [
     label: "Datum",
     sortValue: (z) => z.datum,
     render: (z) => (
-      <Link href={`/zahlungen/${z.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/zahlungen/${z.id}`} className="font-medium hover:underline">
         {formatDate(z.datum)}
       </Link>
     ),
@@ -81,7 +81,7 @@ const columns: Column<ZahlungRow>[] = [
     className: "whitespace-nowrap",
     render: (z) => (
       <span>
-        <Link href={`/mietvertraege/${z.mietvertragId}`} className="font-medium hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${z.mietvertragId}`} className="font-medium hover:underline">
           {z.einheitBezeichnung}
         </Link>
         {z.aufteilungGruppeId && (

@@ -62,7 +62,7 @@ const columns: Column<VertragRow>[] = [
     searchValue: (v) => v.einheitBezeichnung,
     className: "whitespace-nowrap",
     render: (v) => (
-      <Link href={`/mietvertraege/${v.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/mietvertraege/${v.id}`} className="font-medium hover:underline">
         {v.einheitBezeichnung}
       </Link>
     ),

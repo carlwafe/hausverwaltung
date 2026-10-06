@@ -32,7 +32,7 @@ const columns: Column<MieterRow>[] = [
     sortValue: (m) => `${m.nachname} ${m.vorname}`,
     searchValue: (m) => mieterName(m),
     render: (m) => (
-      <Link href={`/mieter/${m.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/mieter/${m.id}`} className="font-medium hover:underline">
         {mieterName(m)}
       </Link>
     ),
