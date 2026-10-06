@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { requireEditor, benutzerLabel } from "@/lib/session";
 import { optionalesDatum, pflichtDatum } from "@/lib/zod-datum";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
@@ -238,6 +238,80 @@ export async function erfasseMieterhoehung(mietvertragId: string, formData: Form
   });
 
   revalidateNachMieterhoehung(mietvertragId);
+}
+
+// Einmaliger Nachlass auf die Kaltmiete eines Monats (z.B. späterer Einzug im Einzugsmonat) — mindert
+// nur das Soll dieses Monats, die vertragliche Miete bleibt (siehe Mietnachlass im Schema).
+const mietnachlassSchema = z.object({
+  // <input type="month"> liefert "JJJJ-MM"
+  monat: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Monat ist erforderlich"),
+  betrag: z.coerce.number().positive("Der Nachlass muss größer als 0 sein"),
+  grund: z.string().trim().min(1, "Grund ist erforderlich"),
+});
+
+export async function erfasseMietnachlass(mietvertragId: string, formData: FormData) {
+  const user = await requireEditor();
+
+  const parsed = mietnachlassSchema.safeParse({
+    monat: formData.get("monat"),
+    betrag: formData.get("betrag"),
+    grund: formData.get("grund"),
+  });
+  if (!parsed.success) {
+    throw zodFehler(parsed.error);
+  }
+  const jahr = Number(parsed.data.monat.slice(0, 4));
+  const monat = Number(parsed.data.monat.slice(5, 7));
+
+  const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
+    where: { id: mietvertragId },
+    select: {
+      beginn: true,
+      ende: true,
+      kaltmiete: true,
+      nebenkostenVorauszahlung: true,
+      mieterhoehungen: true,
+      mietnachlaesse: { where: { jahr, monat }, select: { betrag: true } },
+    },
+  });
+  const index = jahr * 12 + monat;
+  if (vertrag.beginn && index < vertrag.beginn.getFullYear() * 12 + vertrag.beginn.getMonth() + 1) {
+    throw new AktionsFehler("Der Monat liegt vor dem Mietbeginn");
+  }
+  if (vertrag.ende && index > vertrag.ende.getFullYear() * 12 + vertrag.ende.getMonth() + 1) {
+    throw new AktionsFehler("Der Monat liegt nach dem Mietende");
+  }
+  const { kaltmiete } = ermittleMieteFuerMonat(
+    {
+      kaltmiete: Number(vertrag.kaltmiete),
+      nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+      mieterhoehungen: vertrag.mieterhoehungen.map((m) => ({
+        gueltigAb: m.gueltigAb,
+        kaltmiete: Number(m.kaltmiete),
+        nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+      })),
+    },
+    jahr,
+    monat,
+  );
+  const bisher = vertrag.mietnachlaesse.reduce((sum, n) => sum + Number(n.betrag), 0);
+  if (bisher + parsed.data.betrag > kaltmiete + 0.005) {
+    throw new AktionsFehler(`Der Nachlass übersteigt die Kaltmiete des Monats (${kaltmiete.toFixed(2).replace(".", ",")} €)`);
+  }
+
+  await prisma.mietnachlass.create({
+    data: { mietvertragId, jahr, monat, betrag: parsed.data.betrag, grund: parsed.data.grund, erstelltVon: benutzerLabel(user) },
+  });
+
+  revalidateNachMieterhoehung(mietvertragId);
+  revalidatePath("/miete-monat");
+}
+
+export async function loescheMietnachlass(id: string) {
+  await requireEditor();
+  const nachlass = await prisma.mietnachlass.delete({ where: { id } });
+  revalidateNachMieterhoehung(nachlass.mietvertragId);
+  revalidatePath("/miete-monat");
 }
 
 const vorauszahlungAnpassungSchema = z.object({

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { sollAufschluesselung } from "@/lib/soll-ist";
+import { sollAufschluesselung, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
 import { MieteMonatTable, type MieteMonatRow } from "./miete-monat-table";
@@ -62,6 +62,7 @@ export default async function MieteMonatPage({
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+      mietnachlaesse: { select: { jahr: true, monat: true, betrag: true } },
     },
   });
 
@@ -103,6 +104,7 @@ export default async function MieteMonatPage({
           kaltmiete: Number(m.kaltmiete),
           nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
         })),
+        mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
       },
       monatsEnde,
       buchhaltungAb,

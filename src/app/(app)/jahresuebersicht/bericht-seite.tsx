@@ -1,3 +1,4 @@
+import { mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import Link from "next/link";
 import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
@@ -248,6 +249,7 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
           },
         },
         mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+        mietnachlaesse: { select: { jahr: true, monat: true, betrag: true } },
       },
     }),
   ]);
@@ -321,6 +323,7 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
       kaltmiete: Number(m.kaltmiete),
       nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
     })),
+    mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
     einheitBezeichnung: v.einheit.bezeichnung,
     mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
     zahlungen: zahlungenNachVertrag.get(v.id) ?? [],

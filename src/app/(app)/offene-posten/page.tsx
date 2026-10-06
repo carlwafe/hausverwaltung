@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { berechneSoll, berechneIstNachPeriode } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { DateInput } from "@/components/date-input";
 import { toDateInputValue } from "@/lib/date-utils";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
@@ -23,6 +23,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+      mietnachlaesse: { select: { jahr: true, monat: true, betrag: true } },
     },
   });
 
@@ -61,6 +62,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
             kaltmiete: Number(m.kaltmiete),
             nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
           })),
+          mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
         },
         bis,
         buchhaltungAb,

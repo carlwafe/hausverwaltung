@@ -11,7 +11,25 @@ export type MietvertragFuerSollIst = {
   // Historie von Mieterhöhungen, aufsteigend oder unsortiert — leeres Array = unverändert wie
   // bisher (Basiswerte gelten die ganze Laufzeit). Siehe ermittleMieteFuerMonat.
   mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
+  // Einmalige Minderungen der Kaltmiete einzelner Monate (z.B. späterer Einzug im Einzugsmonat) —
+  // siehe Mietnachlass im Schema. Wirken nur auf das Soll dieses Monats, nicht auf die vertragliche
+  // Miete (Mieterhöhung, NK-Anpassung, aktuelle Miete).
+  mietnachlaesse?: { jahr: number; monat: number; betrag: number }[];
 };
+
+/** Wandelt geladene Mietnachlass-Zeilen (Prisma-Decimal) in die Form für `MietvertragFuerSollIst`. */
+export function mietnachlaesseFuerSoll(
+  zeilen: { jahr: number; monat: number; betrag: { toString(): string } | number }[],
+): { jahr: number; monat: number; betrag: number }[] {
+  return zeilen.map((n) => ({ jahr: n.jahr, monat: n.monat, betrag: Number(n.betrag) }));
+}
+
+/** Summe der Nachlässe für einen Monat (0 ohne Nachlass). */
+function nachlassFuerMonat(vertrag: Pick<MietvertragFuerSollIst, "mietnachlaesse">, jahr: number, monat: number): number {
+  return (vertrag.mietnachlaesse ?? [])
+    .filter((n) => n.jahr === jahr && n.monat === monat)
+    .reduce((sum, n) => sum + n.betrag, 0);
+}
 
 /**
  * Ermittelt die für einen bestimmten Monat gültige Kaltmiete/NK-Vorauszahlung: die letzte
@@ -108,7 +126,9 @@ export function sollAufschluesselung(
   let monat = start.getMonth() + 1; // 1-basiert
 
   for (let i = 0; i < anzahlMonate; i++) {
-    const { kaltmiete, nebenkostenVorauszahlung } = ermittleMieteFuerMonat(vertrag, jahr, monat);
+    const miete = ermittleMieteFuerMonat(vertrag, jahr, monat);
+    const nebenkostenVorauszahlung = miete.nebenkostenVorauszahlung;
+    const kaltmiete = miete.kaltmiete - nachlassFuerMonat(vertrag, jahr, monat);
     zeilen.push({
       jahr,
       monat,

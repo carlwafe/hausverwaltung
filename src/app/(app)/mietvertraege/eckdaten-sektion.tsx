@@ -47,6 +47,7 @@ export function EckdatenSektion({
   zahlungsweg,
   kaution,
   letzteErhoehungText,
+  nachlassTexte = [],
 }: {
   mietvertragId: string;
   einheitLabel: string;
@@ -63,6 +64,8 @@ export function EckdatenSektion({
   // Fliesstext-Hinweis auf die letzte Mieterhöhung (z.B. "Miete zuletzt zum 1.5.2026 auf 620,00 €
   // erhöht") — die volle Historie/Erfassung steht auf der Bearbeiten-Unterseite.
   letzteErhoehungText: string | null;
+  // Einmalige Mietnachlässe einzelner Monate, je eine Zeile (z.B. "04/2026: −150,00 € Kaltmiete (Einzug erst am 11.4.)").
+  nachlassTexte?: string[];
 }) {
   return (
     <div className="mb-6 rounded-lg border border-neutral-800 p-4">
@@ -102,6 +105,13 @@ export function EckdatenSektion({
           <p className="mt-4 text-xs text-neutral-400">
             {letzteErhoehungText} — Historie und Erfassung unter &bdquo;Bearbeiten&ldquo;.
           </p>
+        )}
+        {nachlassTexte.length > 0 && (
+          <div className="mt-2 text-xs text-neutral-400">
+            {nachlassTexte.map((t) => (
+              <p key={t}>Mietnachlass {t}</p>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -12,6 +12,8 @@ import {
   deleteMietvertrag,
   erfasseMieterhoehung,
   loescheMieterhoehung,
+  erfasseMietnachlass,
+  loescheMietnachlass,
 } from "../../actions";
 import { mieterName, mieterNameNachnameZuerst } from "@/lib/mieter-name";
 
@@ -22,6 +24,8 @@ function formatEuro(value: number) {
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
 }
+
+const MONATSNAMEN = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
 /**
  * Eigene Unterseite fürs Bearbeiten (statt eingeklappt auf der Detailseite) — hier stehen
@@ -42,6 +46,7 @@ export default async function MietvertragBearbeitenPage({
         mieter: true,
         kaution: true,
         mieterhoehungen: { orderBy: { gueltigAb: "desc" } },
+        mietnachlaesse: { orderBy: [{ jahr: "desc" }, { monat: "desc" }] },
       },
     }),
     prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
@@ -192,6 +197,95 @@ export default async function MietvertragBearbeitenPage({
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
           >
             + Mieterhöhung erfassen
+          </button>
+        </form>
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-1 text-lg font-medium text-white">Mietnachlässe ({vertrag.mietnachlaesse.length})</h2>
+        <p className="mb-4 text-xs text-neutral-500">
+          Einmaliger Nachlass auf die Kaltmiete eines einzelnen Monats, z.B. weil der Mieter erst nach dem
+          1. eingezogen ist oder der Verwalter einen Monat anteilig berechnet hat. Er mindert nur das Soll dieses
+          Monats (Mieterkonto, Offene Posten, Jahres-/Quartalsübersicht); die vertragliche Miete, Mieterhöhungen
+          und die NK-Vorauszahlung bleiben unverändert.
+        </p>
+        <div className="overflow-auto rounded-lg border border-neutral-800">
+          <table className="w-full text-sm">
+            <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+              <tr>
+                <th className="px-4 py-2">Monat</th>
+                <th className="px-4 py-2">Nachlass Kaltmiete</th>
+                <th className="px-4 py-2">Grund</th>
+                <th className="px-4 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {vertrag.mietnachlaesse.map((n) => (
+                <tr key={n.id} className="border-t border-neutral-800">
+                  <td className="px-4 py-2 text-white">
+                    {MONATSNAMEN[n.monat - 1]} {n.jahr}
+                  </td>
+                  <td className="px-4 py-2 text-white">{formatEuro(-Number(n.betrag))}</td>
+                  <td className="px-4 py-2 text-white">{n.grund}</td>
+                  <td className="px-4 py-2 text-right">
+                    <DeleteButton
+                      action={loescheMietnachlass.bind(null, n.id)}
+                      confirmText="Mietnachlass wirklich löschen? Das Soll des Monats steigt wieder auf die volle Miete."
+                      label="Löschen"
+                    />
+                  </td>
+                </tr>
+              ))}
+              {vertrag.mietnachlaesse.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
+                    Noch kein Mietnachlass erfasst.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <form
+          action={erfasseMietnachlass.bind(null, vertrag.id)}
+          className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-4"
+        >
+          <div>
+            <label className="block text-xs text-neutral-400">Monat</label>
+            <input
+              type="month"
+              name="monat"
+              required
+              defaultValue={vertrag.beginn ? toDateInputValue(vertrag.beginn).slice(0, 7) : undefined}
+              className="mt-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-400">Nachlass (€)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              name="betrag"
+              required
+              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-neutral-400">Grund</label>
+            <input
+              type="text"
+              name="grund"
+              required
+              placeholder="z.B. Einzug erst am 11.04., Verwalter hat anteilig berechnet"
+              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            + Mietnachlass erfassen
           </button>
         </form>
       </div>

@@ -422,6 +422,7 @@ model Mietvertrag {
   jahresberichtVerifikationen     JahresberichtVerifikation[]
   nebenkostenabrechnungPruefungen NebenkostenabrechnungPruefung[]
   mieterhoehungen                 Mieterhoehung[]
+  mietnachlaesse                  Mietnachlass[]
   jahresberichtKommentars         JahresberichtKommentar[]
   tickets                         Ticket[]
 
@@ -446,6 +447,25 @@ model Mieterhoehung {
 
   @@unique([mietvertragId, gueltigAb])
   @@map("mieterhoehungen")
+}
+
+// Einmaliger Nachlass auf die Kaltmiete eines einzelnen Monats (z.B. späterer Einzug im
+// Einzugsmonat, Mietfreistellung, Kulanz). Mindert nur das Soll dieses Monats (siehe
+// sollAufschluesselung in src/lib/soll-ist.ts), nicht die vertragliche Miete — Mieterhöhungen,
+// "Mieterhöhung möglich ab" und die NK-Vorauszahlung bleiben unberührt. Betrag positiv = Abzug.
+model Mietnachlass {
+  id            String      @id @default(cuid())
+  mietvertrag   Mietvertrag @relation(fields: [mietvertragId], references: [id], onDelete: Cascade)
+  mietvertragId String
+  jahr          Int
+  monat         Int // 1-12
+  betrag        Decimal     @db.Decimal(10, 2)
+  grund         String
+  erstelltVon   String?
+  createdAt     DateTime    @default(now())
+
+  @@index([mietvertragId, jahr, monat])
+  @@map("mietnachlaesse")
 }
 
 // Verbraucherpreisindex für Deutschland (Destatis, Gesamtindex), Monatswerte für die Indexmiete

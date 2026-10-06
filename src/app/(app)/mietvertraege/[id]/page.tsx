@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { EckdatenSektion } from "../eckdaten-sektion";
 import { uploadDokument } from "../../dokumente/actions";
 import { BelegeSektion } from "@/components/belege-sektion";
-import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAktuelleMiete, ermittleMieteFuerMonat } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAktuelleMiete, ermittleMieteFuerMonat, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { baueMieterkontoJahr } from "@/lib/mieterkonto";
 import { baueKautionskonto } from "@/lib/kautionskonto";
@@ -62,6 +62,7 @@ export default async function MietvertragDetailPage({
         },
         dokumente: { orderBy: { createdAt: "desc" } },
         mieterhoehungen: { orderBy: { gueltigAb: "desc" } },
+        mietnachlaesse: { orderBy: [{ jahr: "asc" }, { monat: "asc" }] },
         abrechnungspositionen: {
           select: {
             zeitraumVon: true,
@@ -101,6 +102,7 @@ export default async function MietvertragDetailPage({
     nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
     mehrwertsteuer: vertrag.mehrwertsteuer ? Number(vertrag.mehrwertsteuer) : 0,
     mieterhoehungen,
+    mietnachlaesse: mietnachlaesseFuerSoll(vertrag.mietnachlaesse),
   };
 
   const aktuelleMiete = ermittleAktuelleMiete(vertragFuerSollIst);
@@ -325,6 +327,9 @@ export default async function MietvertragDetailPage({
             : null
         }
         letzteErhoehungText={letzteErhoehungText}
+        nachlassTexte={vertrag.mietnachlaesse.map(
+          (n) => `${String(n.monat).padStart(2, "0")}/${n.jahr}: ${formatEuro(-Number(n.betrag))} Kaltmiete (${n.grund})`,
+        )}
       />
 
       <div className="my-4 grid grid-cols-4 gap-4">

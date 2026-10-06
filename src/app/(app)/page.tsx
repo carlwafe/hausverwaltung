@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete } from "@/lib/soll-ist";
+import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc } from "@/lib/ticket";
@@ -51,6 +51,7 @@ export default async function DashboardPage() {
             select: { datum: true, betrag: true, periodeMonat: true, periodeJahr: true },
           },
           mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+          mietnachlaesse: { select: { jahr: true, monat: true, betrag: true } },
         },
       }),
       prisma.kaution.findMany({ where: { status: "AKTIV" }, select: { betrag: true } }),
@@ -94,6 +95,7 @@ export default async function DashboardPage() {
           kaltmiete: Number(m.kaltmiete),
           nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
         })),
+        mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
       },
       new Date(),
       buchhaltungAb,
