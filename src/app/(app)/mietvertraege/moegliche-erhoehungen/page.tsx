@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
-
-function formatDate(d: Date) {
-  return new Intl.DateTimeFormat("de-DE").format(d);
-}
+import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
+import { ErhoehungenTabelle, type ErhoehungZeile } from "./erhoehungen-tabelle";
 
 // Ein Jahr auf ein Datum addieren — bewusst mit UTC-Gettern/-Constructor statt lokalen (wie z.B.
 // gueltigAb aus einem <input type="date"> als UTC-Mitternacht gespeichert wird): mit lokalen
@@ -18,29 +16,25 @@ function monateBis(heute: Date, ziel: Date): number {
   return (ziel.getUTCFullYear() - heute.getUTCFullYear()) * 12 + (ziel.getUTCMonth() - heute.getUTCMonth());
 }
 
-type Zeile = {
-  mietvertragId: string;
-  einheitBezeichnung: string;
-  mieterNamen: string;
-  referenzDatum: Date;
-  referenzQuelle: "Mietbeginn" | "letzte Mieterhöhung";
-  naechsteMoeglich: Date;
-  bereitsMoeglich: boolean;
-};
-
-async function ladeZeilen(): Promise<Zeile[]> {
+async function ladeZeilen(): Promise<ErhoehungZeile[]> {
   const vertraege = await prisma.mietvertrag.findMany({
     // Nur Wohnungen: bei Garagen ist unklar, ob überhaupt eine Indexmiete-Klausel vereinbart ist.
     where: { status: "AKTIV", einheit: { typ: "WOHNUNG" } },
     include: {
-      einheit: true,
+      einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
       mieterhoehungen: { orderBy: { gueltigAb: "asc" } },
     },
   });
 
   const heute = new Date();
-  const zeilen: Zeile[] = [];
+  const zeilen: ErhoehungZeile[] = [];
+  // Rang in der Haus-Reihenfolge des Objekts (für die Spaltensortierung "Einheit").
+  const einheitRang = new Map(
+    sortEinheitenNachGebaeude(
+      vertraege.map((v) => ({ id: v.id, bezeichnung: v.einheit.bezeichnung, gebaeude: v.einheit.gebaeude })),
+    ).map((v, i) => [v.id, i]),
+  );
 
   for (const v of vertraege) {
     // Ausgangspunkt laut Indexmiete-Klausel: das Datum der letzten Mietanpassung, oder — falls
@@ -59,22 +53,23 @@ async function ladeZeilen(): Promise<Zeile[]> {
 
     const naechsteMoeglich = plusEinJahr(referenzDatum);
     zeilen.push({
-      mietvertragId: v.id,
+      id: v.id,
       einheitBezeichnung: v.einheit.bezeichnung,
+      einheitRang: einheitRang.get(v.id) ?? 0,
       mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & ") || "– ohne Mieter –",
-      referenzDatum,
+      referenzDatum: referenzDatum.toISOString(),
       referenzQuelle: letzteMieterhoehung ? "letzte Mieterhöhung" : "Mietbeginn",
-      naechsteMoeglich,
+      naechsteMoeglich: naechsteMoeglich.toISOString(),
       bereitsMoeglich: naechsteMoeglich <= heute,
+      monateBis: monateBis(heute, naechsteMoeglich),
     });
   }
 
-  return zeilen.sort((a, b) => a.naechsteMoeglich.getTime() - b.naechsteMoeglich.getTime());
+  return zeilen.sort((a, b) => a.naechsteMoeglich.localeCompare(b.naechsteMoeglich));
 }
 
 export default async function MoeglicheErhoehungenPage() {
   const zeilen = await ladeZeilen();
-  const heute = new Date();
   const bereitsMoeglich = zeilen.filter((z) => z.bereitsMoeglich).length;
 
   return (
@@ -101,55 +96,7 @@ export default async function MoeglicheErhoehungenPage() {
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Einheit</th>
-              <th className="px-4 py-2">Mieter</th>
-              <th className="px-4 py-2">Letzte Anpassung</th>
-              <th className="px-4 py-2">Mieterhöhung möglich ab</th>
-              <th className="px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {zeilen.map((z) => (
-              <tr key={z.mietvertragId} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/mietvertraege/${z.mietvertragId}`} className="font-medium hover:underline">
-                    {z.einheitBezeichnung}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-neutral-300">{z.mieterNamen}</td>
-                <td className="px-4 py-2 text-neutral-300">
-                  {formatDate(z.referenzDatum)}{" "}
-                  <span className="text-xs text-neutral-500">({z.referenzQuelle})</span>
-                </td>
-                <td className="px-4 py-2 text-white">{formatDate(z.naechsteMoeglich)}</td>
-                <td className="px-4 py-2">
-                  {z.bereitsMoeglich ? (
-                    <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">
-                      jetzt möglich
-                    </span>
-                  ) : (
-                    <span className="text-xs text-neutral-500">
-                      noch {monateBis(heute, z.naechsteMoeglich)} Monat
-                      {monateBis(heute, z.naechsteMoeglich) === 1 ? "" : "e"}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {zeilen.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
-                  Keine aktiven Mietverträge mit bekanntem Mietbeginn.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ErhoehungenTabelle rows={zeilen} />
     </div>
   );
 }
