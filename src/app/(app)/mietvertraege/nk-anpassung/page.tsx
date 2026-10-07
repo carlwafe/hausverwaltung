@@ -109,7 +109,9 @@ export default async function NkAnpassungPage() {
           aufgerundet auf volle Euro = Vorschlag. Zuschlag, Betrag und Gültig-ab-Datum lassen
           sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert).
           „Angepasst“ heißt: Nach dem Abrechnungsjahr wurde schon eine Mieterhöhung erfasst (auch eine mit anderem
-          Anlass) — dann Schreiben und Betrag im Vertrag prüfen. Bei Mietern mit Jobcenter vorher die
+          Anlass) — dann Schreiben und Betrag im Vertrag prüfen. Verträge, die bis zum Jahresende der Abrechnung enden, fehlen in der Liste (nichts mehr
+          anzupassen); Verträge ohne Kostenanteil in der Abrechnung (z.B. automatisch angelegte Platzhalter-Position)
+          stehen ohne Vorschlag („–“), bis die Abrechnung stimmt. Bei Mietern mit Jobcenter vorher die
           Angemessenheitsgrenze beachten.
         </p>
       </div>
