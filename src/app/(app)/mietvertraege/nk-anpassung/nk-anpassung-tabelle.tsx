@@ -70,26 +70,18 @@ const columns: Column<NkAnpassungZeile>[] = [
   },
   {
     key: "kosten",
-    label: "Kostenanteil Abrechnung",
+    label: "Kostenanteil",
     align: "right",
-    title: "Kostenanteil des Mieters laut Abrechnung für den Nutzungszeitraum im Abrechnungsjahr",
-    render: (z) => <span className="text-neutral-300">{euro(z.kostenanteil)} €</span>,
+    title: "Kostenanteil des Mieters laut Abrechnung für den Nutzungszeitraum im Abrechnungsjahr; bei unterjähriger Nutzung darunter auf 12 Monate hochgerechnet",
+    render: (z) => (
+      <span className="text-neutral-300">
+        {euro(z.kostenanteil)} €
+        {z.hochgerechnet && z.jahreskosten !== null && (
+          <span className="block text-xs text-amber-400">(auf 12 Monate: {euro(z.jahreskosten)} €)</span>
+        )}
+      </span>
+    ),
     sortValue: (z) => z.kostenanteil,
-  },
-  {
-    key: "jahreskosten",
-    label: "auf 12 Monate",
-    align: "right",
-    title: "Kostenanteil auf ein volles Jahr hochgerechnet — bei ganzjähriger Nutzung gleich dem Kostenanteil",
-    render: (z) =>
-      z.jahreskosten === null ? (
-        leer
-      ) : (
-        <span className="text-neutral-300">
-          {euro(z.jahreskosten)} €{z.hochgerechnet && <span className="ml-1 text-xs text-amber-400" title="Unterjährige Nutzung — hochgerechnet">hochger.</span>}
-        </span>
-      ),
-    sortValue: (z) => z.jahreskosten ?? -1,
   },
   {
     key: "monatlich",
@@ -190,7 +182,6 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
         defaultSort={{ key: "einheit" }}
         renderFooter={(sichtbar) => {
           const mitVorschlag = sichtbar.filter((z): z is NkAnpassungZeile & { vorschlag: number } => z.vorschlag !== null);
-          const jahr = mitVorschlag.reduce((s, z) => s + (z.jahreskosten ?? 0), 0);
           const monat = mitVorschlag.reduce((s, z) => s + (z.monatlich ?? 0), 0);
           const jetzt = mitVorschlag.reduce((s, z) => s + z.bisher, 0);
           const neu = mitVorschlag.reduce((s, z) => s + z.vorschlag, 0);
@@ -201,7 +192,6 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
               <td colSpan={5} className="px-4 py-2 font-medium text-white">
                 Summe <span className="text-xs font-normal text-neutral-500">({mitVorschlag.length} Verträge mit Vorschlag)</span>
               </td>
-              <td className={`${td} text-neutral-300`}>{euro(jahr)} €</td>
               <td className={`${td} text-neutral-300`}>{euro(monat)} €</td>
               <td className={`${td} text-neutral-300`}>{euro(jetzt)} €</td>
               <td className={`${td} text-white`}>{euro(neu)} €</td>

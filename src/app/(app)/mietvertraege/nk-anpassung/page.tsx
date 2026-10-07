@@ -104,8 +104,8 @@ export default async function NkAnpassungPage() {
         <p className="text-sm text-neutral-400">
           Nach einer Nebenkostenabrechnung darf die monatliche Vorauszahlung auf eine angemessene Höhe angepasst werden
           (§ 560 Abs. 4 BGB, Erklärung in Textform). Gezeigt wird je aktivem Mietvertrag die neueste Abrechnung mit dem
-          Rechenweg von links nach rechts: Kostenanteil des Abrechnungsjahres → auf 12 Monate hochgerechnet (nur bei
-          unterjähriger Nutzung, sonst gleich) → ÷ 12 = Kosten pro Monat → plus {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag,
+          Rechenweg von links nach rechts: Kostenanteil des Abrechnungsjahres (bei unterjähriger Nutzung steht darunter
+          „auf 12 Monate“, der hochgerechnete Jahreswert) → ÷ 12 = Kosten pro Monat → plus {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag,
           aufgerundet auf volle Euro = Vorschlag. Zuschlag, Betrag und Gültig-ab-Datum lassen
           sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert).
           „Angepasst“ heißt: Nach dem Abrechnungsjahr wurde schon eine Mieterhöhung erfasst (auch eine mit anderem
