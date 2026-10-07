@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { basisIndexMonat, letzteKaltmietenAenderung } from "@/lib/indexmiete";
+import { ladeLastschriftMandat } from "@/lib/lastschrift-mandat";
 import { IndexerhoehungSchreiben } from "./indexerhoehung-schreiben";
 
 export default async function IndexerhoehungPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,6 +21,10 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
     prisma.verbraucherpreisindex.findMany({ orderBy: [{ jahr: "asc" }, { monat: "asc" }] }),
   ]);
   if (!vertrag) notFound();
+
+  // Mandatsreferenz und Gläubiger-ID für die Vorabankündigung stehen in der Bankzeile der letzten Lastschrift.
+  // Überweiser brauchen sie nicht (Bankzeile nur für Lastschrift-/unbekannten Zahlungsweg laden).
+  const mandat = vertrag.zahlungsweg === "UEBERWEISUNG" ? null : await ladeLastschriftMandat(vertrag.id);
 
   const erhoehungen = vertrag.mieterhoehungen.map((e) => ({
     gueltigAb: e.gueltigAb,
@@ -67,6 +72,7 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
           mehrwertsteuer={vertrag.mehrwertsteuer ? Number(vertrag.mehrwertsteuer) : 0}
           jobcenter={vertrag.mieter.some((m) => m.buergergeldEmpfaenger)}
           zahlungsweg={vertrag.zahlungsweg}
+          mandat={mandat}
           referenzDatum={referenzDatum}
           referenzQuelle={letzteAenderung ? "letzte Mietanpassung" : "Mietbeginn"}
           basisVorbelegung={basis}

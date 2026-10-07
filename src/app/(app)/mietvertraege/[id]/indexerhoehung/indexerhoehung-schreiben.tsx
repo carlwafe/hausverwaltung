@@ -6,7 +6,7 @@ import { DateInput } from "@/components/date-input";
 import { runFormAction } from "@/lib/form-utils";
 import { mieterName } from "@/lib/mieter-name";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
-import { neueIndexmiete } from "@/lib/indexmiete";
+import { fruehestensGueltigNachZugang, neueIndexmiete, spaetesterZugang } from "@/lib/indexmiete";
 import { uebernehmeIndexerhoehung } from "../../actions";
 import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
 
@@ -15,6 +15,7 @@ type Mieter = { anrede: "FRAU" | "HERR" | null; vorname: string; nachname: strin
 const formatEuro = (v: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(v);
 const formatDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(d);
 const formatDatumLokal = (d: Date) => new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+const monatJahr = (d: Date) => new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" }).format(d);
 const zahl = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 3 });
 const prozent = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const monatLabel = (jahr: number, monat: number) => `${String(monat).padStart(2, "0")}/${jahr}`;
@@ -47,7 +48,7 @@ const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparen
 
 export function IndexerhoehungSchreiben({
   mietvertragId, mieter, strasse, plzOrt, einheit, basisKaltmiete, basisNk, erhoehungen, mehrwertsteuer,
-  jobcenter, zahlungsweg: zahlungswegVertrag, referenzDatum, referenzQuelle, basisVorbelegung, kopien, vpi,
+  jobcenter, zahlungsweg: zahlungswegVertrag, mandat, referenzDatum, referenzQuelle, basisVorbelegung, kopien, vpi,
 }: {
   mietvertragId: string;
   mieter: Mieter[];
@@ -60,6 +61,8 @@ export function IndexerhoehungSchreiben({
   mehrwertsteuer: number;
   jobcenter: boolean;
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
+  // Mandatsreferenz/Gläubiger-ID aus der Bankzeile der letzten Lastschrift (null = keine gefunden).
+  mandat: { referenz: string | null; glaeubigerId: string | null } | null;
   referenzDatum: Date;
   referenzQuelle: "letzte Mietanpassung" | "Mietbeginn";
   // Vorbelegter Basisindex-Monat: bei der letzten Erhöhung gespeichert, sonst der Referenzmonat selbst.
@@ -117,6 +120,36 @@ export function IndexerhoehungSchreiben({
 
   const fruehestens = new Date(Date.UTC(referenzDatum.getUTCFullYear() + 1, referenzDatum.getUTCMonth(), 1));
   const zuFrueh = gueltigAb !== null && gueltigAb < new Date(fruehestens.getUTCFullYear(), fruehestens.getUTCMonth(), 1);
+
+  // Zugang: Die Miete gilt ab dem übernächsten Monat nach Zugang (§ 557b Abs. 3 BGB). Für „Gültig ab“ muss das
+  // Schreiben also spätestens am Letzten des Monats davor zugehen; frühester möglicher Zugang ist das Briefdatum.
+  const zugangSpaetestens = gueltigAb ? spaetesterZugang(gueltigAb) : null;
+  const zugangZuSpaet = zugangSpaetestens !== null && briefdatum > zugangSpaetestens;
+
+  // Rundung: Wurde zugunsten des Mieters auf volle Euro abgerundet, nennt das Schreiben den rechnerischen Wert.
+  const rechenwert = basis ? Math.round(bisher.kaltmiete * (neu.wert / basis.wert) * 100) / 100 : null;
+  const abgerundet =
+    mieteEigen === null && abrunden && rechenwert !== null && neueKalt !== null && rechenwert - neueKalt >= 0.005;
+
+  // Mandatsdaten für die Vorabankündigung: nur, was im Journal gefunden wurde.
+  const mandatTeile = [
+    mandat?.referenz && `Mandatsreferenz ${mandat.referenz}`,
+    mandat?.glaeubigerId && `Gläubiger-ID ${mandat.glaeubigerId}`,
+  ].filter((t): t is string => Boolean(t));
+  // Jeder Teil bleibt beim Zeilenumbruch zusammen (die Referenz enthält Bindestriche).
+  const mandatKlammer =
+    mandatTeile.length > 0 ? (
+      <>
+        {" ("}
+        {mandatTeile.map((t, i) => (
+          <span key={t}>
+            {i > 0 && ", "}
+            <span className="whitespace-nowrap">{t}</span>
+          </span>
+        ))}
+        {")"}
+      </>
+    ) : null;
 
   const [fehler, formAction, pending] = useActionState(async (_prev: string | null, formData: FormData) => {
     const ergebnis = await runFormAction(uebernehmeIndexerhoehung.bind(null, mietvertragId), formData);
@@ -192,9 +225,23 @@ export function IndexerhoehungSchreiben({
               ausgenommen). Frühestens {formatDate(fruehestens)} — „Gültig ab“ liegt davor.
             </p>
           )}
+          {zugangZuSpaet && (
+            <p className="mt-3 text-xs text-amber-400">
+              Das Schreiben ist auf den {formatDatumLokal(briefdatum)} datiert und kann frühestens an diesem Tag
+              zugehen — dann gilt die Erhöhung erst ab {formatDatumLokal(fruehestensGueltigNachZugang(briefdatum))}.
+              „Gültig ab“ liegt davor.
+            </p>
+          )}
           <p className="mt-3 text-xs text-neutral-500">
             „Gültig ab“ ist auf den übernächsten Monatsersten vorbelegt: Laut Vertrag ist die geänderte Miete ab
             dem übernächsten Monat nach Zugang der Erklärung zu zahlen.
+            {zugangSpaetestens && (
+              <>
+                {" "}Soll sie ab {gueltigAbText} gelten, muss das Schreiben spätestens am {formatDatumLokal(zugangSpaetestens)}{" "}
+                zugehen, sonst verschiebt sich die Erhöhung um einen Monat. Den Zugang nachweisbar machen
+                (Einwurf-Einschreiben oder Bote mit Zeuge).
+              </>
+            )}
           </p>
         </div>
 
@@ -222,7 +269,10 @@ export function IndexerhoehungSchreiben({
             {zahlungsweg === "LASTSCHRIFT" && (
               <p className="mt-1 text-xs text-neutral-500">
                 Das Schreiben gilt als Vorabankündigung. Den neuen Betrag ab „Gültig ab“ auch im Lastschrifteinzug bei
-                der Bank eintragen.
+                der Bank eintragen.{" "}
+                {mandatTeile.length > 0
+                  ? `Aus der letzten Lastschrift im Journal ins Schreiben übernommen: ${mandatTeile.join(", ")}.`
+                  : "Im Journal wurde keine Mandatsreferenz gefunden — Mandatsreferenz und Gläubiger-ID fehlen im Schreiben."}
               </p>
             )}
           </div>
@@ -261,10 +311,10 @@ export function IndexerhoehungSchreiben({
         <p className="text-sm text-neutral-400">Bitte einen Basisindex wählen.</p>
       ) : (
         <div className="overflow-x-auto">
-          <div className="druckbereich mx-auto w-[210mm] min-h-[297mm] bg-white px-[20mm] pb-[20mm] pt-[15mm] font-serif text-[11pt] leading-snug text-black shadow">
+          <div className="druckbereich mx-auto w-[210mm] min-h-[297mm] bg-white px-[20mm] pb-[15mm] pt-[15mm] font-serif text-[11pt] leading-snug text-black shadow">
             <p className="mb-2 text-[8pt] text-neutral-600 underline">{absenderZeilen.join(" · ") || "Absender"}</p>
             <div className="flex items-start justify-between">
-              <div className="mt-2 min-h-[40mm]">
+              <div className="mt-2 min-h-[32mm]">
                 {mieter.map((m) => (<p key={mieterName(m)}>{empfaengerZeile(m)}</p>))}
                 <p>{strasse}</p>
                 <p>{plzOrt}</p>
@@ -278,15 +328,15 @@ export function IndexerhoehungSchreiben({
               Mietobjekt: {strasse}, {plzOrt}, Wohnung {einheit}
             </p>
 
-            <p className="mb-4">{anrede}</p>
-            <p className="mb-4">
-              in Ihrem Mietvertrag ist eine Indexmiete gemäß § 557b BGB vereinbart. Danach wird die Miete entsprechend
-              und im selben Verhältnis wie die Entwicklung des Verbraucherpreisindexes für Deutschland angepasst.
-              Ausgangspunkt ist der Preisindex zum Zeitpunkt {referenzQuelle === "Mietbeginn" ? "des Mietbeginns" : "der letzten Mietanpassung"} ({formatDate(referenzDatum)}). Ich erkläre
+            <p className="mb-3">{anrede}</p>
+            <p className="mb-3">
+              in Ihrem Mietvertrag ist eine Indexmiete gemäß § 557b BGB vereinbart. Danach sind Vermieter und Mieter
+              berechtigt, die Miete entsprechend und im selben Verhältnis wie die Entwicklung des
+              Verbraucherpreisindexes für Deutschland anzupassen. Ausgangspunkt ist der Preisindex zum Zeitpunkt {referenzQuelle === "Mietbeginn" ? "des Mietbeginns" : "der letzten Mietanpassung"} ({formatDate(referenzDatum)}). Ich erkläre
               hiermit in Textform die Anpassung der Miete wie folgt:
             </p>
 
-            <table className="mb-4 w-full">
+            <table className="mb-2 w-full">
               <tbody>
                 <tr>
                   <td className="py-0.5">Verbraucherpreisindex für Deutschland (2020 = 100), Ausgangswert {monatLabel(basis.jahr, basis.monat)}</td>
@@ -314,9 +364,18 @@ export function IndexerhoehungSchreiben({
                 </tr>
               </tbody>
             </table>
+            <p className="mb-3 text-[9pt] leading-snug">
+              {abgerundet && rechenwert !== null && (
+                <>
+                  Rechenweg: {formatEuro(bisher.kaltmiete)} × {zahl(neu.wert)} ÷ {zahl(basis.wert)} = {formatEuro(rechenwert)},
+                  zu Ihren Gunsten auf volle Euro abgerundet.{" "}
+                </>
+              )}
+              Quelle: Statistisches Bundesamt (Destatis), Verbraucherpreisindex für Deutschland, Gesamtindex.
+            </p>
 
-            <p className="mb-4">Ab dem {gueltigAbText} setzt sich Ihre monatliche Miete damit wie folgt zusammen:</p>
-            <table className="mb-4 w-2/3">
+            <p className="mb-3">Ab dem {gueltigAbText} setzt sich Ihre monatliche Miete damit wie folgt zusammen:</p>
+            <table className="mb-3 w-2/3">
               <tbody>
                 <tr><td className="py-0.5">Nettokaltmiete</td><td className="py-0.5 text-right">{formatEuro(neueKalt)}</td></tr>
                 <tr><td className="py-0.5">Betriebskostenvorauszahlung (unverändert)</td><td className="py-0.5 text-right">{formatEuro(bisher.nebenkostenVorauszahlung)}</td></tr>
@@ -325,16 +384,23 @@ export function IndexerhoehungSchreiben({
               </tbody>
             </table>
 
-            <p className="mb-4">
+            <p className="mb-3">
               Die geänderte Miete ist mit Beginn des übernächsten Monats nach Zugang dieser Erklärung zu entrichten,
               das ist der {gueltigAbText}. Die Miete war zuvor seit dem {formatDate(referenzDatum)} unverändert.{" "}
-              {zahlungsweg === "LASTSCHRIFT"
-                ? `Den geänderten Betrag ziehe ich ab dem ${gueltigAbText} aufgrund des bestehenden SEPA-Lastschriftmandats von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt zugleich als Vorabankündigung (Pre-Notification) des geänderten Lastschriftbetrags.`
-                : `Bitte zahlen Sie ab dem ${gueltigAbText} den neuen Betrag und passen Sie einen bestehenden Dauerauftrag entsprechend an.`}
+              {zahlungsweg === "LASTSCHRIFT" ? (
+                <>
+                  Die Gesamtmiete von {formatEuro(gesamt)} ziehe ich erstmals mit der Lastschrift für{" "}
+                  {gueltigAb ? monatJahr(gueltigAb) : "…"} aufgrund des bestehenden SEPA-Lastschriftmandats
+                  {mandatKlammer} von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt
+                  zugleich als Vorabankündigung (Pre-Notification) des geänderten Lastschriftbetrags.
+                </>
+              ) : (
+                `Bitte zahlen Sie ab dem ${gueltigAbText} die neue Gesamtmiete von ${formatEuro(gesamt)} und passen Sie einen bestehenden Dauerauftrag entsprechend an.`
+              )}
               {jobcenter && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
             </p>
-            <p className="mb-4">Für Rückfragen stehe ich Ihnen gern zur Verfügung.</p>
-            <p className="mb-12">Mit freundlichen Grüßen</p>
+            <p className="mb-3">Für Rückfragen stehe ich Ihnen gern zur Verfügung.</p>
+            <p className="mb-10">Mit freundlichen Grüßen</p>
             <p>{absenderName}</p>
           </div>
         </div>

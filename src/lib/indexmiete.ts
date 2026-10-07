@@ -49,3 +49,18 @@ export function neueIndexmiete(kaltmiete: number, basisIndex: number, neuerIndex
   const roh = kaltmiete * (neuerIndex / basisIndex);
   return abrunden ? Math.floor(roh + 1e-9) : Math.round(roh * 100) / 100;
 }
+
+/**
+ * Zugangsfrist der Erklärung (§ 557b Abs. 3 BGB: die geänderte Miete ist ab dem übernächsten Monat nach
+ * Zugang zu zahlen): Soll die Miete ab `gueltigAb` gelten, muss das Schreiben spätestens am Letzten des
+ * Monats zugehen, der zwei Monate davor liegt (Gültig ab 01.12. → Zugang bis 31.10.). Lokale Datumsteile,
+ * weil „Gültig ab“ und das Briefdatum im Formular lokale Kalenderdaten sind.
+ */
+export function spaetesterZugang(gueltigAb: Date): Date {
+  return new Date(gueltigAb.getFullYear(), gueltigAb.getMonth() - 1, 0);
+}
+
+/** Umgekehrt: frühester Monatserster, ab dem die Miete gilt, wenn das Schreiben am `zugang` zugeht (übernächster Monat). */
+export function fruehestensGueltigNachZugang(zugang: Date): Date {
+  return new Date(zugang.getFullYear(), zugang.getMonth() + 2, 1);
+}
