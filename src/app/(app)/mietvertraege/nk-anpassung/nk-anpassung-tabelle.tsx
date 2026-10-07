@@ -13,6 +13,9 @@ export type NkAnpassungZeile = {
   entwurf: boolean;
   kostenanteil: number;
   bisher: number; // monatliche Vorauszahlung vor dem vorgeschlagenen Gültig-ab
+  jahreskosten: number | null; // Kostenanteil auf 12 Monate hochgerechnet (null = kein Kostenanteil)
+  hochgerechnet: boolean; // unterjährige Nutzung → Jahreskosten ≠ Kostenanteil
+  monatlich: number | null; // Jahreskosten ÷ 12, ohne Zuschlag
   vorschlag: number | null; // null = Kostenanteil 0 (z.B. Platzhalter-Position)
   angepasstAb: string | null; // ISO — Mieterhöhung nach dem Abrechnungsjahr
 };
@@ -67,10 +70,34 @@ const columns: Column<NkAnpassungZeile>[] = [
   },
   {
     key: "kosten",
-    label: "Kostenanteil",
+    label: "Kostenanteil Abrechnung",
     align: "right",
+    title: "Kostenanteil des Mieters laut Abrechnung für den Nutzungszeitraum im Abrechnungsjahr",
     render: (z) => <span className="text-neutral-300">{euro(z.kostenanteil)} €</span>,
     sortValue: (z) => z.kostenanteil,
+  },
+  {
+    key: "jahreskosten",
+    label: "auf 12 Monate",
+    align: "right",
+    title: "Kostenanteil auf ein volles Jahr hochgerechnet — bei ganzjähriger Nutzung gleich dem Kostenanteil",
+    render: (z) =>
+      z.jahreskosten === null ? (
+        leer
+      ) : (
+        <span className="text-neutral-300">
+          {euro(z.jahreskosten)} €{z.hochgerechnet && <span className="ml-1 text-xs text-amber-400" title="Unterjährige Nutzung — hochgerechnet">hochger.</span>}
+        </span>
+      ),
+    sortValue: (z) => z.jahreskosten ?? -1,
+  },
+  {
+    key: "monatlich",
+    label: "Kosten / Monat",
+    align: "right",
+    title: "Jahreskosten ÷ 12, noch ohne Zuschlag und ohne Aufrunden",
+    render: (z) => (z.monatlich === null ? leer : <span className="text-neutral-300">{euro(z.monatlich)} €</span>),
+    sortValue: (z) => z.monatlich ?? -1,
   },
   {
     key: "bisher",
@@ -84,7 +111,7 @@ const columns: Column<NkAnpassungZeile>[] = [
     key: "vorschlag",
     label: "Vorschlag",
     align: "right",
-    title: "Kostenanteil hochgerechnet ÷ 12 plus Standard-Zuschlag, auf volle Euro aufgerundet (Vorschau, nicht gespeichert)",
+    title: "Kosten pro Monat plus Standard-Zuschlag, auf volle Euro aufgerundet (Vorschau, nicht gespeichert)",
     render: (z) => (z.vorschlag === null ? <span title="Kein Kostenanteil in der Abrechnung">{leer}</span> : <span className="text-white">{euro(z.vorschlag)} €</span>),
     sortValue: (z) => z.vorschlag ?? -1,
   },
@@ -163,6 +190,8 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
         defaultSort={{ key: "einheit" }}
         renderFooter={(sichtbar) => {
           const mitVorschlag = sichtbar.filter((z): z is NkAnpassungZeile & { vorschlag: number } => z.vorschlag !== null);
+          const jahr = mitVorschlag.reduce((s, z) => s + (z.jahreskosten ?? 0), 0);
+          const monat = mitVorschlag.reduce((s, z) => s + (z.monatlich ?? 0), 0);
           const jetzt = mitVorschlag.reduce((s, z) => s + z.bisher, 0);
           const neu = mitVorschlag.reduce((s, z) => s + z.vorschlag, 0);
           const d = neu - jetzt;
@@ -172,6 +201,8 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
               <td colSpan={5} className="px-4 py-2 font-medium text-white">
                 Summe <span className="text-xs font-normal text-neutral-500">({mitVorschlag.length} Verträge mit Vorschlag)</span>
               </td>
+              <td className={`${td} text-neutral-300`}>{euro(jahr)} €</td>
+              <td className={`${td} text-neutral-300`}>{euro(monat)} €</td>
               <td className={`${td} text-neutral-300`}>{euro(jetzt)} €</td>
               <td className={`${td} text-white`}>{euro(neu)} €</td>
               <td className={`${td} text-white`}>

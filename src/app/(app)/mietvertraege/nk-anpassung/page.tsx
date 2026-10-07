@@ -58,7 +58,7 @@ async function ladeZeilen(): Promise<NkAnpassungZeile[]> {
     };
     const bisher = ermittleMieteFuerMonat(vertrag, gueltigAb.getFullYear(), gueltigAb.getMonth()).nebenkostenVorauszahlung;
     const kostenanteil = Number(p.kostenanteilGesamt);
-    const vorschlag =
+    const ergebnis =
       kostenanteil > 0
         ? schlageVorauszahlungVor({
             jahr,
@@ -68,7 +68,7 @@ async function ladeZeilen(): Promise<NkAnpassungZeile[]> {
             anteileJahr: (Array.isArray(p.details) ? (p.details as unknown as KostenanteilDetailEintrag[]) : []).map((d) => d.anteilJahr),
             aktuelleVorauszahlung: bisher,
             zuschlagProzent,
-          }).vorschlag
+          })
         : null;
 
     // Schon nach der Abrechnung angepasst: eine Mieterhöhung nach Ende des Abrechnungsjahres.
@@ -84,7 +84,10 @@ async function ladeZeilen(): Promise<NkAnpassungZeile[]> {
       entwurf: p.abrechnung.status === "ENTWURF",
       kostenanteil,
       bisher,
-      vorschlag,
+      jahreskosten: ergebnis?.jahreskosten ?? null,
+      hochgerechnet: ergebnis?.hochgerechnet ?? false,
+      monatlich: ergebnis?.rechnerischMonatlich ?? null,
+      vorschlag: ergebnis?.vorschlag ?? null,
       angepasstAb: angepasst ? angepasst.gueltigAb.toISOString() : null,
     });
   }
@@ -101,8 +104,9 @@ export default async function NkAnpassungPage() {
         <p className="text-sm text-neutral-400">
           Nach einer Nebenkostenabrechnung darf die monatliche Vorauszahlung auf eine angemessene Höhe angepasst werden
           (§ 560 Abs. 4 BGB, Erklärung in Textform). Gezeigt wird je aktivem Mietvertrag die neueste Abrechnung mit dem
-          rechnerischen Vorschlag: Kostenanteil (bei unterjähriger Nutzung auf 12 Monate hochgerechnet) ÷ 12, plus{" "}
-          {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag, aufgerundet auf volle Euro. Zuschlag, Betrag und Gültig-ab-Datum lassen
+          Rechenweg von links nach rechts: Kostenanteil des Abrechnungsjahres → auf 12 Monate hochgerechnet (nur bei
+          unterjähriger Nutzung, sonst gleich) → ÷ 12 = Kosten pro Monat → plus {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag,
+          aufgerundet auf volle Euro = Vorschlag. Zuschlag, Betrag und Gültig-ab-Datum lassen
           sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert).
           „Angepasst“ heißt: Nach dem Abrechnungsjahr wurde schon eine Mieterhöhung erfasst (auch eine mit anderem
           Anlass) — dann Schreiben und Betrag im Vertrag prüfen. Bei Mietern mit Jobcenter vorher die
