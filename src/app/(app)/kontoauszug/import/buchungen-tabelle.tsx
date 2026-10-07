@@ -267,12 +267,17 @@ export function BuchungenTabelle({
   const [hinweisFilter, setHinweisFilter] = useState<HinweisFilter>("alle");
   const [familieFilter, setFamilieFilter] = useState<"alle" | BuchungsartGruppe>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  // Zeilen, die der Nutzer bearbeitet hat, bleiben im aktuellen Filter sichtbar (sonst verschwindet
+  // z.B. eine korrigierte Zeile aus "Vorschlag übernommen" mitten in der Arbeit); beim Filterwechsel
+  // wird die Liste geleert.
+  const [angeheftet, setAngeheftet] = useState<Set<number>>(() => new Set());
   const [kiPending, setKiPending] = useState(false);
   const [kiMeldung, setKiMeldung] = useState<string | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
 
   function updateRow(rowNumber: number, patch: Partial<BuchungEditRow>) {
+    setAngeheftet((a) => (a.has(rowNumber) ? a : new Set(a).add(rowNumber)));
     setEditRows((rs) => rs.map((r) => (r.rowNumber === rowNumber ? { ...r, ...patch } : r)));
   }
 
@@ -370,6 +375,7 @@ export function BuchungenTabelle({
   }
 
   const gefilterteRows = editRows.filter((r) => {
+    if (angeheftet.has(r.rowNumber)) return true;
     if (
       !passtZuHinweisFilter(
         hinweisFilter,
@@ -494,7 +500,10 @@ export function BuchungenTabelle({
           </button>
           <select
             value={hinweisFilter}
-            onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
+            onChange={(e) => {
+              setHinweisFilter(e.target.value as HinweisFilter);
+              setAngeheftet(new Set());
+            }}
             className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
           >
             {HINWEIS_OPTIONEN.map((o) => (
@@ -505,7 +514,10 @@ export function BuchungenTabelle({
           </select>
           <select
             value={familieFilter}
-            onChange={(e) => setFamilieFilter(e.target.value as "alle" | BuchungsartGruppe)}
+            onChange={(e) => {
+              setFamilieFilter(e.target.value as "alle" | BuchungsartGruppe);
+              setAngeheftet(new Set());
+            }}
             className="rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
           >
             {FAMILIE_OPTIONEN.map((o) => (
