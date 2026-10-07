@@ -158,6 +158,33 @@ export function ErhoehungenTabelle({ rows }: { rows: ErhoehungZeile[] }) {
       rows={rows}
       emptyMessage="Keine aktiven Mietverträge mit bekanntem Mietbeginn."
       defaultSort={{ key: "moeglichAb" }}
+      renderFooter={(sichtbar) => {
+        const mitNeu = sichtbar.filter((z): z is ErhoehungZeile & { neueKalt: number } => z.neueKalt !== null);
+        const ohneNeu = sichtbar.length - mitNeu.length;
+        const kaltJetzt = sichtbar.reduce((s, z) => s + z.aktuelleKalt, 0);
+        // Verträge ohne Indexwert bleiben in der neuen Summe bei der aktuellen Kaltmiete, damit
+        // "jetzt + Erhöhung = neu" aufgeht.
+        const erhoehungSumme = mitNeu.reduce((s, z) => s + (z.neueKalt - z.aktuelleKalt), 0);
+        const neuSumme = kaltJetzt + erhoehungSumme;
+        const td = "px-4 py-2 text-right font-medium";
+        return (
+          <tr className="border-t border-neutral-800">
+            <td colSpan={6} className="px-4 py-2 font-medium text-white">
+              Summe <span className="text-xs font-normal text-neutral-500">({sichtbar.length} Verträge)</span>
+            </td>
+            <td className={`${td} text-neutral-300`}>{euro(kaltJetzt)} €</td>
+            <td colSpan={3} />
+            <td className={`${td} text-white`}>
+              {euro(neuSumme)} € <span className="text-xs font-normal text-neutral-500">(+{euro(erhoehungSumme)})</span>
+              {ohneNeu > 0 && (
+                <span className="block text-xs font-normal text-neutral-500">
+                  {ohneNeu} Vertr{ohneNeu === 1 ? "ag" : "äge"} ohne Indexwert unverändert angesetzt
+                </span>
+              )}
+            </td>
+          </tr>
+        );
+      }}
     />
   );
 }
