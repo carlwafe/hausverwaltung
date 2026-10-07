@@ -113,7 +113,8 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
           Soll/Ist-Vergleiche (Offene Posten, Dashboard) rechnen erst ab diesem Datum bzw. ab dem
           Mietbeginn, falls dieser später liegt — sinnvoll, wenn ältere Kontoauszüge nicht mehr
           vorliegen und ein jahrzehntealter Mietbeginn sonst einen riesigen, nicht vergleichbaren
-          Sollbetrag ergäbe.
+          Sollbetrag ergäbe. Einzelne Mietverträge können einen früheren eigenen Stichtag haben (Mietvertrag
+          bearbeiten → „Buchhaltung ab“).
         </p>
       </div>
 

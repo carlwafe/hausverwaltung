@@ -18,6 +18,8 @@ export type OffenePostenRow = {
   saldovortrag: number;
   saldo: number;
   sonderforderung: number;
+  // Eigener, vom Objekt abweichender Buchhaltungs-Stichtag des Vertrags (formatiertes Datum), sonst null.
+  eigenerStichtag: string | null;
 };
 
 const columns: Column<OffenePostenRow>[] = [
@@ -27,9 +29,19 @@ const columns: Column<OffenePostenRow>[] = [
     sortValue: (z) => z.einheitRang,
     searchValue: (z) => z.einheit,
     render: (z) => (
-      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
-        {z.einheit}
-      </Link>
+      <>
+        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
+          {z.einheit}
+        </Link>
+        {z.eigenerStichtag && (
+          <span
+            className="block text-xs font-normal text-amber-300"
+            title="Dieser Vertrag hat einen eigenen Buchhaltungs-Stichtag (Mietvertrag bearbeiten → Buchhaltung ab); Soll, Ist und Saldovortrag gelten ab diesem Datum."
+          >
+            Stichtag {z.eigenerStichtag}
+          </span>
+        )}
+      </>
     ),
   },
   {

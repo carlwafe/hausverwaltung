@@ -35,6 +35,7 @@ const mietvertragSchema = z
     kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
     kautionEinzahlungUnbekannt: z.coerce.boolean().optional(),
     saldovortrag: z.coerce.number().optional().default(0),
+    buchhaltungAb: optionalesDatum(),
     zahlungsweg: z.enum(["LASTSCHRIFT", "UEBERWEISUNG"]).optional(),
   })
   .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
@@ -66,6 +67,7 @@ async function parseForm(formData: FormData) {
     kautionAnlageform: formData.get("kautionAnlageform") || undefined,
     kautionEinzahlungUnbekannt: formData.get("kautionEinzahlungUnbekannt") === "on",
     saldovortrag: formData.get("saldovortrag") || "0",
+    buchhaltungAb: formData.get("buchhaltungAb") || "",
     zahlungsweg: formData.get("zahlungsweg") || undefined,
   });
 
@@ -79,6 +81,16 @@ async function parseForm(formData: FormData) {
   });
   if (einheit?.typ === "GARAGE" && parsed.data.mehrwertsteuer === undefined) {
     throw new AktionsFehler("Mehrwertsteuer ist bei Garagen/Stellplätzen erforderlich");
+  }
+
+  // Eigener Stichtag nur früher als der des Objekts (sonst gäbe es nichts zu überschreiben — Feld leer lassen).
+  if (parsed.data.buchhaltungAb) {
+    const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
+    if (objekt?.buchhaltungAb && parsed.data.buchhaltungAb >= objekt.buchhaltungAb) {
+      throw new AktionsFehler(
+        `„Buchhaltung ab“ muss früher sein als der Buchhaltungs-Stichtag des Objekts (${new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(objekt.buchhaltungAb)}). Feld leer lassen, um den Stichtag des Objekts zu verwenden.`,
+      );
+    }
   }
 
   return parsed.data;
@@ -103,6 +115,7 @@ export const createMietvertrag = mitMeldung(async function createMietvertrag(for
       mehrwertsteuer: data.mehrwertsteuer,
       status: data.status,
       saldovortrag: data.saldovortrag,
+      buchhaltungAb: data.buchhaltungAb ?? null,
       zahlungsweg: data.zahlungsweg ?? null,
       ...(data.kautionBetrag !== undefined
         ? {
@@ -120,6 +133,8 @@ export const createMietvertrag = mitMeldung(async function createMietvertrag(for
 
   revalidatePath("/mietvertraege");
   revalidatePath("/offene-posten");
+  revalidatePath("/jahresuebersicht");
+  revalidatePath("/miete-monat");
   revalidatePath("/");
   redirect("/mietvertraege");
 });
@@ -145,6 +160,8 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
         mehrwertsteuer: data.mehrwertsteuer ?? null,
         status: data.status,
         saldovortrag: data.saldovortrag,
+        // ?? null wie bei ende: ein geleertes Feld setzt den Stichtag zurück auf den des Objekts.
+        buchhaltungAb: data.buchhaltungAb ?? null,
         zahlungsweg: data.zahlungsweg ?? null,
       },
     });
@@ -183,6 +200,8 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
   revalidatePath(`/mietvertraege/${id}`);
   revalidatePath("/kautionen");
   revalidatePath("/offene-posten");
+  revalidatePath("/jahresuebersicht");
+  revalidatePath("/miete-monat");
   revalidatePath("/");
   // Zurück auf die Detailseite (nicht mehr die Liste) — passend zum Bearbeiten auf einer eigenen
   // Unterseite: nach dem Speichern soll man das Ergebnis direkt sehen, nicht erst wieder suchen.

@@ -30,26 +30,35 @@ export function sonderWirkung(code: string, betrag: number): number {
 export type SonderforderungSaldo = { forderung: number; bezahlt: number; offen: number };
 
 // Zeitraum wie bei Soll/Ist (buchhaltungAb/-Bis), damit die offene Sonderforderung im Mietsaldo
-// denselben Zeitraum abdeckt wie die Mietzahlungen.
+// denselben Zeitraum abdeckt wie die Mietzahlungen. `abJeVertrag` überschreibt `ab` für einzelne Verträge
+// (eigener Buchhaltungs-Stichtag, siehe effektiverStichtag); null = ohne Untergrenze, Verträge, die nicht in
+// der Map stehen, nehmen `ab`.
 export async function ladeSonderforderungSalden(
   mietvertragIds?: string[],
-  zeitraum: { ab?: Date | null; bis?: Date | null } = {},
+  zeitraum: { ab?: Date | null; bis?: Date | null; abJeVertrag?: ReadonlyMap<string, Date | null> } = {},
 ): Promise<Map<string, SonderforderungSaldo>> {
+  const abFuer = (id: string): Date | null => (zeitraum.abJeVertrag?.has(id) ? zeitraum.abJeVertrag.get(id)! : zeitraum.ab ?? null);
+  // Die Abfrage nimmt die früheste Untergrenze (keine, sobald eine fehlt); genau gefiltert wird danach je Vertrag.
+  const grenzen = [zeitraum.ab ?? null, ...(zeitraum.abJeVertrag?.values() ?? [])];
+  const abAbfrage = grenzen.some((g) => !g) ? null : new Date(Math.min(...grenzen.map((g) => g!.getTime())));
+
   const buchungen = await prisma.buchung.findMany({
     where: {
       ...SONDERBUCHUNGEN_FILTER,
       mietvertragId: mietvertragIds ? { in: mietvertragIds } : { not: null },
-      ...(zeitraum.ab || zeitraum.bis
-        ? { datum: { ...(zeitraum.ab ? { gte: zeitraum.ab } : {}), ...(zeitraum.bis ? { lte: zeitraum.bis } : {}) } }
+      ...(abAbfrage || zeitraum.bis
+        ? { datum: { ...(abAbfrage ? { gte: abAbfrage } : {}), ...(zeitraum.bis ? { lte: zeitraum.bis } : {}) } }
         : {}),
       ...AKTIVE_BUCHUNG_FILTER,
     },
-    select: { mietvertragId: true, betrag: true, buchungsart: { select: { code: true } } },
+    select: { mietvertragId: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
   });
 
   const salden = new Map<string, SonderforderungSaldo>();
   for (const b of buchungen) {
     const id = b.mietvertragId!;
+    const ab = abFuer(id);
+    if (ab && (!b.datum || b.datum < ab)) continue;
     const s = salden.get(id) ?? { forderung: 0, bezahlt: 0, offen: 0 };
     if (b.buchungsart.code === "MAHNGEBUEHR") s.forderung += Number(b.betrag);
     else s.bezahlt += sonderWirkung(b.buchungsart.code, Number(b.betrag));

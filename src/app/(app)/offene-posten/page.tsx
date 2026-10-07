@@ -7,6 +7,7 @@ import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
+import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -16,7 +17,7 @@ function formatDatum(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
 }
 
-async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<OffenePostenRow[]> {
+async function ladeZeilen(objekt: { buchhaltungAb: Date | null } | null, bis: Date): Promise<OffenePostenRow[]> {
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: { in: ["AKTIV", "BEENDET"] } },
     include: {
@@ -39,7 +40,12 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
     zahlungenNachVertrag.set(z.mietvertragId, liste);
   }
 
-  const sonderforderungen = await ladeSonderforderungSalden(vertraege.map((v) => v.id), { ab: buchhaltungAb, bis });
+  // Stichtag je Vertrag: eigener (früherer) oder der des Objekts.
+  const sonderforderungen = await ladeSonderforderungSalden(vertraege.map((v) => v.id), {
+    ab: objekt?.buchhaltungAb ?? null,
+    abJeVertrag: new Map(vertraege.map((v) => [v.id, effektiverStichtag(v, objekt)])),
+    bis,
+  });
 
   // Rang in der Objekt-Reihenfolge der Einheiten (für die Spaltensortierung "Einheit").
   const einheitRang = new Map(
@@ -50,6 +56,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
 
   return vertraege
     .map((v) => {
+      const buchhaltungAb = effektiverStichtag(v, objekt);
       const soll = berechneSoll(
         {
           beginn: v.beginn,
@@ -84,6 +91,7 @@ async function ladeZeilen(buchhaltungAb: Date | null, bis: Date): Promise<Offene
         saldovortrag,
         saldo,
         sonderforderung,
+        eigenerStichtag: hatEigenenStichtag(v, objekt) ? formatDatum(v.buchhaltungAb!) : null,
       };
     })
     .sort((a, b) => a.einheitRang - b.einheitRang);
@@ -95,7 +103,7 @@ export default async function OffenePostenPage() {
   const bis = objekt?.buchhaltungBis ?? heute;
   const istHeute = !objekt?.buchhaltungBis;
 
-  const zeilen = await ladeZeilen(objekt?.buchhaltungAb ?? null, bis);
+  const zeilen = await ladeZeilen(objekt, bis);
   const gesamtRueckstand = zeilen.filter((z) => z.saldo < 0).reduce((sum, z) => sum + z.saldo, 0);
 
   return (
@@ -112,6 +120,12 @@ export default async function OffenePostenPage() {
           = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
           sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen.
         </p>
+        {zeilen.some((z) => z.eigenerStichtag) && (
+          <p className="mt-1 text-xs text-amber-300">
+            Verträge mit eigenem, früherem Buchhaltungs-Stichtag (Mietvertrag bearbeiten → Buchhaltung ab) sind
+            mit &bdquo;Stichtag …&ldquo; gekennzeichnet; ihr Saldovortrag gilt zu diesem Datum.
+          </p>
+        )}
       </div>
 
       <form className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-4">

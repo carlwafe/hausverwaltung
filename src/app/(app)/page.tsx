@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
+import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc } from "@/lib/ticket";
 
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
           kaltmiete: true,
           nebenkostenVorauszahlung: true,
           mehrwertsteuer: true,
+          buchhaltungAb: true,
           saldovortrag: true,
           buchungen: {
             where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
@@ -77,12 +79,16 @@ export default async function DashboardPage() {
   const sollKaltmiete = aktuelleMieten.reduce((sum, m) => sum + m.kaltmiete, 0);
   const sollNebenkosten = aktuelleMieten.reduce((sum, m) => sum + m.nebenkostenVorauszahlung, 0);
 
-  const buchhaltungAb = objekt?.buchhaltungAb ?? null;
+  // Stichtag je Vertrag: eigener (früherer) oder der des Objekts.
   const sonderforderungen = await ladeSonderforderungSalden(
     abrechenbareVertraege.map((v) => v.id),
-    { ab: buchhaltungAb },
+    {
+      ab: objekt?.buchhaltungAb ?? null,
+      abJeVertrag: new Map(abrechenbareVertraege.map((v) => [v.id, effektiverStichtag(v, objekt)])),
+    },
   );
   const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
+    const buchhaltungAb = effektiverStichtag(v, objekt);
     const soll = berechneSoll(
       {
         beginn: v.beginn,

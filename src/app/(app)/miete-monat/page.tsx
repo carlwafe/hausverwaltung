@@ -4,6 +4,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { sollAufschluesselung, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
+import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { MieteMonatTable, type MieteMonatRow } from "./miete-monat-table";
 
 function formatEuro(value: number) {
@@ -53,7 +54,6 @@ export default async function MieteMonatPage({
   const alleAnzeigen = alle === "1";
 
   const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
-  const buchhaltungAb = objekt?.buchhaltungAb ?? null;
   const monatsEnde = new Date(jahr, monat, 0);
 
   const vertraege = await prisma.mietvertrag.findMany({
@@ -92,6 +92,8 @@ export default async function MieteMonatPage({
 
   const alleZeilen: MieteMonatRow[] = [];
   for (const v of vertraege) {
+    // Stichtag je Vertrag: eigener (früherer) oder der des Objekts.
+    const buchhaltungAb = effektiverStichtag(v, objekt);
     const sollZeile = sollAufschluesselung(
       {
         beginn: v.beginn,

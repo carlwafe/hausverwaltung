@@ -17,6 +17,7 @@ import { mieterName } from "@/lib/mieter-name";
 import { saldoMitToleranz, unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 import { ladeLastschriftMandat } from "@/lib/lastschrift-mandat";
+import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -112,7 +113,10 @@ export default async function MietvertragDetailPage({
   // für denselben Vertrag unterschiedliche Salden, je nachdem wie weit die Buchhaltung tatsächlich
   // erfasst ist (z.B. wenn eine Miete erst im Folgemonat gebucht wurde).
   const bis = objekt?.buchhaltungBis ?? new Date();
-  const soll = berechneSoll(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
+  // Stichtag dieses Vertrags: sein eigener (früherer), sonst der des Objekts.
+  const stichtagAb = effektiverStichtag(vertrag, objekt);
+  const eigenerStichtag = hatEigenenStichtag(vertrag, objekt);
+  const soll = berechneSoll(vertragFuerSollIst, bis, stichtagAb);
   const ist = berechneIstNachPeriode(
     vertrag.buchungen.map((z) => ({
       datum: z.datum!,
@@ -120,21 +124,19 @@ export default async function MietvertragDetailPage({
       periodeMonat: z.periodeMonat,
       periodeJahr: z.periodeJahr,
     })),
-    objekt?.buchhaltungAb ?? null,
+    stichtagAb,
     bis,
   );
   const saldovortrag = Number(vertrag.saldovortrag);
   // Offene Sonderforderung (Gebühren minus Zahlungen darauf) im selben Zeitraum wie Soll/Ist.
-  const ab = objekt?.buchhaltungAb ?? null;
   const sonderOffenImSaldo = sonderBuchungen
-    .filter((b) => b.datum && (!ab || b.datum >= ab) && b.datum <= bis)
+    .filter((b) => b.datum && (!stichtagAb || b.datum >= stichtagAb) && b.datum <= bis)
     .reduce((sum, b) => sum - sonderWirkung(b.buchungsart.code, Number(b.betrag)), 0);
   const saldo = ist - soll + saldovortrag - sonderOffenImSaldo;
-  const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, objekt?.buchhaltungAb ?? null);
+  const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, stichtagAb);
   // Jahre für das Mieterkonto: ab dem ersten Jahr mit Zahlungen (oder dem Stichtag/Soll-Beginn) bis
-  // zum "erfasst bis"-Jahr. Vor dem Buchhaltungs-Stichtag gibt es kein vom System geführtes Soll —
-  // dort wird es zur Darstellung ab Mietbeginn nachgerechnet (Übertrag beginnt bei 0).
-  const stichtagAb = objekt?.buchhaltungAb ?? null;
+  // zum "erfasst bis"-Jahr. Vor dem Buchhaltungs-Stichtag (stichtagAb, des Vertrags) gibt es kein vom System
+  // geführtes Soll — dort wird es zur Darstellung ab Mietbeginn nachgerechnet (Übertrag beginnt bei 0).
   const zahlungenListe = vertrag.buchungen
     .filter((z) => z.datum)
     .map((z) => ({
@@ -265,7 +267,7 @@ export default async function MietvertragDetailPage({
             zeitraumBis: position.zeitraumBis,
             vorauszahlungGesamt: Number(position.vorauszahlungGesamt),
           },
-          objekt?.buchhaltungAb ?? null,
+          stichtagAb,
         )
       : 0;
     return {
@@ -324,6 +326,7 @@ export default async function MietvertragDetailPage({
         mehrwertsteuerText={vertrag.mehrwertsteuer ? formatEuro(Number(vertrag.mehrwertsteuer)) : null}
         status={vertrag.status}
         saldovortragText={formatEuro(saldovortrag)}
+        eigenerStichtagText={eigenerStichtag && stichtagAb ? formatDate(stichtagAb) : null}
         zahlungsweg={vertrag.zahlungsweg}
         kaution={
           vertrag.kaution
@@ -343,20 +346,22 @@ export default async function MietvertragDetailPage({
       <div className="my-4 grid grid-cols-4 gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">
-            Soll ({objekt?.buchhaltungAb ? "seit Buchhaltungs-Stichtag" : "seit Mietbeginn"}, bis{" "}
+            Soll ({stichtagAb ? `seit Buchhaltungs-Stichtag${eigenerStichtag ? ` ${formatDate(stichtagAb)}` : ""}` : "seit Mietbeginn"}, bis{" "}
             {formatDate(bis)})
           </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(soll)}</p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">
-            Ist (erhaltene Zahlungen{objekt?.buchhaltungAb ? " seit Stichtag" : ""}, bis{" "}
+            Ist (erhaltene Zahlungen{stichtagAb ? " seit Stichtag" : ""}, bis{" "}
             {formatDate(bis)})
           </p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(ist)}</p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-400">Saldovortrag (vor Stichtag)</p>
+          <p className="text-xs text-neutral-400">
+            Saldovortrag ({stichtagAb ? `zum Stichtag${eigenerStichtag ? ` ${formatDate(stichtagAb)}` : ""}` : "vor Stichtag"})
+          </p>
           <p
             className={`mt-1 text-lg font-semibold ${saldovortrag < 0 ? "text-red-400" : saldovortrag > 0 ? "text-green-400" : "text-white"}`}
           >

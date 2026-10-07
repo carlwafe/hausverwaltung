@@ -44,6 +44,7 @@ export function EckdatenSektion({
   mehrwertsteuerText,
   status,
   saldovortragText,
+  eigenerStichtagText,
   zahlungsweg,
   kaution,
   letzteErhoehungText,
@@ -59,6 +60,8 @@ export function EckdatenSektion({
   mehrwertsteuerText: string | null;
   status: string;
   saldovortragText: string;
+  // Eigener Buchhaltungs-Stichtag des Vertrags (formatiert), nur wenn er vom Objekt abweicht.
+  eigenerStichtagText: string | null;
   zahlungsweg: string | null;
   kaution: { betragText: string; anlageform: string; einzahlungUnbekannt: boolean } | null;
   // Fliesstext-Hinweis auf die letzte Mieterhöhung (z.B. "Miete zuletzt zum 1.5.2026 auf 620,00 €
@@ -89,6 +92,7 @@ export function EckdatenSektion({
           <Feld label="NK-Vorauszahlung" value={nebenkostenText} />
           {mehrwertsteuerText && <Feld label="Mehrwertsteuer" value={mehrwertsteuerText} />}
           <Feld label="Status" value={STATUS_LABEL[status] ?? status} />
+          {eigenerStichtagText && <Feld label="Buchhaltung ab" value={eigenerStichtagText} />}
           <Feld label="Saldovortrag" value={saldovortragText} />
           <Feld label="Zahlungsweg" value={zahlungsweg ? ZAHLUNGSWEG_LABEL[zahlungsweg] ?? zahlungsweg : "nicht erfasst"} />
           {kaution && (

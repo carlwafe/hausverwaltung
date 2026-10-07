@@ -29,6 +29,8 @@ export type MieterTabellenZeile = {
   saldoNeu: number;
   verifiziert: boolean;
   kommentar: string;
+  // Eigener, vom Objekt abweichender Buchhaltungs-Stichtag des Vertrags (formatiertes Datum), sonst null.
+  eigenerStichtag: string | null;
 };
 
 function zahlSpalte(
@@ -66,9 +68,19 @@ export function MieterTabelle({
       sortValue: (z) => z.einheitRang,
       searchValue: (z) => z.einheit,
       render: (z) => (
-        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
-          {z.einheit}
-        </Link>
+        <>
+          <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
+            {z.einheit}
+          </Link>
+          {z.eigenerStichtag && (
+            <span
+              className="block text-xs font-normal text-amber-300"
+              title="Dieser Vertrag hat einen eigenen Buchhaltungs-Stichtag (Mietvertrag bearbeiten → Buchhaltung ab) und rechnet ab diesem Datum — die Summenzeile mischt dadurch unterschiedliche Stichtage."
+            >
+              Stichtag {z.eigenerStichtag}
+            </span>
+          )}
+        </>
       ),
     },
     {
@@ -151,22 +163,33 @@ export function MieterTabelle({
       renderFooter={(sichtbar) => {
         const summe = (f: (z: MieterTabellenZeile) => number) => formatEuro(sichtbar.reduce((s, z) => s + f(z), 0));
         const td = "px-4 py-2 text-right font-medium text-white";
+        const abweichend = sichtbar.filter((z) => z.eigenerStichtag).length;
         return (
-          <tr className="border-t border-neutral-800">
-            <td className="px-4 py-2 font-medium text-white">Summe</td>
-            <td />
-            <td className={td}>{summe((z) => z.kaltmieteMtl)}</td>
-            <td className={td}>{summe((z) => z.nebenkostenMtl)}</td>
-            <td className={td}>{summe((z) => z.warmMtl)}</td>
-            <td className={td}>{summe((z) => z.saldoAlt)}</td>
-            <td className={td}>{summe((z) => z.sollKaltmiete)}</td>
-            <td className={td}>{summe((z) => z.sollNebenkosten)}</td>
-            <td className={td}>{summe((z) => z.soll)}</td>
-            <td className={td}>{summe((z) => z.miete)}</td>
-            {mitNkOffen && <td className={td}>{summe((z) => z.nebenkostenabrechnungOffen ?? 0)}</td>}
-            <td className={td}>{summe((z) => z.saldoNeu)}</td>
-            <td colSpan={2} />
-          </tr>
+          <>
+            <tr className="border-t border-neutral-800">
+              <td className="px-4 py-2 font-medium text-white">Summe</td>
+              <td />
+              <td className={td}>{summe((z) => z.kaltmieteMtl)}</td>
+              <td className={td}>{summe((z) => z.nebenkostenMtl)}</td>
+              <td className={td}>{summe((z) => z.warmMtl)}</td>
+              <td className={td}>{summe((z) => z.saldoAlt)}</td>
+              <td className={td}>{summe((z) => z.sollKaltmiete)}</td>
+              <td className={td}>{summe((z) => z.sollNebenkosten)}</td>
+              <td className={td}>{summe((z) => z.soll)}</td>
+              <td className={td}>{summe((z) => z.miete)}</td>
+              {mitNkOffen && <td className={td}>{summe((z) => z.nebenkostenabrechnungOffen ?? 0)}</td>}
+              <td className={td}>{summe((z) => z.saldoNeu)}</td>
+              <td colSpan={2} />
+            </tr>
+            {abweichend > 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-4 pb-2 text-xs text-amber-300">
+                  {abweichend === 1 ? "1 Vertrag hat" : `${abweichend} Verträge haben`} einen eigenen
+                  Buchhaltungs-Stichtag (gekennzeichnet) — die Summe mischt unterschiedliche Stichtage.
+                </td>
+              </tr>
+            )}
+          </>
         );
       }}
     />

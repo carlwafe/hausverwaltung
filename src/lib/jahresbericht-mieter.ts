@@ -3,6 +3,9 @@ import { berechneSoll, berechneSollKaltmiete, ermittleMieteFuerMonat, type Mietv
 
 export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   id: string;
+  // Wirksamer Buchhaltungs-Stichtag dieses Vertrags (effektiverStichtag: eigener, sonst der des Objekts;
+  // null = keiner, dann zählt der Mietbeginn). Soll, Ist, Sonderbewegungen und Saldovortrag gelten ab hier.
+  buchhaltungAb: Date | null;
   saldovortrag: number;
   einheitBezeichnung: string;
   mieterNamen: string;
@@ -86,7 +89,8 @@ function istNachZuordnung(
  * Nebenkostenabrechnung — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
  * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung.
  */
-function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, buchhaltungAb: Date | null): number {
+function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date): number {
+  const buchhaltungAb = v.buchhaltungAb;
   const soll = berechneSoll(v, bis, buchhaltungAb);
   const ist = istNachZuordnung(v.zahlungen, buchhaltungAb ? periodeVon(buchhaltungAb) : -Infinity, periodeVon(bis));
   const sonder = v.sonderbewegungen
@@ -132,6 +136,10 @@ function nebenkostenabrechnungOffenBetrag(
  * Dezember bereits für den Januar des Folgejahres eingegangene Miete zählt so korrekt zum
  * Folgejahr statt das laufende Jahr künstlich ins Plus zu ziehen.
  *
+ * Der Buchhaltungs-Stichtag gilt je Vertrag (`MietvertragFuerJahresbericht.buchhaltungAb`, eigener oder der des
+ * Objekts): Verträge mit früherem Stichtag rechnen auch ihre früheren Jahre, die Summen der Tabelle mischen
+ * dann unterschiedliche Stichtage (gewollt, in der Anzeige gekennzeichnet).
+ *
  * Nur Mietverträge, die für das Jahr oder den offenen Nebenkostenabrechnung-Saldo tatsächlich
  * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf,
  * außer er steht in `immerAnzeigen` (nur bei berechneMieterBericht).
@@ -139,13 +147,11 @@ function nebenkostenabrechnungOffenBetrag(
 export function berechneMieterJahresbericht(
   vertraege: MietvertragFuerJahresbericht[],
   jahr: number,
-  buchhaltungAb: Date | null,
   buchhaltungBisGlobal: Date | null,
 ): MieterJahresberichtZeile[] {
   return berechneMieterBericht(
     vertraege,
     { jahr, von: new Date(jahr, 0, 1), bis: new Date(jahr, 11, 31, 23, 59, 59, 999) },
-    buchhaltungAb,
     buchhaltungBisGlobal,
   );
 }
@@ -160,7 +166,6 @@ export function berechneMieterJahresbericht(
 export function berechneMieterBericht(
   vertraege: MietvertragFuerJahresbericht[],
   zeitraum: { jahr: number; von: Date; bis: Date; mitNkOffen?: boolean },
-  buchhaltungAb: Date | null,
   buchhaltungBisGlobal: Date | null,
   // Mietverträge, die auch ohne jede Bewegung/Saldo in der Tabelle bleiben (z.B. weil ein Kommentar
   // zum Abgleich mit dem Vorverwalter daran hängt).
@@ -179,10 +184,11 @@ export function berechneMieterBericht(
   const zeilen: MieterJahresberichtZeile[] = [];
 
   for (const v of vertraege) {
-    const saldoAlt = saldoZuStichtag(v, saldoAltBis, buchhaltungAb);
-    const soll = berechneSoll(v, saldoNeuBis, buchhaltungAb) - berechneSoll(v, saldoAltBis, buchhaltungAb);
+    // Stichtag je Vertrag (v.buchhaltungAb): die Summen der Tabelle mischen dadurch ggf. unterschiedliche Stichtage.
+    const saldoAlt = saldoZuStichtag(v, saldoAltBis);
+    const soll = berechneSoll(v, saldoNeuBis, v.buchhaltungAb) - berechneSoll(v, saldoAltBis, v.buchhaltungAb);
     const sollKaltmiete =
-      berechneSollKaltmiete(v, saldoNeuBis, buchhaltungAb) - berechneSollKaltmiete(v, saldoAltBis, buchhaltungAb);
+      berechneSollKaltmiete(v, saldoNeuBis, v.buchhaltungAb) - berechneSollKaltmiete(v, saldoAltBis, v.buchhaltungAb);
     const sollNebenkosten = soll - sollKaltmiete;
     const letzterMonat = v.ende && v.ende < saldoNeuBis ? v.ende : saldoNeuBis;
     const mtl = ermittleMieteFuerMonat(v, letzterMonat.getFullYear(), letzterMonat.getMonth() + 1);
@@ -200,7 +206,7 @@ export function berechneMieterBericht(
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
     const saldoNeu =
-      Math.round((saldoZuStichtag(v, saldoNeuBis, buchhaltungAb) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
+      Math.round((saldoZuStichtag(v, saldoNeuBis) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
 
     if (
       !immerAnzeigen?.has(v.id) &&

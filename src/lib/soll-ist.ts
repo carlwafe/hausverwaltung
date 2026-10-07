@@ -94,6 +94,9 @@ function dritterWerktagDesMonats(jahr: number, monatIndex0: number): Date {
  * des Monats, "im Voraus" fällig). Läuft von Mietbeginn (bzw. `buchhaltungAb`, falls später) bis
  * `heute` (bzw. Mietende, falls dieses früher liegt) — jeder angebrochene Monat zählt bereits
  * ab seinem 1. Tag voll, da die Miete für den ganzen Monat im Voraus zu zahlen ist.
+ *
+ * `buchhaltungAb` ist der wirksame Stichtag des Vertrags (eigener oder der des Objekts, siehe
+ * effektiverStichtag in buchhaltung-stichtag.ts) — alle Aufrufer übergeben ihn je Vertrag.
  */
 export function sollAufschluesselung(
   vertrag: MietvertragFuerSollIst,
@@ -103,7 +106,7 @@ export function sollAufschluesselung(
   const referenz = vertrag.ende && vertrag.ende < heute ? vertrag.ende : heute;
   // Ein unbekannter Mietbeginn zählt wie ein beliebig weit zurückliegendes Datum — es bleibt
   // also bei buchhaltungAb, falls gesetzt. Ist auch das nicht gesetzt, fehlt jeder Referenzpunkt
-  // und es lässt sich kein Soll berechnen (kommt praktisch nicht vor, da buchhaltungAb global
+  // und es lässt sich kein Soll berechnen (kommt praktisch nicht vor, da der Stichtag des Objekts
   // konfiguriert ist).
   const start =
     vertrag.beginn === null

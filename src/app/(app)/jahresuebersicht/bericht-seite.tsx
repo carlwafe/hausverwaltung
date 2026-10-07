@@ -14,9 +14,14 @@ import { kontostandAmStichtag } from "@/lib/kontostand";
 import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-form";
 import { mieterName } from "@/lib/mieter-name";
 import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
+import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
+}
+
+function formatDatum(d: Date) {
+  return new Intl.DateTimeFormat("de-DE").format(d);
 }
 
 // Berichtszeitraum: das ganze Jahr (quartal = 0, Jahresübersicht) oder ein Quartal (1–4,
@@ -317,6 +322,8 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     kaltmiete: Number(v.kaltmiete),
     nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
     mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
+    // Stichtag je Vertrag: eigener (früherer) oder der des Objekts.
+    buchhaltungAb: effektiverStichtag(v, objekt),
     saldovortrag: Number(v.saldovortrag),
     mieterhoehungen: v.mieterhoehungen.map((m) => ({
       gueltigAb: m.gueltigAb,
@@ -344,7 +351,7 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
               })),
             },
             { zeitraumVon: p.zeitraumVon, zeitraumBis: p.zeitraumBis, vorauszahlungGesamt: Number(p.vorauszahlungGesamt) },
-            objekt?.buchhaltungAb ?? null,
+            effektiverStichtag(v, objekt),
           )
         : 0,
     })),
@@ -368,14 +375,18 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     ).map((k) => k.mietvertragId),
   );
 
-  return berechneMieterBericht(
-    vertraege,
-    zeitraum,
-    objekt?.buchhaltungAb ?? null,
-    objekt?.buchhaltungBis ?? null,
-    mitKommentar,
-  )
-    .map((z) => ({ ...z, einheitRang: einheitRang.get(z.mietvertragId) ?? 0 }))
+  // Verträge mit eigenem, vom Objekt abweichendem Stichtag — in der Tabelle gekennzeichnet, weil die
+  // Summenzeilen dann unterschiedliche Stichtage mischen.
+  const abweichenderStichtag = new Map(
+    vertraegeRaw.filter((v) => hatEigenenStichtag(v, objekt)).map((v) => [v.id, formatDatum(v.buchhaltungAb!)]),
+  );
+
+  return berechneMieterBericht(vertraege, zeitraum, objekt?.buchhaltungBis ?? null, mitKommentar)
+    .map((z) => ({
+      ...z,
+      einheitRang: einheitRang.get(z.mietvertragId) ?? 0,
+      eigenerStichtag: abweichenderStichtag.get(z.mietvertragId) ?? null,
+    }))
     .sort((a, b) => a.einheitRang - b.einheitRang);
 }
 
@@ -460,6 +471,13 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             Jahr künstlich ins Plus zu ziehen.
           </p>
           <p className="mb-3 text-sm text-neutral-400">
+            Soll, Miete und Saldo rechnen ab dem Buchhaltungs-Stichtag des Objekts. Einzelne Mietverträge
+            können einen früheren eigenen Stichtag haben (Mietvertrag bearbeiten → „Buchhaltung ab“), wenn
+            ab diesem Datum alle Zahlungen vollständig erfasst sind; sie sind in der Tabelle mit „Stichtag …“
+            gekennzeichnet und rechnen auch ihre früheren Jahre. Die Summenzeile mischt dann
+            unterschiedliche Stichtage.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
             Mieter ohne Bewegung und mit Saldo 0 werden ausgeblendet — außer sie haben einen
             Kommentar: Diese Zeilen bleiben sichtbar, damit der Kommentar zum Abgleich mit dem früheren
             Verwalter erhalten bleibt (z.B. ein dort noch offener Rückstand, der in der App längst
@@ -486,6 +504,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             saldoNeu: z.saldoNeu,
             verifiziert: verifizierteIds.has(z.mietvertragId),
             kommentar: kommentarNachMietvertrag.get(z.mietvertragId) ?? "",
+            eigenerStichtag: z.eigenerStichtag,
           }))}
           jahr={jahr}
           quartal={quartal}

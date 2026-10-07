@@ -23,18 +23,26 @@ type Initial = {
   kautionAnlageform?: string;
   kautionEinzahlungUnbekannt?: boolean;
   saldovortrag?: string;
+  // Eigener Buchhaltungs-Stichtag (yyyy-mm-dd), leer = der des Objekts.
+  buchhaltungAb?: string;
   zahlungsweg?: string;
 };
+
+// yyyy-mm-dd → dd.mm.yyyy für Hinweistexte.
+const deutschesDatum = (iso: string) => iso.split("-").reverse().join(".");
 
 export function MietvertragForm({
   einheiten,
   mieter,
   initial,
+  objektStichtag = "",
   action,
 }: {
   einheiten: EinheitOption[];
   mieter: Option[];
   initial?: Initial;
+  // Buchhaltungs-Stichtag des Objekts (yyyy-mm-dd), "" = keiner gesetzt.
+  objektStichtag?: string;
   action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -64,6 +72,7 @@ export function MietvertragForm({
     initial?.kautionEinzahlungUnbekannt ?? false,
   );
   const [saldovortrag, setSaldovortrag] = useState(initial?.saldovortrag ?? "0");
+  const [buchhaltungAb, setBuchhaltungAb] = useState(initial?.buchhaltungAb ?? "");
   const [zahlungsweg, setZahlungsweg] = useState(initial?.zahlungsweg ?? "");
 
   return (
@@ -246,6 +255,49 @@ export function MietvertragForm({
         </p>
       </div>
 
+      <div className="rounded-md border border-neutral-800 p-4">
+        <DateInput
+          id="buchhaltungAb"
+          name="buchhaltungAb"
+          label="Buchhaltung ab (optional)"
+          value={buchhaltungAb}
+          onChange={setBuchhaltungAb}
+        />
+        <p className="mt-2 text-xs text-neutral-400">
+          Leer = Buchhaltungs-Stichtag des Objekts{objektStichtag ? ` (${deutschesDatum(objektStichtag)})` : ""}. Nur
+          setzen, wenn ab diesem Datum <strong>alle</strong> Zahlungen und Sonderbuchungen (Gebühren, Verrechnungen)
+          dieses Vertrags vollständig erfasst sind — dann rechnen Jahres-/Quartalsübersicht, Offene Posten und
+          Mieterkonto dieses Vertrags auch die früheren Jahre. Der Saldovortrag gilt dann zu diesem Datum. Nur
+          früher als der Stichtag des Objekts möglich; empfohlen ist ein Monatserster (Soll und Zahlungen zählen
+          monatsweise).
+        </p>
+        {buchhaltungAb !== "" && objektStichtag !== "" && buchhaltungAb >= objektStichtag && (
+          <p className="mt-2 text-xs text-red-400">
+            Muss früher sein als der Stichtag des Objekts ({deutschesDatum(objektStichtag)}) — sonst Feld leer lassen.
+          </p>
+        )}
+        {buchhaltungAb !== "" && buchhaltungAb.slice(8) !== "01" && (
+          <p className="mt-2 text-xs text-amber-300">
+            Kein Monatserster: das Soll zählt den Monat des Stichtags voll, Sonderbuchungen aber erst ab dem
+            genauen Tag.
+          </p>
+        )}
+        {(() => {
+          const bisher = initial?.buchhaltungAb || objektStichtag;
+          const neu = buchhaltungAb || objektStichtag;
+          if (neu === bisher || Number(saldovortrag) === 0) return null;
+          return (
+            <p className="mt-2 text-xs text-amber-300">
+              {bisher ? `Der Stichtag ändert sich von ${deutschesDatum(bisher)} auf ` : "Der Stichtag ist jetzt "}
+              {neu ? deutschesDatum(neu) : "„keiner“ (Mietbeginn)"}. Der Saldovortrag ({saldovortrag} €){" "}
+              {bisher ? `galt bisher zum ${deutschesDatum(bisher)} und ` : ""}muss jetzt zum neuen Stichtag
+              passen — bei vollständiger Erfassung ab dem neuen Stichtag meist 0, sonst der Saldo zu diesem Datum
+              aus dem Verwalterbericht („Saldo alt“). Sonst wird er doppelt bzw. falsch gerechnet.
+            </p>
+          );
+        })()}
+      </div>
+
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="saldovortrag">
           Saldovortrag (€)
@@ -260,9 +312,9 @@ export function MietvertragForm({
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
         <p className="mt-1 text-xs text-neutral-400">
-          Endsaldo aus der Zeit vor dem Buchhaltungs-Stichtag (z.B. aus einem extern
-          abgeschlossenen Jahresbericht) — negativ = Rückstand, positiv = Guthaben. Fließt fix in
-          die Offene-Posten-Berechnung ein.
+          Endsaldo aus der Zeit vor dem Buchhaltungs-Stichtag dieses Vertrags (eigener Stichtag oben, sonst der
+          des Objekts; z.B. aus einem extern abgeschlossenen Jahresbericht) — negativ = Rückstand, positiv =
+          Guthaben. Fließt fix in die Offene-Posten-Berechnung ein.
         </p>
       </div>
 

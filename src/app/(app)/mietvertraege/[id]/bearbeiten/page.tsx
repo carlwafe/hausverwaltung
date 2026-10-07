@@ -39,7 +39,7 @@ export default async function MietvertragBearbeitenPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [vertrag, einheitenRaw, mieter] = await Promise.all([
+  const [vertrag, einheitenRaw, mieter, objekt] = await Promise.all([
     prisma.mietvertrag.findUnique({
       where: { id },
       include: {
@@ -52,6 +52,7 @@ export default async function MietvertragBearbeitenPage({
     }),
     prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
+    prisma.objekt.findFirst({ select: { buchhaltungAb: true } }),
   ]);
   if (!vertrag) notFound();
 
@@ -106,8 +107,10 @@ export default async function MietvertragBearbeitenPage({
           kautionAnlageform: vertrag.kaution?.anlageform ?? "KAUTIONSKONTO",
           kautionEinzahlungUnbekannt: vertrag.kaution?.einzahlungUnbekannt ?? false,
           saldovortrag: vertrag.saldovortrag.toString(),
+          buchhaltungAb: toDateInputValue(vertrag.buchhaltungAb),
           zahlungsweg: vertrag.zahlungsweg ?? "",
         }}
+        objektStichtag={toDateInputValue(objekt?.buchhaltungAb)}
         action={updateMietvertrag.bind(null, id)}
       />
 

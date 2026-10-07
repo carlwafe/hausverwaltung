@@ -24,7 +24,7 @@ export function MieterkontoAnsicht({
   mietvertragId: string;
   jahr: number;
   konto: MieterkontoJahr;
-  // Jahr des Buchhaltungs-Stichtags: davor ist der Übertrag reine Darstellung (beginnt bei 0).
+  // Jahr des (vertragseigenen oder globalen) Buchhaltungs-Stichtags: davor ist der Übertrag reine Darstellung (beginnt bei 0).
   stichtagAb: { jahr: number; datum: string } | null;
 }) {
   const vorStichtag = stichtagAb !== null && jahr < stichtagAb.jahr;
@@ -49,7 +49,7 @@ export function MieterkontoAnsicht({
 
       {vorStichtag && (
         <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-          Vor dem Buchhaltungs-Stichtag ({stichtagAb.datum}): reine Darstellung der Soll- und Zahlungsbewegungen. Der
+          Vor dem Buchhaltungs-Stichtag dieses Vertrags ({stichtagAb.datum}): reine Darstellung der Soll- und Zahlungsbewegungen. Der
           Übertrag beginnt hier bei 0 und ist nicht der Saldovortrag des Mietvertrags.
         </p>
       )}

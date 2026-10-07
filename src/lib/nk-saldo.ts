@@ -23,6 +23,9 @@ const monatsIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
  * `saldo + unbezahlteNkVorauszahlung` (= NK-Soll − Kosten); so bucht es auch der Verwalter.
  *
  * Keine Gegenrechnung (0) vor Buchhaltungsbeginn — dort stehen weder Soll noch Zahlungen im Mietsaldo.
+ * `buchhaltungAb` ist der wirksame Stichtag des Vertrags (eigener oder der des Objekts, siehe
+ * effektiverStichtag in buchhaltung-stichtag.ts): Hat ein Vertrag einen früheren eigenen Stichtag, gilt die
+ * Gegenrechnung auch für Abrechnungen ab diesem Datum.
  * Für manuelle Positionen (`details = null`) nicht aufrufen: deren Vorauszahlung ist von Hand
  * eingetragen (Verwalter-Betrag bzw. Platzhalter 0) und hat keine Beziehung zu den Zahlungen.
  */
