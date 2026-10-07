@@ -13,21 +13,36 @@ export function VerwalterAbgleichStern({
   stimmt: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  // Zustand lokal halten und sofort umschalten; die Aktion speichert nur und meldet den tatsächlichen
+  // Zustand zurück (kein Neuberechnen der Abrechnung, siehe actions.ts).
+  const [an, setAn] = useState(stimmt);
+
+  function umschalten() {
+    setAn((vorher) => !vorher);
+    startTransition(async () => {
+      try {
+        setAn(await toggleNkVerwalterAbgleich(abrechnungId, mietvertragId));
+      } catch {
+        setAn(stimmt);
+      }
+    });
+  }
+
   return (
     <button
       type="button"
       title={
-        stimmt
+        an
           ? "Berechnung stimmt mit der des Verwalters überein — klicken zum Entfernen"
           : "Markieren: Berechnung stimmt mit der des Verwalters überein"
       }
-      onClick={() => startTransition(() => toggleNkVerwalterAbgleich(abrechnungId, mietvertragId))}
+      onClick={umschalten}
       disabled={isPending}
       className={`text-base leading-none disabled:opacity-50 ${
-        stimmt ? "text-amber-400 hover:text-amber-300" : "text-neutral-700 hover:text-neutral-400"
+        an ? "text-amber-400 hover:text-amber-300" : "text-neutral-700 hover:text-neutral-400"
       }`}
     >
-      {stimmt ? "★" : "☆"}
+      {an ? "★" : "☆"}
     </button>
   );
 }

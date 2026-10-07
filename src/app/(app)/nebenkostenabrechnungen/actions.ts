@@ -671,17 +671,21 @@ export const speichereTechemAllgemeinstromAnteil = mitMeldung(async function spe
 });
 
 // Stern "Berechnung stimmt mit der des Verwalters überein" pro Mietvertrag einer Abrechnung.
-export async function toggleNkVerwalterAbgleich(abrechnungId: string, mietvertragId: string) {
+// Liefert den neuen Zustand zurück. Bewusst kein revalidatePath: Es würde die ganze Abrechnung samt
+// Engine-Berechnung neu rechnen (Vercel-CPU), nur um einen Stern umzuschalten — der Stern hält seinen
+// Zustand selbst (VerwalterAbgleichStern).
+export async function toggleNkVerwalterAbgleich(abrechnungId: string, mietvertragId: string): Promise<boolean> {
   await requireEditor();
   const bestehend = await prisma.nebenkostenabrechnungPruefung.findUnique({
     where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },
   });
+  const neu = !(bestehend?.stimmtMitVerwalter ?? false);
   await prisma.nebenkostenabrechnungPruefung.upsert({
     where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },
     create: { abrechnungId, mietvertragId, stimmtMitVerwalter: true },
-    update: { stimmtMitVerwalter: !(bestehend?.stimmtMitVerwalter ?? false) },
+    update: { stimmtMitVerwalter: neu },
   });
-  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+  return neu;
 }
 
 // Kurzer, frei eingegebener Kommentar pro Mietvertrag einer Abrechnung (leer = entfernt).
@@ -693,7 +697,7 @@ export async function speichereNkKommentar(abrechnungId: string, mietvertragId: 
     create: { abrechnungId, mietvertragId, kommentar: text },
     update: { kommentar: text },
   });
-  revalidatePath(`/nebenkostenabrechnungen/${abrechnungId}`);
+  // Kein revalidatePath (rechnet sonst die ganze Abrechnung neu) — das Feld hält seinen Text selbst.
 }
 
 // Abweichende Gesamtwohnfläche eines Kostenkreises, wie sie der Verwalter angesetzt hat. Je nach

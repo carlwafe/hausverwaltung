@@ -326,6 +326,7 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
       render: (p) =>
         p.mietvertragId ? (
           <VerwalterAbgleichStern
+            key={`${p.abrechnungId}-${p.mietvertragId}-${p.stimmtMitVerwalter}`}
             abrechnungId={p.abrechnungId}
             mietvertragId={p.mietvertragId}
             stimmt={p.stimmtMitVerwalter}
