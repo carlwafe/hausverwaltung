@@ -343,35 +343,35 @@ export default async function MietvertragDetailPage({
         )}
       />
 
-      <div className="my-4 grid grid-cols-4 gap-4">
-        <div className="rounded-lg border border-neutral-800 p-4">
+      <div className="my-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
           <p className="text-xs text-neutral-400">
             Soll ({stichtagAb ? `seit Buchhaltungs-Stichtag${eigenerStichtag ? ` ${formatDate(stichtagAb)}` : ""}` : "seit Mietbeginn"}, bis{" "}
             {formatDate(bis)})
           </p>
-          <p className="mt-1 text-lg font-semibold text-white">{formatEuro(soll)}</p>
+          <p className="mt-1 text-base font-semibold sm:text-lg text-white">{formatEuro(soll)}</p>
         </div>
-        <div className="rounded-lg border border-neutral-800 p-4">
+        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
           <p className="text-xs text-neutral-400">
             Ist (erhaltene Zahlungen{stichtagAb ? " seit Stichtag" : ""}, bis{" "}
             {formatDate(bis)})
           </p>
-          <p className="mt-1 text-lg font-semibold text-white">{formatEuro(ist)}</p>
+          <p className="mt-1 text-base font-semibold sm:text-lg text-white">{formatEuro(ist)}</p>
         </div>
-        <div className="rounded-lg border border-neutral-800 p-4">
+        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
           <p className="text-xs text-neutral-400">
             Saldovortrag ({stichtagAb ? `zum Stichtag${eigenerStichtag ? ` ${formatDate(stichtagAb)}` : ""}` : "vor Stichtag"})
           </p>
           <p
-            className={`mt-1 text-lg font-semibold ${saldovortrag < 0 ? "text-red-400" : saldovortrag > 0 ? "text-green-400" : "text-white"}`}
+            className={`mt-1 text-base font-semibold sm:text-lg ${saldovortrag < 0 ? "text-red-400" : saldovortrag > 0 ? "text-green-400" : "text-white"}`}
           >
             {formatEuro(saldovortrag)}
           </p>
         </div>
-        <div className="rounded-lg border border-neutral-800 p-4">
+        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
           <p className="text-xs text-neutral-400">Saldo</p>
           <p
-            className={`mt-1 text-lg font-semibold ${saldo < 0 ? "text-red-400" : saldo > 0 ? "text-green-400" : "text-white"}`}
+            className={`mt-1 text-base font-semibold sm:text-lg ${saldo < 0 ? "text-red-400" : saldo > 0 ? "text-green-400" : "text-white"}`}
           >
             {formatEuro(saldo)}
           </p>
