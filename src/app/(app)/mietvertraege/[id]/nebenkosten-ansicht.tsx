@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { saldoMitToleranz } from "@/lib/nk-saldo";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
-import { VorauszahlungAnpassung, type VorauszahlungBriefDaten } from "./vorauszahlung-anpassung";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -131,13 +130,13 @@ export function NebenkostenAnsicht({
   daten,
   jahr,
   kopf,
-  vorauszahlungBrief,
+  mietvertragId,
 }: {
   daten: NkJahrDaten | null;
   jahr: number | null;
   kopf: { mieter: string; einheit: string; wohnflaeche: number };
-  // Nur bei der neuesten Abrechnung gesetzt: Vorschlag + Schreiben zur Anpassung der Vorauszahlung.
-  vorauszahlungBrief: VorauszahlungBriefDaten | null;
+  // Nur bei der neuesten Abrechnung gesetzt: Link zur Seite für Vorschlag + Schreiben zur Anpassung der Vorauszahlung.
+  mietvertragId: string | null;
 }) {
   if (!daten) {
     return (
@@ -350,15 +349,14 @@ export function NebenkostenAnsicht({
           </table>
         </>
       )}
-      {vorauszahlungBrief && daten.neueVorauszahlung && (
-        <VorauszahlungAnpassung
-          jahr={daten.jahr}
-          zeitraumVon={daten.zeitraumVon}
-          zeitraumBis={daten.zeitraumBis}
-          kostenanteilGesamt={daten.kostenanteilGesamt}
-          anteileJahr={daten.details.map((d) => d.anteilJahr)}
-          brief={vorauszahlungBrief}
-        />
+      {mietvertragId && daten.neueVorauszahlung && (
+        <Link
+          prefetch={false}
+          href={`/mietvertraege/${mietvertragId}/nk-anpassung`}
+          className="mt-4 inline-block rounded-md border border-neutral-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+        >
+          Vorauszahlung anpassen &amp; Schreiben erstellen →
+        </Link>
       )}
       <p className="mt-3 text-xs italic text-neutral-500">
         Ein Guthaben wird entweder ausgezahlt oder mit der Miete verrechnet (§ 387 BGB, dem Mieter schriftlich mitzuteilen

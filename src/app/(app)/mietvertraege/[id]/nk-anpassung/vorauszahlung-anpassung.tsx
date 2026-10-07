@@ -4,8 +4,13 @@ import { useActionState, useEffect, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { runFormAction } from "@/lib/form-utils";
 import { ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "@/lib/soll-ist";
-import { schlageVorauszahlungVor, vorgeschlagenesGueltigAb } from "@/lib/vorauszahlung-vorschlag";
-import { passeNkVorauszahlungAn } from "../actions";
+import {
+  STANDARD_ZUSCHLAG_GRUND,
+  STANDARD_ZUSCHLAG_PROZENT,
+  schlageVorauszahlungVor,
+  vorgeschlagenesGueltigAb,
+} from "@/lib/vorauszahlung-vorschlag";
+import { passeNkVorauszahlungAn } from "../../actions";
 import { mieterName } from "@/lib/mieter-name";
 import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
 import { MandatKlammer, mandatTeile, type MandatDaten } from "@/components/mandat-klammer";
@@ -29,11 +34,6 @@ function ausIso(iso: string): Date | null {
 
 // Absender wird nur im Browser gemerkt (steht nirgends in den Stammdaten) — reine Bequemlichkeit.
 const ABSENDER_KEY = "nk-schreiben-absender";
-
-// Standard-Zuschlag auf die rechnerische Vorauszahlung (Entscheidung des Eigentümers) — je Schreiben
-// änderbar, 0 = kein Zuschlag. Rechtlich angreifbar, siehe Hinweis in vorauszahlung-vorschlag.ts.
-const STANDARD_ZUSCHLAG_PROZENT = "3";
-const STANDARD_ZUSCHLAG_GRUND = "allgemein steigende Energie- und Betriebskosten";
 
 export type VorauszahlungBriefDaten = {
   mietvertragId: string;
@@ -156,9 +156,7 @@ export function VorauszahlungAnpassung({
   const mandatAngaben = mandatTeile(brief.mandat);
 
   return (
-    <div className="mt-6 rounded-lg border border-neutral-800 p-4">
-      <h3 className="mb-3 text-sm font-medium text-white">Vorauszahlung anpassen &amp; Schreiben an den Mieter</h3>
-
+    <div>
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
           <table className="w-full text-sm">
@@ -317,7 +315,7 @@ export function VorauszahlungAnpassung({
           )}
           <SchreibenAblegen
             mietvertragId={brief.mietvertragId}
-            revalidatePath={`/mietvertraege/${brief.mietvertragId}`}
+            revalidatePath={`/mietvertraege/${brief.mietvertragId}/nk-anpassung`}
             belegDatumIso={briefdatumIso}
             kopien={brief.kopien}
           />

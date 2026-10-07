@@ -12,6 +12,7 @@ const STAMMDATEN: NavLink[] = [
   { href: "/mieter", label: "Mieter" },
   { href: "/mietvertraege", label: "Mietverträge" },
   { href: "/mietvertraege/moegliche-erhoehungen", label: "Mieterhöhung" },
+  { href: "/mietvertraege/nk-anpassung", label: "NK-Anpassung" },
   { href: "/einheiten", label: "Einheiten" },
   { href: "/einheiten/zeitachse", label: "Zeitachse" },
   { href: "/gebaeude", label: "Gebäude" },

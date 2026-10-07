@@ -218,6 +218,8 @@ export async function deleteMietvertrag(id: string) {
 
 function revalidateNachMieterhoehung(mietvertragId: string) {
   revalidatePath(`/mietvertraege/${mietvertragId}`);
+  revalidatePath(`/mietvertraege/${mietvertragId}/nk-anpassung`);
+  revalidatePath("/mietvertraege/nk-anpassung");
   revalidatePath("/mietvertraege");
   revalidatePath("/offene-posten");
   revalidatePath("/");

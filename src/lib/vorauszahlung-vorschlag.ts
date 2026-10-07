@@ -7,6 +7,11 @@
 // absehbaren Kostensteigerungen (z.B. angekündigte Preiserhöhung des Versorgers), deren Grund dann im
 // Schreiben steht. Folge eines zu hohen Ansatzes: nur der überhöhte Teil ist unwirksam.
 
+// Standard-Zuschlag auf die rechnerische Vorauszahlung (Entscheidung des Eigentümers) — je Schreiben
+// änderbar, 0 = kein Zuschlag. Als Text, weil er in ein Eingabefeld vorbelegt wird.
+export const STANDARD_ZUSCHLAG_PROZENT = "3";
+export const STANDARD_ZUSCHLAG_GRUND = "allgemein steigende Energie- und Betriebskosten";
+
 export type VorauszahlungVorschlagEingabe = {
   jahr: number;
   zeitraumVon: Date;

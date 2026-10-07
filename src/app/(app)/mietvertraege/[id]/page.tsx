@@ -16,7 +16,6 @@ import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
 import { saldoMitToleranz, unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
-import { ladeLastschriftMandat } from "@/lib/lastschrift-mandat";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
 function formatEuro(value: number) {
@@ -213,13 +212,6 @@ export default async function MietvertragDetailPage({
     .map(Number)
     .sort((a, b) => b - a);
 
-  // Das Anpassungsschreiben (nur beim neuesten Jahr mit Vorschlag) nennt bei Lastschrift Mandatsreferenz und
-  // Gläubiger-ID aus der Bankzeile der letzten Lastschrift — nur dann laden, wenn das Schreiben gebraucht wird.
-  const mandat =
-    nkJahre.length > 0 && nkDaten[nkJahre[0]].neueVorauszahlung && vertrag.zahlungsweg !== "UEBERWEISUNG"
-      ? await ladeLastschriftMandat(vertrag.id)
-      : null;
-
   // Reiter "Kautionsabrechnung": alle Kautionsbuchungen des Vertrags (Einbehalte kommen aus den
   // KautionEinbehalt-Zeilen, damit auch strittige ohne Journalbuchung erscheinen).
   const kautionBuchungen = await prisma.buchung.findMany({
@@ -391,26 +383,6 @@ export default async function MietvertragDetailPage({
         }
         nkJahre={nkJahre}
         nkDaten={nkDaten}
-        vorauszahlungBrief={{
-          mietvertragId: vertrag.id,
-          mieter: vertrag.mieter.map((m) => ({ anrede: m.anrede, vorname: m.vorname, nachname: m.nachname })),
-          strasse: `${vertrag.einheit.gebaeude.strasse} ${vertrag.einheit.gebaeude.hausnummer}`,
-          plzOrt: `${vertrag.einheit.gebaeude.objekt.plz} ${vertrag.einheit.gebaeude.objekt.ort}`,
-          einheit: vertrag.einheit.bezeichnung,
-          vertrag: vertragFuerSollIst,
-          mehrwertsteuer: vertragFuerSollIst.mehrwertsteuer,
-          jobcenter: vertrag.mieter.some((m) => m.buergergeldEmpfaenger),
-          zahlungsweg: vertrag.zahlungsweg,
-          mandat,
-          kopien: vertrag.dokumente
-            .filter((d) => d.art === "SCHREIBEN")
-            .map((d) => ({
-              id: d.id,
-              dateiname: d.dateiname,
-              belegDatum: d.belegDatum?.toISOString() ?? null,
-              createdAt: d.createdAt.toISOString(),
-            })),
-        }}
         kaution={{
           konto: kautionskonto,
           anlageform: vertrag.kaution ? ANLAGEFORM_LABEL[vertrag.kaution.anlageform] ?? vertrag.kaution.anlageform : null,
