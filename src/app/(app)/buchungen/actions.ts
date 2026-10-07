@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
-import { mitMeldung } from "@/lib/aktion";
+import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { storniereBuchung } from "@/lib/buchung-storno";
+import { MAX_BUCHUNG_KOMMENTAR, uebernehmeBuchungKommentar } from "@/lib/buchung-kommentar";
 import { ermittleBuchungsartGruppe } from "@/lib/import/buchung-klassifizierung";
 
 // Umbuchung: die Buchung wird storniert und mit anderer Buchungsart neu angelegt (Storno-Prinzip —
@@ -80,6 +81,7 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
     });
     // Belege gehören zur Buchung, nicht zum Journal — sie ziehen auf die neue Buchung um.
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: angelegt.id } });
+    await uebernehmeBuchungKommentar(tx, id, angelegt.id);
     await storniereBuchung(tx, id, erstelltVon);
     return angelegt;
   });
@@ -102,4 +104,34 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
   }
   if (neu.mietvertragId) revalidatePath(`/mietvertraege/${neu.mietvertragId}`);
   redirect(rueckPfad);
+});
+
+// Kommentar zu einer einzelnen Buchung (Detailseite der Zahlung). Buchungen selbst sind
+// unveränderlich, der Kommentar liegt deshalb in einer eigenen Tabelle (BuchungKommentar); leerer Text
+// entfernt ihn. Gibt null bei Erfolg zurück, sonst die Meldung für den Nutzer.
+// Bewusst kein revalidatePath: Das Feld hält seinen Text selbst, ein Neurendern der Seite wäre nur
+// Vercel-CPU für nichts (die Seite lädt bei jedem Aufruf ohnehin frisch).
+export const speichereBuchungKommentar = mitMeldung(async function speichereBuchungKommentar(
+  buchungId: string,
+  text: string,
+): Promise<string | null> {
+  const user = await requireEditor();
+  const bereinigt = text.trim();
+  if (bereinigt.length > MAX_BUCHUNG_KOMMENTAR) {
+    throw new AktionsFehler(`Der Kommentar darf höchstens ${MAX_BUCHUNG_KOMMENTAR} Zeichen lang sein.`);
+  }
+  const buchung = await prisma.buchung.findUnique({ where: { id: buchungId }, select: { id: true } });
+  if (!buchung) throw new AktionsFehler("Buchung nicht gefunden.");
+
+  if (!bereinigt) {
+    await prisma.buchungKommentar.deleteMany({ where: { buchungId } });
+    return null;
+  }
+  const geaendertVon = benutzerLabel(user);
+  await prisma.buchungKommentar.upsert({
+    where: { buchungId },
+    create: { buchungId, text: bereinigt, geaendertVon },
+    update: { text: bereinigt, geaendertVon },
+  });
+  return null;
 });

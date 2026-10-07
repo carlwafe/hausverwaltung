@@ -196,12 +196,31 @@ model Buchung {
   dokumente        Dokument[]
   kautionEinbehalt KautionEinbehalt?
   ticketKosten     TicketKosten[]
+  kommentar        BuchungKommentar?
 
   @@index([mietvertragId, datum])
   @@index([buchungsartId])
   @@index([kostenartId])
   @@index([aufteilungGruppeId])
   @@map("buchungen")
+}
+
+// Freitext-Kommentar zu einer einzelnen Buchung (z.B. Hinweis zu einer Zahlung; erfasst auf der
+// Detailseite unter /zahlungen/[id]). Eigene Tabelle, weil Buchungen unveränderlich sind (DB-Trigger
+// buchungen_unveraenderbar): ein Textfeld an der Buchung ließe sich nachträglich nicht setzen. Höchstens
+// einer je Buchung. Bei "Bearbeiten"/"Umbuchen"/"Aufteilen" (Storno + Neuanlage) wird der Kommentar auf die
+// neue Buchung kopiert (uebernehmeBuchungKommentar, src/lib/buchung-kommentar.ts); an der stornierten
+// Original-Buchung bleibt er als Historie stehen.
+model BuchungKommentar {
+  id             String   @id @default(cuid())
+  buchung        Buchung  @relation(fields: [buchungId], references: [id], onDelete: Cascade)
+  buchungId      String   @unique
+  text           String
+  // Benutzerkennung (benutzerLabel) des Nutzers, der den Text zuletzt gespeichert hat.
+  geaendertVon   String?
+  aktualisiertAm DateTime @updatedAt
+
+  @@map("buchung_kommentare")
 }
 
 model User {

@@ -7,6 +7,8 @@ import { AufteilenForm } from "../aufteilen-form";
 import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
 import { BuchungsartInfo } from "@/components/buchungsart-info";
+import { BuchungKommentar } from "@/components/buchung-kommentar";
+import { getCurrentUser } from "@/lib/session";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
@@ -18,19 +20,39 @@ function formatEuro(value: number) {
 
 export default async function ZahlungDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [zahlung, vertraege, kostenarten] = await Promise.all([
+  const [zahlung, vertraege, kostenarten, user] = await Promise.all([
     prisma.buchung.findUnique({
       where: { id, buchungsart: { code: { in: ["MIETZAHLUNG", "SONDERZAHLUNG", "MAHNGEBUEHR"] } } },
-      include: { mietvertrag: { include: { einheit: true, mieter: true } }, buchungsart: { select: { code: true } } },
+      include: {
+        mietvertrag: { include: { einheit: true, mieter: true } },
+        buchungsart: { select: { code: true } },
+        kommentar: true,
+      },
     }),
     prisma.mietvertrag.findMany({
       where: { status: { in: ["AKTIV", "BEENDET"] } },
       include: { einheit: true, mieter: true },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
+    getCurrentUser(),
   ]);
   if (!zahlung || !zahlung.mietvertrag || !zahlung.datum) notFound();
   vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));
+
+  // Kommentar zur Buchung (eigene Tabelle, Buchungen sind unveränderlich): in allen drei Ansichten
+  // gleich; Gäste sehen ihn nur.
+  const kommentarBox = (
+    <BuchungKommentar
+      buchungId={id}
+      kommentar={zahlung.kommentar?.text ?? ""}
+      letzteAenderung={
+        zahlung.kommentar
+          ? `am ${new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" }).format(zahlung.kommentar.aktualisiertAm)}${zahlung.kommentar.geaendertVon ? ` von ${zahlung.kommentar.geaendertVon}` : ""}`
+          : ""
+      }
+      bearbeitbar={user?.role !== "GAST"}
+    />
+  );
 
   // Gebühren-Forderung (MAHNGEBUEHR): kein Geldfluss, keine Umbuchung möglich (nur zahlungswirksame
   // Buchungsarten lassen sich umbuchen, siehe aendereBuchungsart) — nur ansehen oder stornieren.
@@ -72,6 +94,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
               : "ohne Geldfluss, ausgeglichen erst durch eine Gebühren-Zahlung."}
           </p>
         </div>
+        {kommentarBox}
       </div>
     );
   }
@@ -110,6 +133,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
             mit den offenen Sonderforderungen.
           </p>
         </div>
+        {kommentarBox}
         <BuchungsartAendern
           buchungId={id}
           aktuellerCode="SONDERZAHLUNG"
@@ -176,6 +200,8 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
         }}
         action={updateZahlung.bind(null, id)}
       />
+
+      {kommentarBox}
 
       <BuchungsartAendern
         buchungId={id}

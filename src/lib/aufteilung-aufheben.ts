@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { AktionsFehler } from "@/lib/aktion";
+import { uebernehmeBuchungKommentar } from "@/lib/buchung-kommentar";
 
 const ZAHLUNG_CODES = ["MIETZAHLUNG", "SONDERZAHLUNG"];
 
@@ -63,7 +64,7 @@ export async function hebeZahlungAufteilungAuf(
     : [];
 
   await prisma.$transaction(async (tx) => {
-    await tx.buchung.create({
+    const zusammengefuehrt = await tx.buchung.create({
       data: {
         mietvertragId: vorlage.mietvertragId,
         buchungsartId: vorlage.buchungsartId,
@@ -77,6 +78,7 @@ export async function hebeZahlungAufteilungAuf(
         erstelltVon,
       },
     });
+    await uebernehmeBuchungKommentar(tx, vorlage.id, zusammengefuehrt.id);
     for (const teil of gruppe) {
       await storniereBuchung(tx, teil.id, erstelltVon);
     }

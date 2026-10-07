@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { uebernehmeBuchungKommentar } from "@/lib/buchung-kommentar";
 import { hebeZahlungAufteilungAuf as hebeZahlungAufteilungAufLib } from "@/lib/aufteilung-aufheben";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
@@ -165,7 +166,7 @@ export const updateZahlung = mitMeldung(async function updateZahlung(id: string,
   const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     await storniereBuchung(tx, id, erstelltVon);
-    await tx.buchung.create({
+    const neu = await tx.buchung.create({
       data: {
         ...rest,
         buchungsartId: bisherige.buchungsartId,
@@ -176,6 +177,7 @@ export const updateZahlung = mitMeldung(async function updateZahlung(id: string,
         erstelltVon,
       },
     });
+    await uebernehmeBuchungKommentar(tx, id, neu.id);
   });
 
   revalidatePath("/zahlungen");
@@ -320,8 +322,10 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
 
   const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
+    // Zahlungsteile (Miete, Gebühren-Zahlung): zeigen den Kommentar der Ursprungszahlung weiter an.
+    const zahlungsTeilIds: string[] = [];
     for (const teil of mieteTeile) {
-      await tx.buchung.create({
+      const angelegt = await tx.buchung.create({
         data: {
           mietvertragId: teil.mietvertragId,
           buchungsartId: mietzahlungArt.id,
@@ -336,9 +340,10 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           erstelltVon,
         },
       });
+      zahlungsTeilIds.push(angelegt.id);
     }
     for (const teil of sonderTeile) {
-      await tx.buchung.create({
+      const angelegt = await tx.buchung.create({
         data: {
           mietvertragId: teil.mietvertragId,
           buchungsartId: sonderzahlungArt.id,
@@ -351,6 +356,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           erstelltVon,
         },
       });
+      zahlungsTeilIds.push(angelegt.id);
     }
     for (const teil of kautionTeile) {
       await tx.buchung.create({
@@ -400,6 +406,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
         });
       }
     }
+    await uebernehmeBuchungKommentar(tx, id, zahlungsTeilIds);
     await storniereBuchung(tx, id, erstelltVon);
   });
 
