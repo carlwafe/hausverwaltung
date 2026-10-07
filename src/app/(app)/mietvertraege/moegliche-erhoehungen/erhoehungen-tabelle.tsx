@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/data-table";
 
 export type ErhoehungZeile = {
@@ -151,12 +152,71 @@ const columns: Column<ErhoehungZeile>[] = [
   },
 ];
 
-export function ErhoehungenTabelle({ rows }: { rows: ErhoehungZeile[] }) {
+const PROZENT_STUFEN = [1, 2, 3, 5];
+const EURO_STUFEN = [5, 10, 15, 20];
+
+const selectKlasse =
+  "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
+
+export function ErhoehungenTabelle({ alle }: { alle: ErhoehungZeile[] }) {
+  // Filter "lohnt sich die Erhöhung?": Mindest-Änderung in % und/oder Mindest-Erhöhung in € (die
+  // abgerundete Vorschau-Erhöhung). Standard = alle, nichts wird von selbst ausgeblendet. Verträge
+  // ohne Indexwert lassen sich nicht beurteilen und fallen bei aktivem Filter heraus.
+  const [minProzent, setMinProzent] = useState(0);
+  const [minEuro, setMinEuro] = useState(0);
+  const [nurMoeglich, setNurMoeglich] = useState(false);
+
+  const rows = useMemo(
+    () =>
+      alle.filter((z) => {
+        if (nurMoeglich && !z.bereitsMoeglich) return false;
+        if (minProzent > 0 && (z.aenderungProzent === null || z.aenderungProzent < minProzent)) return false;
+        if (minEuro > 0 && (z.neueKalt === null || z.neueKalt - z.aktuelleKalt < minEuro)) return false;
+        return true;
+      }),
+    [alle, minProzent, minEuro, nurMoeglich],
+  );
+  const filterAktiv = minProzent > 0 || minEuro > 0 || nurMoeglich;
+
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      emptyMessage="Keine aktiven Mietverträge mit bekanntem Mietbeginn."
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-400">
+        <label className="flex items-center gap-2">
+          Änderung ab
+          <select value={minProzent} onChange={(e) => setMinProzent(Number(e.target.value))} className={selectKlasse}>
+            <option value={0}>alle</option>
+            {PROZENT_STUFEN.map((p) => (
+              <option key={p} value={p}>
+                {p} %
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          Erhöhung ab
+          <select value={minEuro} onChange={(e) => setMinEuro(Number(e.target.value))} className={selectKlasse}>
+            <option value={0}>alle</option>
+            {EURO_STUFEN.map((e) => (
+              <option key={e} value={e}>
+                {e} € / Monat
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={nurMoeglich} onChange={(e) => setNurMoeglich(e.target.checked)} />
+          nur „jetzt möglich“
+        </label>
+        {filterAktiv && (
+          <span className="text-xs text-neutral-500">
+            {rows.length} von {alle.length} Verträgen
+          </span>
+        )}
+      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+      emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit bekanntem Mietbeginn."}
       defaultSort={{ key: "moeglichAb" }}
       renderFooter={(sichtbar) => {
         const mitNeu = sichtbar.filter((z): z is ErhoehungZeile & { neueKalt: number } => z.neueKalt !== null);
@@ -186,5 +246,6 @@ export function ErhoehungenTabelle({ rows }: { rows: ErhoehungZeile[] }) {
         );
       }}
     />
+    </>
   );
 }

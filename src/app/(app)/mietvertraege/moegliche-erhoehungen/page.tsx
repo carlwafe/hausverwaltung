@@ -116,6 +116,15 @@ export default async function MoeglicheErhoehungenPage() {
             VPI-Werte pflegen
           </Link>
         </p>
+        <p className="mt-2 text-sm text-neutral-400">
+          <span className="text-neutral-300">Filter „Änderung ab“ / „Erhöhung ab“:</span> Faustregel — erst ab etwa
+          2 % bzw. rund 5 € im Monat erhöhen. Kleine Schritte sind für Mieter besser verkraftbar als seltene große
+          Sprünge, ein ausgelassenes Jahr geht aber dauerhaft verloren. Bei einer Änderung unter der Schwelle kann man
+          das Jahr überspringen: Der Basisindex bleibt, die Differenz wird im nächsten Jahr vollständig mit weitergegeben
+          (nur die Miete in der Zwischenzeit ist verloren). Bei Jobcenter-Mietern vorher die Angemessenheitsgrenze
+          prüfen. Die Schwelle ist eine Empfehlung, keine Vorgabe — der Filter ist nur eine Ansicht, nichts wird
+          gespeichert. Verträge ohne Indexwert blenden die Filter aus.
+        </p>
       </div>
 
       <div className="mb-6 rounded-lg border border-neutral-800 p-4">
@@ -125,7 +134,7 @@ export default async function MoeglicheErhoehungenPage() {
         </p>
       </div>
 
-      <ErhoehungenTabelle rows={zeilen} />
+      <ErhoehungenTabelle alle={zeilen} />
     </div>
   );
 }
