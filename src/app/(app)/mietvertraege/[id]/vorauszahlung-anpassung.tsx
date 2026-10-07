@@ -8,12 +8,16 @@ import { schlageVorauszahlungVor, vorgeschlagenesGueltigAb } from "@/lib/vorausz
 import { passeNkVorauszahlungAn } from "../actions";
 import { mieterName } from "@/lib/mieter-name";
 import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
+import { MandatKlammer, mandatTeile, type MandatDaten } from "@/components/mandat-klammer";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+}
+function monatJahr(d: Date) {
+  return new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric" }).format(d);
 }
 function isoDatum(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -43,6 +47,8 @@ export type VorauszahlungBriefDaten = {
   jobcenter: boolean;
   // Aus dem Mietvertrag; null = nicht erfasst → Lastschrift vorbelegt (zahlen die meisten).
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
+  // Mandatsreferenz/Gläubiger-ID aus der Bankzeile der letzten Lastschrift (null = keine gefunden).
+  mandat: MandatDaten | null;
   // Bereits abgelegte Kopien versandter Schreiben (Dokumente der Art „Schreiben“ dieses Vertrags).
   kopien: SchreibenKopie[];
 };
@@ -147,6 +153,7 @@ export function VorauszahlungAnpassung({
   const absenderName = absenderZeilen[0] ?? "";
   const absenderOrt = absenderZeilen.at(-1)?.replace(/^\d{5}\s*/, "") ?? "";
   const gesamt = kaltmieteAb + neuerBetrag + brief.mehrwertsteuer;
+  const mandatAngaben = mandatTeile(brief.mandat);
 
   return (
     <div className="mt-6 rounded-lg border border-neutral-800 p-4">
@@ -275,7 +282,10 @@ export function VorauszahlungAnpassung({
             {zahlungsweg === "LASTSCHRIFT" && (
               <p className="mt-1 text-xs text-neutral-500">
                 Das Schreiben gilt als Vorabankündigung. Nach der Übernahme den neuen Betrag ab „Gültig ab“ auch im
-                Lastschrifteinzug bei der Bank eintragen.
+                Lastschrifteinzug bei der Bank eintragen.{" "}
+                {mandatAngaben.length > 0
+                  ? `Aus der letzten Lastschrift im Journal ins Schreiben übernommen: ${mandatAngaben.join(", ")}.`
+                  : "Im Journal wurde keine Mandatsreferenz gefunden — Mandatsreferenz und Gläubiger-ID fehlen im Schreiben."}
               </p>
             )}
           </div>
@@ -420,9 +430,17 @@ export function VorauszahlungAnpassung({
           )}
           {Math.abs(differenz) >= 0.005 && (
             <p className="mb-4">
-              {zahlungsweg === "LASTSCHRIFT"
-                ? `Den geänderten Betrag ziehe ich ab dem ${gueltigAb ? formatDate(gueltigAb) : "…"} aufgrund des bestehenden SEPA-Lastschriftmandats von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt zugleich als Vorabankündigung (Pre-Notification) des geänderten Lastschriftbetrags.`
-                : `Bitte zahlen Sie ab dem ${gueltigAb ? formatDate(gueltigAb) : "…"} den neuen Betrag und passen Sie einen bestehenden Dauerauftrag entsprechend an.`}
+              {zahlungsweg === "LASTSCHRIFT" ? (
+                <>
+                  Die Gesamtmiete von {formatEuro(gesamt)} ziehe ich erstmals mit der Lastschrift für{" "}
+                  {gueltigAb ? monatJahr(gueltigAb) : "…"} aufgrund des bestehenden SEPA-Lastschriftmandats
+                  <MandatKlammer mandat={brief.mandat} /> von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen.
+                  Dieses Schreiben gilt zugleich als Vorabankündigung (Pre-Notification) des geänderten
+                  Lastschriftbetrags.
+                </>
+              ) : (
+                `Bitte zahlen Sie ab dem ${gueltigAb ? formatDate(gueltigAb) : "…"} die neue Gesamtmiete von ${formatEuro(gesamt)} und passen Sie einen bestehenden Dauerauftrag entsprechend an.`
+              )}
               {brief.jobcenter && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
             </p>
           )}

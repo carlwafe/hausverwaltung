@@ -16,6 +16,7 @@ import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
 import { saldoMitToleranz, unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
+import { ladeLastschriftMandat } from "@/lib/lastschrift-mandat";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -210,6 +211,13 @@ export default async function MietvertragDetailPage({
     .map(Number)
     .sort((a, b) => b - a);
 
+  // Das Anpassungsschreiben (nur beim neuesten Jahr mit Vorschlag) nennt bei Lastschrift Mandatsreferenz und
+  // Gläubiger-ID aus der Bankzeile der letzten Lastschrift — nur dann laden, wenn das Schreiben gebraucht wird.
+  const mandat =
+    nkJahre.length > 0 && nkDaten[nkJahre[0]].neueVorauszahlung && vertrag.zahlungsweg !== "UEBERWEISUNG"
+      ? await ladeLastschriftMandat(vertrag.id)
+      : null;
+
   // Reiter "Kautionsabrechnung": alle Kautionsbuchungen des Vertrags (Einbehalte kommen aus den
   // KautionEinbehalt-Zeilen, damit auch strittige ohne Journalbuchung erscheinen).
   const kautionBuchungen = await prisma.buchung.findMany({
@@ -388,6 +396,7 @@ export default async function MietvertragDetailPage({
           mehrwertsteuer: vertragFuerSollIst.mehrwertsteuer,
           jobcenter: vertrag.mieter.some((m) => m.buergergeldEmpfaenger),
           zahlungsweg: vertrag.zahlungsweg,
+          mandat,
           kopien: vertrag.dokumente
             .filter((d) => d.art === "SCHREIBEN")
             .map((d) => ({

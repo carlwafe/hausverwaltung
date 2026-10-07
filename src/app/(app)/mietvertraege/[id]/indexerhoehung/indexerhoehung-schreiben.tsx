@@ -9,6 +9,7 @@ import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { fruehestensGueltigNachZugang, neueIndexmiete, spaetesterZugang } from "@/lib/indexmiete";
 import { uebernehmeIndexerhoehung } from "../../actions";
 import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
+import { MandatKlammer, mandatTeile, type MandatDaten } from "@/components/mandat-klammer";
 
 type Mieter = { anrede: "FRAU" | "HERR" | null; vorname: string; nachname: string };
 
@@ -62,7 +63,7 @@ export function IndexerhoehungSchreiben({
   jobcenter: boolean;
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
   // Mandatsreferenz/Gläubiger-ID aus der Bankzeile der letzten Lastschrift (null = keine gefunden).
-  mandat: { referenz: string | null; glaeubigerId: string | null } | null;
+  mandat: MandatDaten | null;
   referenzDatum: Date;
   referenzQuelle: "letzte Mietanpassung" | "Mietbeginn";
   // Vorbelegter Basisindex-Monat: bei der letzten Erhöhung gespeichert, sonst der Referenzmonat selbst.
@@ -132,24 +133,7 @@ export function IndexerhoehungSchreiben({
     mieteEigen === null && abrunden && rechenwert !== null && neueKalt !== null && rechenwert - neueKalt >= 0.005;
 
   // Mandatsdaten für die Vorabankündigung: nur, was im Journal gefunden wurde.
-  const mandatTeile = [
-    mandat?.referenz && `Mandatsreferenz ${mandat.referenz}`,
-    mandat?.glaeubigerId && `Gläubiger-ID ${mandat.glaeubigerId}`,
-  ].filter((t): t is string => Boolean(t));
-  // Jeder Teil bleibt beim Zeilenumbruch zusammen (die Referenz enthält Bindestriche).
-  const mandatKlammer =
-    mandatTeile.length > 0 ? (
-      <>
-        {" ("}
-        {mandatTeile.map((t, i) => (
-          <span key={t}>
-            {i > 0 && ", "}
-            <span className="whitespace-nowrap">{t}</span>
-          </span>
-        ))}
-        {")"}
-      </>
-    ) : null;
+  const mandatAngaben = mandatTeile(mandat);
 
   const [fehler, formAction, pending] = useActionState(async (_prev: string | null, formData: FormData) => {
     const ergebnis = await runFormAction(uebernehmeIndexerhoehung.bind(null, mietvertragId), formData);
@@ -270,8 +254,8 @@ export function IndexerhoehungSchreiben({
               <p className="mt-1 text-xs text-neutral-500">
                 Das Schreiben gilt als Vorabankündigung. Den neuen Betrag ab „Gültig ab“ auch im Lastschrifteinzug bei
                 der Bank eintragen.{" "}
-                {mandatTeile.length > 0
-                  ? `Aus der letzten Lastschrift im Journal ins Schreiben übernommen: ${mandatTeile.join(", ")}.`
+                {mandatAngaben.length > 0
+                  ? `Aus der letzten Lastschrift im Journal ins Schreiben übernommen: ${mandatAngaben.join(", ")}.`
                   : "Im Journal wurde keine Mandatsreferenz gefunden — Mandatsreferenz und Gläubiger-ID fehlen im Schreiben."}
               </p>
             )}
@@ -391,7 +375,7 @@ export function IndexerhoehungSchreiben({
                 <>
                   Die Gesamtmiete von {formatEuro(gesamt)} ziehe ich erstmals mit der Lastschrift für{" "}
                   {gueltigAb ? monatJahr(gueltigAb) : "…"} aufgrund des bestehenden SEPA-Lastschriftmandats
-                  {mandatKlammer} von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt
+                  <MandatKlammer mandat={mandat} /> von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt
                   zugleich als Vorabankündigung (Pre-Notification) des geänderten Lastschriftbetrags.
                 </>
               ) : (
