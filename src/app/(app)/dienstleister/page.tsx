@@ -38,7 +38,8 @@ export default async function DienstleisterPage() {
         <h1 className="text-2xl font-semibold text-white">Handwerker &amp; Dienstleister</h1>
         <p className="text-sm text-neutral-400">
           Kontakte zum schnellen Finden und Anrufen. Optional hinterlegte Suchbegriffe ordnen
-          Kontoauszugszeilen beim Kosten-Import automatisch zu.
+          Kontoauszugszeilen beim Kosten-Import automatisch zu. In der Spalte „Verwalterwechsel“ per Klick
+          markieren, wer schon über die neue Verwaltung (und die Kündigung der alten) informiert wurde.
         </p>
       </div>
 

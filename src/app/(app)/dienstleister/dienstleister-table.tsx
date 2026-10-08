@@ -9,6 +9,7 @@ export type DienstleisterRow = {
   id: string;
   name: string;
   beschreibung: string;
+  // Nur für die Suche, nicht als Spalte sichtbar (im Formular pflegbar).
   ansprechpartner: string;
   telefon: string;
   email: string;
@@ -61,7 +62,7 @@ const columns: Column<DienstleisterRow>[] = [
     key: "name",
     label: "Name",
     sortValue: (d) => d.name,
-    searchValue: (d) => `${d.name} ${d.suchbegriffe} ${d.kostenarten} ${d.adresse}`,
+    searchValue: (d) => `${d.name} ${d.ansprechpartner} ${d.suchbegriffe} ${d.kostenarten} ${d.adresse}`,
     render: (d) => (
       <Link prefetch={false} href={`/dienstleister/${d.id}`} className="font-medium hover:underline">
         {d.name}
@@ -74,13 +75,6 @@ const columns: Column<DienstleisterRow>[] = [
     sortValue: (d) => d.beschreibung,
     searchValue: (d) => d.beschreibung,
     render: (d) => d.beschreibung || "–",
-  },
-  {
-    key: "ansprechpartner",
-    label: "Ansprechpartner",
-    sortValue: (d) => d.ansprechpartner,
-    searchValue: (d) => d.ansprechpartner,
-    render: (d) => d.ansprechpartner || "–",
   },
   {
     key: "telefon",
