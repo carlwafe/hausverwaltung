@@ -21,6 +21,7 @@ export type ErhoehungZeile = {
   neuerIndex: number | null;
   aenderungProzent: number | null;
   neueKalt: number | null;
+  nkMoeglich: boolean; // neueste Abrechnung vorhanden → NK-Anpassung im selben Schreiben möglich
 };
 
 const euro = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -52,13 +53,25 @@ const columns: Column<ErhoehungZeile>[] = [
     key: "schreiben",
     label: "Schreiben",
     render: (z) => (
-      <Link
-        href={`/mietvertraege/${z.id}/indexerhoehung`}
-        prefetch={false}
-        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
-      >
-        Erstellen
-      </Link>
+      <>
+        <Link
+          href={`/mietvertraege/${z.id}/indexerhoehung`}
+          prefetch={false}
+          className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
+        >
+          Erstellen
+        </Link>
+        {z.nkMoeglich && (
+          <Link
+            href={`/mietvertraege/${z.id}/indexerhoehung?mitNk=1`}
+            prefetch={false}
+            title="NK-Vorauszahlung im selben Schreiben mit anpassen"
+            className="mt-1 block whitespace-nowrap text-xs text-neutral-400 underline hover:text-white"
+          >
+            mit NK-Anpassung
+          </Link>
+        )}
+      </>
     ),
   },
   {

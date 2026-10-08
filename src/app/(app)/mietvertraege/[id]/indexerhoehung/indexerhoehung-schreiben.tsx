@@ -7,6 +7,7 @@ import { runFormAction } from "@/lib/form-utils";
 import { mieterName } from "@/lib/mieter-name";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { fruehestensGueltigNachZugang, neueIndexmiete, spaetesterZugang } from "@/lib/indexmiete";
+import { STANDARD_ZUSCHLAG_GRUND, STANDARD_ZUSCHLAG_PROZENT, schlageVorauszahlungVor } from "@/lib/vorauszahlung-vorschlag";
 import { uebernehmeIndexerhoehung } from "../../actions";
 import { SchreibenAblegen, type SchreibenKopie } from "@/components/schreiben-ablegen";
 import { MandatKlammer, mandatTeile, type MandatDaten } from "@/components/mandat-klammer";
@@ -49,7 +50,7 @@ const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparen
 
 export function IndexerhoehungSchreiben({
   mietvertragId, mieter, strasse, plzOrt, einheit, basisKaltmiete, basisNk, erhoehungen, mehrwertsteuer,
-  jobcenter, zahlungsweg: zahlungswegVertrag, mandat, referenzDatum, referenzQuelle, basisVorbelegung, kopien, vpi,
+  jobcenter, zahlungsweg: zahlungswegVertrag, mandat, referenzDatum, referenzQuelle, basisVorbelegung, nk, mitNkVorbelegt, kopien, vpi,
 }: {
   mietvertragId: string;
   mieter: Mieter[];
@@ -68,6 +69,10 @@ export function IndexerhoehungSchreiben({
   referenzQuelle: "letzte Mietanpassung" | "Mietbeginn";
   // Vorbelegter Basisindex-Monat: bei der letzten Erhöhung gespeichert, sonst der Referenzmonat selbst.
   basisVorbelegung: { jahr: number; monat: number; gespeichert: boolean } | null;
+  // Neueste Abrechnung des Vertrags für die optionale NK-Anpassung im selben Schreiben (null = nicht möglich:
+  // keine Abrechnung, kein Kostenanteil oder Vertrag endet bis Jahresende der Abrechnung).
+  nk: { jahr: number; zeitraumVon: Date; zeitraumBis: Date; kostenanteilGesamt: number; anteileJahr: number[] } | null;
+  mitNkVorbelegt: boolean;
   kopien: SchreibenKopie[];
   vpi: { jahr: number; monat: number; wert: number }[];
 }) {
@@ -87,6 +92,11 @@ export function IndexerhoehungSchreiben({
   // Standard: auf volle Euro abrunden (zugunsten des Mieters); abgewählt = auf den Cent genau.
   const [abrunden, setAbrunden] = useState(true);
   const [gespeichert, setGespeichert] = useState(false);
+  // Optional: NK-Vorauszahlung (§ 560 Abs. 4 BGB) im selben Schreiben anpassen.
+  const [mitNk, setMitNk] = useState(nk !== null && mitNkVorbelegt);
+  const [zuschlag, setZuschlag] = useState(STANDARD_ZUSCHLAG_PROZENT);
+  const [zuschlagGrund, setZuschlagGrund] = useState(STANDARD_ZUSCHLAG_GRUND);
+  const [nkEigen, setNkEigen] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -117,7 +127,18 @@ export function IndexerhoehungSchreiben({
   const neueKalt = mieteEigen !== null ? Math.max(0, Number(mieteEigen.replace(",", ".")) || 0) : rechnerisch;
   const aenderungProzent = basis ? (neu.wert / basis.wert - 1) * 100 : null;
   const erhoehungBetrag = neueKalt !== null ? Math.round((neueKalt - bisher.kaltmiete) * 100) / 100 : null;
-  const gesamt = neueKalt !== null ? neueKalt + bisher.nebenkostenVorauszahlung + mehrwertsteuer : null;
+
+  // NK-Anpassung im selben Schreiben: gleicher Vorschlag wie auf der Seite „NK-Anpassung“.
+  const zuschlagProzent = Math.max(0, Number(zuschlag.replace(",", ".")) || 0);
+  const nkVorschlag = nk
+    ? schlageVorauszahlungVor({ ...nk, aktuelleVorauszahlung: bisher.nebenkostenVorauszahlung, zuschlagProzent })
+    : null;
+  const nkAktiv = mitNk && nkVorschlag !== null;
+  const neueNk = nkAktiv ? (nkEigen !== null ? Math.max(0, Number(nkEigen.replace(",", ".")) || 0) : nkVorschlag.vorschlag) : bisher.nebenkostenVorauszahlung;
+  const nkDifferenz = Math.round((neueNk - bisher.nebenkostenVorauszahlung) * 100) / 100;
+  // Abschnitt 2 im Schreiben nur bei tatsächlicher Änderung (sonst bliebe die NK-Vorauszahlung „unverändert“).
+  const nkAenderung = nkAktiv && Math.abs(nkDifferenz) >= 0.005;
+  const gesamt = neueKalt !== null ? neueKalt + neueNk + mehrwertsteuer : null;
 
   const fruehestens = new Date(Date.UTC(referenzDatum.getUTCFullYear() + 1, referenzDatum.getUTCMonth(), 1));
   const zuFrueh = gueltigAb !== null && gueltigAb < new Date(fruehestens.getUTCFullYear(), fruehestens.getUTCMonth(), 1);
@@ -145,6 +166,8 @@ export function IndexerhoehungSchreiben({
   const absenderName = absenderZeilen[0] ?? "";
   const absenderOrt = absenderZeilen.at(-1)?.replace(/^\d{5}\s*/, "") ?? "";
   const gueltigAbText = gueltigAb ? formatDatumLokal(gueltigAb) : "…";
+  // Kombiniertes Schreiben: engere Absätze, damit es auf eine A4-Seite passt.
+  const ab = nkAenderung ? "mb-2" : "mb-3";
   const bereit = basis !== null && neueKalt !== null && erhoehungBetrag !== null && gesamt !== null && aenderungProzent !== null;
 
   return (
@@ -203,6 +226,60 @@ export function IndexerhoehungSchreiben({
               )}
             </div>
           </div>
+          {nk && nkVorschlag && (
+            <div className="mt-4 rounded-md border border-neutral-800 p-3">
+              <label className="flex items-center gap-2 text-sm text-white">
+                <input type="checkbox" checked={mitNk} onChange={(e) => setMitNk(e.target.checked)} />
+                NK-Vorauszahlung im selben Schreiben anpassen (Abrechnung {nk.jahr})
+              </label>
+              {mitNk && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-neutral-400" htmlFor="ix-nk-neu">Neue Vorauszahlung (mtl., €)</label>
+                    <input
+                      id="ix-nk-neu"
+                      inputMode="decimal"
+                      value={nkEigen ?? String(nkVorschlag.vorschlag)}
+                      onChange={(e) => setNkEigen(e.target.value)}
+                      className={eingabeKlasse}
+                    />
+                    {nkEigen !== null && (
+                      <button type="button" onClick={() => setNkEigen(null)} className="mt-1 text-xs text-neutral-400 hover:text-white">
+                        auf Vorschlag zurücksetzen
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-neutral-400" htmlFor="ix-nk-zuschlag">Zuschlag (%)</label>
+                    <input id="ix-nk-zuschlag" inputMode="decimal" value={zuschlag} onChange={(e) => setZuschlag(e.target.value)} className={eingabeKlasse} />
+                  </div>
+                  {zuschlagProzent > 0 && (
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs text-neutral-400" htmlFor="ix-nk-grund">Begründung des Zuschlags (erscheint im Schreiben)</label>
+                      <input id="ix-nk-grund" value={zuschlagGrund} onChange={(e) => setZuschlagGrund(e.target.value)} className={eingabeKlasse} />
+                      <p className="mt-1 text-xs text-amber-400">
+                        Pauschale Zuschläge sind nach BGH (VIII ZR 294/10) angreifbar — bei einem konkreten Grund diesen eintragen.
+                      </p>
+                    </div>
+                  )}
+                  <p className="col-span-2 text-xs text-neutral-500">
+                    Rechenweg wie unter „NK-Anpassung“: Kostenanteil {nk.jahr} {formatEuro(nk.kostenanteilGesamt)}
+                    {nkVorschlag.hochgerechnet && ` (auf 12 Monate ${formatEuro(nkVorschlag.jahreskosten)})`} ÷ 12 ={" "}
+                    {formatEuro(nkVorschlag.rechnerischMonatlich)} pro Monat, bisher {formatEuro(bisher.nebenkostenVorauszahlung)}.
+                    Beide Änderungen gelten ab demselben „Gültig ab“ und werden als eine Mieterhöhung übernommen. Das
+                    kombinierte Schreiben ist knapp bemessen: in der Vorschau prüfen, ob die Unterschrift noch auf der
+                    ersten Seite steht (zusätzliche Sätze wie der Jobcenter-Hinweis kosten Platz).
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {!nk && (
+            <p className="mt-4 text-xs text-neutral-500">
+              Eine Anpassung der NK-Vorauszahlung im selben Schreiben ist nicht möglich: keine Abrechnung mit Kostenanteil
+              oder der Vertrag endet bis zum Jahresende der Abrechnung.
+            </p>
+          )}
           {zuFrueh && (
             <p className="mt-3 text-xs text-amber-400">
               Die Miete muss mindestens ein Jahr unverändert geblieben sein (Erhöhungen nach §§ 559/560 BGB
@@ -268,18 +345,26 @@ export function IndexerhoehungSchreiben({
               <input type="hidden" name="gueltigAb" value={gueltigAbIso} />
               <input type="hidden" name="kaltmiete" value={neueKalt ?? ""} />
               <input type="hidden" name="indexMonat" value={`${neu.jahr}-${String(neu.monat).padStart(2, "0")}`} />
+              {nkAktiv && <input type="hidden" name="nebenkostenVorauszahlung" value={neueNk} />}
               <input
                 type="hidden"
                 name="notizen"
-                value={basis ? `Indexmiete § 557b BGB: VPI ${monatLabel(basis.jahr, basis.monat)} ${zahl(basis.wert)} → ${monatLabel(neu.jahr, neu.monat)} ${zahl(neu.wert)}` : ""}
+                value={
+                  (basis ? `Indexmiete § 557b BGB: VPI ${monatLabel(basis.jahr, basis.monat)} ${zahl(basis.wert)} → ${monatLabel(neu.jahr, neu.monat)} ${zahl(neu.wert)}` : "") +
+                  (nkAenderung && nk ? ` · NK-Vorauszahlung angepasst nach Abrechnung ${nk.jahr} (§ 560 Abs. 4 BGB)` : "")
+                }
               />
               <button type="submit" disabled={pending || !bereit || !gueltigAb} className="rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50">
-                {pending ? "Speichern…" : neueKalt !== null ? `${formatEuro(neueKalt)} ab ${gueltigAbText} übernehmen` : "Übernehmen"}
+                {pending
+                  ? "Speichern…"
+                  : neueKalt !== null
+                    ? `${formatEuro(neueKalt)}${nkAktiv ? ` + NK ${formatEuro(neueNk)}` : ""} ab ${gueltigAbText} übernehmen`
+                    : "Übernehmen"}
               </button>
             </form>
           </div>
           {fehler && <p className="text-sm text-red-400">{fehler}</p>}
-          {gespeichert && !fehler && <p className="text-sm text-green-400">Übernommen — steht als Mieterhöhung (NK-Vorauszahlung unverändert) im Vertrag.</p>}
+          {gespeichert && !fehler && <p className="text-sm text-green-400">Übernommen — steht als Mieterhöhung ({nkAktiv ? "mit angepasster NK-Vorauszahlung" : "NK-Vorauszahlung unverändert"}) im Vertrag.</p>}
           <p className="text-xs text-neutral-500">Erst übernehmen, wenn das Schreiben verschickt ist: Die Miete gilt dann im Soll ab „Gültig ab“.</p>
           <SchreibenAblegen
             mietvertragId={mietvertragId}
@@ -295,10 +380,10 @@ export function IndexerhoehungSchreiben({
         <p className="text-sm text-neutral-400">Bitte einen Basisindex wählen.</p>
       ) : (
         <div className="overflow-x-auto">
-          <div className="druckbereich mx-auto w-[210mm] min-h-[297mm] bg-white px-[20mm] pb-[15mm] pt-[15mm] font-serif text-[11pt] leading-snug text-black shadow">
+          <div className={`druckbereich mx-auto w-[210mm] min-h-[297mm] bg-white px-[20mm] pb-[15mm] pt-[15mm] font-serif ${nkAenderung ? "text-[10pt]" : "text-[11pt]"} leading-snug text-black shadow`}>
             <p className="mb-2 text-[8pt] text-neutral-600 underline">{absenderZeilen.join(" · ") || "Absender"}</p>
             <div className="flex items-start justify-between">
-              <div className="mt-2 min-h-[32mm]">
+              <div className={`mt-2 ${nkAenderung ? "min-h-[28mm]" : "min-h-[32mm]"}`}>
                 {mieter.map((m) => (<p key={mieterName(m)}>{empfaengerZeile(m)}</p>))}
                 <p>{strasse}</p>
                 <p>{plzOrt}</p>
@@ -306,19 +391,22 @@ export function IndexerhoehungSchreiben({
               <p className="mt-2">{absenderOrt ? `${absenderOrt}, ` : ""}{formatDatumLokal(briefdatum)}</p>
             </div>
 
-            <p className="mb-6 mt-4 font-bold">
-              Anpassung der Miete nach der vereinbarten Indexmiete (§ 557b BGB)
+            <p className={`${nkAenderung ? "mb-3" : "mb-6"} mt-4 font-bold`}>
+              {nkAenderung
+                ? "Anpassung der Miete (Indexmiete, § 557b BGB) und der Betriebskostenvorauszahlung (§ 560 Abs. 4 BGB)"
+                : "Anpassung der Miete nach der vereinbarten Indexmiete (§ 557b BGB)"}
               <br />
               Mietobjekt: {strasse}, {plzOrt}, Wohnung {einheit}
             </p>
 
-            <p className="mb-3">{anrede}</p>
-            <p className="mb-3">
+            <p className={ab}>{anrede}</p>
+            <p className={ab}>
               in Ihrem Mietvertrag ist eine Indexmiete gemäß § 557b BGB vereinbart. Danach sind Vermieter und Mieter
               berechtigt, die Miete entsprechend und im selben Verhältnis wie die Entwicklung des
               Verbraucherpreisindexes für Deutschland anzupassen. Ausgangspunkt ist der Preisindex zum Zeitpunkt {referenzQuelle === "Mietbeginn" ? "des Mietbeginns" : "der letzten Mietanpassung"} ({formatDate(referenzDatum)}). Ich erkläre
               hiermit in Textform die Anpassung der Miete wie folgt:
             </p>
+            {nkAenderung && <p className="mb-1 font-bold">1. Nettokaltmiete (Indexmiete, § 557b BGB)</p>}
 
             <table className="mb-2 w-full">
               <tbody>
@@ -348,7 +436,7 @@ export function IndexerhoehungSchreiben({
                 </tr>
               </tbody>
             </table>
-            <p className="mb-3 text-[9pt] leading-snug">
+            <p className={`${ab} text-[9pt] leading-snug`}>
               {abgerundet && rechenwert !== null && (
                 <>
                   Rechenweg: {formatEuro(bisher.kaltmiete)} × {zahl(neu.wert)} ÷ {zahl(basis.wert)} = {formatEuro(rechenwert)},
@@ -358,17 +446,54 @@ export function IndexerhoehungSchreiben({
               Quelle: Statistisches Bundesamt (Destatis), Verbraucherpreisindex für Deutschland, Gesamtindex.
             </p>
 
-            <p className="mb-3">Ab dem {gueltigAbText} setzt sich Ihre monatliche Miete damit wie folgt zusammen:</p>
-            <table className="mb-3 w-2/3">
+            {nkAenderung && nk && nkVorschlag && (
+              <>
+                <p className="mb-1 font-bold">2. Betriebskostenvorauszahlung (§ 560 Abs. 4 BGB)</p>
+                <p className="mb-2">
+                  Auf Grundlage der Betriebskostenabrechnung für den Abrechnungszeitraum 01.01.{nk.jahr} bis 31.12.{nk.jahr} passe ich
+                  Ihre monatliche Betriebskostenvorauszahlung wie folgt an:
+                </p>
+                <table className="mb-2 w-full">
+                  <tbody>
+                    <tr>
+                      <td className="py-0.5">
+                        Ihr Anteil an den Betriebskosten {nk.jahr}
+                        {nkVorschlag.hochgerechnet && ` (Nutzung ${formatDate(nk.zeitraumVon)} – ${formatDate(nk.zeitraumBis)}, hochgerechnet auf zwölf Monate)`}
+                      </td>
+                      <td className="py-0.5 text-right">{formatEuro(nkVorschlag.hochgerechnet ? nkVorschlag.jahreskosten : nk.kostenanteilGesamt)}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5">davon monatlich (÷ 12)</td>
+                      <td className="py-0.5 text-right">{formatEuro(nkVorschlag.rechnerischMonatlich)}</td>
+                    </tr>
+                    {zuschlagProzent > 0 && (
+                      <tr>
+                        <td className="py-0.5">
+                          zzgl. {String(zuschlagProzent).replace(".", ",")} % Zuschlag{zuschlagGrund && ` (${zuschlagGrund})`}
+                        </td>
+                        <td className="py-0.5 text-right">{formatEuro(Math.round(nkVorschlag.rechnerischMonatlich * zuschlagProzent) / 100)}</td>
+                      </tr>
+                    )}
+                    <tr className="border-t border-black font-bold">
+                      <td className="py-1">neue monatliche Vorauszahlung ab {gueltigAbText} (bisher {formatEuro(bisher.nebenkostenVorauszahlung)})</td>
+                      <td className="py-1 text-right">{formatEuro(neueNk)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            <p className={ab}>Ab dem {gueltigAbText} setzt sich Ihre monatliche Miete damit wie folgt zusammen:</p>
+            <table className={`${ab} w-2/3`}>
               <tbody>
                 <tr><td className="py-0.5">Nettokaltmiete</td><td className="py-0.5 text-right">{formatEuro(neueKalt)}</td></tr>
-                <tr><td className="py-0.5">Betriebskostenvorauszahlung (unverändert)</td><td className="py-0.5 text-right">{formatEuro(bisher.nebenkostenVorauszahlung)}</td></tr>
+                <tr><td className="py-0.5">Betriebskostenvorauszahlung{nkAenderung ? "" : " (unverändert)"}</td><td className="py-0.5 text-right">{formatEuro(neueNk)}</td></tr>
                 {mehrwertsteuer > 0 && (<tr><td className="py-0.5">Mehrwertsteuer</td><td className="py-0.5 text-right">{formatEuro(mehrwertsteuer)}</td></tr>)}
                 <tr className="border-t border-black font-bold"><td className="py-1">Gesamtmiete</td><td className="py-1 text-right">{formatEuro(gesamt)}</td></tr>
               </tbody>
             </table>
 
-            <p className="mb-3">
+            <p className={ab}>
               Die geänderte Miete ist mit Beginn des übernächsten Monats nach Zugang dieser Erklärung zu entrichten,
               das ist der {gueltigAbText}. Die Miete war zuvor seit dem {formatDate(referenzDatum)} unverändert.{" "}
               {zahlungsweg === "LASTSCHRIFT" ? (
@@ -383,8 +508,8 @@ export function IndexerhoehungSchreiben({
               )}
               {jobcenter && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
             </p>
-            <p className="mb-3">Für Rückfragen stehe ich Ihnen gern zur Verfügung.</p>
-            <p className="mb-10">Mit freundlichen Grüßen</p>
+            <p className={ab}>Für Rückfragen stehe ich Ihnen gern zur Verfügung.</p>
+            <p className={nkAenderung ? "mb-8" : "mb-10"}>Mit freundlichen Grüßen</p>
             <p>{absenderName}</p>
           </div>
         </div>

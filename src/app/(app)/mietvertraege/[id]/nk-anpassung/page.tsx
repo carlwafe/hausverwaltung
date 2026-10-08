@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { ladeLastschriftMandat } from "@/lib/lastschrift-mandat";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
+import { indexErhoehungMoeglich } from "@/lib/index-erhoehung-moeglich";
+import { vorgeschlagenesGueltigAb } from "@/lib/vorauszahlung-vorschlag";
 import { VorauszahlungAnpassung } from "./vorauszahlung-anpassung";
 
 export default async function NkAnpassungPage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,6 +48,27 @@ export default async function NkAnpassungPage({ params }: { params: Promise<{ id
   // Überweiser brauchen sie nicht (Bankzeile nur bei Lastschrift-/unbekanntem Zahlungsweg laden).
   const mandat = hinweis || vertrag.zahlungsweg === "UEBERWEISUNG" ? null : await ladeLastschriftMandat(vertrag.id);
 
+  // Steht für denselben Termin auch eine Indexerhöhung an, gibt es ein gemeinsames Schreiben (Seite „Mieterhöhung“).
+  const indexMoeglich = hinweis
+    ? false
+    : indexErhoehungMoeglich(
+        {
+          einheitTyp: vertrag.einheit.typ,
+          status: vertrag.status,
+          beginn: vertrag.beginn,
+          kaltmiete: Number(vertrag.kaltmiete),
+          nebenkostenVorauszahlung: Number(vertrag.nebenkostenVorauszahlung),
+          mieterhoehungen: vertrag.mieterhoehungen.map((m) => ({
+            gueltigAb: m.gueltigAb,
+            kaltmiete: Number(m.kaltmiete),
+            nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+            indexMonat: m.indexMonat,
+          })),
+        },
+        (await prisma.verbraucherpreisindex.findMany()).map((w) => ({ jahr: w.jahr, monat: w.monat, wert: Number(w.wert) })),
+        vorgeschlagenesGueltigAb(),
+      );
+
   return (
     <div>
       <div className="mb-6">
@@ -62,6 +85,16 @@ export default async function NkAnpassungPage({ params }: { params: Promise<{ id
           {jahr !== null && ` · Grundlage: Abrechnung ${jahr}`}
         </p>
       </div>
+
+      {indexMoeglich && (
+        <p className="mb-4 rounded-md border border-neutral-700 p-3 text-sm text-neutral-300">
+          Für diesen Vertrag ist auch eine Indexerhöhung möglich.{" "}
+          <Link prefetch={false} href={`/mietvertraege/${vertrag.id}/indexerhoehung?mitNk=1`} className="underline hover:text-white">
+            Beides in einem Schreiben erstellen
+          </Link>{" "}
+          (eine Gesamtmiete, ein Zugang, eine Mieterhöhung).
+        </p>
+      )}
 
       {hinweis || !position || jahr === null ? (
         <p className="text-sm text-neutral-400">{hinweis}</p>

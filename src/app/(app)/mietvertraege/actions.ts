@@ -406,13 +406,19 @@ const indexerhoehungSchema = z.object({
   gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
   kaltmiete: z.coerce.number().positive("Die neue Kaltmiete muss größer als 0 sein"),
   indexMonat: indexMonatSchema,
+  // Nur im kombinierten Schreiben (Index + NK-Anpassung): neue NK-Vorauszahlung im selben Monat.
+  nebenkostenVorauszahlung: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    z.coerce.number().min(0, "Die NK-Vorauszahlung darf nicht negativ sein").optional(),
+  ),
   notizen: z.string().optional(),
 });
 
 /**
  * Übernimmt die Indexerhöhung (§ 557b BGB) als Mieterhöhung: neue Kaltmiete ab dem Monat von
- * `gueltigAb`, die NK-Vorauszahlung bleibt wie sie zu diesem Zeitpunkt gilt. Gibt es im selben Monat
- * schon eine Mieterhöhung, wird nur deren Kaltmiete ersetzt.
+ * `gueltigAb`, die NK-Vorauszahlung bleibt wie sie zu diesem Zeitpunkt gilt — außer das Schreiben
+ * passt sie zugleich an (§ 560 Abs. 4 BGB, Feld `nebenkostenVorauszahlung`). Gibt es im selben Monat
+ * schon eine Mieterhöhung, wird nur deren Kaltmiete (und ggf. NK-Betrag) ersetzt.
  */
 export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeIndexerhoehung(mietvertragId: string, formData: FormData) {
   await requireEditor();
@@ -420,10 +426,11 @@ export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeInde
     gueltigAb: formData.get("gueltigAb"),
     kaltmiete: formData.get("kaltmiete"),
     indexMonat: formData.get("indexMonat"),
+    nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
     notizen: formData.get("notizen") || undefined,
   });
   if (!parsed.success) throw zodFehler(parsed.error);
-  const { gueltigAb, kaltmiete, indexMonat, notizen } = parsed.data;
+  const { gueltigAb, kaltmiete, indexMonat, nebenkostenVorauszahlung: neueNk, notizen } = parsed.data;
 
   const vertrag = await prisma.mietvertrag.findUniqueOrThrow({
     where: { id: mietvertragId },
@@ -437,7 +444,12 @@ export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeInde
   if (imSelbenMonat) {
     await prisma.mieterhoehung.update({
       where: { id: imSelbenMonat.id },
-      data: { kaltmiete, indexMonat, notizen: [imSelbenMonat.notizen, notizen].filter(Boolean).join(" · ") || null },
+      data: {
+        kaltmiete,
+        indexMonat,
+        ...(neueNk !== undefined && { nebenkostenVorauszahlung: neueNk }),
+        notizen: [imSelbenMonat.notizen, notizen].filter(Boolean).join(" · ") || null,
+      },
     });
   } else {
     const { nebenkostenVorauszahlung } = ermittleMieteFuerMonat(
@@ -454,7 +466,7 @@ export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeInde
       gueltigAb.getMonth() + 1,
     );
     await prisma.mieterhoehung.create({
-      data: { mietvertragId, gueltigAb, kaltmiete, nebenkostenVorauszahlung, indexMonat, notizen },
+      data: { mietvertragId, gueltigAb, kaltmiete, nebenkostenVorauszahlung: neueNk ?? nebenkostenVorauszahlung, indexMonat, notizen },
     });
   }
 

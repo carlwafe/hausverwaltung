@@ -87,3 +87,13 @@ export function schlageVorauszahlungVor(e: VorauszahlungVorschlagEingabe): Vorau
 export function vorgeschlagenesGueltigAb(heute: Date = new Date()): Date {
   return new Date(heute.getFullYear(), heute.getMonth() + 2, 1);
 }
+
+/**
+ * Ist für den Vertrag überhaupt eine Anpassung der Vorauszahlung vorzuschlagen? Maßgeblich ist die neueste
+ * Abrechnung: Der Vertrag darf nicht bis zum Jahresende der Abrechnung enden, und sie braucht einen Kostenanteil
+ * (Platzhalter-Positionen mit 0 € ergeben keinen sinnvollen Vorschlag). Gleiche Regel wie Liste und Schreiben.
+ */
+export function nkAnpassungMoeglich(vertragEnde: Date | null, abrechnungsJahr: number, kostenanteil: number): boolean {
+  if (kostenanteil <= 0) return false;
+  return !(vertragEnde && vertragEnde <= new Date(abrechnungsJahr, 11, 31, 23, 59, 59));
+}

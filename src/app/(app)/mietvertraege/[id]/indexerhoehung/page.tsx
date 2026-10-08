@@ -4,10 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { basisIndexMonat, letzteKaltmietenAenderung } from "@/lib/indexmiete";
 import { ladeLastschriftMandat } from "@/lib/lastschrift-mandat";
+import { nkAnpassungMoeglich } from "@/lib/vorauszahlung-vorschlag";
+import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { IndexerhoehungSchreiben } from "./indexerhoehung-schreiben";
 
-export default async function IndexerhoehungPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function IndexerhoehungPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ mitNk?: string }>;
+}) {
   const { id } = await params;
+  const { mitNk } = await searchParams;
   const [vertrag, vpiWerte] = await Promise.all([
     prisma.mietvertrag.findUnique({
       where: { id },
@@ -16,6 +25,12 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
         mieter: true,
         mieterhoehungen: { orderBy: { gueltigAb: "asc" } },
         dokumente: { where: { art: "SCHREIBEN" }, orderBy: { createdAt: "desc" } },
+        // Für die optionale NK-Anpassung im selben Schreiben: nur die neueste Abrechnung des Vertrags.
+        abrechnungspositionen: {
+          orderBy: { abrechnung: { jahr: "desc" } },
+          take: 1,
+          select: { zeitraumVon: true, zeitraumBis: true, kostenanteilGesamt: true, details: true, abrechnung: { select: { jahr: true } } },
+        },
       },
     }),
     prisma.verbraucherpreisindex.findMany({ orderBy: [{ jahr: "asc" }, { monat: "asc" }] }),
@@ -25,6 +40,20 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
   // Mandatsreferenz und Gläubiger-ID für die Vorabankündigung stehen in der Bankzeile der letzten Lastschrift.
   // Überweiser brauchen sie nicht (Bankzeile nur für Lastschrift-/unbekannten Zahlungsweg laden).
   const mandat = vertrag.zahlungsweg === "UEBERWEISUNG" ? null : await ladeLastschriftMandat(vertrag.id);
+
+  const position = vertrag.abrechnungspositionen[0] ?? null;
+  const nk =
+    position && nkAnpassungMoeglich(vertrag.ende, position.abrechnung.jahr, Number(position.kostenanteilGesamt))
+      ? {
+          jahr: position.abrechnung.jahr,
+          zeitraumVon: position.zeitraumVon,
+          zeitraumBis: position.zeitraumBis,
+          kostenanteilGesamt: Number(position.kostenanteilGesamt),
+          anteileJahr: (Array.isArray(position.details) ? (position.details as unknown as KostenanteilDetailEintrag[]) : []).map(
+            (d) => d.anteilJahr,
+          ),
+        }
+      : null;
 
   const erhoehungen = vertrag.mieterhoehungen.map((e) => ({
     gueltigAb: e.gueltigAb,
@@ -76,6 +105,8 @@ export default async function IndexerhoehungPage({ params }: { params: Promise<{
           referenzDatum={referenzDatum}
           referenzQuelle={letzteAenderung ? "letzte Mietanpassung" : "Mietbeginn"}
           basisVorbelegung={basis}
+          nk={nk}
+          mitNkVorbelegt={mitNk === "1"}
           kopien={vertrag.dokumente.map((d) => ({
             id: d.id,
             dateiname: d.dateiname,

@@ -4,9 +4,11 @@ import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { STANDARD_ZUSCHLAG_PROZENT, schlageVorauszahlungVor, vorgeschlagenesGueltigAb } from "@/lib/vorauszahlung-vorschlag";
+import { indexErhoehungMoeglich } from "@/lib/index-erhoehung-moeglich";
 import { NkAnpassungTabelle, type NkAnpassungZeile } from "./nk-anpassung-tabelle";
 
 async function ladeZeilen(): Promise<NkAnpassungZeile[]> {
+  const vpi = (await prisma.verbraucherpreisindex.findMany()).map((w) => ({ jahr: w.jahr, monat: w.monat, wert: Number(w.wert) }));
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: "AKTIV", abrechnungspositionen: { some: {} } },
     include: {
@@ -89,6 +91,23 @@ async function ladeZeilen(): Promise<NkAnpassungZeile[]> {
       monatlich: ergebnis?.rechnerischMonatlich ?? null,
       vorschlag: ergebnis?.vorschlag ?? null,
       angepasstAb: angepasst ? angepasst.gueltigAb.toISOString() : null,
+      indexMoeglich: kostenanteil > 0 && indexErhoehungMoeglich(
+        {
+          einheitTyp: v.einheit.typ,
+          status: v.status,
+          beginn: v.beginn,
+          kaltmiete: vertrag.kaltmiete,
+          nebenkostenVorauszahlung: vertrag.nebenkostenVorauszahlung,
+          mieterhoehungen: v.mieterhoehungen.map((m) => ({
+            gueltigAb: m.gueltigAb,
+            kaltmiete: Number(m.kaltmiete),
+            nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+            indexMonat: m.indexMonat,
+          })),
+        },
+        vpi,
+        gueltigAb,
+      ),
     });
   }
   return zeilen;
@@ -107,7 +126,9 @@ export default async function NkAnpassungPage() {
           Rechenweg von links nach rechts: Kostenanteil des Abrechnungsjahres (bei unterjähriger Nutzung steht darunter
           „auf 12 Monate“, der hochgerechnete Jahreswert) → ÷ 12 = Kosten pro Monat → plus {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag,
           aufgerundet auf volle Euro = Vorschlag. Zuschlag, Betrag und Gültig-ab-Datum lassen
-          sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert).
+          sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert). Ist für denselben Vertrag
+          zugleich eine Indexerhöhung möglich, steht unter „Erstellen“ der Link „mit Indexerhöhung“: ein gemeinsames Schreiben
+          mit zwei getrennten Abschnitten (§ 557b und § 560 Abs. 4 BGB), einer Gesamtmiete und einer Mieterhöhung.
           „Angepasst“ heißt: Nach dem Abrechnungsjahr wurde schon eine Mieterhöhung erfasst (auch eine mit anderem
           Anlass) — dann Schreiben und Betrag im Vertrag prüfen. Verträge, die bis zum Jahresende der Abrechnung enden, fehlen in der Liste (nichts mehr
           anzupassen); Verträge ohne Kostenanteil in der Abrechnung (z.B. automatisch angelegte Platzhalter-Position)

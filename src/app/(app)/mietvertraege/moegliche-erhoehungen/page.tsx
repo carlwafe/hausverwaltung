@@ -4,6 +4,7 @@ import { mieterName } from "@/lib/mieter-name";
 import { ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { basisIndexMonat, letzteKaltmietenAenderung, neueIndexmiete } from "@/lib/indexmiete";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
+import { nkAnpassungMoeglich } from "@/lib/vorauszahlung-vorschlag";
 import { ErhoehungenTabelle, type ErhoehungZeile } from "./erhoehungen-tabelle";
 
 // Ein Jahr auf ein Datum addieren — bewusst mit UTC-Gettern/-Constructor statt lokalen (wie z.B.
@@ -26,6 +27,12 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
       mieterhoehungen: { orderBy: { gueltigAb: "asc" } },
+      // Für den Hinweis „auch NK-Anpassung möglich“: nur die neueste Abrechnung des Vertrags.
+      abrechnungspositionen: {
+        orderBy: { abrechnung: { jahr: "desc" } },
+        take: 1,
+        select: { kostenanteilGesamt: true, abrechnung: { select: { jahr: true } } },
+      },
     },
   });
 
@@ -88,6 +95,9 @@ async function ladeZeilen(): Promise<ErhoehungZeile[]> {
       neuerIndex,
       aenderungProzent: hatIndex ? (neuerIndex / basisIndex - 1) * 100 : null,
       neueKalt: hatIndex ? neueIndexmiete(aktuelleKalt, basisIndex, neuerIndex) : null,
+      nkMoeglich: v.abrechnungspositionen[0]
+        ? nkAnpassungMoeglich(v.ende, v.abrechnungspositionen[0].abrechnung.jahr, Number(v.abrechnungspositionen[0].kostenanteilGesamt))
+        : false,
     });
   }
 
@@ -124,6 +134,12 @@ export default async function MoeglicheErhoehungenPage() {
           (nur die Miete in der Zwischenzeit ist verloren). Bei Jobcenter-Mietern vorher die Angemessenheitsgrenze
           prüfen. Die Schwelle ist eine Empfehlung, keine Vorgabe — der Filter ist nur eine Ansicht, nichts wird
           gespeichert. Verträge ohne Indexwert blenden die Filter aus.
+        </p>
+        <p className="mt-2 text-sm text-neutral-400">
+          <span className="text-neutral-300">Mit NK-Anpassung:</span> Liegt für den Vertrag eine Nebenkostenabrechnung
+          vor, steht unter „Erstellen“ der Link „mit NK-Anpassung“. Er öffnet dasselbe Schreiben mit zusätzlichem
+          Abschnitt zur Betriebskostenvorauszahlung (§ 560 Abs. 4 BGB): eine Gesamtmiete, ein Zugang, eine Mieterhöhung.
+          Beide Erklärungen bleiben im Schreiben getrennt, weil sie verschiedene Voraussetzungen haben.
         </p>
       </div>
 
