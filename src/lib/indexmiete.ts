@@ -64,13 +64,3 @@ export function spaetesterZugang(gueltigAb: Date): Date {
 export function fruehestensGueltigNachZugang(zugang: Date): Date {
   return new Date(zugang.getFullYear(), zugang.getMonth() + 2, 1);
 }
-
-/**
- * Wartejahr (§ 557b Abs. 2 BGB): Die Miete muss seit der letzten Änderung der Kaltmiete bzw. dem Mietbeginn
- * mindestens ein Jahr unverändert gewesen sein. `true`, wenn `gueltigAb` im Monat der Jahresfrist oder
- * später liegt. Lokale Datumsteile bei `gueltigAb` (Formularwert), UTC beim gespeicherten Referenzdatum.
- */
-export function wartejahrErfuellt(referenzDatum: Date, gueltigAb: Date): boolean {
-  const fruehestens = new Date(referenzDatum.getUTCFullYear() + 1, referenzDatum.getUTCMonth(), 1);
-  return gueltigAb >= fruehestens;
-}

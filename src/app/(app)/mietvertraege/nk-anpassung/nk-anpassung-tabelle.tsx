@@ -18,7 +18,6 @@ export type NkAnpassungZeile = {
   monatlich: number | null; // Jahreskosten ÷ 12, ohne Zuschlag
   vorschlag: number | null; // null = Kostenanteil 0 (z.B. Platzhalter-Position)
   angepasstAb: string | null; // ISO — Mieterhöhung nach dem Abrechnungsjahr
-  indexMoeglich: boolean; // zum vorgeschlagenen Termin ist auch eine Indexerhöhung möglich → gemeinsames Schreiben
 };
 
 const euro = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -49,7 +48,6 @@ const columns: Column<NkAnpassungZeile>[] = [
     key: "schreiben",
     label: "Schreiben",
     render: (z) => (
-      <>
       <Link
         href={`/mietvertraege/${z.id}/nk-anpassung`}
         prefetch={false}
@@ -57,17 +55,6 @@ const columns: Column<NkAnpassungZeile>[] = [
       >
         Erstellen
       </Link>
-      {z.indexMoeglich && (
-        <Link
-          href={`/mietvertraege/${z.id}/indexerhoehung?mitNk=1`}
-          prefetch={false}
-          title="Indexerhöhung ist ebenfalls möglich — ein gemeinsames Schreiben"
-          className="mt-1 block whitespace-nowrap text-xs text-neutral-400 underline hover:text-white"
-        >
-          mit Indexerhöhung
-        </Link>
-      )}
-      </>
     ),
   },
   {
