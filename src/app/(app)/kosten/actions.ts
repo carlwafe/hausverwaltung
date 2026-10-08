@@ -4,7 +4,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEditor, benutzerLabel } from "@/lib/session";
+import { requireEditor, requireUser, benutzerLabel } from "@/lib/session";
+import { ladeKostenDoppelzahlungen } from "@/lib/kosten-doppelzahlung";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
@@ -402,4 +403,11 @@ export async function loescheNichtZugeordneteBuchung(id: string) {
   await requireEditor();
   await prisma.nichtZugeordneteBuchung.delete({ where: { id } });
   revalidatePath("/kosten");
+}
+
+// Nur lesend (auch für Gäste): sucht unter den gebuchten Kosten dieselbe Rechnung zweimal bezahlt,
+// siehe src/lib/import/doppelzahlung.ts. Läuft nur auf Knopfdruck.
+export async function pruefeKostenDoppelzahlungen() {
+  await requireUser();
+  return ladeKostenDoppelzahlungen();
 }

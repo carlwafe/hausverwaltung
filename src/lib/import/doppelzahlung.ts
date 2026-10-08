@@ -191,3 +191,19 @@ export function ermittleDoppelzahlungHinweise(
   for (const [rowNumber, treffer] of pruefeDoppelzahlungen(neu, alt)) ergebnis.set(rowNumber, doppelzahlungHinweis(treffer));
   return ergebnis;
 }
+
+/**
+ * Paare unter bereits gebuchten Kosten (für die Prüfung auf der Kosten-Seite). `zahlungen` wird mit
+ * `rowNumber` = laufende Nummer ab 1 übergeben; Rückgabe: Indizes (ab 0) der beiden Zahlungen je
+ * Paar plus Rechnungsnummer.
+ */
+export function findeDoppelzahlungsPaare(
+  zahlungen: DoppelzahlungZahlung[],
+): { a: number; b: number; rechnungsnummer: string }[] {
+  const paare: { a: number; b: number; rechnungsnummer: string }[] = [];
+  for (const [rowNumber, treffer] of pruefeDoppelzahlungen(zahlungen, [])) {
+    const partner = treffer[0].rowNumber;
+    if (partner !== null && rowNumber < partner) paare.push({ a: rowNumber - 1, b: partner - 1, rechnungsnummer: treffer[0].rechnungsnummer });
+  }
+  return paare;
+}

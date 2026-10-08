@@ -5,6 +5,7 @@ import { KostenTable } from "./kosten-table";
 import { ladeKosten, ladeNichtZugeordneteBuchungen } from "./kosten-liste";
 import { NichtZugeordneteBuchungenTable } from "./nicht-zugeordnete-buchungen-table";
 import { ladeEinheitenFuerAuswahl } from "./einheiten-liste";
+import { DoppelzahlungPruefen } from "./doppelzahlung-pruefen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -63,6 +64,8 @@ export default async function KostenPage() {
           </Link>
         </div>
       </div>
+
+      <DoppelzahlungPruefen />
 
       <NichtZugeordneteBuchungenTable
         rows={nichtZugeordneteBuchungen}
