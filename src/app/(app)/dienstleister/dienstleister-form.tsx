@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { DateInput } from "@/components/date-input";
 import { runFormAction, type FormAktion } from "@/lib/form-utils";
 
 type Typ = "HANDWERKER" | "SONSTIGE";
@@ -18,7 +19,11 @@ type Dienstleister = {
   iban: string | null;
   notiz: string | null;
   aktiv: boolean;
+  verwaltungInformiertAm: Date | null;
+  vertragGekuendigtAm: Date | null;
 };
+
+const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
 
 const inputClass =
   "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
@@ -79,6 +84,28 @@ export function DienstleisterForm({
           Inaktive erscheinen in der Liste weiter unten, z.B. nach einem Wechsel. Die automatische
           Zuordnung beim Import gilt weiterhin, damit ältere Kontoauszüge zugeordnet werden.
         </p>
+      </div>
+
+      <div className="space-y-3 rounded-md border border-neutral-800 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-white">Verwaltungswechsel</h2>
+          <p className="text-xs text-neutral-500">
+            Datum eintragen, sobald erledigt – in der Liste erscheint dann ein grünes Kennzeichen. Leer =
+            noch offen.
+          </p>
+        </div>
+        <DateInput
+          name="verwaltungInformiertAm"
+          label="Über neue Verwaltung informiert am"
+          defaultValue={iso(initial?.verwaltungInformiertAm)}
+          labelClassName="text-sm font-medium"
+        />
+        <DateInput
+          name="vertragGekuendigtAm"
+          label="Vertrag der alten Verwaltung gekündigt am"
+          defaultValue={iso(initial?.vertragGekuendigtAm)}
+          labelClassName="text-sm font-medium"
+        />
       </div>
 
       <div>

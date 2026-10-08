@@ -662,6 +662,10 @@ model Dienstleister {
   notiz        String?
   aktiv        Boolean     @default(true)
   createdAt    DateTime    @default(now())
+  // Verwaltungswechsel: Datum, an dem der Dienstleister über die neue Verwaltung informiert wurde,
+  // bzw. an dem der Vertrag der alten Verwaltung gekündigt wurde. null = noch nicht erledigt.
+  verwaltungInformiertAm DateTime?
+  vertragGekuendigtAm    DateTime?
 
   dokumente Dokument[]
   tickets   Ticket[]

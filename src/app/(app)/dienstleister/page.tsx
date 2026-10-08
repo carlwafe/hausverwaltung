@@ -26,6 +26,8 @@ export default async function DienstleisterPage() {
       email: d.email ?? "",
       adresse: d.adresse ?? "",
       aktiv: d.aktiv,
+      informiertAm: d.verwaltungInformiertAm?.toISOString().slice(0, 10) ?? "",
+      gekuendigtAm: d.vertragGekuendigtAm?.toISOString().slice(0, 10) ?? "",
       suchbegriffe: d.suchbegriffe,
       kostenarten: d.kostenarten.map((k) => k.name).join(", "),
     } satisfies DienstleisterRow,
@@ -46,11 +48,14 @@ export default async function DienstleisterPage() {
         // Aktive zuerst, Inaktive (grau) danach — jeweils nach Name sortiert.
         const rows = [...vonTyp.filter((d) => d.row.aktiv), ...vonTyp.filter((d) => !d.row.aktiv)].map((d) => d.row);
         const anzahlAktiv = vonTyp.filter((d) => d.row.aktiv).length;
+        const offen = vonTyp.filter((d) => d.row.aktiv && !d.row.informiertAm).length;
         return (
           <section key={a.typ} className="mb-10">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">
-                {a.titel} <span className="text-sm font-normal text-neutral-500">({anzahlAktiv} aktiv)</span>
+                {a.titel} <span className="text-sm font-normal text-neutral-500">({anzahlAktiv} aktiv
+                {anzahlAktiv > 0 && <>, {offen === 0 ? "alle informiert" : `${offen} noch nicht über die neue Verwaltung informiert`}</>})
+                </span>
               </h2>
               <Link
                 href={`/dienstleister/neu?typ=${a.typ}`}

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { parseSuchbegriffe } from "@/lib/import/dienstleister";
 import { zodFehler, mitMeldung } from "@/lib/aktion";
+import { optionalesDatum } from "@/lib/zod-datum";
 
 const TYPEN = ["HANDWERKER", "SONSTIGE"] as const;
 
@@ -23,6 +24,8 @@ const dienstleisterSchema = z.object({
   iban: z.string().trim().optional(),
   notiz: z.string().trim().optional(),
   aktiv: z.boolean(),
+  verwaltungInformiertAm: optionalesDatum(),
+  vertragGekuendigtAm: optionalesDatum(),
 });
 
 function parseForm(formData: FormData) {
@@ -39,6 +42,8 @@ function parseForm(formData: FormData) {
     iban: formData.get("iban") || undefined,
     notiz: formData.get("notiz") || undefined,
     aktiv: formData.get("aktiv") === "on",
+    verwaltungInformiertAm: formData.get("verwaltungInformiertAm") || "",
+    vertragGekuendigtAm: formData.get("vertragGekuendigtAm") || "",
   });
   if (!parsed.success) {
     throw zodFehler(parsed.error);
@@ -58,6 +63,8 @@ function parseForm(formData: FormData) {
     iban: d.iban ?? null,
     notiz: d.notiz ?? null,
     aktiv: d.aktiv,
+    verwaltungInformiertAm: d.verwaltungInformiertAm ?? null,
+    vertragGekuendigtAm: d.vertragGekuendigtAm ?? null,
   };
 }
 
@@ -89,6 +96,24 @@ export async function deleteDienstleister(id: string) {
   revalidatePath("/dienstleister");
   redirect("/dienstleister");
 }
+
+// Heutiges Datum (Berlin) als UTC-Mitternacht, wie ein per DateInput eingegebenes Datum.
+function heuteAlsDatum() {
+  const [j, m, t] = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date()).split("-").map(Number);
+  return new Date(Date.UTC(j, m - 1, t));
+}
+
+// Schnell-Markierung aus der Liste: setzt das Datum auf heute bzw. nimmt die Markierung zurück.
+export const setzeVerwaltungswechsel = mitMeldung(async function setzeVerwaltungswechsel(
+  id: string,
+  feld: "verwaltungInformiertAm" | "vertragGekuendigtAm",
+  erledigt: boolean,
+) {
+  await requireEditor();
+  if (feld !== "verwaltungInformiertAm" && feld !== "vertragGekuendigtAm") return;
+  await prisma.dienstleister.update({ where: { id }, data: { [feld]: erledigt ? heuteAlsDatum() : null } });
+  revalidatePath("/dienstleister");
+});
 
 // Übernimmt Vorschläge aus dem Import-Verlauf als Dienstleister (Suchbegriff = Empfängername).
 export async function uebernehmeVorschlaege(
