@@ -27,7 +27,6 @@ export default async function DienstleisterPage() {
       adresse: d.adresse ?? "",
       aktiv: d.aktiv,
       informiertAm: d.verwaltungInformiertAm?.toISOString().slice(0, 10) ?? "",
-      gekuendigtAm: d.vertragGekuendigtAm?.toISOString().slice(0, 10) ?? "",
       suchbegriffe: d.suchbegriffe,
       kostenarten: d.kostenarten.map((k) => k.name).join(", "),
     } satisfies DienstleisterRow,

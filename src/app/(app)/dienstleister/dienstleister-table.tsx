@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { DataTable, type Column } from "@/components/data-table";
-import { setzeVerwaltungswechsel } from "./actions";
+import { setzeVerwaltungInformiert } from "./actions";
 
 export type DienstleisterRow = {
   id: string;
@@ -17,9 +17,8 @@ export type DienstleisterRow = {
   kostenarten: string;
   adresse: string;
   aktiv: boolean;
-  // Verwaltungswechsel: Datum (yyyy-mm-dd) oder "" = noch offen.
+  // Verwalterwechsel: Datum (yyyy-mm-dd) oder "" = noch offen.
   informiertAm: string;
-  gekuendigtAm: string;
 };
 
 function datumDe(iso: string) {
@@ -27,21 +26,9 @@ function datumDe(iso: string) {
   return `${t}.${m}.${j}`;
 }
 
-// Kennzeichen zum Anklicken: grün mit Datum = erledigt, grau gestrichelt = offen. Klick setzt auf heute
+// Kennzeichen zum Anklicken: grün mit Datum = informiert, grau gestrichelt = offen. Klick setzt auf heute
 // bzw. nimmt die Markierung zurück; ein genaues Datum lässt sich im Formular des Eintrags ändern.
-function WechselKennzeichen({
-  id,
-  feld,
-  datum,
-  erledigtText,
-  offenText,
-}: {
-  id: string;
-  feld: "verwaltungInformiertAm" | "vertragGekuendigtAm";
-  datum: string;
-  erledigtText: string;
-  offenText: string;
-}) {
+function InformiertKennzeichen({ id, datum }: { id: string; datum: string }) {
   const [pending, start] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const erledigt = datum !== "";
@@ -50,10 +37,10 @@ function WechselKennzeichen({
       <button
         type="button"
         disabled={pending}
-        title={erledigt ? "Klicken, um die Markierung zurückzunehmen" : "Klicken, um als erledigt (heute) zu markieren"}
+        title={erledigt ? "Klicken, um die Markierung zurückzunehmen" : "Klicken, um als informiert (heute) zu markieren"}
         onClick={() =>
           start(async () => {
-            setFehler((await setzeVerwaltungswechsel(id, feld, !erledigt)) || null);
+            setFehler((await setzeVerwaltungInformiert(id, !erledigt)) || null);
           })
         }
         className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs disabled:opacity-50 ${
@@ -62,7 +49,7 @@ function WechselKennzeichen({
             : "border border-dashed border-neutral-600 text-neutral-400 hover:border-neutral-400 hover:text-neutral-200"
         }`}
       >
-        {erledigt ? `✓ ${erledigtText} ${datumDe(datum)}` : offenText}
+        {erledigt ? `✓ Informiert ${datumDe(datum)}` : "Nicht informiert"}
       </button>
       {fehler && <span className="mt-1 block text-xs text-red-400">{fehler}</span>}
     </span>
@@ -125,27 +112,9 @@ const columns: Column<DienstleisterRow>[] = [
   },
   {
     key: "wechsel",
-    label: "Verwaltungswechsel",
-    // Offene zuerst: 0 = nichts erledigt, 1 = eines, 2 = beides.
-    sortValue: (d) => (d.informiertAm ? 1 : 0) + (d.gekuendigtAm ? 1 : 0),
-    render: (d) => (
-      <div className="space-y-1">
-        <WechselKennzeichen
-          id={d.id}
-          feld="verwaltungInformiertAm"
-          datum={d.informiertAm}
-          erledigtText="Informiert"
-          offenText="Nicht informiert"
-        />
-        <WechselKennzeichen
-          id={d.id}
-          feld="vertragGekuendigtAm"
-          datum={d.gekuendigtAm}
-          erledigtText="Gekündigt"
-          offenText="Nicht gekündigt"
-        />
-      </div>
-    ),
+    label: "Verwalterwechsel",
+    sortValue: (d) => (d.informiertAm ? 1 : 0),
+    render: (d) => <InformiertKennzeichen id={d.id} datum={d.informiertAm} />,
   },
   {
     key: "aktiv",

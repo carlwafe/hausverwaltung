@@ -25,7 +25,6 @@ const dienstleisterSchema = z.object({
   notiz: z.string().trim().optional(),
   aktiv: z.boolean(),
   verwaltungInformiertAm: optionalesDatum(),
-  vertragGekuendigtAm: optionalesDatum(),
 });
 
 function parseForm(formData: FormData) {
@@ -43,7 +42,6 @@ function parseForm(formData: FormData) {
     notiz: formData.get("notiz") || undefined,
     aktiv: formData.get("aktiv") === "on",
     verwaltungInformiertAm: formData.get("verwaltungInformiertAm") || "",
-    vertragGekuendigtAm: formData.get("vertragGekuendigtAm") || "",
   });
   if (!parsed.success) {
     throw zodFehler(parsed.error);
@@ -64,7 +62,6 @@ function parseForm(formData: FormData) {
     notiz: d.notiz ?? null,
     aktiv: d.aktiv,
     verwaltungInformiertAm: d.verwaltungInformiertAm ?? null,
-    vertragGekuendigtAm: d.vertragGekuendigtAm ?? null,
   };
 }
 
@@ -104,14 +101,15 @@ function heuteAlsDatum() {
 }
 
 // Schnell-Markierung aus der Liste: setzt das Datum auf heute bzw. nimmt die Markierung zurück.
-export const setzeVerwaltungswechsel = mitMeldung(async function setzeVerwaltungswechsel(
+export const setzeVerwaltungInformiert = mitMeldung(async function setzeVerwaltungInformiert(
   id: string,
-  feld: "verwaltungInformiertAm" | "vertragGekuendigtAm",
   erledigt: boolean,
 ) {
   await requireEditor();
-  if (feld !== "verwaltungInformiertAm" && feld !== "vertragGekuendigtAm") return;
-  await prisma.dienstleister.update({ where: { id }, data: { [feld]: erledigt ? heuteAlsDatum() : null } });
+  await prisma.dienstleister.update({
+    where: { id },
+    data: { verwaltungInformiertAm: erledigt ? heuteAlsDatum() : null },
+  });
   revalidatePath("/dienstleister");
 });
 

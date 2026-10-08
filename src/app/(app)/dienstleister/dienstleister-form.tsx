@@ -20,7 +20,6 @@ type Dienstleister = {
   notiz: string | null;
   aktiv: boolean;
   verwaltungInformiertAm: Date | null;
-  vertragGekuendigtAm: Date | null;
 };
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
@@ -86,28 +85,6 @@ export function DienstleisterForm({
         </p>
       </div>
 
-      <div className="space-y-3 rounded-md border border-neutral-800 p-4">
-        <div>
-          <h2 className="text-sm font-semibold text-white">Verwaltungswechsel</h2>
-          <p className="text-xs text-neutral-500">
-            Datum eintragen, sobald erledigt – in der Liste erscheint dann ein grünes Kennzeichen. Leer =
-            noch offen.
-          </p>
-        </div>
-        <DateInput
-          name="verwaltungInformiertAm"
-          label="Über neue Verwaltung informiert am"
-          defaultValue={iso(initial?.verwaltungInformiertAm)}
-          labelClassName="text-sm font-medium"
-        />
-        <DateInput
-          name="vertragGekuendigtAm"
-          label="Vertrag der alten Verwaltung gekündigt am"
-          defaultValue={iso(initial?.vertragGekuendigtAm)}
-          labelClassName="text-sm font-medium"
-        />
-      </div>
-
       <div>
         <label className={labelClass} htmlFor="beschreibung">
           Beschreibung
@@ -146,6 +123,18 @@ export function DienstleisterForm({
           </label>
           <input id="email" name="email" type="email" defaultValue={initial?.email ?? ""} className={inputClass} />
         </div>
+      </div>
+
+      <div>
+        <DateInput
+          name="verwaltungInformiertAm"
+          label="Über Verwalterwechsel informiert am"
+          defaultValue={iso(initial?.verwaltungInformiertAm)}
+        />
+        <p className="mt-1 text-xs text-neutral-500">
+          Datum, an dem dieser Dienstleister über die neue Verwaltung (und die Kündigung der alten)
+          benachrichtigt wurde. Leer = noch offen. In der Liste lässt es sich auch direkt anklicken.
+        </p>
       </div>
 
       <div>
