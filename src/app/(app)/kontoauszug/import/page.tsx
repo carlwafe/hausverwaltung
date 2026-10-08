@@ -54,6 +54,15 @@ export default function KontoauszugImportPage() {
         Verwendungszweck nennt oft die falsche Sparte (&bdquo;Allgemeinstrom + Wasser&ldquo;, &bdquo;Wasser +
         Gas&ldquo;). Kostenart am Betrag prüfen und die Kostenposition danach unter Kosten aufteilen.
       </p>
+      <p className="mb-2 max-w-2xl text-xs text-neutral-500">
+        &bdquo;M&ouml;gliche Doppelzahlung&ldquo; (Spalte Hinweis): Dieselbe Rechnungsnummer wurde bei
+        gleichem Empf&auml;nger und Betrag schon gebucht oder steht zweimal in der Datei (h&ouml;chstens
+        120 Tage auseinander). Nur ein Hinweis, nichts wird gesperrt: Bei einer echten Doppelzahlung
+        die zweite Zeile nicht importieren (oder importieren und die R&uuml;ckzahlung sp&auml;ter als
+        negative Kostenposition derselben Kostenart buchen). Abschl&auml;ge, Raten und Serien mit drei
+        oder mehr gleichen Zahlungen werden nicht gemeldet; ohne Rechnungsnummer im Text wird
+        nichts gepr&uuml;ft.
+      </p>
       <p className="mb-6 max-w-2xl text-xs text-neutral-500">
         Von Hand prüfen: Die Rauchmelder-Wartung von Techem (Rechnung im Januar) gehört zum Vorjahr,
         der Verwendungszweck nennt aber keine Jahreszahl &mdash; Kostenjahr auf das Vorjahr setzen und
