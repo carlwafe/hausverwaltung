@@ -11,6 +11,7 @@ import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
 import { parseSuchbegriffe, type DienstleisterKandidat } from "@/lib/import/dienstleister";
+import { ermittleDoppelzahlungHinweise } from "@/lib/import/doppelzahlung";
 import {
   mapKostenRows,
   type EinheitKandidat,
@@ -627,9 +628,12 @@ export async function previewImport(
       sonstigeZahlungenRaw: bestehendeSonstigenBuchungenRaw,
       nichtZugeordneteBuchungenRaw: bestehendeNichtZugeordnetenBuchungenRaw,
     });
-    const zeilen = vereinheitlicheZeilen(zahlungenRows, kostenRows).map((z) => ({
+    const vereinheitlicht = vereinheitlicheZeilen(zahlungenRows, kostenRows);
+    const doppelzahlungen = ermittleDoppelzahlungHinweise(vereinheitlicht, bestehendeKostenpositionen, dienstleisterKandidaten);
+    const zeilen = vereinheitlicht.map((z) => ({
       ...z,
       rohdatenSchluessel: zeilenSchluesselAusRohdaten(z.rohdaten),
+      doppelzahlungHinweis: doppelzahlungen.get(z.rowNumber) ?? null,
     }));
 
     return {

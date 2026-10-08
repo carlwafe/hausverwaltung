@@ -794,6 +794,9 @@ export function BuchungenTabelle({
                           bereits importiert{!r.ausgewaehlt ? " – wird übersprungen" : ""}
                         </span>
                       )}
+                      {r.errors.length === 0 && !bereitsImportiert && r.doppelzahlungHinweis && (
+                        <div className="mt-1 text-amber-400">{r.doppelzahlungHinweis}</div>
+                      )}
                     </td>
                     <td className="max-w-[260px] px-3 py-1.5 text-xs">
                       {r.ki ? (

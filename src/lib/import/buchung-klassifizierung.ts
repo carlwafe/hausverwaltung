@@ -43,6 +43,9 @@ export type VereinheitlichteZeile = {
   // Schlüssel der Bankzeile für die artunabhängige Bereits-importiert-Erkennung (siehe
   // BestehendeImportSets.bestehendeRohdaten) — wird erst in previewImport gesetzt.
   rohdatenSchluessel?: string | null;
+  // Hinweis "Mögliche Doppelzahlung …" (gleiche Rechnungsnummer, gleicher Betrag, gleicher
+  // Empfänger bereits gebucht oder in der Datei), siehe doppelzahlung.ts — wird in previewImport gesetzt.
+  doppelzahlungHinweis?: string | null;
 };
 
 /**
