@@ -12,9 +12,9 @@ import {
   ladeMietvertragVorschlaege,
   type DokumentLabels,
 } from "@/lib/dokument-zuordnung";
-import { istErkennbar, type Erkennung } from "@/lib/dokument-erkennung";
+import { istErkennbar, type ErkennungErgebnis } from "@/lib/dokument-erkennung";
 import type { ZuordnungsZiel } from "../actions";
-import { BezuegePanel, ErkennenBereich, LabelsForm, type AktuellerBezug, type LabelWerte, type Vorschlag } from "./dokument-formulare";
+import { AufteilenPanel, BezuegePanel, ErkennenBereich, LabelsForm, type AktuellerBezug, type LabelWerte, type Vorschlag } from "./dokument-formulare";
 
 // Die Texterkennung läuft in einer Server-Aktion dieser Seite (Claude liest das PDF).
 export const maxDuration = 60;
@@ -36,11 +36,21 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   const [user, zeile, dokument, kostenarten] = await Promise.all([
     getCurrentUser(),
     ladeDokumentZeile(id),
-    prisma.dokument.findUnique({ where: { id } }),
+    prisma.dokument.findUnique({
+      where: { id },
+      include: {
+        herkunft: { select: { id: true, titel: true, dateiname: true } },
+        teile: { select: { id: true, titel: true, dateiname: true }, orderBy: { dateiname: "asc" } },
+      },
+    }),
     prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   if (!zeile || !dokument) notFound();
   const editierbar = user?.role !== "GAST";
+
+  // Ein aufgeteiltes Original ist nur noch Archiv (die Angaben und Bezüge stehen an den Teilen).
+  const nurAnsicht = dokument.teile.length > 0;
+  const kannBearbeiten = editierbar && !nurAnsicht;
 
   const labels: DokumentLabels = {
     aussteller: dokument.aussteller,
@@ -65,7 +75,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   // Vorschläge nur für Bezüge, die noch fehlen, und nur für Bearbeiter. Kostenpositionen brauchen Betrag, Rechnungsnummer
   // oder Aussteller als Anhaltspunkt.
   let vorschlaege: Vorschlag[] = [];
-  if (editierbar) {
+  if (kannBearbeiten) {
     // Ein Angebot findet seine Kostenposition über Objekt und Aussteller, nicht über Betrag oder Nummer.
     const hatAnhalt = labels.betrag !== null || !!labels.rechnungsnummer || !!labels.aussteller || (labels.art === "ANGEBOT" && !!labels.objektHinweis);
     const [buchungen, vertraege, einheiten, gebaeude, dienstleister] = await Promise.all([
@@ -95,7 +105,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     ];
   }
   // Ordnernamen für „Ohne Bezug ablegen“ nur im Eingang.
-  const ordnerNamen = editierbar && dokument.eingang && bezuege.length === 0 ? allgemeineOrdnerNamen(await ladeDokumentIndex()) : [];
+  const ordnerNamen = kannBearbeiten && dokument.eingang && bezuege.length === 0 ? allgemeineOrdnerNamen(await ladeDokumentIndex()) : [];
 
   const werte: LabelWerte = {
     art: dokument.art ?? "",
@@ -112,7 +122,12 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     adressat: dokument.adressat ?? "",
     objektHinweis: dokument.objektHinweis ?? "",
   };
-  const erkennung = dokument.erkennung as Erkennung | null;
+  const erkennung = dokument.erkennung as ErkennungErgebnis | null;
+  // Sammel-PDF: nur anbieten, solange es nicht aufgeteilt ist und noch keine Bezüge hat.
+  const aufteilbar =
+    editierbar && !dokument.ausgeblendetAm && bezuege.length === 0 && dokument.mimeType === "application/pdf" && (erkennung?.teile?.length ?? 0) > 1
+      ? { seiten: erkennung?.seiten ?? 0, teile: erkennung!.teile!.map((t, i) => ({ quelleIndex: i, titel: t.titel, aussteller: t.aussteller, rechnungsnummer: t.rechnungsnummer, betrag: t.betrag, seiteVon: t.seiteVon, seiteBis: t.seiteBis })) }
+      : null;
   const bereichLabel = BEREICHE.find((b) => b.key === zeile.bereich)?.label ?? zeile.bereich;
   const vorschau = dokument.mimeType === "application/pdf" ? "pdf" : dokument.mimeType?.startsWith("image/") ? "bild" : null;
 
@@ -140,9 +155,33 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
         )}
       </p>
 
+      {dokument.herkunft && (
+        <p className="mb-4 rounded-lg border border-neutral-800 p-3 text-sm text-neutral-300">
+          Teil eines aufgeteilten PDFs — Original:{" "}
+          <Link href={`/dokumente/${dokument.herkunft.id}`} className="text-white underline">
+            {dokument.herkunft.titel ?? dokument.herkunft.dateiname}
+          </Link>
+        </p>
+      )}
+      {dokument.teile.length > 0 && (
+        <div className="mb-4 rounded-lg border border-neutral-800 p-3 text-sm text-neutral-300">
+          Dieses PDF wurde aufgeteilt in:
+          <ul className="mt-1 list-disc pl-5">
+            {dokument.teile.map((t) => (
+              <li key={t.id}>
+                <Link href={`/dokumente/${t.id}`} className="text-white underline [overflow-wrap:anywhere]">
+                  {t.titel ?? t.dateiname}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-6">
-          {editierbar ? (
+          {aufteilbar && aufteilbar.seiten > 0 && <AufteilenPanel id={id} seiten={aufteilbar.seiten} teile={aufteilbar.teile} />}
+          {kannBearbeiten ? (
             <BezuegePanel id={id} eingang={dokument.eingang} bezuege={bezuege} vorschlaege={vorschlaege} ordnerNamen={ordnerNamen} art={dokument.art} gelesen={dokument.erkanntAm !== null} />
           ) : (
             <div className="rounded-lg border border-neutral-800 p-4 text-sm">
@@ -167,7 +206,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
             id={id}
             werte={werte}
             kostenarten={kostenarten}
-            editierbar={editierbar}
+            editierbar={kannBearbeiten}
           />
           <ErkennenBereich
             id={id}
@@ -175,7 +214,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
             konfidenz={erkennung?.konfidenz ?? null}
             hinweis={erkennung?.hinweis ?? null}
             erkennbar={istErkennbar(dokument.mimeType)}
-            editierbar={editierbar}
+            editierbar={kannBearbeiten}
           />
         </div>
         <div>

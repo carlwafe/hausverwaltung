@@ -12,6 +12,7 @@ import {
   legeDokumentAb,
   ordneDokumentZu,
   speichereDokumentLabels,
+  teileDokumentAuf,
   type ZuordnungsZiel,
 } from "../actions";
 
@@ -270,6 +271,86 @@ export function ErkennenBereich({
         gegen das Original prüfen.
       </p>
       {meldung && <p className="mt-2 text-sm text-red-400">{meldung}</p>}
+    </div>
+  );
+}
+
+export type ErkannterTeil = {
+  quelleIndex: number;
+  titel: string | null;
+  aussteller: string | null;
+  rechnungsnummer: string | null;
+  betrag: number | null;
+  seiteVon: number;
+  seiteBis: number;
+};
+
+// Ein PDF mit mehreren Dokumenten (z.B. Sammel-Scan mit mehreren Rechnungen): zeigt die erkannten Teile mit Seitenbereich,
+// die sich korrigieren oder entfernen lassen. „Aufteilen“ legt je Teil ein eigenes Dokument im Eingang an (mit eigenen Angaben
+// und Vorschlägen); das Original bleibt erhalten und wird ausgeblendet.
+export function AufteilenPanel({ id, seiten, teile }: { id: string; seiten: number; teile: ErkannterTeil[] }) {
+  const [zeilen, setZeilen] = useState(teile);
+  const [pending, startTransition] = useTransition();
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  const aendere = (i: number, feld: "seiteVon" | "seiteBis", wert: string) =>
+    setZeilen(zeilen.map((z, j) => (j === i ? { ...z, [feld]: Number(wert) || 0 } : z)));
+
+  // Gleiche Regeln wie auf dem Server: ganze Zahlen im PDF, aufsteigend, ohne Überschneidung.
+  let letzte = 0;
+  let stimmig = zeilen.length >= 2;
+  for (const z of zeilen) {
+    if (!(z.seiteVon >= 1 && z.seiteBis <= seiten && z.seiteVon <= z.seiteBis && z.seiteVon > letzte)) stimmig = false;
+    letzte = z.seiteBis;
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-700/50 p-4">
+      <h2 className="mb-1 text-lg font-medium text-white">Dieses PDF enthält {teile.length} Dokumente</h2>
+      <p className="mb-3 text-xs text-neutral-500">
+        Die Texterkennung hat in dem PDF ({seiten} Seiten) mehrere voneinander unabhängige Dokumente gefunden. Prüfe die Seitenbereiche und teile es auf: Jedes
+        Teil wird ein eigenes Dokument im Eingang, mit eigenen Angaben und eigenen Zuordnungsvorschlägen. Das Original bleibt erhalten (ausgeblendet).
+      </p>
+      <ul className="mb-3 divide-y divide-neutral-800 rounded-md border border-neutral-800">
+        {zeilen.map((z, i) => (
+          <li key={z.quelleIndex} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+            <div className="min-w-0 flex-1 basis-64">
+              <div className="text-white [overflow-wrap:anywhere]">{z.titel ?? `Dokument ${i + 1}`}</div>
+              <div className="text-xs text-neutral-500">
+                {[z.aussteller, z.rechnungsnummer && `Nr. ${z.rechnungsnummer}`, z.betrag !== null && new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(z.betrag)].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+            <label className="flex items-center gap-1 text-xs text-neutral-400">
+              Seite
+              <input type="number" min={1} max={seiten} value={z.seiteVon || ""} onChange={(e) => aendere(i, "seiteVon", e.target.value)} className="h-[32px] w-16 rounded-md border border-neutral-700 bg-neutral-900 px-2 text-sm text-white" />
+              bis
+              <input type="number" min={1} max={seiten} value={z.seiteBis || ""} onChange={(e) => aendere(i, "seiteBis", e.target.value)} className="h-[32px] w-16 rounded-md border border-neutral-700 bg-neutral-900 px-2 text-sm text-white" />
+            </label>
+            {zeilen.length > 2 && (
+              <button type="button" title="Teil entfernen (die Seiten gehören dann zu keinem Teil)" onClick={() => setZeilen(zeilen.filter((_, j) => j !== i))} className="rounded-full px-2 text-neutral-400 hover:bg-neutral-800 hover:text-white">
+                ×
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {!stimmig && <p className="mb-2 text-xs text-red-400">Die Seitenbereiche müssen in {seiten} Seiten passen, aufsteigend sein und dürfen sich nicht überschneiden.</p>}
+      <button
+        type="button"
+        disabled={pending || !stimmig}
+        onClick={() => {
+          if (!confirm(`In ${zeilen.length} Dokumente aufteilen? Das Original bleibt erhalten (ausgeblendet).`)) return;
+          setFehler(null);
+          startTransition(async () => {
+            const f = await teileDokumentAuf(id, zeilen.map((z) => ({ quelleIndex: z.quelleIndex, seiteVon: z.seiteVon, seiteBis: z.seiteBis })));
+            if (typeof f === "string") setFehler(f);
+          });
+        }}
+        className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+      >
+        {pending ? "Teilt auf…" : `In ${zeilen.length} Dokumente aufteilen`}
+      </button>
+      {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}
     </div>
   );
 }

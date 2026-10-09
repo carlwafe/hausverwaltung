@@ -7,7 +7,8 @@ import { benutzerLabel, requireEditor } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { AUTOMATISCH_NICHT_LESEN, istGueltigeArt } from "@/lib/dokumente-anzeige";
-import { erkenneDokumentInhalt, istErkennbar, istGueltigeIban } from "@/lib/dokument-erkennung";
+import { erkenneDokumentInhalt, gueltigeSeitenbereiche, istErkennbar, istGueltigeIban, type Erkennung, type ErkennungTeil } from "@/lib/dokument-erkennung";
+import { PDFDocument } from "pdf-lib";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
@@ -37,30 +38,74 @@ function datumOderNull(iso: string | null | undefined): Date | null {
   return iso ? parseBelegDatum(iso) : null;
 }
 
+// Seitenzahl eines PDFs (für die Prüfung der erkannten Seitenbereiche beim Aufteilen); bei Bildern/Fehlern unbekannt.
+async function seitenzahlVon(inhalt: Buffer, mimeType: string): Promise<number | undefined> {
+  if (mimeType !== "application/pdf") return undefined;
+  try {
+    return (await PDFDocument.load(inhalt, { ignoreEncryption: true })).getPageCount();
+  } catch {
+    return undefined;
+  }
+}
+
+// Angaben einer Erkennung als Felder des Dokuments (für ein neues Dokument ohne bestehende Eingaben).
+function felderAusErkennung(e: Erkennung) {
+  return {
+    art: e.typ ?? undefined,
+    titel: e.titel ?? undefined,
+    belegDatum: datumOderNull(e.rechnungsdatum) ?? undefined,
+    aussteller: e.aussteller ?? undefined,
+    rechnungsnummer: e.rechnungsnummer ?? undefined,
+    betrag: e.betrag ?? undefined,
+    leistungVon: datumOderNull(e.leistungVon) ?? undefined,
+    leistungBis: datumOderNull(e.leistungBis) ?? undefined,
+    kostenjahr: e.kostenjahr ?? undefined,
+    iban: e.iban ?? undefined,
+    kostenartId: e.kostenartId ?? undefined,
+    adressat: e.adressat ?? undefined,
+    objektHinweis: e.objekt ?? undefined,
+  };
+}
+
 // Liest den Inhalt per Claude und trägt die Ergebnisse in die noch leeren Labels ein (vorhandene Angaben
 // des Nutzers werden nie überschrieben); das Rohergebnis bleibt als Vorschlag am Dokument stehen.
+// Enthält ein PDF mehrere Dokumente (Sammel-Scan), bekommt das Original nur Typ und einen Titel; die Angaben je
+// Teil stehen im Rohergebnis, aufgeteilt wird erst nach Bestätigung (teileDokumentAuf).
 async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string): Promise<void> {
   const kostenarten = await prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
-  const e = await erkenneDokumentInhalt(inhalt, mimeType, { kostenarten });
+  const e = await erkenneDokumentInhalt(inhalt, mimeType, { kostenarten }, await seitenzahlVon(inhalt, mimeType));
   const d = await prisma.dokument.findUniqueOrThrow({ where: { id } });
+  if (e.teile && e.teile.length > 1) {
+    await prisma.dokument.update({
+      where: { id },
+      data: {
+        erkennung: e as unknown as Prisma.InputJsonValue,
+        erkanntAm: new Date(),
+        art: d.art ?? e.typ ?? undefined,
+        titel: d.titel ?? `Sammel-PDF mit ${e.teile.length} Dokumenten`,
+      },
+    });
+    return;
+  }
+  const f = felderAusErkennung(e);
   await prisma.dokument.update({
     where: { id },
     data: {
       erkennung: e as unknown as Prisma.InputJsonValue,
       erkanntAm: new Date(),
-      art: d.art ?? e.typ ?? undefined,
-      titel: d.titel ?? e.titel ?? undefined,
-      belegDatum: d.belegDatum ?? datumOderNull(e.rechnungsdatum) ?? undefined,
-      aussteller: d.aussteller ?? e.aussteller ?? undefined,
-      rechnungsnummer: d.rechnungsnummer ?? e.rechnungsnummer ?? undefined,
-      betrag: d.betrag ?? e.betrag ?? undefined,
-      leistungVon: d.leistungVon ?? datumOderNull(e.leistungVon) ?? undefined,
-      leistungBis: d.leistungBis ?? datumOderNull(e.leistungBis) ?? undefined,
-      kostenjahr: d.kostenjahr ?? e.kostenjahr ?? undefined,
-      iban: d.iban ?? e.iban ?? undefined,
-      kostenartId: d.kostenartId ?? e.kostenartId ?? undefined,
-      adressat: d.adressat ?? e.adressat ?? undefined,
-      objektHinweis: d.objektHinweis ?? e.objekt ?? undefined,
+      art: d.art ?? f.art,
+      titel: d.titel ?? f.titel,
+      belegDatum: d.belegDatum ?? f.belegDatum,
+      aussteller: d.aussteller ?? f.aussteller,
+      rechnungsnummer: d.rechnungsnummer ?? f.rechnungsnummer,
+      betrag: d.betrag ?? f.betrag,
+      leistungVon: d.leistungVon ?? f.leistungVon,
+      leistungBis: d.leistungBis ?? f.leistungBis,
+      kostenjahr: d.kostenjahr ?? f.kostenjahr,
+      iban: d.iban ?? f.iban,
+      kostenartId: d.kostenartId ?? f.kostenartId,
+      adressat: d.adressat ?? f.adressat,
+      objektHinweis: d.objektHinweis ?? f.objektHinweis,
     },
   });
 }
@@ -525,4 +570,85 @@ export const uebernehmeSichereVorschlaege = mitMeldung(async function uebernehme
   revalidatePath("/dokumente");
   revalidatePath("/kosten");
   return anzahl === 0 ? "Keine eindeutigen Treffer gefunden." : null;
+});
+
+// ---- Aufteilen eines PDFs mit mehreren Dokumenten ----
+
+export type AufteilTeil = { quelleIndex: number; seiteVon: number; seiteBis: number };
+
+// Teilt ein erkanntes Sammel-PDF in einzelne Dokumente auf. Die Seitenbereiche kommen (ggf. vom Nutzer korrigiert) vom
+// Formular; die Angaben je Teil stammen aus der gespeicherten Erkennung. Jedes Teil wird ein eigenes Dokument im Eingang
+// (verknüpft mit dem Original), das Original bleibt erhalten und wird ausgeblendet — nichts wird gelöscht.
+export const teileDokumentAuf = mitMeldung(async function teileDokumentAuf(id: string, teile: AufteilTeil[]): Promise<string | null> {
+  const user = await requireEditor();
+  const dokument = await prisma.dokument.findUnique({ where: { id } });
+  if (!dokument) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  if (dokument.ausgeblendetAm) throw new AktionsFehler("Das Dokument ist schon aufgeteilt oder ausgeblendet.");
+  if (hatBezug(dokument)) throw new AktionsFehler("Das Dokument hat schon Bezüge — zum Aufteilen bitte zuerst alle Bezüge entfernen.");
+  if (dokument.mimeType !== "application/pdf") throw new AktionsFehler("Nur PDF-Dateien lassen sich aufteilen.");
+  const gespeichert = (dokument.erkennung as { teile?: ErkennungTeil[] } | null)?.teile;
+  if (!gespeichert || gespeichert.length < 2) throw new AktionsFehler("Es wurden keine mehreren Dokumente erkannt.");
+  if (teile.length < 2 || teile.length > 20) throw new AktionsFehler("Zum Aufteilen sind 2 bis 20 Teile nötig.");
+  for (const t of teile) {
+    if (!Number.isInteger(t.quelleIndex) || t.quelleIndex < 0 || t.quelleIndex >= gespeichert.length) throw new AktionsFehler("Ungültiger Teil.");
+  }
+
+  let inhalt: Buffer;
+  try {
+    inhalt = await leseDatei(dokument.speicherpfad);
+  } catch {
+    throw new AktionsFehler("Die Datei ist nicht mehr verfügbar.");
+  }
+  const quelle = await PDFDocument.load(inhalt, { ignoreEncryption: true });
+  const seiten = quelle.getPageCount();
+  if (!gueltigeSeitenbereiche(teile, seiten)) {
+    throw new AktionsFehler(`Die Seitenbereiche passen nicht (das PDF hat ${seiten} Seiten): ganze Zahlen, aufsteigend, ohne Überschneidung.`);
+  }
+
+  const basis = dokument.dateiname.replace(/\.pdf$/i, "");
+  const angelegt: { speicherpfad: string; dateiname: string; groesse: number; teil: AufteilTeil }[] = [];
+  try {
+    for (const [i, t] of teile.entries()) {
+      const neu = await PDFDocument.create();
+      const kopiert = await neu.copyPages(quelle, Array.from({ length: t.seiteBis - t.seiteVon + 1 }, (_, k) => t.seiteVon - 1 + k));
+      kopiert.forEach((seite) => neu.addPage(seite));
+      const bytes = Buffer.from(await neu.save());
+      const bereich = t.seiteVon === t.seiteBis ? `S. ${t.seiteVon}` : `S. ${t.seiteVon}–${t.seiteBis}`;
+      const dateiname = `${basis} (Teil ${i + 1} von ${teile.length}, ${bereich}).pdf`;
+      angelegt.push({ speicherpfad: await speichereDatei(bytes, dateiname), dateiname, groesse: bytes.length, teil: t });
+    }
+    await prisma.$transaction(async (tx) => {
+      for (const a of angelegt) {
+        const e = gespeichert[a.teil.quelleIndex];
+        const { seiteVon: _v, seiteBis: _b, ...ohneSeiten } = e;
+        void _v;
+        void _b;
+        await tx.dokument.create({
+          data: {
+            ...felderAusErkennung(e),
+            dateiname: a.dateiname,
+            speicherpfad: a.speicherpfad,
+            mimeType: "application/pdf",
+            groesseBytes: a.groesse,
+            eingang: true,
+            hochgeladenVon: user.email ?? user.name ?? null,
+            herkunftId: id,
+            erkennung: ohneSeiten as unknown as Prisma.InputJsonValue,
+            erkanntAm: new Date(),
+          },
+        });
+      }
+      await tx.dokument.update({
+        where: { id },
+        data: { eingang: false, ausgeblendetAm: new Date(), ausgeblendetVon: `Aufgeteilt in ${angelegt.length} Dokumente (${benutzerLabel(user) ?? "unbekannt"})` },
+      });
+    });
+  } catch (err) {
+    // Angelegte Dateien wieder entfernen, damit keine verwaisten Dateien im Speicher bleiben.
+    for (const a of angelegt) await loescheDatei(a.speicherpfad).catch(() => undefined);
+    throw err;
+  }
+  revalidatePath("/dokumente");
+  revalidatePath(`/dokumente/${id}`);
+  return null;
 });

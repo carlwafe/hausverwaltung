@@ -979,6 +979,11 @@ model Dokument {
   // Rohergebnis der Texterkennung (Vorschlag, Konfidenz, Modell) und Zeitpunkt.
   erkennung       Json?
   erkanntAm       DateTime?
+  // Aufteilung: Teil eines PDFs, das mehrere Dokumente (z.B. Rechnungen) enthielt. Das Original bleibt erhalten (ausgeblendet)
+  // und ist über herkunft erreichbar.
+  herkunft        Dokument?      @relation("Aufteilung", fields: [herkunftId], references: [id], onDelete: SetNull)
+  herkunftId      String?
+  teile           Dokument[]     @relation("Aufteilung")
   createdAt       DateTime       @default(now())
 
   @@map("dokumente")

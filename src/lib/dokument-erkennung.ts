@@ -35,11 +35,27 @@ export type Erkennung = {
   hinweis: string;
 };
 
+/** Ein Dokument innerhalb eines PDFs (Seitenbereich 1-basiert, einschließlich). */
+export type ErkennungTeil = Erkennung & { seiteVon: number; seiteBis: number };
+
+/**
+ * Ergebnis der Erkennung. Enthält ein PDF mehrere voneinander unabhängige Dokumente (z.B. ein Sammel-Scan mit mehreren
+ * Rechnungen), steht in `teile` je Dokument ein Eintrag mit Seitenbereich und eigenen Angaben und `seiten` nennt die
+ * Seitenzahl; die Felder oben sind dann die des ersten Teils. Sonst fehlt `teile`.
+ */
+export type ErkennungErgebnis = Erkennung & { teile?: ErkennungTeil[]; seiten?: number };
+
 export type ErkennungKontext = { kostenarten: { id: string; name: string }[] };
 
 const SYSTEM_PROMPT = `Du liest Dokumente für die Verwaltung eines privat vermieteten Mietobjekts in Eutin (Wohnungen und Garagen). Du meldest den Dokumenttyp und die Angaben, mit denen das Dokument später einer Zahlung auf dem Kontoauszug, einem Mietvertrag, einer Einheit oder einem Gebäude zugeordnet wird.
 
-Regeln:
+Ein PDF kann mehrere voneinander unabhängige Dokumente hintereinander enthalten (z.B. mehrere Rechnungen verschiedener Aussteller oder mehrere Rechnungen desselben Ausstellers mit jeweils eigener Rechnungsnummer, in einem Sammel-Scan). Melde dann jedes als eigenen Teil in "teile" mit seiteVon/seiteBis (Seitenzahlen ab 1, einschließlich). Regeln dafür:
+- Eine mehrseitige Rechnung samt Folgeseiten, Anlagen, Stundennachweisen und AGB ist EIN Teil. Ein neuer Teil beginnt erst mit einem neuen Dokument (neuer Briefkopf, neue Rechnungs-/Angebotsnummer, anderer Aussteller).
+- Eine Titelseite, ein Fax-/Scan-Deckblatt oder eine Trennseite ohne eigenen Inhalt gehört zum folgenden Dokument.
+- Jede Seite gehört zu genau einem Teil; die Teile folgen in Seitenreihenfolge ohne Lücken und Überschneidungen.
+- Im Zweifel melde nur EINEN Teil über alle Seiten (lieber nicht aufteilen als falsch aufteilen). Bei einem Bild oder einem einzelnen Dokument: genau ein Teil.
+
+Regeln für jeden Teil:
 - typ (genau einer):
   RECHNUNG = Rechnung oder Gutschrift eines Handwerkers, Lieferanten, Versorgers;
   BESCHEID = Gebühren-/Steuerbescheid (Grundsteuer, Abfall, Straßenreinigung …);
@@ -122,7 +138,48 @@ function bereinige(roh: Record<string, unknown>, kontext: ErkennungKontext): Erk
   };
 }
 
-export async function erkenneDokumentInhalt(inhalt: Buffer, mimeType: string, kontext: ErkennungKontext): Promise<Erkennung> {
+const TEIL_FELDER = {
+  seiteVon: { type: ["integer", "null"] },
+  seiteBis: { type: ["integer", "null"] },
+  typ: { type: ["string", "null"], enum: [...ART_OPTIONEN.map((a) => a.key), null] },
+  titel: { type: ["string", "null"] },
+  aussteller: { type: ["string", "null"] },
+  rechnungsnummer: { type: ["string", "null"] },
+  rechnungsdatum: { type: ["string", "null"] },
+  leistungVon: { type: ["string", "null"] },
+  leistungBis: { type: ["string", "null"] },
+  betrag: { type: ["number", "null"] },
+  iban: { type: ["string", "null"] },
+  kostenjahr: { type: ["integer", "null"] },
+  kostenartId: { type: ["string", "null"] },
+  adressat: { type: ["string", "null"] },
+  objekt: { type: ["string", "null"] },
+  konfidenz: { type: "string", enum: ["hoch", "mittel", "niedrig"] },
+  hinweis: { type: "string" },
+} as const;
+
+/**
+ * Prüft die gemeldeten Seitenbereiche: ganze Zahlen innerhalb der Seitenzahl, von ≤ bis, aufsteigend und ohne Überschneidung.
+ * Ist etwas davon verletzt, gilt das Dokument als ungeteilt (kein halbes Aufteilen auf Basis falscher Seitenzahlen).
+ */
+export function gueltigeSeitenbereiche(teile: { seiteVon: number | null; seiteBis: number | null }[], seiten: number): boolean {
+  let letzte = 0;
+  for (const t of teile) {
+    if (t.seiteVon === null || t.seiteBis === null) return false;
+    if (!Number.isInteger(t.seiteVon) || !Number.isInteger(t.seiteBis)) return false;
+    if (t.seiteVon < 1 || t.seiteBis > seiten || t.seiteVon > t.seiteBis || t.seiteVon <= letzte) return false;
+    letzte = t.seiteBis;
+  }
+  return true;
+}
+
+/** @param seitenAnzahl Seitenzahl des PDFs (für die Prüfung der Seitenbereiche); ohne Angabe wird nie aufgeteilt. */
+export async function erkenneDokumentInhalt(
+  inhalt: Buffer,
+  mimeType: string,
+  kontext: ErkennungKontext,
+  seitenAnzahl?: number,
+): Promise<ErkennungErgebnis> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY fehlt");
   if (!istErkennbar(mimeType)) throw new Error(`Dateityp ${mimeType} wird nicht erkannt`);
@@ -139,47 +196,49 @@ export async function erkenneDokumentInhalt(inhalt: Buffer, mimeType: string, ko
 
   const tool: Anthropic.Tool = {
     name: "melde_dokument",
-    description: "Meldet die erkannten Angaben des Dokuments.",
+    description: "Meldet die erkannten Angaben: ein Eintrag je enthaltenem Dokument (meist nur einer).",
     input_schema: {
       type: "object",
       properties: {
-        typ: { type: ["string", "null"], enum: [...ART_OPTIONEN.map((a) => a.key), null] },
-        titel: { type: ["string", "null"] },
-        aussteller: { type: ["string", "null"] },
-        rechnungsnummer: { type: ["string", "null"] },
-        rechnungsdatum: { type: ["string", "null"] },
-        leistungVon: { type: ["string", "null"] },
-        leistungBis: { type: ["string", "null"] },
-        betrag: { type: ["number", "null"] },
-        iban: { type: ["string", "null"] },
-        kostenjahr: { type: ["integer", "null"] },
-        kostenartId: { type: ["string", "null"] },
-        adressat: { type: ["string", "null"] },
-        objekt: { type: ["string", "null"] },
-        konfidenz: { type: "string", enum: ["hoch", "mittel", "niedrig"] },
-        hinweis: { type: "string" },
+        teile: {
+          type: "array",
+          minItems: 1,
+          items: { type: "object", properties: TEIL_FELDER, required: Object.keys(TEIL_FELDER) },
+        },
       },
-      required: [
-        "typ", "titel", "aussteller", "rechnungsnummer", "rechnungsdatum", "leistungVon", "leistungBis", "betrag",
-        "iban", "kostenjahr", "kostenartId", "adressat", "objekt", "konfidenz", "hinweis",
-      ],
+      required: ["teile"],
     },
   };
 
   const kontextText = ["KOSTENARTEN (id | Name):", ...kontext.kostenarten.map((k) => `${k.id} | ${k.name}`)].join("\n");
+  const seitenHinweis = mimeType === "application/pdf" && seitenAnzahl ? ` Das PDF hat ${seitenAnzahl} Seiten.` : "";
 
   const antwort = await client.messages.create({
     model: ERKENNUNG_MODELL,
-    max_tokens: 1500,
+    max_tokens: 4000,
     system: [
       { type: "text", text: SYSTEM_PROMPT },
       { type: "text", text: kontextText, cache_control: { type: "ephemeral" } },
     ],
     tools: [tool],
     tool_choice: { type: "tool", name: tool.name },
-    messages: [{ role: "user", content: [dokumentBlock, { type: "text", text: "Lies dieses Dokument und melde die Angaben." }] }],
+    messages: [{ role: "user", content: [dokumentBlock, { type: "text", text: `Lies dieses Dokument und melde die Angaben.${seitenHinweis}` }] }],
   });
   const block = antwort.content.find((b) => b.type === "tool_use");
   if (!block || block.type !== "tool_use") throw new Error("Keine Antwort der Texterkennung");
-  return bereinige(block.input as Record<string, unknown>, kontext);
+  const roh = (block.input as { teile?: Record<string, unknown>[] }).teile ?? [];
+  if (roh.length === 0) throw new Error("Keine Angaben erkannt");
+
+  const teile = roh.map((r) => {
+    const seite = (w: unknown) => (typeof w === "number" && Number.isInteger(w) ? w : null);
+    return { ...bereinige(r, kontext), seiteVon: seite(r.seiteVon), seiteBis: seite(r.seiteBis) };
+  });
+  // Aufteilen nur bei einem PDF mit mehreren Teilen und stimmigen Seitenbereichen.
+  if (teile.length > 1 && mimeType === "application/pdf" && seitenAnzahl && gueltigeSeitenbereiche(teile, seitenAnzahl)) {
+    return { ...teile[0], teile: teile as ErkennungTeil[], seiten: seitenAnzahl };
+  }
+  const { seiteVon: _von, seiteBis: _bis, ...einzel } = teile[0];
+  void _von;
+  void _bis;
+  return einzel;
 }
