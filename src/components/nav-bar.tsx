@@ -97,6 +97,7 @@ const SEITENTITEL: NavLink[] = [
   ...ABRECHNUNG,
   ...VERWALTUNG,
   { href: "/mietvertraege/vpi-werte", label: "VPI-Werte" },
+  { href: "/kontoauszug/importe", label: "Kontoauszug-Importe" },
   { href: "/buchungen", label: "Buchungen" },
   { href: "/haeuser", label: "Häuser" },
   { href: "/kostenarten", label: "Kostenarten" },
@@ -125,8 +126,18 @@ export function NavBar({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Next setzt den Titel aus den Layout-Metadaten bei jeder Navigation (auch nur mit anderen
+  // Suchparametern, z.B. in den Dokumente-Ordnern) neu — deshalb den Titel nachziehen, sobald
+  // jemand ihn im <head> ändert.
   useEffect(() => {
-    document.title = seitenTitel(pathname);
+    const titel = seitenTitel(pathname);
+    const setze = () => {
+      if (document.title !== titel) document.title = titel;
+    };
+    setze();
+    const beobachter = new MutationObserver(setze);
+    beobachter.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => beobachter.disconnect();
   }, [pathname]);
 
   const gruppen = user.role === "ADMIN" ? [...NAV_GRUPPEN, { label: "Verwaltung", links: VERWALTUNG }] : NAV_GRUPPEN;
