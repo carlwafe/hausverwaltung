@@ -28,6 +28,11 @@ export function MieterkontoAnsicht({
   stichtagAb: { jahr: number; datum: string } | null;
 }) {
   const vorStichtag = stichtagAb !== null && jahr < stichtagAb.jahr;
+  // Offene Abrechnung ohne die Gegenrechnung (die steht in einer eigenen Zeile); die Summe bleibt unverändert.
+  const abrechnungOffen =
+    konto.nebenkostenabrechnungOffen === null
+      ? 0
+      : Math.round((konto.nebenkostenabrechnungOffen - konto.nebenkostenGegenrechnung) * 100) / 100;
 
   return (
     <div>
@@ -134,20 +139,29 @@ export function MieterkontoAnsicht({
       {konto.nebenkostenabrechnungOffen !== null && (
         <table className="ml-auto mt-3 text-sm">
           <tbody>
+            {/* Abrechnung und Gegenrechnung getrennt: die Abrechnung zeigt, was sie selbst ausweist
+                (Kosten ./. gezahlte Vorauszahlung, abzüglich Auszahlung/Verrechnung); die unbezahlte
+                NK-Vorauszahlung steht schon als Rückstand in der Tabelle und wird als Gutschrift
+                ausgeglichen (so bucht sie auch der Verwalter). Die Summe ist unverändert. */}
             <tr>
               <td className="py-0.5 pr-8 text-neutral-300">
                 Nebenkostenabrechnung {konto.jahr - 1} offen{" "}
                 <span className="text-xs text-neutral-500">
-                  ({konto.nebenkostenabrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
+                  ({abrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
                 </span>
               </td>
-              <td className="py-0.5 text-right text-neutral-200">{formatEuro(konto.nebenkostenabrechnungOffen)}</td>
+              <td className={`py-0.5 text-right ${farbeSaldo(abrechnungOffen)}`}>{formatEuro(abrechnungOffen)}</td>
             </tr>
             {konto.nebenkostenGegenrechnung !== 0 && (
               <tr>
-                <td colSpan={2} className="pb-1 text-right text-xs text-neutral-500">
-                  darin {formatEuro(konto.nebenkostenGegenrechnung)} Gegenrechnung der unbezahlten NK-Vorauszahlung{" "}
-                  {konto.jahr - 1} (steht schon im Rückstand)
+                <td className="py-0.5 pr-8 text-neutral-300">
+                  {konto.nebenkostenGegenrechnung > 0
+                    ? `Gutschrift unbezahlte NK-Vorauszahlung ${konto.jahr - 1}`
+                    : `Belastung überzahlte NK-Vorauszahlung ${konto.jahr - 1}`}{" "}
+                  <span className="text-xs text-neutral-500">(steht als Rückstand im Saldo oben)</span>
+                </td>
+                <td className={`py-0.5 text-right ${farbeSaldo(konto.nebenkostenGegenrechnung)}`}>
+                  {formatEuro(konto.nebenkostenGegenrechnung)}
                 </td>
               </tr>
             )}

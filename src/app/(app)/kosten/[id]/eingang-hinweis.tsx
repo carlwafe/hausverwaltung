@@ -15,7 +15,7 @@ export type EingangTreffer = {
 };
 
 // Hinweis auf der Kostenposition: Dokumente im Eingang, die zu dieser Zahlung passen (Betrag, Rechnungsnummer,
-// Aussteller …). „Als Beleg zuordnen“ hängt das Dokument einmalig an diese Position.
+// Aussteller …). „Als Beleg zuordnen“ hängt das Dokument als festen Beleg an diese Position.
 export function EingangHinweis({ buchungId, treffer }: { buchungId: string; treffer: EingangTreffer[] }) {
   const [pending, startTransition] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export function EingangHinweis({ buchungId, treffer }: { buchungId: string; tref
     <div className="rounded-lg border border-neutral-800 p-4">
       <h2 className="mb-1 text-lg font-medium text-white">Passende Dokumente im Eingang ({treffer.length})</h2>
       <p className="mb-3 text-xs text-neutral-500">
-        Aus dem Eingang der Ablage — gefunden über Betrag, Rechnungsnummer und Aussteller. Zuordnen ist einmalig und danach fest.
+        Aus dem Eingang der Ablage — gefunden über Betrag, Rechnungsnummer und Aussteller. Die Kostenposition als Bezug lässt sich danach nicht mehr ändern (fester Nachweis); weitere Bezüge wie Gebäude oder Dienstleister ergänzt du auf der Detailseite des Dokuments.
       </p>
       <ul className="divide-y divide-neutral-800">
         {treffer.map((t) => (
@@ -43,7 +43,7 @@ export function EingangHinweis({ buchungId, treffer }: { buchungId: string; tref
               type="button"
               disabled={pending}
               onClick={() => {
-                if (!confirm(`„${t.dateiname}“ als Beleg an diese Kostenposition hängen? Danach ist die Zuordnung fest.`)) return;
+                if (!confirm(`„${t.dateiname}“ als Beleg an diese Kostenposition hängen? Die Kostenposition lässt sich danach nicht mehr ändern.`)) return;
                 setFehler(null);
                 startTransition(async () => {
                   const f = await ordneDokumentZu(t.dokumentId, "buchung", buchungId);
