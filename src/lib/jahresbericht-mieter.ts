@@ -233,8 +233,8 @@ export function berechneMieterBericht(
       miete,
       saldoNeu,
       nebenkostenabrechnungOffen,
-      // Nur sichtbar, wenn die Position überhaupt etwas offen lässt (sonst "–" ohne Zusatz).
-      nebenkostenGegenrechnung: nebenkostenabrechnungOffen ? (nkOffen?.gegenrechnung ?? 0) : 0,
+      // Auch bei Summe 0 geliefert: Abrechnung (offen ./. Gegenrechnung) und Gutschrift stehen getrennt.
+      nebenkostenGegenrechnung: nkOffen?.gegenrechnung ?? 0,
     });
   }
 

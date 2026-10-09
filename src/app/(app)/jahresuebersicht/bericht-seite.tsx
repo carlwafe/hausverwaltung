@@ -451,7 +451,10 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
             Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
             in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
-            noch einzuziehende Nachzahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
+            noch einzuziehende Nachzahlung. Die Spalte &bdquo;Gutschrift unbezahlte NK-Vorauszahlung
+            (Vorjahr)&ldquo; gleicht den unbezahlten Teil der Vorauszahlung aus: Er steht schon als
+            Rückstand in Soll/Saldo alt, die Abrechnung vergleicht die Kosten aber nur mit der
+            tatsächlich gezahlten Vorauszahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
             &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
           </p>
           {!zeitraum.mitNkOffen && (

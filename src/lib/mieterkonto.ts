@@ -210,7 +210,7 @@ export function baueMieterkontoJahr(input: {
     sollKaltmieteMonatlich: letzteMiete.kalt,
     sollNebenkostenMonatlich: letzteMiete.nk,
     nebenkostenabrechnungOffen: input.nebenkostenabrechnungOffen ?? null,
-    nebenkostenGegenrechnung: input.nebenkostenabrechnungOffen ? (input.nebenkostenGegenrechnung ?? 0) : 0,
+    nebenkostenGegenrechnung: input.nebenkostenabrechnungOffen != null ? (input.nebenkostenGegenrechnung ?? 0) : 0,
     saldoInklNebenkostenabrechnung: saldo + (input.nebenkostenabrechnungOffen ?? 0),
     zeilen,
     summe,
