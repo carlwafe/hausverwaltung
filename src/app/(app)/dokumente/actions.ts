@@ -469,10 +469,11 @@ export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: strin
   return null;
 });
 
-// Mietvertrag-Auswahl für den Upload von Verträgen (Typ „Vertrag“) — erst beim Wählen des Typs nachgeladen.
-export async function ladeMietvertragAuswahl() {
+// Auswahl für den direkten Upload (Mietvertrag, Einheit oder Gebäude je nach Typ) — erst beim Wählen des Typs nachgeladen.
+export async function ladeDirektAuswahl(bereich: "mietvertraege" | "einheiten" | "gebaeude") {
   await requireEditor();
-  return (await ladeBezugOptionen()).mietvertraege;
+  const optionen = await ladeBezugOptionen();
+  return optionen[bereich];
 }
 
 // Auswahllisten für „Bezug hinzufügen“ auf der Detailseite — erst beim Öffnen nachgeladen (Vercel-CPU).
