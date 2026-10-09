@@ -247,6 +247,14 @@ const columns: Column<KautionsbuchungRow>[] = [
     render: (k) => (
       <div className="flex items-center gap-1.5">
         <KategorieZelle k={k} />
+        {k.kategorie === "VIRTUELLE_AUSZAHLUNG" && (
+          <span
+            title="Mit einer bezahlten Rechnung verrechnet — kein Kontofluss, keine Auszahlung an den Mieter"
+            className="inline-block rounded-full bg-sky-500/10 px-1.5 text-xs text-sky-400"
+          >
+            ⇄
+          </span>
+        )}
         {k.verknuepfteKostenpositionen.map((kp) => (
           <Link
             key={kp.id}
