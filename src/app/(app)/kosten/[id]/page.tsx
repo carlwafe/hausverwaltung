@@ -186,6 +186,7 @@ export default async function KostenpositionDetailPage({
             revalidatePath: `/kosten/${id}`,
           })}
           revalidatePath={`/kosten/${id}`}
+          kostenbeleg
         />
       </div>
     </div>

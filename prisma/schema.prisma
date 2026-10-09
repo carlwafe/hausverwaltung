@@ -941,6 +941,10 @@ model Dokument {
   // später änderbar. createdAt bleibt das Upload-Datum. Die Belege-Tabelle sortiert nach
   // belegDatum (fehlt es: nach dem Upload-Datum), neueste zuerst.
   belegDatum      DateTime?
+  // Löschsperre für Kostenbelege (Dokumente mit buchungId): statt zu löschen werden sie ausgeblendet
+  // und lassen sich wiederherstellen. Ausgeblendete Dokumente fehlen in den Listen der Ablage.
+  ausgeblendetAm  DateTime?
+  ausgeblendetVon String?
   createdAt       DateTime       @default(now())
 
   @@map("dokumente")

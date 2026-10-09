@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { prisma } from "@/lib/prisma";
-import { requireEditor } from "@/lib/session";
+import { benutzerLabel, requireEditor } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { istGueltigeArt } from "@/lib/dokumente-anzeige";
@@ -78,9 +78,33 @@ export async function deleteDokument(id: string, revalidatePathValue: string): P
 
   const dokument = await prisma.dokument.findUnique({ where: { id } });
   if (!dokument) return;
+  // Löschsperre: Belege an Kostenbuchungen (Nachweis für Finanzamt und Nebenkostenabrechnung) werden nur
+  // ausgeblendet. Die Oberfläche bietet dort kein „Löschen“ an; das hier schützt vor direkten Aufrufen.
+  if (dokument.buchungId) throw new Error("Kostenbelege können nicht gelöscht, nur ausgeblendet werden.");
 
   await prisma.dokument.delete({ where: { id } });
   await loescheDatei(dokument.speicherpfad);
+  revalidatePath(revalidatePathValue);
+  revalidatePath("/dokumente");
+}
+
+// Kostenbelege ausblenden statt löschen (und wiederherstellen); wer wann, bleibt am Dokument stehen.
+export async function blendeDokumentAus(id: string, revalidatePathValue: string): Promise<void> {
+  const user = await requireEditor();
+  await prisma.dokument.updateMany({
+    where: { id, buchungId: { not: null }, ausgeblendetAm: null },
+    data: { ausgeblendetAm: new Date(), ausgeblendetVon: benutzerLabel(user) },
+  });
+  revalidatePath(revalidatePathValue);
+  revalidatePath("/dokumente");
+}
+
+export async function stelleDokumentWiederHer(id: string, revalidatePathValue: string): Promise<void> {
+  await requireEditor();
+  await prisma.dokument.updateMany({
+    where: { id, buchungId: { not: null } },
+    data: { ausgeblendetAm: null, ausgeblendetVon: null },
+  });
   revalidatePath(revalidatePathValue);
   revalidatePath("/dokumente");
 }

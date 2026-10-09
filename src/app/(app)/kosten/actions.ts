@@ -129,7 +129,7 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
   const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     await storniereBuchung(tx, id, erstelltVon);
-    await tx.buchung.create({
+    const neu = await tx.buchung.create({
       data: {
         ...rest,
         buchungsartId: bisherige.buchungsartId,
@@ -147,6 +147,9 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
         erstelltVon,
       },
     });
+    // Belege gehören zur Position, nicht zur stornierten Fassung — auf die neue umhängen (sonst fehlen sie
+    // an der aktiven Position und bleiben an der stornierten hängen).
+    await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: neu.id } });
   });
 
   revalidatePath("/kosten");

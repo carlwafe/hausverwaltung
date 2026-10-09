@@ -64,7 +64,8 @@ function bereichWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
 
 async function ladeDokumenteAusTabelle(filter?: DokumentFilter): Promise<DokumentZeile[]> {
   const dokumente = await prisma.dokument.findMany({
-    where: filter ? bereichWhere(filter) : undefined,
+    // Ausgeblendete Kostenbelege (Löschsperre) tauchen in der Ablage nicht auf.
+    where: { ausgeblendetAm: null, ...(filter ? bereichWhere(filter) : {}) },
     include: {
       mietvertrag: {
         include: { mieter: true, einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } } },
@@ -199,6 +200,7 @@ export type DokumentIndexEintrag = { bereich: BereichKey; groesseBytes: number |
  */
 export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
   const dokumente = await prisma.dokument.findMany({
+    where: { ausgeblendetAm: null },
     select: {
       groesseBytes: true,
       ordner: true,

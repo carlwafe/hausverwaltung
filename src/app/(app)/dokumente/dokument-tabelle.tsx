@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegDatumFeld } from "@/components/belege-sektion";
-import { aendereArt, aendereOrdner, deleteDokument } from "./actions";
+import { aendereArt, aendereOrdner, blendeDokumentAus, deleteDokument } from "./actions";
 import {
   ART_OPTIONEN,
   BEREICHE,
@@ -215,7 +215,15 @@ export function DokumentTabelle({
             label: "",
             align: "right",
             render: (d: DokumentRow) =>
-              d.schreibgeschuetzt ? null : (
+              d.schreibgeschuetzt ? null : d.bereich === "kosten" ? (
+                // Löschsperre: Kostenbelege werden nur ausgeblendet (wiederherstellen an der Kostenposition).
+                <DeleteButton
+                  size="sm"
+                  label="Ausblenden"
+                  action={blendeDokumentAus.bind(null, d.id, d.revalidatePath)}
+                  confirmText={`„${d.dateiname}“ ausblenden? Der Beleg wird nicht gelöscht und lässt sich an der Kostenposition wiederherstellen.`}
+                />
+              ) : (
                 <DeleteButton
                   size="sm"
                   action={deleteDokument.bind(null, d.id, d.revalidatePath)}

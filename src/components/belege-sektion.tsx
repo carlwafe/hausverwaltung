@@ -3,7 +3,7 @@
 import { DateInput } from "@/components/date-input";
 import { useActionState, useState, useTransition } from "react";
 import { DeleteButton } from "./delete-button";
-import { aendereBelegDatum, deleteDokument } from "@/app/(app)/dokumente/actions";
+import { aendereBelegDatum, blendeDokumentAus, deleteDokument, stelleDokumentWiederHer } from "@/app/(app)/dokumente/actions";
 import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
 import { GroessenFehler } from "@/components/groessen-fehler";
@@ -15,6 +15,9 @@ export type BelegRow = {
   belegDatum: Date | null;
   // Upload-Datum.
   createdAt: Date;
+  // Nur Kostenbelege (Löschsperre): wann/von wem ausgeblendet.
+  ausgeblendetAm?: Date | null;
+  ausgeblendetVon?: string | null;
 };
 
 const zuInputWert = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
@@ -37,14 +40,36 @@ export function BelegDatumFeld({ id, wert, revalidatePath }: { id: string; wert:
   );
 }
 
+// Knopf mit Bestätigung für Aktionen ohne Löschen (Ausblenden/Wiederherstellen).
+function AktionsKnopf({ action, confirmText, label }: { action: () => Promise<void>; confirmText?: string; label: string }) {
+  return (
+    <form
+      action={action}
+      onSubmit={(e) => {
+        if (confirmText && !confirm(confirmText)) e.preventDefault();
+      }}
+    >
+      <button
+        type="submit"
+        className="rounded-md border border-neutral-700 px-2 py-1 text-xs font-medium text-neutral-300 hover:bg-neutral-900 hover:text-white"
+      >
+        {label}
+      </button>
+    </form>
+  );
+}
+
 export function BelegeSektion({
-  dokumente,
+  dokumente: alleDokumente,
   uploadAction,
   revalidatePath,
   titel = "Belege",
   leerText = "Noch keine Belege hochgeladen.",
   maxBytes = MAX_DATEIGROESSE_BYTES,
+  kostenbeleg = false,
 }: {
+  /** Kostenbelege (Nachweis für Finanzamt/Nebenkostenabrechnung) lassen sich nicht löschen, nur ausblenden. */
+  kostenbeleg?: boolean;
   maxBytes?: number;
   titel?: string;
   leerText?: string;
@@ -54,6 +79,8 @@ export function BelegeSektion({
 }) {
   const [error, formAction, pending] = useActionState(uploadAction, null);
   const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
+  const dokumente = alleDokumente.filter((d) => !d.ausgeblendetAm);
+  const ausgeblendet = alleDokumente.filter((d) => d.ausgeblendetAm);
   // Nach Belegdatum sortiert (fehlt es: nach dem Upload-Datum), neueste zuerst.
   const sortiert = [...dokumente].sort(
     (a, b) => (b.belegDatum ?? b.createdAt).getTime() - (a.belegDatum ?? a.createdAt).getTime(),
@@ -107,11 +134,19 @@ export function BelegeSektion({
                   {formatBytes(d.groesseBytes)}
                 </td>
                 <td className="py-2 pl-3 text-right">
-                  <DeleteButton
-                    action={deleteDokument.bind(null, d.id, revalidatePath)}
-                    confirmText="Beleg wirklich löschen?"
-                    label="Löschen"
-                  />
+                  {kostenbeleg ? (
+                    <AktionsKnopf
+                      action={blendeDokumentAus.bind(null, d.id, revalidatePath)}
+                      confirmText="Beleg ausblenden? Er wird nicht gelöscht und lässt sich hier wiederherstellen."
+                      label="Ausblenden"
+                    />
+                  ) : (
+                    <DeleteButton
+                      action={deleteDokument.bind(null, d.id, revalidatePath)}
+                      confirmText="Beleg wirklich löschen?"
+                      label="Löschen"
+                    />
+                  )}
                 </td>
               </tr>
             ))}
@@ -125,6 +160,29 @@ export function BelegeSektion({
           </tbody>
         </table>
       </div>
+      {ausgeblendet.length > 0 && (
+        <details className="mb-4 text-sm">
+          <summary className="cursor-pointer text-neutral-400 hover:text-white">
+            Ausgeblendete Belege ({ausgeblendet.length})
+          </summary>
+          <ul className="mt-2 divide-y divide-neutral-800">
+            {ausgeblendet.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <div className="min-w-0 text-neutral-400">
+                  <a href={`/api/dokumente/${d.id}/download`} className="[overflow-wrap:anywhere] hover:underline">
+                    {d.dateiname}
+                  </a>
+                  <span className="ml-2 text-xs text-neutral-500">
+                    ausgeblendet am {formatDate(d.ausgeblendetAm!)}
+                    {d.ausgeblendetVon && ` von ${d.ausgeblendetVon}`}
+                  </span>
+                </div>
+                <AktionsKnopf action={stelleDokumentWiederHer.bind(null, d.id, revalidatePath)} label="Wiederherstellen" />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <form action={formAction} className="flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs text-neutral-400">Belegdatum (optional)</label>
