@@ -138,7 +138,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-6">
           {editierbar ? (
-            <BezuegePanel id={id} eingang={dokument.eingang} bezuege={bezuege} vorschlaege={vorschlaege} ordnerNamen={ordnerNamen} />
+            <BezuegePanel id={id} eingang={dokument.eingang} bezuege={bezuege} vorschlaege={vorschlaege} ordnerNamen={ordnerNamen} art={dokument.art} gelesen={dokument.erkanntAm !== null} />
           ) : (
             <div className="rounded-lg border border-neutral-800 p-4 text-sm">
               <h2 className="mb-2 text-lg font-medium text-white">Bezüge</h2>

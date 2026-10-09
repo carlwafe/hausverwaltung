@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { ART_GRUPPEN, ART_OPTIONEN } from "@/lib/dokumente-anzeige";
@@ -243,6 +243,21 @@ const ZIEL_LABEL: Record<ZuordnungsZiel, string> = {
 };
 
 const ZIELE = Object.keys(ZIEL_LABEL) as ZuordnungsZiel[];
+const ART_ANZEIGE: Record<string, string> = Object.fromEntries(ART_OPTIONEN.map((a) => [a.key, a.label]));
+
+// Welcher Bezug zu einem Dokumenttyp meist passt (vorbelegt in „Bezug hinzufügen“, änderbar).
+const ZIEL_ZU_ART: Record<string, ZuordnungsZiel> = {
+  PROTOKOLL: "mietvertrag",
+  VERTRAG: "mietvertrag",
+  SCHREIBEN: "mietvertrag",
+  RECHNUNG: "buchung",
+  BESCHEID: "buchung",
+  ABRECHNUNG: "buchung",
+  FOTO: "einheit",
+  VERSICHERUNG: "gebaeude",
+  PRUEFBERICHT: "gebaeude",
+  BEHOERDE: "gebaeude",
+};
 
 // Bezüge eines Dokuments: bestehende (entfernbar bis auf die Kostenposition), Vorschläge aus den Labels und
 // „Bezug hinzufügen“ von Hand. Ein Dokument darf mehrere Bezüge haben (je Art einen). Im Eingang liegt es, bis ein Bezug
@@ -253,21 +268,28 @@ export function BezuegePanel({
   bezuege,
   vorschlaege,
   ordnerNamen,
+  art,
+  gelesen,
 }: {
   id: string;
   eingang: boolean;
   bezuege: AktuellerBezug[];
   vorschlaege: Vorschlag[];
   ordnerNamen: string[];
+  /** Dokumenttyp (für die Vorbelegung der Bezugsart). */
+  art: string | null;
+  /** Wurde der Inhalt von der Texterkennung gelesen? Sonst gibt es keine Vorschläge aus dem Inhalt. */
+  gelesen: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
-  const [laedt, setLaedt] = useState(false);
-  const [offen, setOffen] = useState(false);
+  // Gibt es noch keinen Bezug und keine Vorschläge, steht die Auswahl gleich offen (mit der zum Typ passenden Bezugsart).
+  const [offen, setOffen] = useState(eingang && bezuege.length === 0 && vorschlaege.length === 0);
   const gesetzt = new Set(bezuege.map((b) => b.ziel));
   const freieZiele = ZIELE.filter((z) => !gesetzt.has(z));
-  const [ziel, setZiel] = useState<ZuordnungsZiel>(freieZiele[0] ?? "buchung");
+  const vorbelegt = art && ZIEL_ZU_ART[art] && freieZiele.includes(ZIEL_ZU_ART[art]) ? ZIEL_ZU_ART[art] : (freieZiele[0] ?? "buchung");
+  const [ziel, setZiel] = useState<ZuordnungsZiel>(vorbelegt);
   const [zielId, setZielId] = useState("");
   const [ordner, setOrdner] = useState("");
 
@@ -280,21 +302,25 @@ export function BezuegePanel({
     });
   }
 
-  async function oeffneAuswahl() {
-    setOffen(true);
-    if (auswahl || laedt) return;
-    setLaedt(true);
-    try {
-      const a = await ladeBezugAuswahl(id);
-      if (a) setAuswahl(a);
-    } catch {
-      setFehler("Die Auswahl konnte nicht geladen werden.");
-    } finally {
-      setLaedt(false);
-    }
-  }
+  // Die Auswahllisten werden erst geladen, wenn die Auswahl offen ist (Vercel-CPU).
+  useEffect(() => {
+    if (!offen || auswahl) return;
+    let aktiv = true;
+    ladeBezugAuswahl(id).then(
+      (a) => {
+        if (aktiv && a) setAuswahl(a);
+      },
+      () => {
+        if (aktiv) setFehler("Die Auswahl konnte nicht geladen werden.");
+      },
+    );
+    return () => {
+      aktiv = false;
+    };
+  }, [offen, auswahl, id]);
 
   const sichtbareVorschlaege = vorschlaege.filter((v) => !gesetzt.has(v.ziel));
+
 
   return (
     <div className="rounded-lg border border-neutral-800 p-4">
@@ -327,7 +353,15 @@ export function BezuegePanel({
           ))}
         </ul>
       ) : (
-        <p className="mb-4 text-sm text-neutral-400">{eingang ? "Noch kein Bezug — das Dokument liegt im Eingang." : "Kein Bezug (Unkategorisiert)."}</p>
+        <div className="mb-4 text-sm text-neutral-400">
+          <p>{eingang ? "Noch kein Bezug — das Dokument liegt im Eingang, bis du einen Bezug wählst oder es ohne Bezug ablegst." : "Kein Bezug (Unkategorisiert)."}</p>
+          {eingang && !gelesen && sichtbareVorschlaege.length === 0 && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Der Inhalt wurde nicht gelesen (Erkennung aus oder Typ vorab gewählt), deshalb gibt es keine Vorschläge. Wähle den Bezug unten von Hand
+              {art ? ` (vorbelegt passend zum Typ „${ART_ANZEIGE[art] ?? art}“)` : ""} oder starte weiter unten „Inhalt erkennen“.
+            </p>
+          )}
+        </div>
       )}
 
       {sichtbareVorschlaege.length > 0 && (
@@ -405,7 +439,7 @@ export function BezuegePanel({
         ) : (
           <button
             type="button"
-            onClick={oeffneAuswahl}
+            onClick={() => setOffen(true)}
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
           >
             + Bezug hinzufügen
