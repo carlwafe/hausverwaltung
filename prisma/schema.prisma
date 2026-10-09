@@ -327,6 +327,7 @@ model Gebaeude {
   kostengruppen Kostengruppe[]
   beschreibung  String?
   createdAt     DateTime       @default(now())
+  dokumente     Dokument[]
 
   einheiten Einheit[]
   buchungen Buchung[]
@@ -931,6 +932,11 @@ model Dokument {
   // Anhang eines Tickets (Foto vom Mangel, Angebot, Schriftverkehr).
   ticket          Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   ticketId        String?
+  // Gebäude (Adresse) als Bezug, z.B. Rechnung/Prüfbericht für ein ganzes Haus. Seit dem Bezüge-Umbau
+  // (09.10.2026) darf ein Dokument mehrere Bezüge gleichzeitig haben (Kostenposition, Mietvertrag,
+  // Einheit, Gebäude, Dienstleister, Ticket) — die Felder schließen sich nicht mehr aus.
+  gebaeude        Gebaeude?      @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
+  gebaeudeId      String?
   // Ordner für allgemeine Dokumente ohne Bezug (alle FK-Felder leer); mit Bezug ordnet sich das
   // Dokument automatisch nach dem Bezug ein (Seite /dokumente).
   ordner          String?
@@ -946,10 +952,13 @@ model Dokument {
   // und lassen sich wiederherstellen. Ausgeblendete Dokumente fehlen in den Listen der Ablage.
   ausgeblendetAm  DateTime?
   ausgeblendetVon String?
-  // Eingang: hochgeladen, aber noch keinem Bezug (Buchung, Mietvertrag, Einheit …) zugeordnet. Die
-  // Zuordnung erfolgt später einmalig (Seite /dokumente/[id], mit Vorschlägen aus den Labels unten);
-  // danach ist der Bezug fest wie bisher. Ohne Bezug und eingang = false = „Unkategorisiert“.
+  // Eingang: hochgeladen, aber noch ohne Bezug und nicht abgelegt. Sobald ein Bezug gesetzt oder das
+  // Dokument ausdrücklich abgelegt wird (Seite /dokumente/[id]), wird das Flag false. Ohne Bezug und
+  // eingang = false = „Unkategorisiert“.
   eingang         Boolean        @default(false)
+  // Kurzbeschreibung des Dokuments (Betreff), von der Texterkennung vorgeschlagen — macht Scans mit
+  // Dateinamen wie „scan001.pdf“ in den Listen lesbar.
+  titel           String?
   // Labels für die automatische Zuordnung (alle optional, vom Nutzer oder von der Texterkennung
   // gefüllt). art = Dokumenttyp, belegDatum = Rechnungs-/Belegdatum.
   aussteller      String?

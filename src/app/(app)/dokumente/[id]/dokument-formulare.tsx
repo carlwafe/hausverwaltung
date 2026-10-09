@@ -3,14 +3,24 @@
 import { useActionState, useState, useTransition } from "react";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
-import { ART_OPTIONEN } from "@/lib/dokumente-anzeige";
-import { erkenneDokument, ordneDokumentZu, speichereDokumentLabels, type ZuordnungsZiel } from "../actions";
+import { ART_GRUPPEN, ART_OPTIONEN } from "@/lib/dokumente-anzeige";
+import Link from "next/link";
+import {
+  entferneBezug,
+  erkenneDokument,
+  ladeBezugAuswahl,
+  legeDokumentAb,
+  ordneDokumentZu,
+  speichereDokumentLabels,
+  type ZuordnungsZiel,
+} from "../actions";
 
 const FELD = "h-[38px] w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white disabled:opacity-60";
 const LABEL = "mb-1 block text-xs text-neutral-400";
 
 export type LabelWerte = {
   art: string;
+  titel: string;
   belegDatum: string;
   aussteller: string;
   rechnungsnummer: string;
@@ -53,12 +63,20 @@ export function LabelsForm({
           <label className={LABEL}>Dokumenttyp</label>
           <select name="art" defaultValue={werte.art} disabled={!editierbar} className={FELD}>
             <option value="">–</option>
-            {ART_OPTIONEN.map((a) => (
-              <option key={a.key} value={a.key}>
-                {a.label}
-              </option>
+            {ART_GRUPPEN.map((g) => (
+              <optgroup key={g} label={g}>
+                {ART_OPTIONEN.filter((a) => a.gruppe === g).map((a) => (
+                  <option key={a.key} value={a.key}>
+                    {a.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={LABEL}>Titel (Kurzbeschreibung)</label>
+          <input name="titel" defaultValue={werte.titel} disabled={!editierbar} maxLength={200} placeholder="z.B. Reparatur Warmwasserleitung" className={FELD} />
         </div>
         <div>
           <label className={LABEL}>Rechnungs-/Belegdatum</label>
@@ -210,111 +228,222 @@ export type Vorschlag = {
   sicher?: boolean;
 };
 
+export type AktuellerBezug = { ziel: ZuordnungsZiel; label: string; href: string; entfernbar: boolean };
+
 type Option = { id: string; label: string };
+type Auswahl = Record<ZuordnungsZiel, Option[]>;
 
 const ZIEL_LABEL: Record<ZuordnungsZiel, string> = {
   buchung: "Kostenposition",
   mietvertrag: "Mieterakte (Mietvertrag)",
-  einheit: "Einheit (Foto)",
+  einheit: "Einheit",
+  gebaeude: "Gebäude",
   dienstleister: "Dienstleister",
   ticket: "Ticket",
 };
 
-export function ZuordnenPanel({
+const ZIELE = Object.keys(ZIEL_LABEL) as ZuordnungsZiel[];
+
+// Bezüge eines Dokuments: bestehende (entfernbar bis auf die Kostenposition), Vorschläge aus den Labels und
+// „Bezug hinzufügen“ von Hand. Ein Dokument darf mehrere Bezüge haben (je Art einen). Im Eingang liegt es, bis ein Bezug
+// gesetzt oder „Ohne Bezug ablegen“ gewählt wird.
+export function BezuegePanel({
   id,
+  eingang,
+  bezuege,
   vorschlaege,
-  optionen,
+  ordnerNamen,
 }: {
   id: string;
+  eingang: boolean;
+  bezuege: AktuellerBezug[];
   vorschlaege: Vorschlag[];
-  optionen: Record<ZuordnungsZiel, Option[]>;
+  ordnerNamen: string[];
 }) {
   const [pending, startTransition] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
-  const [ziel, setZiel] = useState<ZuordnungsZiel>("buchung");
+  const [auswahl, setAuswahl] = useState<Auswahl | null>(null);
+  const [laedt, setLaedt] = useState(false);
+  const [offen, setOffen] = useState(false);
+  const gesetzt = new Set(bezuege.map((b) => b.ziel));
+  const freieZiele = ZIELE.filter((z) => !gesetzt.has(z));
+  const [ziel, setZiel] = useState<ZuordnungsZiel>(freieZiele[0] ?? "buchung");
   const [zielId, setZielId] = useState("");
+  const [ordner, setOrdner] = useState("");
 
-  function ordneZu(z: ZuordnungsZiel, zid: string, beschreibung: string) {
-    if (!confirm(`Dokument zuordnen: ${beschreibung}?\nDanach ist die Zuordnung fest.`)) return;
+  function fuehreAus(aktion: () => Promise<string | null | unknown>, bestaetigung?: string) {
+    if (bestaetigung && !confirm(bestaetigung)) return;
     setFehler(null);
     startTransition(async () => {
-      const f = await ordneDokumentZu(id, z, zid);
+      const f = await aktion();
       if (typeof f === "string") setFehler(f);
     });
   }
 
+  async function oeffneAuswahl() {
+    setOffen(true);
+    if (auswahl || laedt) return;
+    setLaedt(true);
+    try {
+      const a = await ladeBezugAuswahl(id);
+      if (a) setAuswahl(a);
+    } catch {
+      setFehler("Die Auswahl konnte nicht geladen werden.");
+    } finally {
+      setLaedt(false);
+    }
+  }
+
+  const sichtbareVorschlaege = vorschlaege.filter((v) => !gesetzt.has(v.ziel));
+
   return (
     <div className="rounded-lg border border-neutral-800 p-4">
-      <h2 className="mb-1 text-lg font-medium text-white">Zuordnen</h2>
+      <h2 className="mb-1 text-lg font-medium text-white">Bezüge</h2>
       <p className="mb-3 text-xs text-neutral-500">
-        Dieses Dokument liegt im Eingang. Die Zuordnung ist einmalig und danach fest (wie bei allen Dokumenten).
+        Worauf sich das Dokument bezieht. Es kann mehrere Bezüge haben (z.B. Kostenposition und Gebäude) und erscheint dann in jedem
+        passenden Bereich. Eine Kostenposition ist ein fester Nachweis und lässt sich nicht mehr entfernen.
       </p>
 
-      {vorschlaege.length > 0 ? (
-        <ul className="mb-4 divide-y divide-neutral-800 rounded-md border border-neutral-800">
-          {vorschlaege.map((v) => (
-            <li key={`${v.ziel}-${v.zielId}`} className="flex flex-wrap items-center justify-between gap-3 p-3">
-              <div className="min-w-0 text-sm">
-                <div className="text-white [overflow-wrap:anywhere]">
-                  <span className="mr-2 rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] uppercase text-neutral-400">
-                    {ZIEL_LABEL[v.ziel]}
-                  </span>
-                  {v.titel}
-                  {v.sicher && <span className="ml-2 rounded-full bg-green-950 px-2 py-0.5 text-[10px] uppercase text-green-400">sicher</span>}
-                </div>
-                <div className="text-xs text-neutral-500 [overflow-wrap:anywhere]">{v.details}</div>
-                {v.gruende.length > 0 && <div className="text-xs text-neutral-400">{v.gruende.join(" · ")}</div>}
-              </div>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => ordneZu(v.ziel, v.zielId, `${ZIEL_LABEL[v.ziel]} ${v.titel}`)}
-                className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
-              >
-                Zuordnen
-              </button>
+      {bezuege.length > 0 ? (
+        <ul className="mb-4 flex flex-wrap gap-2">
+          {bezuege.map((b) => (
+            <li key={b.ziel} className="flex items-center gap-2 rounded-full border border-neutral-700 py-1 pl-3 pr-2 text-sm">
+              <span className="text-xs uppercase text-neutral-500">{ZIEL_LABEL[b.ziel]}</span>
+              <Link href={b.href} prefetch={false} className="text-white hover:underline [overflow-wrap:anywhere]">
+                {b.label}
+              </Link>
+              {b.entfernbar && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  title="Bezug entfernen"
+                  onClick={() => fuehreAus(() => entferneBezug(id, b.ziel), `Bezug „${b.label}“ entfernen?`)}
+                  className="rounded-full px-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mb-4 text-sm text-neutral-500">
-          Kein passender Vorschlag gefunden. Je vollständiger die Angaben oben (Betrag, Rechnungsnummer, Aussteller), desto besser —
-          oder von Hand zuordnen.
-        </p>
+        <p className="mb-4 text-sm text-neutral-400">{eingang ? "Noch kein Bezug — das Dokument liegt im Eingang." : "Kein Bezug (Unkategorisiert)."}</p>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className={LABEL}>Von Hand zuordnen zu</label>
-          <select
-            value={ziel}
-            onChange={(e) => {
-              setZiel(e.target.value as ZuordnungsZiel);
-              setZielId("");
-            }}
-            className="h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white"
-          >
-            {(Object.keys(ZIEL_LABEL) as ZuordnungsZiel[]).map((z) => (
-              <option key={z} value={z}>
-                {ZIEL_LABEL[z]}
-              </option>
+      {sichtbareVorschlaege.length > 0 && (
+        <>
+          <h3 className="mb-2 text-sm font-medium text-neutral-300">Vorschläge</h3>
+          <ul className="mb-4 divide-y divide-neutral-800 rounded-md border border-neutral-800">
+            {sichtbareVorschlaege.map((v) => (
+              <li key={`${v.ziel}-${v.zielId}`} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="min-w-0 text-sm">
+                  <div className="text-white [overflow-wrap:anywhere]">
+                    <span className="mr-2 rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] uppercase text-neutral-400">
+                      {ZIEL_LABEL[v.ziel]}
+                    </span>
+                    {v.titel}
+                    {v.sicher && <span className="ml-2 rounded-full bg-green-950 px-2 py-0.5 text-[10px] uppercase text-green-400">sicher</span>}
+                  </div>
+                  {v.details && <div className="text-xs text-neutral-500 [overflow-wrap:anywhere]">{v.details}</div>}
+                  {v.gruende.length > 0 && <div className="text-xs text-neutral-400">{v.gruende.join(" · ")}</div>}
+                </div>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    fuehreAus(
+                      () => ordneDokumentZu(id, v.ziel, v.zielId),
+                      v.ziel === "buchung" ? `Als Beleg an diese Kostenposition hängen? Das lässt sich nicht mehr rückgängig machen.` : undefined,
+                    )
+                  }
+                  className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+                >
+                  Hinzufügen
+                </button>
+              </li>
             ))}
-          </select>
+          </ul>
+        </>
+      )}
+
+      {freieZiele.length > 0 &&
+        (offen ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className={LABEL}>Bezug hinzufügen</label>
+              <select
+                value={ziel}
+                onChange={(e) => {
+                  setZiel(e.target.value as ZuordnungsZiel);
+                  setZielId("");
+                }}
+                className="h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white"
+              >
+                {freieZiele.map((z) => (
+                  <option key={z} value={z}>
+                    {ZIEL_LABEL[z]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-96 max-w-full">
+              {auswahl ? (
+                <MietvertragAuswahl key={ziel} kandidaten={auswahl[ziel]} value={zielId} onChange={setZielId} leerLabel="Bitte wählen…" size="md" />
+              ) : (
+                <div className="flex h-[38px] items-center rounded-md border border-neutral-700 px-3 text-sm text-neutral-500">Lädt…</div>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={pending || !zielId}
+              onClick={() => fuehreAus(() => ordneDokumentZu(id, ziel, zielId), ziel === "buchung" ? "Als Beleg an diese Kostenposition hängen? Das lässt sich nicht mehr rückgängig machen." : undefined)}
+              className="h-[38px] rounded-md border border-neutral-700 px-3 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+            >
+              Hinzufügen
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={oeffneAuswahl}
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            + Bezug hinzufügen
+          </button>
+        ))}
+
+      {eingang && bezuege.length === 0 && (
+        <div className="mt-5 border-t border-neutral-800 pt-4">
+          <h3 className="mb-1 text-sm font-medium text-neutral-300">Ohne Bezug ablegen</h3>
+          <p className="mb-2 text-xs text-neutral-500">
+            Für Dokumente ohne passendes Objekt (z.B. Versicherungspolice, Grundbuch): optional in einen frei benannten Ordner unter „Unkategorisiert“.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <input
+              value={ordner}
+              onChange={(e) => setOrdner(e.target.value)}
+              list="ablage-ordner"
+              maxLength={80}
+              placeholder="Ordnername (optional)"
+              className="h-[38px] w-64 rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white"
+            />
+            <datalist id="ablage-ordner">
+              {ordnerNamen.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => fuehreAus(() => legeDokumentAb(id, ordner))}
+              className="h-[38px] rounded-md border border-neutral-700 px-3 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+            >
+              Ablegen
+            </button>
+          </div>
         </div>
-        <div className="w-96 max-w-full">
-          <MietvertragAuswahl key={ziel} kandidaten={optionen[ziel]} value={zielId} onChange={setZielId} leerLabel="Bitte wählen…" size="md" />
-        </div>
-        <button
-          type="button"
-          disabled={pending || !zielId}
-          onClick={() => ordneZu(ziel, zielId, `${ZIEL_LABEL[ziel]} ${optionen[ziel].find((o) => o.id === zielId)?.label ?? ""}`)}
-          className="h-[38px] rounded-md border border-neutral-700 px-3 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
-        >
-          Zuordnen
-        </button>
-      </div>
+      )}
       {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}
     </div>
   );
 }
-

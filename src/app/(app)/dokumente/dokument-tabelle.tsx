@@ -7,6 +7,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { BelegDatumFeld } from "@/components/belege-sektion";
 import { aendereArt, aendereOrdner, blendeDokumentAus, deleteDokument } from "./actions";
 import {
+  ART_GRUPPEN,
   ART_OPTIONEN,
   BEREICHE,
   artLabel,
@@ -19,19 +20,18 @@ import {
 export type DokumentRow = {
   id: string;
   dateiname: string;
+  titel: string | null;
   groesseBytes: number | null;
   belegDatum: string | null;
   createdAt: string;
   hochgeladenVon: string | null;
+  /** Bereich, unter dem das Dokument in dieser Ansicht steht (bei mehreren Bezügen der erste). */
   bereich: BereichKey;
   ordnerLabel: string;
-  bezugLabel: string;
-  bezugHref: string | null;
-  vertragStatus: "AKTIV" | "GEPLANT" | "BEENDET" | null;
-  revalidatePath: string;
-  /** Kontoauszug-Dateien aus den Importen: nur ansehen. */
-  schreibgeschuetzt: boolean;
-  downloadHref: string;
+  /** Alle Bezüge (Spalte „Zugeordnet zu“). */
+  bezuege: { typ: string; label: string; href: string; beendet: boolean }[];
+  /** Kostenbelege lassen sich nicht löschen, nur ausblenden. */
+  hatBuchung: boolean;
   art: string | null;
   aussteller: string | null;
   rechnungsnummer: string | null;
@@ -80,10 +80,14 @@ function ArtFeld({ id, wert }: { id: string; wert: string | null }) {
       className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-white"
     >
       <option value="">–</option>
-      {ART_OPTIONEN.map((a) => (
-        <option key={a.key} value={a.key}>
-          {a.label}
-        </option>
+      {ART_GRUPPEN.map((g) => (
+        <optgroup key={g} label={g}>
+          {ART_OPTIONEN.filter((a) => a.gruppe === g).map((a) => (
+            <option key={a.key} value={a.key}>
+              {a.label}
+            </option>
+          ))}
+        </optgroup>
       ))}
     </select>
   );
@@ -107,16 +111,19 @@ export function DokumentTabelle({
       key: "datei",
       label: "Datei",
       render: (d) => (
-        <a
-          href={d.downloadHref}
-          className="block max-w-[340px] text-white [overflow-wrap:anywhere] hover:underline"
-          title={d.dateiname}
-        >
-          {d.dateiname}
-        </a>
+        <div className="max-w-[340px]">
+          <a
+            href={`/api/dokumente/${d.id}/download`}
+            className="block text-white [overflow-wrap:anywhere] hover:underline"
+            title={d.dateiname}
+          >
+            {d.titel ?? d.dateiname}
+          </a>
+          {d.titel && <span className="block text-xs text-neutral-500 [overflow-wrap:anywhere]">{d.dateiname}</span>}
+        </div>
       ),
-      sortValue: (d) => d.dateiname.toLowerCase(),
-      searchValue: (d) => d.dateiname,
+      sortValue: (d) => (d.titel ?? d.dateiname).toLowerCase(),
+      searchValue: (d) => `${d.titel ?? ""} ${d.dateiname}`,
     },
     ...(zeigeBereich
       ? [
@@ -137,32 +144,39 @@ export function DokumentTabelle({
       key: "bezug",
       label: "Zugeordnet zu",
       render: (d) =>
-        d.bezugHref ? (
-          <Link
-            href={d.bezugHref}
-            className="block max-w-[260px] text-neutral-300 [overflow-wrap:anywhere] hover:text-white hover:underline"
-            title={d.bezugLabel}
-          >
-            {d.bezugLabel}
-            {d.vertragStatus === "BEENDET" && <span className="ml-1.5 text-xs text-neutral-500">(beendet)</span>}
+        d.bezuege.length > 0 ? (
+          <div className="flex max-w-[280px] flex-col gap-0.5">
+            {d.bezuege.map((b) => (
+              <Link
+                key={`${b.typ}-${b.href}`}
+                href={b.href}
+                prefetch={false}
+                className="text-neutral-300 [overflow-wrap:anywhere] hover:text-white hover:underline"
+                title={b.label}
+              >
+                {b.label}
+                {b.beendet && <span className="ml-1.5 text-xs text-neutral-500">(beendet)</span>}
+              </Link>
+            ))}
+          </div>
+        ) : d.bereich === "eingang" ? (
+          <Link href={d.detailHref} prefetch={false} className="text-xs text-amber-400 hover:underline">
+            Noch nicht abgelegt – prüfen
           </Link>
         ) : editierbar ? (
-          <OrdnerFeld
-            id={d.id}
-            wert={d.ordnerLabel === "Ohne Ordner" ? "" : d.ordnerLabel}
-          />
+          <OrdnerFeld id={d.id} wert={d.ordnerLabel === "Ohne Ordner" ? "" : d.ordnerLabel} />
         ) : (
           <span className="text-neutral-300">{d.ordnerLabel}</span>
         ),
-      sortValue: (d) =>
-        d.bezugLabel.toLowerCase() + d.ordnerLabel.toLowerCase(),
-      searchValue: (d) => `${d.bezugLabel} ${d.ordnerLabel}${d.vertragStatus === "BEENDET" ? " beendet" : ""}`,
+      sortValue: (d) => (d.bezuege.map((b) => b.label).join(" ") || d.ordnerLabel).toLowerCase(),
+      searchValue: (d) =>
+        `${d.bezuege.map((b) => b.label).join(" ")} ${d.ordnerLabel}${d.bezuege.some((b) => b.beendet) ? " beendet" : ""}`,
     },
     {
       key: "art",
       label: "Art",
       render: (d) =>
-        editierbar && !d.schreibgeschuetzt ? (
+        editierbar ? (
           <ArtFeld id={d.id} wert={d.art} />
         ) : (
           <span className="text-xs text-neutral-300">{artLabel(d.art)}</span>
@@ -174,11 +188,11 @@ export function DokumentTabelle({
       key: "belegdatum",
       label: "Belegdatum",
       render: (d) =>
-        editierbar && !d.schreibgeschuetzt ? (
+        editierbar ? (
           <BelegDatumFeld
             id={d.id}
             wert={d.belegDatum ? new Date(d.belegDatum) : null}
-            revalidatePath={d.revalidatePath}
+            revalidatePath="/dokumente"
           />
         ) : (
           <span className="text-xs text-neutral-300">
@@ -250,18 +264,18 @@ export function DokumentTabelle({
             label: "",
             align: "right",
             render: (d: DokumentRow) =>
-              d.schreibgeschuetzt ? null : d.bereich === "kosten" ? (
+              d.hatBuchung ? (
                 // Löschsperre: Kostenbelege werden nur ausgeblendet (wiederherstellen an der Kostenposition).
                 <DeleteButton
                   size="sm"
                   label="Ausblenden"
-                  action={blendeDokumentAus.bind(null, d.id, d.revalidatePath)}
+                  action={blendeDokumentAus.bind(null, d.id, "/dokumente")}
                   confirmText={`„${d.dateiname}“ ausblenden? Der Beleg wird nicht gelöscht und lässt sich an der Kostenposition wiederherstellen.`}
                 />
               ) : (
                 <DeleteButton
                   size="sm"
-                  action={deleteDokument.bind(null, d.id, d.revalidatePath)}
+                  action={deleteDokument.bind(null, d.id, "/dokumente")}
                   confirmText={`„${d.dateiname}“ wirklich löschen?`}
                 />
               ),

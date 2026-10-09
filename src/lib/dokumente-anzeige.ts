@@ -1,11 +1,14 @@
 // Reine Anzeige-Helfer der Dokumentenablage — bewusst ohne Prisma-Import, damit sie auch in
 // Client-Komponenten (Tabelle, Upload) und Server-Seiten gleichermaßen nutzbar sind.
 
+// Die Bereiche sind Ansichten auf die Bezüge eines Dokuments, kein Speicherort: ein Dokument mit mehreren
+// Bezügen (z.B. Rechnung → Kostenposition + Gebäude + Dienstleister) erscheint in jedem passenden Bereich.
 export const BEREICHE = [
-  // Hochgeladen, aber noch keinem Bezug zugeordnet (Labels vorhanden, Zuordnung folgt später).
-  { key: "eingang", label: "Eingang", hinweis: "noch nicht zugeordnet" },
+  // Hochgeladen, aber noch ohne Bezug und nicht abgelegt (Labels vorhanden, Zuordnung folgt).
+  { key: "eingang", label: "Eingang", hinweis: "noch nicht abgelegt" },
   { key: "mietvertraege", label: "Mieterakten", hinweis: "je Mietvertrag: Vertrag, Schreiben, Übergabe …" },
-  { key: "einheiten", label: "Einheiten (Fotos)", hinweis: "je Einheit" },
+  { key: "einheiten", label: "Einheiten", hinweis: "je Einheit (Fotos, Unterlagen)" },
+  { key: "gebaeude", label: "Gebäude", hinweis: "je Hausnummer" },
   { key: "kosten", label: "Kostenbelege", hinweis: "je Kostenjahr" },
   { key: "dienstleister", label: "Dienstleister", hinweis: "je Dienstleister" },
   { key: "tickets", label: "Tickets", hinweis: "je Ticket" },
@@ -26,21 +29,28 @@ export const ORDNER_VORSCHLAEGE = [
   "Berichte Vorverwalter",
 ] as const;
 
-/** Wählbare Dokumentarten (Schlagwort, in `Dokument.art` gespeichert). */
+/** Dokumenttypen (in `Dokument.art` gespeichert) in vier Gruppen. Neu seit 09.10.2026: VERSICHERUNG, PRUEFBERICHT,
+ * BEHOERDE; die bisherigen Schlüssel bleiben gültig (keine Datenmigration). */
 export const ART_OPTIONEN = [
-  { key: "VERTRAG", label: "Vertrag" },
-  { key: "SCHREIBEN", label: "Schreiben" },
-  { key: "PROTOKOLL", label: "Protokoll" },
-  { key: "RECHNUNG", label: "Rechnung" },
-  { key: "BESCHEID", label: "Bescheid" },
-  { key: "ABRECHNUNG", label: "Abrechnung" },
-  { key: "FOTO", label: "Foto" },
-  { key: "SONSTIGES", label: "Sonstiges" },
+  { key: "RECHNUNG", label: "Rechnung", gruppe: "Kosten" },
+  { key: "BESCHEID", label: "Bescheid", gruppe: "Kosten" },
+  { key: "ABRECHNUNG", label: "Abrechnung", gruppe: "Kosten" },
+  { key: "VERTRAG", label: "Vertrag", gruppe: "Mietverhältnis & Verträge" },
+  { key: "SCHREIBEN", label: "Schreiben", gruppe: "Mietverhältnis & Verträge" },
+  { key: "PROTOKOLL", label: "Protokoll", gruppe: "Mietverhältnis & Verträge" },
+  { key: "FOTO", label: "Foto", gruppe: "Objekt" },
+  { key: "VERSICHERUNG", label: "Versicherung", gruppe: "Objekt" },
+  { key: "PRUEFBERICHT", label: "Prüfbericht / Gutachten", gruppe: "Objekt" },
+  { key: "BEHOERDE", label: "Steuer / Behörde", gruppe: "Objekt" },
+  { key: "SONSTIGES", label: "Sonstiges", gruppe: "Sonstiges" },
 ] as const;
 
-/** Dokumenttypen, deren Inhalt die Texterkennung beim Hochladen automatisch liest (Rechnungen und Bescheide —
- * keine Verträge/Mieterunterlagen; für andere nur auf ausdrücklichen Knopfdruck). */
-export const ERKENNUNG_ARTEN: readonly string[] = ["RECHNUNG", "BESCHEID", "ABRECHNUNG"];
+export const ART_GRUPPEN = [...new Set(ART_OPTIONEN.map((a) => a.gruppe))];
+
+/** Typen, deren Inhalt die Texterkennung beim Hochladen NICHT automatisch liest (Mieterunterlagen mit
+ * personenbezogenen Daten, Fotos) — sie lässt sich dort nur auf ausdrücklichen Knopfdruck starten. Ohne
+ * gewählten Typ liest die Erkennung, solange das Häkchen „Inhalt automatisch erkennen“ gesetzt ist. */
+export const AUTOMATISCH_NICHT_LESEN: readonly string[] = ["VERTRAG", "SCHREIBEN", "PROTOKOLL", "FOTO"];
 
 export function formatEuro(betrag: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(betrag);

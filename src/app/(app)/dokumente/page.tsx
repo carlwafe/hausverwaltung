@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
-import { BEREICHE, formatBytes, type BereichKey } from "@/lib/dokumente-anzeige";
+import { ART_GRUPPEN, ART_OPTIONEN, BEREICHE, formatBytes } from "@/lib/dokumente-anzeige";
 import {
   allgemeineOrdnerNamen,
   ladeDokumentIndex,
@@ -64,29 +64,37 @@ export const maxDuration = 60;
 export default async function DokumentePage({
   searchParams,
 }: {
-  searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string }>;
+  searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string; art?: string }>;
 }) {
-  const { bereich: bereichParam, ordner: ordnerParam, ansicht, status: statusParam } = await searchParams;
+  const { bereich: bereichParam, ordner: ordnerParam, ansicht, status: statusParam, art: artParam } = await searchParams;
   const [user, index] = await Promise.all([getCurrentUser(), ladeDokumentIndex()]);
   const editierbar = user?.role !== "GAST";
 
   const bereich = BEREICHE.find((b) => b.key === bereichParam) ?? null;
   const alleAnsicht = ansicht === "alle";
+  const typAnsicht = ansicht === "typ";
+  const artGewaehlt = typAnsicht && artParam ? artParam : null;
   // Die Übersicht rechnet nur mit dem schlanken Index; die schweren Zeilen (Mietvertrag, Einheit, Gebäude …)
   // lädt erst der geöffnete Bereich bzw. Ordner. Ist der Ordner leer/unbekannt, zeigt die Seite die Ordnerliste.
-  let zeilen = alleAnsicht ? await ladeDokumente() : bereich ? await ladeDokumente({ bereich: bereich.key, ordnerKey: ordnerParam }) : [];
-  if (!alleAnsicht && bereich && ordnerParam !== undefined && zeilen.length === 0) zeilen = await ladeDokumente({ bereich: bereich.key });
-  const ordnerListe = bereich ? ordnerVonBereich(zeilen, bereich.key) : [];
+  let zeilen = alleAnsicht
+    ? await ladeDokumente()
+    : artGewaehlt
+      ? await ladeDokumente({ art: artGewaehlt })
+      : bereich
+        ? await ladeDokumente({ bereich: bereich.key, ordnerKey: ordnerParam })
+        : [];
+  if (!alleAnsicht && !typAnsicht && bereich && ordnerParam !== undefined && zeilen.length === 0) zeilen = await ladeDokumente({ bereich: bereich.key });
+  const ordnerListe = bereich && !typAnsicht ? ordnerVonBereich(zeilen, bereich.key) : [];
   // Filter der Mieterakten: laufende (aktiv/geplant) oder beendete Mietverträge; Standard = alle.
   const statusFilter = bereich?.key === "mietvertraege" && (statusParam === "aktuell" || statusParam === "beendet") ? statusParam : "alle";
   const sichtbareOrdner = ordnerListe.filter(
     (o) => statusFilter === "alle" || (statusFilter === "beendet") === (o.vertragStatus === "BEENDET"),
   );
   // „Eingang“ hat keine Unterordner: der Bereich zeigt direkt die Liste.
-  const eingangAnsicht = bereich?.key === "eingang";
-  const ordner = bereich && ordnerParam !== undefined ? ordnerListe.find((o) => o.key === ordnerParam) ?? null : null;
+  const eingangAnsicht = bereich?.key === "eingang" && !typAnsicht;
+  const ordner = bereich && ordnerParam !== undefined && !typAnsicht ? ordnerListe.find((o) => o.key === ordnerParam) ?? null : null;
 
-  const sichtbar = alleAnsicht || eingangAnsicht
+  const sichtbar = alleAnsicht || eingangAnsicht || artGewaehlt
     ? zeilen
     : bereich && ordner
       ? zeilen.filter((z) => z.bereich === bereich.key && z.ordnerKey === ordner.key)
@@ -95,18 +103,15 @@ export default async function DokumentePage({
   const rows: DokumentRow[] = sichtbar.map((z) => ({
     id: z.id,
     dateiname: z.dateiname,
+    titel: z.titel,
     groesseBytes: z.groesseBytes,
     belegDatum: z.belegDatum?.toISOString() ?? null,
     createdAt: z.createdAt.toISOString(),
     hochgeladenVon: z.hochgeladenVon,
     bereich: z.bereich,
     ordnerLabel: z.ordnerLabel,
-    bezugLabel: z.bezugLabel,
-    bezugHref: z.bezugHref,
-    revalidatePath: z.revalidatePath,
-    vertragStatus: z.vertragStatus,
-    schreibgeschuetzt: z.schreibgeschuetzt,
-    downloadHref: z.downloadHref,
+    bezuege: z.bezuege.map((b) => ({ typ: b.typ, label: b.label, href: b.href, beendet: b.vertragStatus === "BEENDET" })),
+    hatBuchung: z.hatBuchung,
     art: z.art,
     aussteller: z.aussteller,
     rechnungsnummer: z.rechnungsnummer,
@@ -114,53 +119,51 @@ export default async function DokumentePage({
     detailHref: z.detailHref,
   }));
 
-  // Upload vorbelegen mit dem gerade geöffneten Ordner.
-  const vorBereich: BereichKey | null = bereich?.key ?? null;
-  const vorgabe = {
-    bereich: vorBereich && vorBereich !== "kosten" ? vorBereich : ("eingang" as const),
-    bezugId: bereich && ordner && bereich.key !== "kosten" && bereich.key !== "allgemein" && bereich.key !== "eingang"
-        ? ordner.key
-        : "",
-    ordner: bereich?.key === "allgemein" && ordner && ordner.label !== "Ohne Ordner" ? ordner.label : "",
-  };
+  // Upload: im geöffneten Ordner lässt sich direkt ablegen, sonst geht alles in den Eingang.
+  const direktBereiche = ["mietvertraege", "einheiten", "gebaeude", "dienstleister", "tickets"];
+  const vorgabe =
+    bereich && ordner && !typAnsicht && direktBereiche.includes(bereich.key)
+      ? { bereich: bereich.key, bezugId: ordner.key, ordner: "", label: ordner.label }
+      : bereich && ordner && !typAnsicht && bereich.key === "allgemein"
+        ? { bereich: "allgemein", bezugId: "", ordner: ordner.label !== "Ohne Ordner" ? ordner.label : "", label: ordner.label }
+        : null;
 
   const gesamtGroesse = index.reduce((s, e) => s + (e.groesseBytes ?? 0), 0);
   const ordnerNamen = allgemeineOrdnerNamen(index);
+  const ansichtLink = (aktiv: boolean) => (aktiv ? "font-medium text-white" : LINK);
+  const eingangAnzahl = index.filter((e) => e.bereiche.includes("eingang")).length;
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
         <p className="text-sm text-neutral-400">
-          Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Neue Dokumente
-          kommen in den <strong>Eingang</strong>: die Texterkennung liest Rechnungen und Bescheide (Aussteller, Rechnungsnummer,
-          Betrag …), die Seite „Details“ schlägt eine passende Kostenposition oder Mieterakte vor, und die Zuordnung ist
-          einmalig und danach fest. Die übrigen Ordner ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit,
-          Kostenjahr, Dienstleister, Ticket); Unkategorisiertes legst du in frei benannten Ordnern ab. Mit „Art“ lässt sich die
-          Liste filtern. Kostenbelege lassen sich nicht löschen, nur ausblenden. Die Kontoauszug-Dateien der Importe stehen
-          nicht hier, sondern unter Kontoauszug → Importe.
+          Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Hochladen heißt nur
+          Datei wählen: die Texterkennung bestimmt Typ, Aussteller, Betrag usw., und im <strong>Eingang</strong> bestätigst du die
+          vorgeschlagenen Bezüge (Kostenposition, Mietvertrag, Einheit, Gebäude, Dienstleister, Ticket). Ein Dokument kann mehrere
+          Bezüge haben und erscheint dann in jedem passenden Bereich. Kostenbelege lassen sich nicht löschen, nur ausblenden. Die
+          Kontoauszug-Dateien der Importe stehen unter Kontoauszug → Importe.
         </p>
       </div>
 
       {editierbar && (
         <div className="mb-6">
           {/* key: bei Ordnerwechsel Formular mit neuer Vorbelegung aufbauen */}
-          <DokumentUpload
-            key={`${bereich?.key ?? ""}/${ordner?.key ?? ""}`}
-            ordnerNamen={ordnerNamen}
-            vorgabe={vorgabe}
-          />
+          <DokumentUpload key={`${bereich?.key ?? ""}/${ordner?.key ?? ""}`} ordnerNamen={ordnerNamen} vorgabe={vorgabe} />
         </div>
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <Link href="/dokumente" className={!alleAnsicht ? "font-medium text-white" : LINK}>
+        <Link href="/dokumente" className={ansichtLink(!alleAnsicht && !typAnsicht)}>
           Ordner
         </Link>
-        <Link href="/dokumente?ansicht=alle" className={alleAnsicht ? "font-medium text-white" : LINK}>
+        <Link href="/dokumente?ansicht=typ" className={ansichtLink(typAnsicht)}>
+          Nach Typ
+        </Link>
+        <Link href="/dokumente?ansicht=alle" className={ansichtLink(alleAnsicht)}>
           Alle Dokumente
         </Link>
-        {!alleAnsicht && bereich && (
+        {!alleAnsicht && !typAnsicht && bereich && (
           <span className="text-neutral-500">
             /{" "}
             <Link href={`/dokumente?bereich=${bereich.key}`} className={LINK}>
@@ -169,17 +172,45 @@ export default async function DokumentePage({
             {ordner && <> / <span className="text-neutral-300">{ordner.label}</span></>}
           </span>
         )}
+        {artGewaehlt && (
+          <span className="text-neutral-500">
+            /{" "}
+            <Link href="/dokumente?ansicht=typ" className={LINK}>
+              Typen
+            </Link>{" "}
+            / <span className="text-neutral-300">{artGewaehlt === "_ohne" ? "Ohne Typ" : (ART_OPTIONEN.find((a) => a.key === artGewaehlt)?.label ?? artGewaehlt)}</span>
+          </span>
+        )}
       </div>
 
       {eingangAnsicht && editierbar && sichtbar.length > 0 && <SichereVorschlaegeKnopf />}
 
-      {alleAnsicht || eingangAnsicht || (bereich && ordner) ? (
-        <DokumentTabelle
-          rows={rows}
-          zeigeBereich={alleAnsicht}
-          ordnerNamen={ordnerNamen}
-          editierbar={editierbar}
-        />
+      {alleAnsicht || eingangAnsicht || artGewaehlt || (bereich && ordner) ? (
+        <DokumentTabelle rows={rows} zeigeBereich={alleAnsicht || !!artGewaehlt} ordnerNamen={ordnerNamen} editierbar={editierbar} />
+      ) : typAnsicht ? (
+        <div className="space-y-5">
+          {[...ART_GRUPPEN, "Ohne Typ"].map((gruppe) => {
+            const karten =
+              gruppe === "Ohne Typ"
+                ? [{ key: "_ohne", label: "Ohne Typ", anzahl: index.filter((e) => !e.art).length, groesse: index.filter((e) => !e.art).reduce((s, e) => s + (e.groesseBytes ?? 0), 0) }]
+                : ART_OPTIONEN.filter((a) => a.gruppe === gruppe).map((a) => {
+                    const dok = index.filter((e) => e.art === a.key);
+                    return { key: a.key as string, label: a.label as string, anzahl: dok.length, groesse: dok.reduce((s, e) => s + (e.groesseBytes ?? 0), 0) };
+                  });
+            const sichtbareKarten = karten.filter((k) => k.anzahl > 0);
+            if (sichtbareKarten.length === 0) return null;
+            return (
+              <div key={gruppe}>
+                <h2 className="mb-2 text-xs font-medium uppercase text-neutral-500">{gruppe}</h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {sichtbareKarten.map((k) => (
+                    <Ordnerkarte key={k.key} href={`/dokumente?ansicht=typ&art=${k.key}`} titel={k.label} anzahl={k.anzahl} groesse={k.groesse} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : bereich ? (
         ordnerListe.length === 0 ? (
           <p className="text-sm text-neutral-500">In „{bereich.label}“ liegen noch keine Dokumente.</p>
@@ -227,8 +258,8 @@ export default async function DokumentePage({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {BEREICHE.map((b) => {
-            const vonBereich = index.filter((e) => e.bereich === b.key);
-            // Leere Bereiche blenden wir aus; hochladen kann man über das Formular oben trotzdem dorthin.
+            const vonBereich = index.filter((e) => e.bereiche.includes(b.key));
+            // Leere Bereiche blenden wir aus.
             if (vonBereich.length === 0) return null;
             return (
               <Ordnerkarte
@@ -238,6 +269,7 @@ export default async function DokumentePage({
                 anzahl={vonBereich.length}
                 groesse={vonBereich.reduce((s, z) => s + (z.groesseBytes ?? 0), 0)}
                 hinweis={b.hinweis}
+                badge={b.key === "eingang" && eingangAnzahl > 0 ? "zu prüfen" : undefined}
               />
             );
           })}

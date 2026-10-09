@@ -258,6 +258,31 @@ export async function ladeMietvertragVorschlaege(d: DokumentLabels, max = 5): Pr
     .slice(0, max);
 }
 
+export type GebaeudeVorschlag = { gebaeudeId: string; label: string };
+
+// Straße vereinheitlichen („Breslauer Straße“ / „Breslauer Str.“ / „Breslauerstr.“ → „breslauer str“).
+function normStrasse(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/straße|strasse|str\./g, "str")
+    .replace(/[.,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Gebäude-Vorschläge: „Straße Hausnummer“ steht in der Objektangabe des Belegs (Hausnummer als ganzes Wort, damit „2“ nicht „23“ trifft). */
+export async function ladeGebaeudeVorschlaege(d: DokumentLabels, max = 3): Promise<GebaeudeVorschlag[]> {
+  if (!d.objektHinweis) return [];
+  const text = normStrasse(d.objektHinweis);
+  const gebaeude = await prisma.gebaeude.findMany({ select: { id: true, strasse: true, hausnummer: true } });
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return gebaeude
+    .filter((g) => new RegExp(`${esc(normStrasse(g.strasse))}\\s*${esc(g.hausnummer.toLowerCase())}(?![0-9a-z])`).test(text))
+    .slice(0, max)
+    .map((g) => ({ gebaeudeId: g.id, label: `${g.strasse} ${g.hausnummer}` }));
+}
+
 export type DienstleisterVorschlag = { dienstleisterId: string; name: string };
 
 /** Dienstleister, dessen Suchbegriff im Aussteller des Belegs vorkommt (gleiche Regel wie im Kosten-Import). */

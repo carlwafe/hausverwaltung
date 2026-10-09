@@ -6,21 +6,22 @@ import { prisma } from "@/lib/prisma";
 import { benutzerLabel, requireEditor } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
-import { ERKENNUNG_ARTEN, istGueltigeArt } from "@/lib/dokumente-anzeige";
+import { AUTOMATISCH_NICHT_LESEN, istGueltigeArt } from "@/lib/dokumente-anzeige";
 import { erkenneDokumentInhalt, istErkennbar, istGueltigeIban } from "@/lib/dokument-erkennung";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
 import { ladeBezugOptionen } from "@/lib/dokumente-uebersicht";
-import { ladeBuchungVorschlaege } from "@/lib/dokument-zuordnung";
+import { ladeBuchungAuswahl, ladeBuchungVorschlaege, type DokumentLabels } from "@/lib/dokument-zuordnung";
 
 type UploadZiel =
   | { buchungId: string; revalidatePath: string }
   | { mietvertragId: string; revalidatePath: string }
   | { einheitId: string; revalidatePath: string }
+  | { gebaeudeId: string; revalidatePath: string }
   | { dienstleisterId: string; revalidatePath: string }
   | { ticketId: string; revalidatePath: string }
-  // Eingang: noch ohne Bezug, wird später zugeordnet (Seite /dokumente/[id]).
+  // Eingang: noch ohne Bezug und nicht abgelegt (Seite /dokumente/[id]).
   | { eingang: true; revalidatePath: string }
   // Allgemeines Dokument ohne Bezug, nur über einen frei benannten Ordner einsortiert.
   | { ordner: string | null; revalidatePath: string };
@@ -48,6 +49,7 @@ async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string):
       erkennung: e as unknown as Prisma.InputJsonValue,
       erkanntAm: new Date(),
       art: d.art ?? e.typ ?? undefined,
+      titel: d.titel ?? e.titel ?? undefined,
       belegDatum: d.belegDatum ?? datumOderNull(e.rechnungsdatum) ?? undefined,
       aussteller: d.aussteller ?? e.aussteller ?? undefined,
       rechnungsnummer: d.rechnungsnummer ?? e.rechnungsnummer ?? undefined,
@@ -89,15 +91,16 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   const artWert = formData.get("art");
   const art = istGueltigeArt(artWert) ? artWert : null;
 
-  // Texterkennung beim Hochladen nur für Rechnungen/Bescheide/Abrechnungen und nur auf Wunsch (Häkchen);
-  // schlägt sie fehl, bleibt das Dokument trotzdem gespeichert.
-  const erkennen = formData.get("erkennen") === "1" && art !== null && ERKENNUNG_ARTEN.includes(art);
-  let erkennungsFehler: string | null = null;
+  // Texterkennung beim Hochladen mit gesetztem Häkchen; Mieterunterlagen (Vertrag, Schreiben, Protokoll) und
+  // Fotos werden nie automatisch gelesen (siehe AUTOMATISCH_NICHT_LESEN). Schlägt sie fehl, bleibt das
+  // Dokument trotzdem gespeichert.
+  const erkennen = formData.get("erkennen") === "1" && !(art !== null && AUTOMATISCH_NICHT_LESEN.includes(art));
 
+  const angelegt: { id: string; inhalt: Buffer; mimeType: string }[] = [];
   for (const file of files) {
     const inhalt = Buffer.from(await file.arrayBuffer());
     const speicherpfad = await speichereDatei(inhalt, file.name);
-    const angelegt = await prisma.dokument.create({
+    const dokument = await prisma.dokument.create({
       data: {
         dateiname: file.name,
         speicherpfad,
@@ -106,6 +109,7 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
         buchungId: "buchungId" in ziel ? ziel.buchungId : undefined,
         mietvertragId: "mietvertragId" in ziel ? ziel.mietvertragId : undefined,
         einheitId: "einheitId" in ziel ? ziel.einheitId : undefined,
+        gebaeudeId: "gebaeudeId" in ziel ? ziel.gebaeudeId : undefined,
         dienstleisterId: "dienstleisterId" in ziel ? ziel.dienstleisterId : undefined,
         ticketId: "ticketId" in ziel ? ziel.ticketId : undefined,
         ordner: "ordner" in ziel ? ziel.ordner : undefined,
@@ -115,15 +119,21 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
         belegDatum,
       },
     });
-    if (erkennen && istErkennbar(file.type)) {
+    if (erkennen && istErkennbar(file.type)) angelegt.push({ id: dokument.id, inhalt, mimeType: file.type });
+  }
+
+  // Erkennung der (höchstens ein paar) Dateien parallel — jede dauert einige Sekunden.
+  let erkennungsFehler: string | null = null;
+  await Promise.all(
+    angelegt.map(async (d) => {
       try {
-        await fuehreErkennungAus(angelegt.id, inhalt, file.type);
+        await fuehreErkennungAus(d.id, d.inhalt, d.mimeType);
       } catch (err) {
         console.error("Texterkennung fehlgeschlagen", err);
         erkennungsFehler = erkennungsMeldung(err);
       }
-    }
-  }
+    }),
+  );
 
   revalidatePath(ziel.revalidatePath);
   revalidatePath("/dokumente");
@@ -175,71 +185,48 @@ export async function aendereBelegDatum(id: string, datum: string, revalidatePat
   revalidatePath("/dokumente");
 }
 
-// Auswahllisten des Upload-Formulars (Mietverträge, Einheiten, Dienstleister, Tickets): erst beim
-// Bedarf nachgeladen, statt bei jedem Seitenaufruf vier Abfragen zu fahren.
-export async function ladeUploadOptionen() {
-  await requireEditor();
-  return ladeBezugOptionen();
-}
+const MAX_DATEIEN_JE_UPLOAD = 4;
+// Vercel begrenzt den Request-Body auf 4,5 MB (siehe upload-limits.ts) — mehrere Dateien müssen zusammen darunter bleiben.
+const MAX_GESAMTGROESSE_BYTES = 4 * 1024 * 1024;
 
-const ZENTRAL_BEREICHE = ["eingang", "mietvertraege", "einheiten", "dienstleister", "tickets", "allgemein"] as const;
-
-// Upload von der Seite /dokumente: Bereich + Bezug kommen aus dem Formular. Je Upload nur eine
-// Datei (4-MB-Limit wegen Vercels Request-Größe, siehe upload-limits.ts).
+// Upload von der Seite /dokumente: nur Datei(en) — alles Weitere (Typ, Bezüge) kommt aus der Texterkennung bzw.
+// wird im Eingang bestätigt. Ist ein Ordner geöffnet, legt „ablegen=direkt“ die Dateien gleich dort ab
+// (Bezug aus bereich/bezugId bzw. Ordnername für „Unkategorisiert“), sonst landen sie im Eingang.
 export const uploadDokumentZentral = mitMeldung(async function uploadDokumentZentral(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
   await requireEditor();
-  const bereich = formData.get("bereich");
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) throw new AktionsFehler("Bitte eine Datei auswählen.");
+  if (files.length > MAX_DATEIEN_JE_UPLOAD) throw new AktionsFehler(`Bitte höchstens ${MAX_DATEIEN_JE_UPLOAD} Dateien auf einmal hochladen.`);
+  for (const f of files) {
+    if (f.size > MAX_DOKUMENT_GROESSE_BYTES) throw new AktionsFehler(`„${f.name}“ ist größer als ${MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024)} MB.`);
+  }
+  if (files.reduce((s, f) => s + f.size, 0) > MAX_GESAMTGROESSE_BYTES) throw new AktionsFehler("Die Dateien sind zusammen größer als 4 MB — bitte in zwei Uploads aufteilen.");
+
+  const bereich = String(formData.get("bereich") ?? "");
   const bezugId = String(formData.get("bezugId") ?? "");
   const ordner = String(formData.get("ordner") ?? "").trim();
-  if (!ZENTRAL_BEREICHE.some((b) => b === bereich)) throw new AktionsFehler("Bitte einen Bereich wählen.");
+  const direkt = formData.get("ablegen") === "direkt";
 
-  const datei = formData.get("file");
-  if (datei instanceof File && datei.size > MAX_DOKUMENT_GROESSE_BYTES) {
-    throw new AktionsFehler(`Die Datei darf maximal ${MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024)} MB groß sein.`);
-  }
-
-  let ziel: UploadZiel;
-  if (bereich === "eingang") {
-    // Nur der Dokumenttyp ist Pflicht (steuert u.a., ob die Texterkennung läuft).
-    if (!istGueltigeArt(formData.get("art"))) throw new AktionsFehler("Bitte den Dokumenttyp wählen.");
-    ziel = { eingang: true, revalidatePath: "/dokumente" };
-  } else if (bereich === "allgemein") {
+  let ziel: UploadZiel = { eingang: true, revalidatePath: "/dokumente" };
+  let bezugPfad: string | null = null;
+  if (direkt && bereich === "allgemein") {
     if (ordner.length > 80) throw new AktionsFehler("Der Ordnername darf höchstens 80 Zeichen lang sein.");
     ziel = { ordner: ordner || null, revalidatePath: "/dokumente" };
-  } else {
+  } else if (direkt && (bereich in DIREKT_BEREICHE)) {
+    const z = DIREKT_BEREICHE[bereich as keyof typeof DIREKT_BEREICHE];
     if (!bezugId) throw new AktionsFehler("Bitte auswählen, wo das Dokument abgelegt werden soll.");
-    // Existenz prüfen, damit kein Dokument mit ungültigem Fremdschlüssel (generische Fehlermeldung) entsteht.
-    const vorhanden =
-      bereich === "mietvertraege"
-        ? await prisma.mietvertrag.findUnique({ where: { id: bezugId }, select: { id: true } })
-        : bereich === "einheiten"
-          ? await prisma.einheit.findUnique({ where: { id: bezugId }, select: { id: true } })
-          : bereich === "dienstleister"
-            ? await prisma.dienstleister.findUnique({ where: { id: bezugId }, select: { id: true } })
-            : await prisma.ticket.findUnique({ where: { id: bezugId }, select: { id: true } });
-    if (!vorhanden) throw new AktionsFehler("Die Auswahl existiert nicht mehr.");
-    ziel =
-      bereich === "mietvertraege"
-        ? { mietvertragId: bezugId, revalidatePath: "/dokumente" }
-        : bereich === "einheiten"
-          ? { einheitId: bezugId, revalidatePath: "/dokumente" }
-          : bereich === "dienstleister"
-            ? { dienstleisterId: bezugId, revalidatePath: "/dokumente" }
-            : { ticketId: bezugId, revalidatePath: "/dokumente" };
+    await pruefeZiel(z, bezugId);
+    ziel = { [BEZUG_FELD[z]]: bezugId, revalidatePath: "/dokumente" } as UploadZiel;
+    bezugPfad = ZIEL_PFAD[z](bezugId);
   }
 
   const fehler = await uploadDokument(ziel, null, formData);
-  if (fehler) throw new AktionsFehler(fehler);
   // Die Detailseite des Bezugs zeigt das Dokument ebenfalls.
-  if (bereich !== "allgemein" && bereich !== "eingang") {
-    const pfad = { mietvertraege: "mietvertraege", einheiten: "einheiten", dienstleister: "dienstleister", tickets: "tickets" }[
-      bereich as "mietvertraege" | "einheiten" | "dienstleister" | "tickets"
-    ];
-    revalidatePath(`/${pfad}/${bezugId}`);
-  }
+  if (bezugPfad) revalidatePath(bezugPfad);
+  if (fehler) throw new AktionsFehler(fehler);
   return null;
 });
 
@@ -247,7 +234,7 @@ export const uploadDokumentZentral = mitMeldung(async function uploadDokumentZen
 export async function aendereOrdner(id: string, ordner: string): Promise<void> {
   await requireEditor();
   const dokument = await prisma.dokument.findUnique({ where: { id } });
-  if (!dokument || dokument.eingang || dokument.buchungId || dokument.mietvertragId || dokument.einheitId || dokument.dienstleisterId || dokument.ticketId) return;
+  if (!dokument || dokument.eingang || hatBezug(dokument)) return;
   await prisma.dokument.update({ where: { id }, data: { ordner: ordner.trim().slice(0, 80) || null } });
   revalidatePath("/dokumente");
 }
@@ -297,6 +284,7 @@ export const speichereDokumentLabels = mitMeldung(async function speichereDokume
     where: { id },
     data: {
       art: istGueltigeArt(artWert) ? artWert : null,
+      titel: textFeld(formData.get("titel"), 200),
       belegDatum: parseBelegDatum(formData.get("belegDatum")),
       aussteller: textFeld(formData.get("aussteller"), 200),
       rechnungsnummer: textFeld(formData.get("rechnungsnummer"), 60),
@@ -327,7 +315,7 @@ export const erkenneDokument = mitMeldung(async function erkenneDokument(id: str
       where: { id },
       data: {
         aussteller: null, rechnungsnummer: null, betrag: null, leistungVon: null, leistungBis: null, kostenjahr: null,
-        iban: null, kostenartId: null, adressat: null, objektHinweis: null, belegDatum: null,
+        iban: null, kostenartId: null, adressat: null, objektHinweis: null, belegDatum: null, titel: null,
       },
     });
   }
@@ -348,9 +336,82 @@ export const erkenneDokument = mitMeldung(async function erkenneDokument(id: str
   return null;
 });
 
-export type ZuordnungsZiel = "buchung" | "mietvertrag" | "einheit" | "dienstleister" | "ticket";
+export type ZuordnungsZiel = "buchung" | "mietvertrag" | "einheit" | "gebaeude" | "dienstleister" | "ticket";
 
-// Ordnet ein Dokument aus dem Eingang einmalig einem Bezug zu; danach ist der Bezug fest.
+// Zuordnung von Bereich (Ordneransicht) bzw. Ziel zum Fremdschlüsselfeld und zur Detailseite des Bezugs.
+const BEZUG_FELD = {
+  buchung: "buchungId",
+  mietvertrag: "mietvertragId",
+  einheit: "einheitId",
+  gebaeude: "gebaeudeId",
+  dienstleister: "dienstleisterId",
+  ticket: "ticketId",
+} as const satisfies Record<ZuordnungsZiel, string>;
+
+const ZIEL_PFAD: Record<ZuordnungsZiel, (id: string) => string> = {
+  buchung: (id) => `/kosten/${id}`,
+  mietvertrag: (id) => `/mietvertraege/${id}`,
+  einheit: (id) => `/einheiten/${id}`,
+  gebaeude: (id) => `/gebaeude/${id}`,
+  dienstleister: (id) => `/dienstleister/${id}`,
+  ticket: (id) => `/tickets/${id}`,
+};
+
+const ZIEL_NAME: Record<ZuordnungsZiel, string> = {
+  buchung: "Kostenposition",
+  mietvertrag: "Mietvertrag",
+  einheit: "Einheit",
+  gebaeude: "Gebäude",
+  dienstleister: "Dienstleister",
+  ticket: "Ticket",
+};
+
+// Bereiche der Ordneransicht, in denen „direkt ablegen“ einen Bezug setzt (Kosten brauchen eine konkrete Buchung).
+const DIREKT_BEREICHE = {
+  mietvertraege: "mietvertrag",
+  einheiten: "einheit",
+  gebaeude: "gebaeude",
+  dienstleister: "dienstleister",
+  tickets: "ticket",
+} as const satisfies Record<string, ZuordnungsZiel>;
+
+type DokumentMitBezug = Pick<Prisma.DokumentUncheckedCreateInput, "buchungId" | "mietvertragId" | "einheitId" | "gebaeudeId" | "dienstleisterId" | "ticketId">;
+
+function hatBezug(d: DokumentMitBezug): boolean {
+  return (Object.values(BEZUG_FELD) as (keyof DokumentMitBezug)[]).some((f) => !!d[f]);
+}
+
+// Existenz prüfen, damit kein Dokument mit ungültigem Fremdschlüssel (generische Fehlermeldung) entsteht.
+async function pruefeZiel(ziel: ZuordnungsZiel, id: string): Promise<void> {
+  const select = { id: true } as const;
+  const vorhanden =
+    ziel === "buchung"
+      ? await prisma.buchung.findFirst({ where: { id, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER }, select })
+      : ziel === "mietvertrag"
+        ? await prisma.mietvertrag.findUnique({ where: { id }, select })
+        : ziel === "einheit"
+          ? await prisma.einheit.findUnique({ where: { id }, select })
+          : ziel === "gebaeude"
+            ? await prisma.gebaeude.findUnique({ where: { id }, select })
+            : ziel === "dienstleister"
+              ? await prisma.dienstleister.findUnique({ where: { id }, select })
+              : await prisma.ticket.findUnique({ where: { id }, select });
+  if (!vorhanden) {
+    throw new AktionsFehler(ziel === "buchung" ? "Die Kostenposition existiert nicht mehr oder ist storniert." : `${ZIEL_NAME[ziel]}: Die Auswahl existiert nicht mehr.`);
+  }
+}
+
+function revalidiereDokument(id: string, d: DokumentMitBezug) {
+  revalidatePath(`/dokumente/${id}`);
+  revalidatePath("/dokumente");
+  for (const z of Object.keys(BEZUG_FELD) as ZuordnungsZiel[]) {
+    const wert = d[BEZUG_FELD[z]];
+    if (wert) revalidatePath(ZIEL_PFAD[z](wert));
+  }
+}
+
+// Fügt einen Bezug hinzu (ein Dokument darf mehrere haben, je Art aber nur einen). Damit gilt es als abgelegt
+// und verlässt den Eingang. Eine Kostenposition ist ein fester Nachweis und lässt sich später nicht ersetzen.
 export const ordneDokumentZu = mitMeldung(async function ordneDokumentZu(
   id: string,
   ziel: ZuordnungsZiel,
@@ -359,43 +420,66 @@ export const ordneDokumentZu = mitMeldung(async function ordneDokumentZu(
   await requireEditor();
   const dokument = await prisma.dokument.findUnique({ where: { id } });
   if (!dokument) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
-  if (!dokument.eingang) throw new AktionsFehler("Das Dokument ist schon zugeordnet.");
   if (!zielId) throw new AktionsFehler("Bitte ein Ziel wählen.");
-
-  let data: Prisma.DokumentUncheckedUpdateInput;
-  let pfad: string;
-  if (ziel === "buchung") {
-    const b = await prisma.buchung.findFirst({
-      where: { id: zielId, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
-      select: { id: true },
-    });
-    if (!b) throw new AktionsFehler("Die Kostenposition existiert nicht mehr oder ist storniert.");
-    data = { buchungId: zielId };
-    pfad = `/kosten/${zielId}`;
-  } else if (ziel === "mietvertrag") {
-    if (!(await prisma.mietvertrag.findUnique({ where: { id: zielId }, select: { id: true } }))) throw new AktionsFehler("Der Mietvertrag existiert nicht mehr.");
-    data = { mietvertragId: zielId };
-    pfad = `/mietvertraege/${zielId}`;
-  } else if (ziel === "einheit") {
-    if (!(await prisma.einheit.findUnique({ where: { id: zielId }, select: { id: true } }))) throw new AktionsFehler("Die Einheit existiert nicht mehr.");
-    data = { einheitId: zielId };
-    pfad = `/einheiten/${zielId}`;
-  } else if (ziel === "dienstleister") {
-    if (!(await prisma.dienstleister.findUnique({ where: { id: zielId }, select: { id: true } }))) throw new AktionsFehler("Der Dienstleister existiert nicht mehr.");
-    data = { dienstleisterId: zielId };
-    pfad = `/dienstleister/${zielId}`;
-  } else {
-    if (!(await prisma.ticket.findUnique({ where: { id: zielId }, select: { id: true } }))) throw new AktionsFehler("Das Ticket existiert nicht mehr.");
-    data = { ticketId: zielId };
-    pfad = `/tickets/${zielId}`;
+  const feld = BEZUG_FELD[ziel];
+  const aktuell = dokument[feld];
+  if (aktuell === zielId) return null;
+  if (aktuell) {
+    throw new AktionsFehler(
+      ziel === "buchung"
+        ? "Der Beleg gehört schon zu einer Kostenposition und lässt sich nicht umhängen."
+        : `Es ist schon ein Bezug „${ZIEL_NAME[ziel]}“ gesetzt — bitte zuerst entfernen.`,
+    );
   }
-
-  await prisma.dokument.update({ where: { id }, data: { ...data, eingang: false } });
-  revalidatePath(pfad);
-  revalidatePath(`/dokumente/${id}`);
-  revalidatePath("/dokumente");
+  await pruefeZiel(ziel, zielId);
+  const neu = await prisma.dokument.update({ where: { id }, data: { [feld]: zielId, eingang: false } });
+  revalidiereDokument(id, neu);
   return null;
 });
+
+// Entfernt einen Bezug. Die Kostenposition bleibt (Löschsperre: der Beleg ist der Nachweis zur Buchung).
+export const entferneBezug = mitMeldung(async function entferneBezug(id: string, ziel: ZuordnungsZiel): Promise<string | null> {
+  await requireEditor();
+  if (ziel === "buchung") throw new AktionsFehler("Ein Kostenbeleg behält seine Kostenposition (Löschsperre).");
+  const alt = await prisma.dokument.findUnique({ where: { id } });
+  if (!alt) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  const neu = await prisma.dokument.update({ where: { id }, data: { [BEZUG_FELD[ziel]]: null } });
+  revalidiereDokument(id, alt);
+  revalidiereDokument(id, neu);
+  return null;
+});
+
+// Legt ein Dokument aus dem Eingang ab, auch ohne Bezug (z.B. Versicherungspolice); der optionale Ordnername gilt nur ohne Bezug.
+export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: string, ordner: string): Promise<string | null> {
+  await requireEditor();
+  const name = ordner.trim();
+  if (name.length > 80) throw new AktionsFehler("Der Ordnername darf höchstens 80 Zeichen lang sein.");
+  const d = await prisma.dokument.findUnique({ where: { id } });
+  if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  await prisma.dokument.update({ where: { id }, data: { eingang: false, ...(hatBezug(d) ? {} : { ordner: name || null }) } });
+  revalidiereDokument(id, d);
+  return null;
+});
+
+// Auswahllisten für „Bezug hinzufügen“ auf der Detailseite — erst beim Öffnen nachgeladen (Vercel-CPU).
+export async function ladeBezugAuswahl(id: string) {
+  await requireEditor();
+  const d = await prisma.dokument.findUnique({ where: { id } });
+  if (!d) return null;
+  const labels: DokumentLabels = {
+    aussteller: d.aussteller, rechnungsnummer: d.rechnungsnummer, betrag: d.betrag === null ? null : Number(d.betrag),
+    belegDatum: d.belegDatum, kostenjahr: d.kostenjahr, iban: d.iban, adressat: d.adressat, objektHinweis: d.objektHinweis,
+  };
+  const [bezug, buchungen] = await Promise.all([ladeBezugOptionen(), ladeBuchungAuswahl(labels)]);
+  return {
+    buchung: buchungen,
+    mietvertrag: bezug.mietvertraege,
+    einheit: bezug.einheiten,
+    gebaeude: bezug.gebaeude,
+    dienstleister: bezug.dienstleister,
+    ticket: bezug.tickets,
+  };
+}
 
 // Alle „sicheren“ Vorschläge auf einmal übernehmen (Betrag stimmt und Rechnungsnummer bzw. Empfänger+Datum
 // passen, siehe bewerteBuchung) — als Sammelbestätigung auf der Eingang-Liste; nie ohne Klick.
