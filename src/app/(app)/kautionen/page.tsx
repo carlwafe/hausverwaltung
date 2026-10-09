@@ -30,10 +30,11 @@ const TOLERANZ = 0.01;
 
 const STATUS_SORT: Record<KautionRow["status"], number> = { AKTIV: 0, UEBERZAHLT: 1, AUFGELOEST: 2, ERLEDIGT: 3 };
 
-// Status aus dem offenen Rest einer aufgelösten Kaution: ~0 erledigt, positiv noch offen, negativ
-// überzahlt (mehr an den Mieter geflossen als die Kaution hergab).
-function statusAusRest(aufgeloest: number, rest: number | null): KautionRow["status"] {
-  if (aufgeloest === 0 || rest === null) return "AKTIV";
+// Status aus dem offenen Rest einer abgerechneten Kaution (aufgelöst, oder Bar ohne Auflösung): ~0
+// erledigt, positiv noch offen, negativ überzahlt (mehr an den Mieter geflossen bzw. einbehalten
+// als die Kaution hergab).
+function statusAusRest(abgerechnet: boolean, rest: number | null): KautionRow["status"] {
+  if (!abgerechnet || rest === null) return "AKTIV";
   if (rest < -TOLERANZ) return "UEBERZAHLT";
   return rest <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
 }
@@ -174,15 +175,27 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const aufgeloest = summen?.aufgeloest ?? 0;
     const ausgezahlt = summen?.ausgezahlt ?? 0;
     const verrechnet = summen?.verrechnet ?? 0;
+    const pauschalEinbehalten = k.einbehalte.reduce((s, e) => s + Number(e.betrag), 0);
+    // Bar / nie angelegt: Es gibt keine Auflösung (das Geld lag nie auf einem Kautionskonto). Sobald
+    // etwas ausgezahlt, verrechnet oder pauschal einbehalten ist, gilt die Kaution als abgerechnet
+    // und der Rest ergibt sich direkt aus der Einzahlung (bzw. dem Soll bei Einzahlung vor
+    // Buchhaltungsbeginn) — sonst bliebe sie ewig "Aktiv".
+    const barAbgerechnet =
+      k.anlageform === "BAR" && aufgeloest === 0 && ausgezahlt + verrechnet + pauschalEinbehalten > TOLERANZ;
+    const eingegangenBar = summen && summen.einzahlung > 0 ? direktEingegangen(summen) : k.einzahlungUnbekannt ? betrag : 0;
     // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
     // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
-    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100 : null;
+    const einbehalten =
+      aufgeloest > 0
+        ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100
+        : barAbgerechnet
+          ? Math.round((eingegangenBar - ausgezahlt - verrechnet) * 100) / 100
+          : null;
     // Erledigt, sobald der einbehaltene Rest vollständig aus pauschalen, dem Vermieter endgültig
     // gutgeschriebenen Einbehalten besteht — ein vorläufiger Einbehalt (Rechnung folgt noch) oder ein
     // unbegründeter Rest lässt den Fall offen.
-    const pauschalEinbehalten = k.einbehalte.reduce((s, e) => s + Number(e.betrag), 0);
     const offen = einbehalten !== null ? Math.round((einbehalten - pauschalEinbehalten) * 100) / 100 : null;
-    const status = statusAusRest(aufgeloest, offen);
+    const status = statusAusRest(aufgeloest > 0 || barAbgerechnet, offen);
 
     return {
       id: k.id,
@@ -225,7 +238,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     const ausgezahlt = summen.ausgezahlt;
     const verrechnet = summen.verrechnet;
     const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100 : null;
-    const status = statusAusRest(aufgeloest, einbehalten);
+    const status = statusAusRest(aufgeloest > 0, einbehalten);
 
     return {
       id: `verwaist-${v.id}`,

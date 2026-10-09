@@ -354,7 +354,7 @@ export function baueKautionskonto(input: {
   const status: Kautionskonto["status"] =
     zeilen.length === 0 && !input.sollBetrag
       ? "KEINE"
-      : abgerechnet && Math.abs(nochOffen) < TOLERANZ && strittigOffenSumme < TOLERANZ
+      : abgerechnet && nochOffen < TOLERANZ && strittigOffenSumme < TOLERANZ
         ? "ABGERECHNET"
         : aufloesung > TOLERANZ
           ? "AUFGELOEST"

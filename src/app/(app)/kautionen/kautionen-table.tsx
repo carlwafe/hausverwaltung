@@ -40,7 +40,8 @@ export type KautionRow = {
   // synthetisch aus Kautionsbuchungen gebildeten Zeileneintrag.
   anlageform: string | null;
   // Summe der "Auflösung"- bzw. "Auszahlung Mieter"-Kautionsbuchungen dieses Mietvertrags (0,
-  // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist.
+  // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist —
+  // bzw. bei einer Bar-Kaution (nie angelegt, keine Auflösung), sobald etwas abgerechnet wurde.
   aufgeloest: number;
   ausgezahlt: number;
   // Mit einer Nebenkostenabrechnung, dem Mieterkonto oder einer vom Vermieter bezahlten Rechnung
