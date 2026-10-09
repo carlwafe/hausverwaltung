@@ -270,34 +270,39 @@ export const speichereDokumentLabels = mitMeldung(async function speichereDokume
   formData: FormData,
 ): Promise<string | null> {
   await requireEditor();
+  // Das Formular zeigt je Dokumenttyp nur passende Felder: geändert wird nur, was mitgeschickt wurde
+  // (ein leeres Feld leert den Wert, ein fehlendes lässt ihn unverändert).
+  const data: Prisma.DokumentUncheckedUpdateInput = {};
   const artWert = formData.get("art");
-  const jahrText = textFeld(formData.get("kostenjahr"), 4);
-  if (jahrText && !/^(20\d{2}|19\d{2})$/.test(jahrText)) throw new AktionsFehler("Das Kostenjahr muss eine vierstellige Jahreszahl sein.");
-  const iban = textFeld(formData.get("iban"), 40)?.replace(/\s/g, "").toUpperCase() ?? null;
-  if (iban && !istGueltigeIban(iban)) throw new AktionsFehler("Die IBAN ist ungültig (Aufbau oder Prüfziffer).");
-  const kostenartId = textFeld(formData.get("kostenartId"), 40);
-  if (kostenartId && !(await prisma.kostenart.findUnique({ where: { id: kostenartId }, select: { id: true } }))) {
-    throw new AktionsFehler("Die Kostenart existiert nicht mehr.");
+  if (formData.has("art")) data.art = istGueltigeArt(artWert) ? artWert : null;
+  if (formData.has("titel")) data.titel = textFeld(formData.get("titel"), 200);
+  if (formData.has("belegDatum")) data.belegDatum = parseBelegDatum(formData.get("belegDatum"));
+  if (formData.has("aussteller")) data.aussteller = textFeld(formData.get("aussteller"), 200);
+  if (formData.has("rechnungsnummer")) data.rechnungsnummer = textFeld(formData.get("rechnungsnummer"), 60);
+  if (formData.has("betrag")) data.betrag = parseBetrag(formData.get("betrag"));
+  if (formData.has("leistungVon")) data.leistungVon = parseBelegDatum(formData.get("leistungVon"));
+  if (formData.has("leistungBis")) data.leistungBis = parseBelegDatum(formData.get("leistungBis"));
+  if (formData.has("kostenjahr")) {
+    const jahrText = textFeld(formData.get("kostenjahr"), 4);
+    if (jahrText && !/^(20\d{2}|19\d{2})$/.test(jahrText)) throw new AktionsFehler("Das Jahr muss eine vierstellige Jahreszahl sein.");
+    data.kostenjahr = jahrText ? Number(jahrText) : null;
   }
+  if (formData.has("iban")) {
+    const iban = textFeld(formData.get("iban"), 40)?.replace(/\s/g, "").toUpperCase() ?? null;
+    if (iban && !istGueltigeIban(iban)) throw new AktionsFehler("Die IBAN ist ungültig (Aufbau oder Prüfziffer).");
+    data.iban = iban;
+  }
+  if (formData.has("kostenartId")) {
+    const kostenartId = textFeld(formData.get("kostenartId"), 40);
+    if (kostenartId && !(await prisma.kostenart.findUnique({ where: { id: kostenartId }, select: { id: true } }))) {
+      throw new AktionsFehler("Die Kostenart existiert nicht mehr.");
+    }
+    data.kostenartId = kostenartId;
+  }
+  if (formData.has("adressat")) data.adressat = textFeld(formData.get("adressat"), 200);
+  if (formData.has("objektHinweis")) data.objektHinweis = textFeld(formData.get("objektHinweis"), 300);
 
-  await prisma.dokument.update({
-    where: { id },
-    data: {
-      art: istGueltigeArt(artWert) ? artWert : null,
-      titel: textFeld(formData.get("titel"), 200),
-      belegDatum: parseBelegDatum(formData.get("belegDatum")),
-      aussteller: textFeld(formData.get("aussteller"), 200),
-      rechnungsnummer: textFeld(formData.get("rechnungsnummer"), 60),
-      betrag: parseBetrag(formData.get("betrag")),
-      leistungVon: parseBelegDatum(formData.get("leistungVon")),
-      leistungBis: parseBelegDatum(formData.get("leistungBis")),
-      kostenjahr: jahrText ? Number(jahrText) : null,
-      iban,
-      kostenartId,
-      adressat: textFeld(formData.get("adressat"), 200),
-      objektHinweis: textFeld(formData.get("objektHinweis"), 300),
-    },
-  });
+  await prisma.dokument.update({ where: { id }, data });
   revalidatePath(`/dokumente/${id}`);
   revalidatePath("/dokumente");
   return null;

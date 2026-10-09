@@ -34,6 +34,64 @@ export type LabelWerte = {
   objektHinweis: string;
 };
 
+type FeldKey =
+  | "titel"
+  | "belegDatum"
+  | "aussteller"
+  | "rechnungsnummer"
+  | "betrag"
+  | "iban"
+  | "leistungVon"
+  | "leistungBis"
+  | "kostenjahr"
+  | "kostenartId"
+  | "adressat"
+  | "objektHinweis";
+
+// Reihenfolge der Felder im Formular; welche davon erscheinen und wie sie heißen, hängt vom Dokumenttyp ab.
+const FELD_REIHENFOLGE: FeldKey[] = [
+  "belegDatum", "betrag", "aussteller", "rechnungsnummer", "iban", "leistungVon", "leistungBis", "kostenjahr", "kostenartId", "adressat", "objektHinweis",
+];
+
+const KOSTEN_FELDER = {
+  belegDatum: "Rechnungsdatum",
+  betrag: "Betrag (€, Gutschrift negativ)",
+  aussteller: "Aussteller",
+  rechnungsnummer: "Rechnungsnummer",
+  iban: "IBAN des Ausstellers",
+  leistungVon: "Leistungszeitraum von",
+  leistungBis: "Leistungszeitraum bis",
+  kostenjahr: "Kostenjahr",
+  kostenartId: "Kostenart",
+  adressat: "Adressat (Rechnungsempfänger)",
+  objektHinweis: "Objekt laut Dokument (Adresse/Wohnung)",
+} as const;
+
+// Felder und Beschriftungen je Dokumenttyp: ein Protokoll braucht keinen Betrag, keine IBAN und keine Kostenart.
+// Nicht angezeigte Felder behalten ihren Wert (die Aktion ändert nur, was das Formular mitschickt).
+const FELDER_JE_ART: Record<string, Partial<Record<Exclude<FeldKey, "titel">, string>>> = {
+  RECHNUNG: KOSTEN_FELDER,
+  BESCHEID: { ...KOSTEN_FELDER, belegDatum: "Bescheiddatum", aussteller: "Behörde / Aussteller", rechnungsnummer: "Bescheid- / Aktenzeichen", leistungVon: "Zeitraum von", leistungBis: "Zeitraum bis" },
+  ABRECHNUNG: { ...KOSTEN_FELDER, belegDatum: "Datum der Abrechnung", rechnungsnummer: "Abrechnungsnummer", leistungVon: "Abrechnungszeitraum von", leistungBis: "Abrechnungszeitraum bis" },
+  VERTRAG: {
+    belegDatum: "Vertragsdatum", aussteller: "Vertragspartner", leistungVon: "Laufzeit von", leistungBis: "Laufzeit bis",
+    adressat: "Mieter / Vertragsnehmer", objektHinweis: "Objekt (Adresse/Wohnung)",
+  },
+  SCHREIBEN: { belegDatum: "Briefdatum", aussteller: "Absender", adressat: "Empfänger (z.B. Mieter)", objektHinweis: "Objekt (Adresse/Wohnung)" },
+  PROTOKOLL: { belegDatum: "Datum des Protokolls", adressat: "Mieter / Beteiligte", objektHinweis: "Objekt (Adresse/Wohnung)" },
+  FOTO: { belegDatum: "Aufnahmedatum", objektHinweis: "Objekt / Ort (Adresse/Wohnung)" },
+  VERSICHERUNG: {
+    belegDatum: "Datum", aussteller: "Versicherer", rechnungsnummer: "Versicherungsschein-Nr.", betrag: "Beitrag (€)",
+    leistungVon: "Laufzeit von", leistungBis: "Laufzeit bis", objektHinweis: "Objekt (Adresse/Wohnung)",
+  },
+  PRUEFBERICHT: { belegDatum: "Datum des Berichts", aussteller: "Prüfer / Firma", rechnungsnummer: "Berichtsnummer", objektHinweis: "Objekt (Adresse/Wohnung)" },
+  BEHOERDE: { belegDatum: "Datum", aussteller: "Behörde", rechnungsnummer: "Aktenzeichen", betrag: "Betrag (€)", kostenjahr: "Jahr", objektHinweis: "Objekt (Adresse/Wohnung)" },
+  SONSTIGES: { belegDatum: "Datum", aussteller: "Aussteller / Absender", rechnungsnummer: "Nummer", betrag: "Betrag (€)", adressat: "Adressat / Empfänger", objektHinweis: "Objekt (Adresse/Wohnung)" },
+};
+
+// Ohne gewählten Typ (z.B. frisch hochgeladen, noch nicht erkannt) stehen alle Felder zur Verfügung.
+const FELDER_OHNE_ART = KOSTEN_FELDER;
+
 export function LabelsForm({
   id,
   werte,
@@ -47,6 +105,49 @@ export function LabelsForm({
 }) {
   const [fehler, formAction, pending] = useActionState(speichereDokumentLabels.bind(null, id), null);
   const [gespeichert, setGespeichert] = useState(false);
+  const [art, setArt] = useState(werte.art);
+  const felder = (art && FELDER_JE_ART[art]) || FELDER_OHNE_ART;
+  const label = (k: Exclude<FeldKey, "titel">) => (felder as Partial<Record<string, string>>)[k];
+
+  function feld(k: Exclude<FeldKey, "titel">) {
+    const text = label(k);
+    if (!text) return null;
+    const gemeinsam = { disabled: !editierbar };
+    let eingabe: React.ReactNode;
+    switch (k) {
+      case "belegDatum":
+      case "leistungVon":
+      case "leistungBis":
+        eingabe = <DateInput name={k} defaultValue={werte[k]} {...gemeinsam} />;
+        break;
+      case "kostenartId":
+        eingabe = (
+          <select name={k} defaultValue={werte[k]} {...gemeinsam} className={FELD}>
+            <option value="">–</option>
+            {kostenarten.map((ka) => (
+              <option key={ka.id} value={ka.id}>
+                {ka.name}
+              </option>
+            ))}
+          </select>
+        );
+        break;
+      case "betrag":
+        eingabe = <input name={k} defaultValue={werte[k]} {...gemeinsam} inputMode="decimal" placeholder="z.B. 1.234,56" className={FELD} />;
+        break;
+      case "kostenjahr":
+        eingabe = <input name={k} defaultValue={werte[k]} {...gemeinsam} inputMode="numeric" maxLength={4} placeholder="z.B. 2026" className={FELD} />;
+        break;
+      default:
+        eingabe = <input name={k} defaultValue={werte[k]} {...gemeinsam} maxLength={k === "objektHinweis" ? 300 : k === "iban" ? 40 : k === "rechnungsnummer" ? 60 : 200} className={FELD} />;
+    }
+    return (
+      <div key={k}>
+        <label className={LABEL}>{text}</label>
+        {eingabe}
+      </div>
+    );
+  }
 
   return (
     <form
@@ -61,7 +162,7 @@ export function LabelsForm({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <label className={LABEL}>Dokumenttyp</label>
-          <select name="art" defaultValue={werte.art} disabled={!editierbar} className={FELD}>
+          <select name="art" value={art} onChange={(e) => setArt(e.target.value)} disabled={!editierbar} className={FELD}>
             <option value="">–</option>
             {ART_GRUPPEN.map((g) => (
               <optgroup key={g} label={g}>
@@ -76,59 +177,9 @@ export function LabelsForm({
         </div>
         <div className="sm:col-span-2">
           <label className={LABEL}>Titel (Kurzbeschreibung)</label>
-          <input name="titel" defaultValue={werte.titel} disabled={!editierbar} maxLength={200} placeholder="z.B. Reparatur Warmwasserleitung" className={FELD} />
+          <input name="titel" defaultValue={werte.titel} disabled={!editierbar} maxLength={200} placeholder="z.B. Übergabeprotokoll Wohnung 3" className={FELD} />
         </div>
-        <div>
-          <label className={LABEL}>Rechnungs-/Belegdatum</label>
-          <DateInput name="belegDatum" defaultValue={werte.belegDatum} disabled={!editierbar} />
-        </div>
-        <div>
-          <label className={LABEL}>Betrag (€, Gutschrift negativ)</label>
-          <input name="betrag" defaultValue={werte.betrag} disabled={!editierbar} inputMode="decimal" placeholder="z.B. 1.234,56" className={FELD} />
-        </div>
-        <div>
-          <label className={LABEL}>Aussteller</label>
-          <input name="aussteller" defaultValue={werte.aussteller} disabled={!editierbar} maxLength={200} className={FELD} />
-        </div>
-        <div>
-          <label className={LABEL}>Rechnungsnummer</label>
-          <input name="rechnungsnummer" defaultValue={werte.rechnungsnummer} disabled={!editierbar} maxLength={60} className={FELD} />
-        </div>
-        <div>
-          <label className={LABEL}>IBAN des Ausstellers</label>
-          <input name="iban" defaultValue={werte.iban} disabled={!editierbar} maxLength={40} className={FELD} />
-        </div>
-        <div>
-          <label className={LABEL}>Leistungszeitraum von</label>
-          <DateInput name="leistungVon" defaultValue={werte.leistungVon} disabled={!editierbar} />
-        </div>
-        <div>
-          <label className={LABEL}>Leistungszeitraum bis</label>
-          <DateInput name="leistungBis" defaultValue={werte.leistungBis} disabled={!editierbar} />
-        </div>
-        <div>
-          <label className={LABEL}>Kostenjahr</label>
-          <input name="kostenjahr" defaultValue={werte.kostenjahr} disabled={!editierbar} inputMode="numeric" maxLength={4} placeholder="z.B. 2026" className={FELD} />
-        </div>
-        <div>
-          <label className={LABEL}>Kostenart</label>
-          <select name="kostenartId" defaultValue={werte.kostenartId} disabled={!editierbar} className={FELD}>
-            <option value="">–</option>
-            {kostenarten.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={LABEL}>Adressat (Rechnungsempfänger)</label>
-          <input name="adressat" defaultValue={werte.adressat} disabled={!editierbar} maxLength={200} className={FELD} />
-        </div>
-        <div>
-          <label className={LABEL}>Objekt laut Dokument (Adresse/Wohnung)</label>
-          <input name="objektHinweis" defaultValue={werte.objektHinweis} disabled={!editierbar} maxLength={300} className={FELD} />
-        </div>
+        {FELD_REIHENFOLGE.map((k) => feld(k as Exclude<FeldKey, "titel">))}
       </div>
       {editierbar && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
