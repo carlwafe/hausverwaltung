@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
-import { OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
+import { KOSTEN_ARTEN, OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
 
 // Die Dokument-Tabelle hat bewusst keine eigene Ordnerstruktur: ein Dokument kann mehrere Bezüge haben
 // (Kostenposition, Mietvertrag, Einheit, Gebäude, Dienstleister, Ticket) oder keinen (= „Unkategorisiert“,
@@ -73,7 +73,8 @@ function filterWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
       case "gebaeude":
         return { gebaeudeId: k ?? { not: null } };
       case "kosten":
-        return { buchungId: { not: null } };
+        // Kostenbelege: mit Kostenposition oder (abgelegt, ohne Kostenposition) ein Typ der Gruppe Kosten.
+        return { OR: [{ buchungId: { not: null } }, { eingang: false, art: { in: [...KOSTEN_ARTEN] } }] };
       case "dienstleister":
         return { dienstleisterId: k ?? { not: null } };
       case "tickets":
@@ -192,6 +193,15 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: str
       vertragStatus: o.vertragStatus,
     });
 
+    // Kostenbeleg ohne Kostenposition (Typ Rechnung/Bescheid/Abrechnung, abgelegt): im Ordner Kosten nach Jahr aus den
+    // Labels (Kostenjahr, sonst Belegdatum).
+    if (filter?.bereich === "kosten") {
+      const echte = bezuege.filter((b) => b.typ === "kosten").map((b) => zeile("kosten", b));
+      if (echte.length > 0) return echte;
+      if (d.eingang || !d.art || !KOSTEN_ARTEN.includes(d.art)) return [];
+      const jahr = d.kostenjahr ?? d.belegDatum?.getUTCFullYear() ?? null;
+      return [zeile("kosten", { ordnerKey: String(jahr ?? "ohne"), ordnerLabel: jahr ? String(jahr) : "Ohne Jahr", ordnerRang: -(jahr ?? 0), vertragStatus: null })];
+    }
     // Ohne Bezug: Eingang oder Unkategorisiert (mit frei benanntem Ordner).
     if (bezuege.length === 0) {
       if (d.eingang) return [zeile("eingang", { ordnerKey: "eingang", ordnerLabel: "Eingang", ordnerRang: 0, vertragStatus: null })];
@@ -256,6 +266,8 @@ export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
     if (d.buchungId) bereiche.push("kosten");
     if (d.dienstleisterId) bereiche.push("dienstleister");
     if (d.ticketId) bereiche.push("tickets");
+    // Rechnung/Bescheid/Abrechnung zählt auch ohne Kostenposition zu den Kosten (Ordner je Jahr).
+    if (!d.eingang && !d.buchungId && d.art && KOSTEN_ARTEN.includes(d.art)) bereiche.push("kosten");
     if (bereiche.length === 0) bereiche.push(d.eingang ? "eingang" : "allgemein");
     return { bereiche, art: d.art, groesseBytes: d.groesseBytes, ordner: d.ordner?.trim() || null };
   });

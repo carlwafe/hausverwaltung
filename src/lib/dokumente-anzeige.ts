@@ -17,6 +17,37 @@ export const BEREICHE = [
 
 export type BereichKey = (typeof BEREICHE)[number]["key"];
 
+/** Typen der Gruppe „Kosten“ — solche Dokumente stehen auch ohne Kostenposition im Hauptordner Kosten (je Jahr). */
+export const KOSTEN_ARTEN: readonly string[] = ["RECHNUNG", "BESCHEID", "ABRECHNUNG"];
+/** Typen, die im Hauptordner Objekt als eigene „Nach Art“-Ordner erscheinen. */
+export const OBJEKT_ARTEN: readonly string[] = ["VERSICHERUNG", "PRUEFBERICHT", "BEHOERDE"];
+
+/**
+ * Hauptordner der Ordner-Ansicht (Entscheidung 09.10.2026): wenige klare Ordner nach Verwendung statt eines Ordners je
+ * Bezugsart. Jeder fasst Bereiche (= Ansichten auf die Bezüge) zusammen; ein Dokument erscheint in jedem passenden.
+ * `href` ohne Abschnitte führt direkt in den einzigen Bereich.
+ */
+export const HAUPTORDNER = [
+  { key: "eingang", label: "Eingang", hinweis: "noch nicht abgelegt", bereiche: ["eingang"], arten: [], href: "/dokumente?bereich=eingang" },
+  { key: "kosten", label: "Kosten", hinweis: "Rechnungen, Bescheide, Abrechnungen — je Kostenjahr und Dienstleister", bereiche: ["kosten", "dienstleister"], arten: [], href: "/dokumente?gruppe=kosten" },
+  { key: "mietverhaeltnisse", label: "Mietverhältnisse", hinweis: "je Mietvertrag: Vertrag, Schreiben, Übergabe …", bereiche: ["mietvertraege"], arten: [], href: "/dokumente?bereich=mietvertraege" },
+  { key: "objekt", label: "Objekt", hinweis: "je Gebäude und Einheit, Versicherung, Prüfberichte, Behörde", bereiche: ["gebaeude", "einheiten"], arten: OBJEKT_ARTEN, href: "/dokumente?gruppe=objekt" },
+  { key: "sonstiges", label: "Sonstiges", hinweis: "Tickets und frei benannte Ordner", bereiche: ["tickets", "allgemein"], arten: [], href: "/dokumente?gruppe=sonstiges" },
+] as const satisfies readonly { key: string; label: string; hinweis: string; bereiche: readonly BereichKey[]; arten: readonly string[]; href: string }[];
+
+export type HauptordnerKey = (typeof HAUPTORDNER)[number]["key"];
+
+export function hauptordnerVonBereich(bereich: BereichKey) {
+  return HAUPTORDNER.find((h) => (h.bereiche as readonly string[]).includes(bereich)) ?? null;
+}
+
+/** Gehört ein Dokument (Bereiche + Typ) in diesen Hauptordner? */
+export function inHauptordner(e: { bereiche: readonly BereichKey[]; art: string | null }, h: (typeof HAUPTORDNER)[number]): boolean {
+  if ((e.bereiche as readonly string[]).includes("eingang") && h.key !== "eingang") return false;
+  return e.bereiche.some((b) => (h.bereiche as readonly string[]).includes(b)) || (!!e.art && (h.arten as readonly string[]).includes(e.art));
+}
+
+
 export const OHNE_ORDNER = "Ohne Ordner";
 
 /** Vorschläge für Ordnernamen in „Unkategorisiert“ (Dokumente ohne Bezug zu einem Mietvertrag, einer
