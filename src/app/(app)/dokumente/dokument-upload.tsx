@@ -12,6 +12,13 @@ import { GroessenFehler } from "@/components/groessen-fehler";
 const FELD = "h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white";
 const MAX_DATEIEN = 4;
 
+// Typen, die sich beim Upload gleich einem Mietvertrag zuordnen lassen (nur Mietvertrag, Datum, Titel; Inhalt wird nie gelesen).
+const DIREKT_ZUORDNEN: Record<string, { datum: string; titel: string; hinweis: string }> = {
+  VERTRAG: { datum: "Vertragsdatum (optional)", titel: "z.B. Mietvertrag Wohnung 3", hinweis: "ohne Auswahl landet der Vertrag im Eingang (z.B. ein Dienstleistervertrag)" },
+  SCHREIBEN: { datum: "Briefdatum (optional)", titel: "z.B. Mieterhöhung zum 01.12.2026", hinweis: "ohne Auswahl landet das Schreiben im Eingang" },
+  PROTOKOLL: { datum: "Datum des Protokolls (optional)", titel: "z.B. Übergabeprotokoll Wohnung 3", hinweis: "ohne Auswahl landet das Protokoll im Eingang" },
+};
+
 type Vorgabe = {
   /** Bereich des geöffneten Ordners (nur wenn man dort direkt ablegen kann). */
   bereich: string;
@@ -29,10 +36,11 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
   const [ablegen, setAblegen] = useState<"eingang" | "direkt">(vorgabe ? "direkt" : "eingang");
   const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
 
-  // Typ „Vertrag“: Mietvertrag, Datum und Titel gleich beim Hochladen angeben — dann wird das Dokument sofort abgelegt
-  // (Mieterakte), ohne Mietvertrag landet es wie bisher im Eingang (z.B. Dienstleisterverträge).
+  // Typ Vertrag/Schreiben/Protokoll: Mietvertrag, Datum und Titel gleich beim Hochladen angeben — dann wird das Dokument
+  // sofort abgelegt (Mieterakte), ohne Mietvertrag landet es wie bisher im Eingang.
   const [art, setArt] = useState("");
-  const istVertrag = art === "VERTRAG";
+  const direktTyp = DIREKT_ZUORDNEN[art] ?? null;
+  const istVertrag = direktTyp !== null;
   const [vertragId, setVertragId] = useState(vorgabe?.bereich === "mietvertraege" ? vorgabe.bezugId : "");
   const [vertraege, setVertraege] = useState<{ id: string; label: string }[] | null>(null);
   const [ladefehler, setLadefehler] = useState(false);
@@ -154,8 +162,8 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
       {istVertrag && (
         <div className="mt-4 rounded-md border border-neutral-800 p-3">
           <p className="mb-3 text-xs text-neutral-500">
-            Mietvertrag gleich zuordnen (optional): Mit Auswahl wird der Vertrag sofort in der Mieterakte abgelegt, ohne Auswahl landet er im
-            Eingang (z.B. ein Dienstleistervertrag). Der Inhalt wird nicht gelesen. Die Angaben gelten für alle gewählten Dateien.
+            Mietvertrag gleich zuordnen (optional): Mit Auswahl wird das Dokument sofort in der Mieterakte abgelegt, {direktTyp?.hinweis}.
+            Der Inhalt wird nicht gelesen. Die Angaben gelten für alle gewählten Dateien.
           </p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-96 max-w-full">
@@ -167,12 +175,12 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
               )}
             </div>
             <div>
-              <label className="mb-1 block text-xs text-neutral-400">Vertragsdatum (optional)</label>
+              <label className="mb-1 block text-xs text-neutral-400">{direktTyp?.datum}</label>
               <DateInput name="belegDatum" />
             </div>
             <div className="min-w-64 flex-1">
               <label className="mb-1 block text-xs text-neutral-400">Titel / Kurzbeschreibung (optional)</label>
-              <input name="titel" maxLength={200} placeholder="z.B. Mietvertrag Wohnung 3" className={`${FELD} w-full`} />
+              <input name="titel" maxLength={200} placeholder={direktTyp?.titel} className={`${FELD} w-full`} />
             </div>
           </div>
         </div>
