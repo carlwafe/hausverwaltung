@@ -119,7 +119,11 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
       searchValue: (p) => p.einheitBezeichnung,
       render: (p) => (
         <span>
-          <Link prefetch={false} href={`/einheiten/${p.einheitId}`} className="font-medium hover:underline">
+          <Link
+            prefetch={false}
+            href={p.mietvertragId ? `/mietvertraege/${p.mietvertragId}` : `/einheiten/${p.einheitId}`}
+            className="font-medium hover:underline"
+          >
             {p.einheitBezeichnung}
           </Link>
           {p.manuell && (
