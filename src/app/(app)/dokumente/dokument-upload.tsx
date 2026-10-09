@@ -228,7 +228,7 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
         Bis zu {MAX_DATEIEN} Dateien auf einmal, je höchstens {maxMb} MB (zusammen 4 MB). Beim Erkennen liest Claude PDF und Bilder und füllt Typ,
         Aussteller, Betrag, Rechnungsnummer usw. vor; die Dokumente werden dafür an Anthropic übertragen. Verträge, Schreiben, Protokolle und
         Fotos liest die App nie automatisch, wenn du sie hier als Typ wählst — bei Mietverträgen und Mieterunterlagen also den Typ vorab wählen
-        oder das Häkchen entfernen. Kostenbelege lassen sich auch direkt an der Kostenposition hochladen.
+        oder das Häkchen entfernen. Wählst du vorab Vertrag, Schreiben, Protokoll oder Foto (immer) bzw. Versicherung, Prüfbericht oder Steuer / Behörde (ohne Häkchen), kannst du Mietvertrag, Einheit, Gebäude oder Ordner, Datum und Titel gleich angeben — das Dokument wird dann sofort abgelegt. Rechnungen laufen über den Eingang, damit sie später mit der Zahlung abgeglichen werden. Kostenbelege lassen sich auch direkt an der Kostenposition hochladen.
       </p>
       <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
