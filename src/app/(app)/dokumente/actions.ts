@@ -90,6 +90,8 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   // Optionale Dokumentart (leer = nicht angegeben), gilt für alle Dateien dieses Uploads.
   const artWert = formData.get("art");
   const art = istGueltigeArt(artWert) ? artWert : null;
+  // Optionaler Titel (z.B. beim Upload eines Vertrags), gilt für alle Dateien dieses Uploads.
+  const titel = textFeld(formData.get("titel"), 200);
 
   // Texterkennung beim Hochladen mit gesetztem Häkchen; Mieterunterlagen (Vertrag, Schreiben, Protokoll) und
   // Fotos werden nie automatisch gelesen (siehe AUTOMATISCH_NICHT_LESEN). Schlägt sie fehl, bleibt das
@@ -115,6 +117,7 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
         ordner: "ordner" in ziel ? ziel.ordner : undefined,
         eingang: "eingang" in ziel ? true : undefined,
         art,
+        titel,
         hochgeladenVon: user.email ?? user.name ?? null,
         belegDatum,
       },
@@ -465,6 +468,12 @@ export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: strin
   revalidiereDokument(id, d);
   return null;
 });
+
+// Mietvertrag-Auswahl für den Upload von Verträgen (Typ „Vertrag“) — erst beim Wählen des Typs nachgeladen.
+export async function ladeMietvertragAuswahl() {
+  await requireEditor();
+  return (await ladeBezugOptionen()).mietvertraege;
+}
 
 // Auswahllisten für „Bezug hinzufügen“ auf der Detailseite — erst beim Öffnen nachgeladen (Vercel-CPU).
 export async function ladeBezugAuswahl(id: string) {

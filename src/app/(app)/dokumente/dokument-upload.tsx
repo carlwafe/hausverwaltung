@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { DateInput } from "@/components/date-input";
+import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { ART_GRUPPEN, ART_OPTIONEN, ORDNER_VORSCHLAEGE, formatBytes } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
-import { uploadDokumentZentral } from "./actions";
+import { ladeMietvertragAuswahl, uploadDokumentZentral } from "./actions";
 import { GroessenFehler } from "@/components/groessen-fehler";
 
 // Feste Höhe: native Auswahlfelder rendern sonst kleiner als Text- und Datumsfelder (38 px = Standard der App).
@@ -26,6 +28,33 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
   const [error, formAction, pending] = useActionState(uploadDokumentZentral, null);
   const [ablegen, setAblegen] = useState<"eingang" | "direkt">(vorgabe ? "direkt" : "eingang");
   const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
+
+  // Typ „Vertrag“: Mietvertrag, Datum und Titel gleich beim Hochladen angeben — dann wird das Dokument sofort abgelegt
+  // (Mieterakte), ohne Mietvertrag landet es wie bisher im Eingang (z.B. Dienstleisterverträge).
+  const [art, setArt] = useState("");
+  const istVertrag = art === "VERTRAG";
+  const [vertragId, setVertragId] = useState(vorgabe?.bereich === "mietvertraege" ? vorgabe.bezugId : "");
+  const [vertraege, setVertraege] = useState<{ id: string; label: string }[] | null>(null);
+  const [ladefehler, setLadefehler] = useState(false);
+  useEffect(() => {
+    if (!istVertrag || vertraege) return;
+    let aktiv = true;
+    ladeMietvertragAuswahl().then(
+      (a) => {
+        if (aktiv) setVertraege(a);
+      },
+      () => {
+        if (aktiv) setLadefehler(true);
+      },
+    );
+    return () => {
+      aktiv = false;
+    };
+  }, [istVertrag, vertraege]);
+  const vertragDirekt = istVertrag && vertragId !== "";
+  const ablegenWert = vertragDirekt ? "direkt" : ablegen;
+  const bereichWert = vertragDirekt ? "mietvertraege" : vorgabe?.bereich;
+  const bezugWert = vertragDirekt ? vertragId : vorgabe?.bezugId;
 
   const maxMb = MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024);
 
@@ -67,12 +96,12 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
           </label>
         </fieldset>
       )}
-      <input type="hidden" name="ablegen" value={ablegen} />
-      {vorgabe && ablegen === "direkt" && (
+      <input type="hidden" name="ablegen" value={ablegenWert} />
+      {ablegenWert === "direkt" && bereichWert && (
         <>
-          <input type="hidden" name="bereich" value={vorgabe.bereich} />
-          <input type="hidden" name="bezugId" value={vorgabe.bezugId} />
-          {vorgabe.bereich === "allgemein" && (
+          <input type="hidden" name="bereich" value={bereichWert} />
+          <input type="hidden" name="bezugId" value={bezugWert ?? ""} />
+          {vorgabe && !vertragDirekt && vorgabe.bereich === "allgemein" && (
             <div className="mb-3">
               <label className="mb-1 block text-xs text-neutral-400">Ordnername (optional)</label>
               <input name="ordner" list="dokument-ordner" defaultValue={vorgabe.ordner} maxLength={80} placeholder="z.B. Versicherungen" className={`${FELD} w-56`} />
@@ -97,7 +126,7 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
         />
         <div>
           <label className="mb-1 block text-xs text-neutral-400">Typ vorab (optional)</label>
-          <select name="art" defaultValue="" className={FELD}>
+          <select name="art" value={art} onChange={(e) => setArt(e.target.value)} className={FELD}>
             <option value="">App erkennt den Typ</option>
             {ART_GRUPPEN.map((g) => (
               <optgroup key={g} label={g}>
@@ -122,6 +151,32 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
           {pending ? "Lädt hoch und liest…" : "Hochladen"}
         </button>
       </div>
+      {istVertrag && (
+        <div className="mt-4 rounded-md border border-neutral-800 p-3">
+          <p className="mb-3 text-xs text-neutral-500">
+            Mietvertrag gleich zuordnen (optional): Mit Auswahl wird der Vertrag sofort in der Mieterakte abgelegt, ohne Auswahl landet er im
+            Eingang (z.B. ein Dienstleistervertrag). Der Inhalt wird nicht gelesen. Die Angaben gelten für alle gewählten Dateien.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-96 max-w-full">
+              <label className="mb-1 block text-xs text-neutral-400">Mietvertrag</label>
+              {vertraege ? (
+                <MietvertragAuswahl kandidaten={vertraege} value={vertragId} onChange={setVertragId} leerLabel="Keiner (in den Eingang)" size="md" />
+              ) : (
+                <div className={`${FELD} flex items-center text-neutral-500`}>{ladefehler ? "Auswahl konnte nicht geladen werden" : "Lädt…"}</div>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Vertragsdatum (optional)</label>
+              <DateInput name="belegDatum" />
+            </div>
+            <div className="min-w-64 flex-1">
+              <label className="mb-1 block text-xs text-neutral-400">Titel / Kurzbeschreibung (optional)</label>
+              <input name="titel" maxLength={200} placeholder="z.B. Mietvertrag Wohnung 3" className={`${FELD} w-full`} />
+            </div>
+          </div>
+        </div>
+      )}
       <p className="mt-2 text-xs text-neutral-500">
         Bis zu {MAX_DATEIEN} Dateien auf einmal, je höchstens {maxMb} MB (zusammen 4 MB). Beim Erkennen liest Claude PDF und Bilder und füllt Typ,
         Aussteller, Betrag, Rechnungsnummer usw. vor; die Dokumente werden dafür an Anthropic übertragen. Verträge, Schreiben, Protokolle und
