@@ -25,7 +25,10 @@ export async function storniereBuchung(
   buchungId: string,
   erstelltVon: string | null,
 ) {
-  const original = await tx.buchung.findUniqueOrThrow({ where: { id: buchungId } });
+  const original = await tx.buchung.findUniqueOrThrow({
+    where: { id: buchungId },
+    include: { buchungsart: { select: { code: true } } },
+  });
   if (original.storniertDurchBuchungId) {
     throw new AktionsFehler("Diese Buchung wurde bereits storniert.");
   }
@@ -56,5 +59,17 @@ export async function storniereBuchung(
     },
   });
   await tx.buchung.update({ where: { id: buchungId }, data: { storniertDurchBuchungId: storno.id } });
+  // Eine virtuelle Auszahlung (Kaution mit bezahlter Rechnung verrechnet) hat ihre Gegen-Kostenposition
+  // ("Verrechnet mit Kaution", bezugTyp "Buchung", bezugId = diese Buchung), die die Rechnung in den
+  // Kosten ausgleicht. Bleibt sie nach dem Storno stehen, mindert sie die Kosten ohne Gegenstück (am
+  // 09.10.2026 beim Löschen und Neuanlegen einer virtuellen Auszahlung passiert) — deshalb hier zentral
+  // mitstornieren, egal ob gelöscht, die Kategorie geändert oder sonst storniert wird.
+  if (original.buchungsart.code === "KAUTION_VIRTUELLE_AUSZAHLUNG") {
+    const gegenbuchungen = await tx.buchung.findMany({
+      where: { bezugTyp: "Buchung", bezugId: buchungId, ...AKTIVE_BUCHUNG_FILTER },
+      select: { id: true },
+    });
+    for (const g of gegenbuchungen) await storniereBuchung(tx, g.id, erstelltVon);
+  }
   return storno;
 }

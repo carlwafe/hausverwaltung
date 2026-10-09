@@ -38,7 +38,7 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   },
   {
     value: "VIRTUELLE_AUSZAHLUNG",
-    label: "Virtuelle Auszahlung (kein Kontofluss, bereits über eine Kostenposition gebucht)",
+    label: "Verrechnung mit Rechnung (kein Kontofluss, Rechnung bereits als Kostenposition gebucht)",
   },
 ];
 
@@ -140,7 +140,7 @@ export function NeueKautionsbuchungForm({
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Einbehalte: <em>vorläufig</em>, solange die Rechnung noch fehlt — liegt sie vor, Einbehalt löschen und als
-        virtuelle Auszahlung mit der Rechnung anlegen. <em>Pauschal</em> für Endgültiges ohne Rechnung (Abnutzung,
+        Verrechnung mit Rechnung anlegen. <em>Pauschal</em> für Endgültiges ohne Rechnung (Abnutzung,
         Sperrmüll). Nachzahlung → Verrechnung mit NK-Abrechnung, Mietrückstand/Gebühren → Verrechnung mit Mieterkonto.
         Rückflüsse mit Bankvorzeichen buchen: positive Anlage = Rückbuchung vom Kautionskonto, positive Auszahlung =
         zurückgekommene Auszahlung.

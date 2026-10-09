@@ -46,7 +46,7 @@ const KATEGORIE_LABEL: Record<KautionBuchungKategorie, string> = {
   AUFLOESUNG: "Auflösung (vom Kautionskonto)",
   AUSZAHLUNG_MIETER: "Auszahlung Mieter",
   SONSTIGES: "Sonstiges (z.B. Korrektur)",
-  VIRTUELLE_AUSZAHLUNG: "Virtuelle Auszahlung",
+  VIRTUELLE_AUSZAHLUNG: "Verrechnung mit Rechnung",
   EINBEHALT: "Einbehalt",
 };
 
@@ -111,7 +111,7 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
         value={pauschal ? "pauschal" : "vorlaeufig"}
         disabled={pending}
         onChange={(e) => startTransition(() => setzeKautionEinbehaltPauschal(k.id, e.target.value === "pauschal"))}
-        title="Vorläufig: wartet auf eine Rechnung (dann stornieren und als virtuelle Auszahlung anlegen). Pauschal: dem Vermieter endgültig gutgeschrieben."
+        title="Vorläufig: wartet auf eine Rechnung (dann stornieren und als Verrechnung mit Rechnung anlegen). Pauschal: dem Vermieter endgültig gutgeschrieben."
         className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400 disabled:opacity-50"
       >
         <option value="vorlaeufig" className="bg-neutral-900 text-white">
@@ -249,7 +249,7 @@ const columns: Column<KautionsbuchungRow>[] = [
         <KategorieZelle k={k} />
         {k.kategorie === "VIRTUELLE_AUSZAHLUNG" && (
           <span
-            title="Virtuelle Buchung — kein realer Kontofluss"
+            title="Verrechnung mit einer bezahlten Rechnung — kein realer Kontofluss, keine Auszahlung"
             className="inline-block rounded-full bg-purple-500/10 px-1.5 text-xs text-purple-400"
           >
             V

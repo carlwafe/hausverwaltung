@@ -43,8 +43,9 @@ export type KautionRow = {
   // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist.
   aufgeloest: number;
   ausgezahlt: number;
-  // Mit einer Nebenkostenabrechnung verrechneter Teil des Einbehalts (Kategorie "Verrechnung mit
-  // NK-Abrechnung") — ist der Kaution ebenfalls endgültig entzogen, aber ohne Auszahlung.
+  // Mit einer Nebenkostenabrechnung, dem Mieterkonto oder einer vom Vermieter bezahlten Rechnung
+  // verrechneter Teil ("Verrechnung mit NK-Abrechnung" / "…Mieterkonto" / "…Rechnung") — ist der
+  // Kaution ebenfalls endgültig entzogen, aber ohne Auszahlung.
   verrechnet: number;
   einbehalten: number | null;
   // Davon noch offen: einbehalten ohne die pauschalen, dem Vermieter endgültig gutgeschriebenen
@@ -169,7 +170,7 @@ const columns: Column<KautionRow>[] = [
   },
   {
     key: "verrechnet",
-    label: "Verrechnet (NK / Mieterkonto)",
+    label: "Verrechnet (NK / Mieterkonto / Rechnung)",
     sortValue: (r) => r.verrechnet,
     render: (r) => (r.verrechnet > 0 ? formatEuro(r.verrechnet) : "–"),
   },

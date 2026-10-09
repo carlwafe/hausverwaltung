@@ -8,7 +8,7 @@ import { BelegeSektion } from "@/components/belege-sektion";
 import { berechneSoll, berechneIstNachPeriode, sollAufschluesselung, ermittleAktuelleMiete, ermittleMieteFuerMonat, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { baueMieterkontoJahr } from "@/lib/mieterkonto";
-import { baueKautionskonto } from "@/lib/kautionskonto";
+import { baueKautionskonto, rechnungstext } from "@/lib/kautionskonto";
 import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
@@ -223,6 +223,17 @@ export default async function MietvertragDetailPage({
     select: { id: true, datum: true, betrag: true, verwendungszweck: true, buchungsart: { select: { code: true, bezeichnung: true } } },
     orderBy: { datum: "asc" },
   });
+  // Virtuelle Auszahlung = Verrechnung mit einer bezahlten Rechnung: deren Gegen-Kostenposition liefert
+  // Empfänger und Text für die Anzeige (nur eine Abfrage, und nur wenn es so etwas gibt).
+  const virtuelleIds = kautionBuchungen.filter((b) => b.buchungsart.code === "KAUTION_VIRTUELLE_AUSZAHLUNG").map((b) => b.id);
+  const rechnungJeVirtueller = new Map<string, string | null>();
+  if (virtuelleIds.length > 0) {
+    const gegenbuchungen = await prisma.buchung.findMany({
+      where: { bezugTyp: "Buchung", bezugId: { in: virtuelleIds }, ...AKTIVE_BUCHUNG_FILTER },
+      select: { bezugId: true, empfaenger: true, verwendungszweck: true },
+    });
+    for (const g of gegenbuchungen) rechnungJeVirtueller.set(g.bezugId!, rechnungstext(g));
+  }
   const kautionskonto = baueKautionskonto({
     sollBetrag: vertrag.kaution ? Number(vertrag.kaution.betrag) : null,
     einzahlungUnbekannt: vertrag.kaution?.einzahlungUnbekannt ?? false,
@@ -234,6 +245,7 @@ export default async function MietvertragDetailPage({
       bezeichnung: b.buchungsart.bezeichnung,
       betrag: Number(b.betrag),
       verwendungszweck: b.verwendungszweck,
+      rechnung: rechnungJeVirtueller.get(b.id) ?? null,
     })),
     einbehalte: (vertrag.kaution?.einbehalte ?? []).map((e) => ({
       id: e.id,

@@ -188,11 +188,11 @@ export function KostenpositionForm({
 
       <div>
         <input type="hidden" name="virtuelleKautionBuchungId" value={virtuelleKautionBuchungId} />
-        <label className="mb-1 block text-sm font-medium">Verknüpfte Kautions-Auszahlung (optional)</label>
+        <label className="mb-1 block text-sm font-medium">Verknüpfte Kautionsverrechnung (optional)</label>
         <p className="mb-1 text-xs text-neutral-500">
           Für eine Gutschrift, die keine eigene Kontobewegung ist — z.B. eine Reparatur, die vom
           einbehaltenen Kautionsrest bezahlt wurde, statt über alle Mieter umgelegt zu werden.
-          Zeigt zunächst nur Auszahlungen vom heutigen Tag — zum Suchen einfach tippen.
+          Zeigt zunächst nur Verrechnungen vom heutigen Tag — zum Suchen einfach tippen.
         </p>
         <MietvertragAuswahl
           kandidaten={virtuelleAuszahlungen}

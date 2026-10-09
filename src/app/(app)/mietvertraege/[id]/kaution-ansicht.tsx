@@ -253,7 +253,11 @@ export function KautionAnsicht({
                   <td className="py-1 text-right text-neutral-200">{formatEuro(-a.strittigOffenSumme)}</td>
                 </tr>
                 <tr className="border-t-2 border-neutral-600 font-semibold">
-                  <td className="py-2 pr-6 text-white">Restbetrag, jetzt auszuzahlen an Mieter</td>
+                  <td className="py-2 pr-6 text-white">
+                    {a.restbetrag < -0.005
+                      ? "Kaution reicht nicht aus — Differenz vom Mieter nachzufordern"
+                      : "Restbetrag, jetzt auszuzahlen an Mieter"}
+                  </td>
                   <td className="py-2 text-right text-white">{formatEuro(a.restbetrag)}</td>
                 </tr>
               </tbody>
@@ -298,7 +302,9 @@ export function KautionAnsicht({
                         ? "erledigt"
                         : a.nochOffen > 0
                           ? `offen: noch ${formatEuro(a.nochOffen)} auszuzahlen`
-                          : `${formatEuro(-a.nochOffen)} mehr ausgezahlt als Restbetrag`}
+                          : a.ausgezahltSumme > 0
+                            ? `${formatEuro(-a.nochOffen)} mehr ausgezahlt als Restbetrag`
+                            : `Einbehalte übersteigen die Kaution um ${formatEuro(-a.nochOffen)} — vom Mieter nachzufordern`}
                     </td>
                   </tr>
                   {a.einbehaltePositionen

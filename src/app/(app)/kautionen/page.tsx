@@ -104,13 +104,14 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // (Auflösung eingehend = positiv, Auszahlung ausgehend = negativ) — hier auf positive
     // Beträge normalisiert, damit "Einbehalten" als einfache Differenz berechnet werden kann.
     else if (code === "KAUTION_AUFLOESUNG") eintrag.aufgeloest += betrag;
-    // VIRTUELLE_AUSZAHLUNG zählt genauso wie eine echte Auszahlung Mieter — der Betrag ist der
-    // Kaution trotzdem endgültig entzogen, nur ohne eigene Kontobewegung (siehe Gegenbuchung auf
-    // der Kosten-Seite, jetzt Buchung.bezugId).
     // Eine echte Auszahlung zählt mit Bankvorzeichen: eine Rücküberweisung (positiv, z.B. "Konto
     // aufgelöst") mindert die ausgezahlte Summe wieder, statt als zweite Auszahlung zu zählen.
     else if (code === "KAUTION_AUSZAHLUNG") eintrag.ausgezahlt -= betrag;
-    else if (code === "KAUTION_VIRTUELLE_AUSZAHLUNG") eintrag.ausgezahlt += Math.abs(betrag);
+    // VIRTUELLE_AUSZAHLUNG ist keine Auszahlung, sondern eine Verrechnung der Kaution mit einer vom
+    // Vermieter bezahlten Rechnung (wie die Verrechnung mit NK-Abrechnung/Mieterkonto unten): der
+    // Betrag ist der Kaution endgültig entzogen, ohne dass Geld an den Mieter fließt oder eine
+    // Kontobewegung entsteht (Gegenbuchung auf der Kosten-Seite, Buchung.bezugId).
+    else if (code === "KAUTION_VIRTUELLE_AUSZAHLUNG") eintrag.verrechnet += Math.abs(betrag);
     // Mit der Nebenkostenabrechnung verrechneter Einbehalt (KAUTION_EINBEHALT mit Abrechnungsjahr,
     // siehe NK_VERRECHNUNG_BEZUG): der Betrag ist dem Kautionsrest ebenfalls entzogen und mindert
     // deshalb "Einbehalten". Ein einfacher Einbehalt ohne Abrechnungsjahr bleibt dagegen Teil des
@@ -412,8 +413,9 @@ export default async function KautionenPage() {
           {kautionen.length !== offen.length && `, ${kautionen.length - offen.length} erledigt`}.
         </p>
         <p className="mt-1 max-w-2xl text-xs text-neutral-500">
-          Trägt der Mieter eine Rechnung über die Kaution: virtuelle Auszahlung mit Verknüpfung zur
-          Kostenposition (die Gegenbuchung &bdquo;Verrechnet mit Kaution&ldquo; entsteht automatisch, Kosten netto 0).
+          Trägt der Mieter eine Rechnung über die Kaution: &bdquo;Verrechnung mit Rechnung&ldquo; mit Verknüpfung zur
+          Kostenposition buchen (die Gegenbuchung &bdquo;Verrechnet mit Kaution&ldquo; entsteht automatisch, Kosten
+          netto 0). Das ist keine Auszahlung &mdash; es zählt unter &bdquo;Verrechnet&ldquo;, wie die Verrechnung mit Nebenkostenabrechnung oder Mieterkonto.
           Ohne Rechnung (z.B. Schlüssel) einen pauschalen Einbehalt buchen &mdash; er zählt als Einnahme.
         </p>
       </div>

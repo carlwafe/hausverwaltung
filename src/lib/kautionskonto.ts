@@ -10,9 +10,13 @@
 //  - KAUTION_ANLAGE / KAUTION_AUFLOESUNG: 0 (nur Umbuchung zwischen Geschäfts- und Kautionskonto);
 //    eine positive (eingehende) KAUTION_ANLAGE ist eine Rückbuchung vom Kautionskonto (z.B. doppelt
 //    angelegt, Kontowechsel) und mindert den angelegten Betrag, statt das Mietverhältnis aufzulösen
-//  - KAUTION_AUSZAHLUNG / KAUTION_VIRTUELLE_AUSZAHLUNG: − (an den Mieter bzw. für ihn bezahlt); eine
-//    positive KAUTION_AUSZAHLUNG ist eine zurückgekommene Auszahlung (Rücküberweisung, z.B. "Konto
-//    aufgelöst") und mindert die ausgezahlte Summe wieder
+//  - KAUTION_AUSZAHLUNG: − (an den Mieter ausgezahlt); eine positive KAUTION_AUSZAHLUNG ist eine
+//    zurückgekommene Auszahlung (Rücküberweisung, z.B. "Konto aufgelöst") und mindert die
+//    ausgezahlte Summe wieder
+//  - KAUTION_VIRTUELLE_AUSZAHLUNG: − wie ein Einbehalt, aber keine Auszahlung: die Kaution wird mit
+//    einer vom Vermieter bezahlten Rechnung verrechnet (kein Geld an den Mieter, kein Bankfluss).
+//    Erscheint unter den Einbehalten ("mit bezahlter Rechnung verrechnet"), nicht unter
+//    "ausgezahlt" — analog zur Verrechnung mit dem Mieterkonto bzw. der Nebenkostenabrechnung
 //  - KAUTION_SONSTIGES: mit Buchungsvorzeichen (z.B. Zinsen +, Kontoführungsgebühr −)
 //  - Zinsen in der Auflösung (keine Buchung): kommt vom Kautionskonto mehr zurück als angelegt wurde,
 //    ist die Differenz Zins und steht dem Mieter zu — automatische Zeile "+" beim Auflösungsdatum
@@ -26,7 +30,18 @@ export type KautionBewegung = {
   bezeichnung: string;
   betrag: number;
   verwendungszweck: string | null;
+  // Nur bei KAUTION_VIRTUELLE_AUSZAHLUNG: die verrechnete Rechnung (Empfänger + Text der
+  // Gegen-Kostenposition, siehe rechnungstext) — ohne sie steht nur der Verwendungszweck der Buchung da.
+  rechnung?: string | null;
 };
+
+// Rechnungsbezeichnung aus der Gegen-Kostenposition einer virtuellen Auszahlung: Empfänger und Text
+// ohne das vom System vorangestellte "Verrechnet mit Kaution:".
+export function rechnungstext(gegenbuchung: { empfaenger: string | null; verwendungszweck: string | null }): string | null {
+  const text = (gegenbuchung.verwendungszweck ?? "").replace(/^Verrechnet mit Kaution:\s*/, "").trim();
+  const teile = [gegenbuchung.empfaenger?.trim(), text].filter((t): t is string => !!t);
+  return teile.length ? teile.join(": ") : null;
+}
 
 export type KautionEinbehaltEingabe = {
   id: string;
@@ -151,6 +166,7 @@ export function baueKautionskonto(input: {
   let aufloesungsDatum: Date | null = null;
   let ersteAnlage: Date | null = null;
   const ausgezahlt: KautionsabrechnungPosten[] = [];
+  const einbehaltePositionen: KautionEinbehaltPosten[] = [];
 
   for (const b of input.bewegungen) {
     const bemerkung = b.verwendungszweck ?? "";
@@ -181,24 +197,40 @@ export function baueKautionskonto(input: {
         wirkung: 0,
         art: "umbuchung",
       });
-    } else if (b.code === "KAUTION_AUSZAHLUNG" || b.code === "KAUTION_VIRTUELLE_AUSZAHLUNG") {
-      const virtuell = b.code === "KAUTION_VIRTUELLE_AUSZAHLUNG";
+    } else if (b.code === "KAUTION_AUSZAHLUNG") {
       // Echte Auszahlung mit Bankvorzeichen: ausgehend mindert, eine Rücküberweisung (positiv) erhöht.
-      const w = virtuell ? -Math.abs(b.betrag) : b.betrag;
-      const text = virtuell
-        ? "Verrechnet mit bezahlter Rechnung"
-        : w > 0
-          ? "Auszahlung zurückgekommen"
-          : "Auszahlung an Mieter";
+      const w = b.betrag;
+      const text = w > 0 ? "Auszahlung zurückgekommen" : "Auszahlung an Mieter";
       ausgezahlt.push({ text, betrag: -w, datum: b.datum, hinweis: b.verwendungszweck ?? undefined });
       roh.push({ id: b.id, datum: b.datum, vorgang: text, bemerkung, buchungsbetrag: b.betrag, wirkung: w, art: "auszahlung" });
+    } else if (b.code === "KAUTION_VIRTUELLE_AUSZAHLUNG") {
+      // Mit einer vom Vermieter bezahlten Rechnung verrechnet: nichts wird ausgezahlt, der Betrag ist
+      // der Kaution wie bei einem unstrittigen Einbehalt entzogen (Gegenbuchung: Kostenposition).
+      const w = -Math.abs(b.betrag);
+      const rechnung = b.rechnung || b.verwendungszweck || null;
+      einbehaltePositionen.push({
+        text: rechnung ?? "Rechnung",
+        bezug: [`mit bezahlter Rechnung verrechnet`, b.datum ? `erfasst ${formatDatum(b.datum)}` : ""].filter(Boolean).join(" · "),
+        betrag: -w,
+        datum: b.datum ?? new Date(0),
+        unstrittig: true,
+        statusText: EINBEHALT_STATUS_TEXT.UNSTRITTIG,
+      });
+      roh.push({
+        id: b.id,
+        datum: b.datum,
+        vorgang: "Verrechnung mit Rechnung",
+        bemerkung: rechnung ?? bemerkung,
+        buchungsbetrag: b.betrag,
+        wirkung: w,
+        art: "einbehalt",
+      });
     } else {
       sonstiges += b.betrag;
       roh.push({ id: b.id, datum: b.datum, vorgang: b.bezeichnung.replace(/^Kaution:\s*/, ""), bemerkung, buchungsbetrag: b.betrag, wirkung: b.betrag, art: "sonstiges" });
     }
   }
 
-  const einbehaltePositionen: KautionEinbehaltPosten[] = [];
   for (const e of input.einbehalte) {
     const nk =
       e.nkJahr !== null
@@ -242,6 +274,10 @@ export function baueKautionskonto(input: {
       });
     }
   }
+
+  // Rechnungsverrechnungen (aus den Bewegungen) und Einbehalte (aus den Einbehalt-Zeilen) chronologisch
+  // mischen; bei gleichem Datum bleibt die Reihenfolge der Eingabe (stabile Sortierung).
+  einbehaltePositionen.sort((a, b) => a.datum.getTime() - b.datum.getTime());
 
   // Einzahlung aus der Zeit vor dem Buchhaltungsbeginn: steht nicht im Journal, gilt aber als in
   // Höhe des Kaution-Solls erfolgt. Wird nach dem Sortieren vorangestellt (ohne Datum würde sie
