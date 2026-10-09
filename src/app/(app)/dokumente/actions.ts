@@ -8,6 +8,7 @@ import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { istGueltigeArt } from "@/lib/dokumente-anzeige";
 import { speichereDatei, loescheDatei } from "@/lib/storage";
+import { ladeBezugOptionen } from "@/lib/dokumente-uebersicht";
 
 type UploadZiel =
   | { buchungId: string; revalidatePath: string }
@@ -89,6 +90,13 @@ export async function aendereBelegDatum(id: string, datum: string, revalidatePat
   await prisma.dokument.update({ where: { id }, data: { belegDatum: parseBelegDatum(datum) } });
   revalidatePath(revalidatePathValue);
   revalidatePath("/dokumente");
+}
+
+// Auswahllisten des Upload-Formulars (Mietverträge, Einheiten, Dienstleister, Tickets): erst beim
+// Bedarf nachgeladen, statt bei jedem Seitenaufruf vier Abfragen zu fahren.
+export async function ladeUploadOptionen() {
+  await requireEditor();
+  return ladeBezugOptionen();
 }
 
 const ZENTRAL_BEREICHE = ["mietvertraege", "einheiten", "dienstleister", "tickets", "allgemein"] as const;

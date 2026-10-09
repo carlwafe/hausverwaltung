@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
@@ -39,8 +40,31 @@ export type DokumentZeile = {
 const einheitLabel = (e: { bezeichnung: string; gebaeude: { strasse: string; hausnummer: string } }) =>
   `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} – ${e.bezeichnung}`;
 
-async function ladeDokumenteAusTabelle(): Promise<DokumentZeile[]> {
+/** Filter für `ladeDokumente`: nur ein Bereich bzw. ein Ordner davon (Ordnerschlüssel = ID des Bezugs). */
+export type DokumentFilter = { bereich: BereichKey; ordnerKey?: string };
+
+// Bereich ergibt sich aus dem (einzigen) Bezug — gleiche Rangfolge wie bei der Einordnung unten.
+function bereichWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
+  const k = f.ordnerKey;
+  switch (f.bereich) {
+    case "mietvertraege":
+      return { mietvertragId: k ?? { not: null } };
+    case "einheiten":
+      return { mietvertragId: null, einheitId: k ?? { not: null } };
+    case "kosten":
+      return { mietvertragId: null, einheitId: null, buchungId: { not: null } };
+    case "dienstleister":
+      return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: k ?? { not: null } };
+    case "tickets":
+      return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: null, ticketId: k ?? { not: null } };
+    case "allgemein":
+      return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: null, ticketId: null };
+  }
+}
+
+async function ladeDokumenteAusTabelle(filter?: DokumentFilter): Promise<DokumentZeile[]> {
   const dokumente = await prisma.dokument.findMany({
+    where: filter ? bereichWhere(filter) : undefined,
     include: {
       mietvertrag: {
         include: { mieter: true, einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } } },
@@ -160,8 +184,46 @@ async function ladeDokumenteAusTabelle(): Promise<DokumentZeile[]> {
 }
 
 // Die Kontoauszug-Originale stehen bewusst nicht hier, sondern nur unter Kontoauszug → Importe.
-export async function ladeDokumente(): Promise<DokumentZeile[]> {
-  return ladeDokumenteAusTabelle();
+// Ohne Filter alle Dokumente (Ansicht „Alle Dokumente“), sonst nur Bereich bzw. Ordner.
+export async function ladeDokumente(filter?: DokumentFilter): Promise<DokumentZeile[]> {
+  return ladeDokumenteAusTabelle(filter);
+}
+
+/** Schlanker Eintrag je Dokument für die Übersicht (Zählungen, Ordnernamen) — ohne Bezugsobjekte. */
+export type DokumentIndexEintrag = { bereich: BereichKey; groesseBytes: number | null; ordner: string | null };
+
+/**
+ * Lädt nur die Spalten, die die Ordnerübersicht braucht (eine Abfrage ohne Includes). Die schweren
+ * Zeilen mit Mietvertrag/Einheit/Gebäude holt `ladeDokumente` erst, wenn ein Bereich oder Ordner
+ * geöffnet wird (Vercel-CPU, siehe CLAUDE.md).
+ */
+export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
+  const dokumente = await prisma.dokument.findMany({
+    select: {
+      groesseBytes: true,
+      ordner: true,
+      mietvertragId: true,
+      einheitId: true,
+      buchungId: true,
+      dienstleisterId: true,
+      ticketId: true,
+    },
+  });
+  return dokumente.map((d) => ({
+    bereich: d.mietvertragId
+      ? "mietvertraege"
+      : d.einheitId
+        ? "einheiten"
+        : d.buchungId
+          ? "kosten"
+          : d.dienstleisterId
+            ? "dienstleister"
+            : d.ticketId
+              ? "tickets"
+              : "allgemein",
+    groesseBytes: d.groesseBytes,
+    ordner: d.ordner?.trim() || null,
+  }));
 }
 
 export type OrdnerInfo = {
@@ -201,11 +263,11 @@ export function ordnerVonBereich(zeilen: DokumentZeile[], bereich: BereichKey): 
   );
 }
 
-/** Vorhandene Ordnernamen im Bereich „Unkategorisiert“ (für die Auswahl beim Upload). */
-export function allgemeineOrdnerNamen(zeilen: DokumentZeile[]): string[] {
-  return ordnerVonBereich(zeilen, "allgemein")
-    .map((o) => o.label)
-    .filter((n) => n !== OHNE_ORDNER);
+/** Vorhandene Ordnernamen im Bereich „Unkategorisiert“ (für die Auswahl beim Upload), alphabetisch. */
+export function allgemeineOrdnerNamen(index: DokumentIndexEintrag[]): string[] {
+  const namen = new Set<string>();
+  for (const e of index) if (e.bereich === "allgemein" && e.ordner) namen.add(e.ordner);
+  return [...namen].sort((a, b) => a.localeCompare(b, "de"));
 }
 
 export type BezugOption = { id: string; label: string };

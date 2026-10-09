@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { ART_OPTIONEN, ORDNER_VORSCHLAEGE, formatBytes } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
-import { uploadDokumentZentral } from "./actions";
+import { ladeUploadOptionen, uploadDokumentZentral } from "./actions";
 import { GroessenFehler } from "@/components/groessen-fehler";
 
 type Option = { id: string; label: string };
@@ -23,12 +23,12 @@ type ZielKey = (typeof ZIELE)[number]["key"];
 // Feste Höhe: native Auswahlfelder rendern sonst kleiner als Text- und Datumsfelder (38 px = Standard der App).
 const FELD = "h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white";
 
+type Optionen = Record<Exclude<ZielKey, "allgemein">, Option[]>;
+
 export function DokumentUpload({
-  optionen,
   ordnerNamen,
   vorgabe,
 }: {
-  optionen: Record<Exclude<ZielKey, "allgemein">, Option[]>;
   /** Vorhandene Ordner im Bereich „Unkategorisiert“ (Vorschläge beim Tippen). */
   ordnerNamen: string[];
   /** Aus dem gerade geöffneten Ordner: Bereich und (je nach Bereich) Bezug bzw. Ordnername. */
@@ -38,6 +38,21 @@ export function DokumentUpload({
   const [bereich, setBereich] = useState<ZielKey>(vorgabe.bereich);
   const [bezugId, setBezugId] = useState(vorgabe.bezugId);
   const [groessenFehler, setGroessenFehler] = useState<string | null>(null);
+  // Auswahllisten werden erst geholt, wenn ein Ziel mit Bezug gewählt ist (spart vier Abfragen je Seitenaufruf).
+  const [optionen, setOptionen] = useState<Optionen | null>(null);
+  const [ladefehler, setLadefehler] = useState(false);
+
+  useEffect(() => {
+    if (bereich === "allgemein" || optionen) return;
+    let aktiv = true;
+    ladeUploadOptionen().then(
+      (o) => aktiv && setOptionen(o),
+      () => aktiv && setLadefehler(true),
+    );
+    return () => {
+      aktiv = false;
+    };
+  }, [bereich, optionen]);
 
   const maxMb = MAX_DOKUMENT_GROESSE_BYTES / (1024 * 1024);
 
@@ -102,14 +117,20 @@ export function DokumentUpload({
               {ZIELE.find((z) => z.key === bereich)?.label}
             </label>
             <input type="hidden" name="bezugId" value={bezugId} />
-            <MietvertragAuswahl
-              key={bereich}
-              kandidaten={optionen[bereich]}
-              value={bezugId}
-              onChange={setBezugId}
-              leerLabel="Bitte wählen…"
-              size="md"
-            />
+            {optionen ? (
+              <MietvertragAuswahl
+                key={bereich}
+                kandidaten={optionen[bereich]}
+                value={bezugId}
+                onChange={setBezugId}
+                leerLabel="Bitte wählen…"
+                size="md"
+              />
+            ) : (
+              <div className={`${FELD} flex items-center text-neutral-500`}>
+                {ladefehler ? "Auswahl konnte nicht geladen werden" : "Lädt…"}
+              </div>
+            )}
           </div>
         )}
 

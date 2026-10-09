@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { BEREICHE, formatBytes, type BereichKey } from "@/lib/dokumente-anzeige";
 import {
   allgemeineOrdnerNamen,
-  ladeBezugOptionen,
+  ladeDokumentIndex,
   ladeDokumente,
   ordnerVonBereich,
 } from "@/lib/dokumente-uebersicht";
@@ -63,12 +63,15 @@ export default async function DokumentePage({
   searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string }>;
 }) {
   const { bereich: bereichParam, ordner: ordnerParam, ansicht, status: statusParam } = await searchParams;
-  const [user, zeilen] = await Promise.all([getCurrentUser(), ladeDokumente()]);
+  const [user, index] = await Promise.all([getCurrentUser(), ladeDokumentIndex()]);
   const editierbar = user?.role !== "GAST";
-  const optionen = editierbar ? await ladeBezugOptionen() : null;
 
   const bereich = BEREICHE.find((b) => b.key === bereichParam) ?? null;
   const alleAnsicht = ansicht === "alle";
+  // Die Übersicht rechnet nur mit dem schlanken Index; die schweren Zeilen (Mietvertrag, Einheit, Gebäude …)
+  // lädt erst der geöffnete Bereich bzw. Ordner. Ist der Ordner leer/unbekannt, zeigt die Seite die Ordnerliste.
+  let zeilen = alleAnsicht ? await ladeDokumente() : bereich ? await ladeDokumente({ bereich: bereich.key, ordnerKey: ordnerParam }) : [];
+  if (!alleAnsicht && bereich && ordnerParam !== undefined && zeilen.length === 0) zeilen = await ladeDokumente({ bereich: bereich.key });
   const ordnerListe = bereich ? ordnerVonBereich(zeilen, bereich.key) : [];
   // Filter der Mieterakten: laufende (aktiv/geplant) oder beendete Mietverträge; Standard = alle.
   const statusFilter = bereich?.key === "mietvertraege" && (statusParam === "aktuell" || statusParam === "beendet") ? statusParam : "alle";
@@ -111,14 +114,15 @@ export default async function DokumentePage({
     ordner: bereich?.key === "allgemein" && ordner && ordner.label !== "Ohne Ordner" ? ordner.label : "",
   };
 
-  const gesamtGroesse = zeilen.reduce((s, z) => s + (z.groesseBytes ?? 0), 0);
+  const gesamtGroesse = index.reduce((s, e) => s + (e.groesseBytes ?? 0), 0);
+  const ordnerNamen = allgemeineOrdnerNamen(index);
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
         <p className="text-sm text-neutral-400">
-          Alle hochgeladenen Dateien an einem Ort — {zeilen.length} Dateien, {formatBytes(gesamtGroesse)}. Die Ordner
+          Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Die Ordner
           ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Unkategorisiertes legst du in
           frei benannten Ordnern ab. Mit „Art“ (Vertrag, Schreiben, Rechnung …) lässt sich die Liste filtern; die Art ist optional und
           nachträglich änderbar. Die Kontoauszug-Dateien der Importe stehen
@@ -127,13 +131,12 @@ export default async function DokumentePage({
         </p>
       </div>
 
-      {editierbar && optionen && (
+      {editierbar && (
         <div className="mb-6">
           {/* key: bei Ordnerwechsel Formular mit neuer Vorbelegung aufbauen */}
           <DokumentUpload
             key={`${bereich?.key ?? ""}/${ordner?.key ?? ""}`}
-            optionen={optionen}
-            ordnerNamen={allgemeineOrdnerNamen(zeilen)}
+            ordnerNamen={ordnerNamen}
             vorgabe={vorgabe}
           />
         </div>
@@ -161,7 +164,7 @@ export default async function DokumentePage({
         <DokumentTabelle
           rows={rows}
           zeigeBereich={alleAnsicht}
-          ordnerNamen={allgemeineOrdnerNamen(zeilen)}
+          ordnerNamen={ordnerNamen}
           editierbar={editierbar}
         />
       ) : bereich ? (
@@ -211,7 +214,7 @@ export default async function DokumentePage({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {BEREICHE.map((b) => {
-            const vonBereich = zeilen.filter((z) => z.bereich === b.key);
+            const vonBereich = index.filter((e) => e.bereich === b.key);
             // Leere Bereiche blenden wir aus; hochladen kann man über das Formular oben trotzdem dorthin.
             if (vonBereich.length === 0) return null;
             return (
