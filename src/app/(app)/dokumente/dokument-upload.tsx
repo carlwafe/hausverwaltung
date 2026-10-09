@@ -11,6 +11,7 @@ import { GroessenFehler } from "@/components/groessen-fehler";
 type Option = { id: string; label: string };
 
 const ZIELE = [
+  { key: "eingang", label: "Eingang (später zuordnen)" },
   { key: "allgemein", label: "Unkategorisiert (Ordner)" },
   { key: "mietvertraege", label: "Mieterakte (Mietvertrag)" },
   { key: "einheiten", label: "Einheit (Foto)" },
@@ -23,7 +24,7 @@ type ZielKey = (typeof ZIELE)[number]["key"];
 // Feste Höhe: native Auswahlfelder rendern sonst kleiner als Text- und Datumsfelder (38 px = Standard der App).
 const FELD = "h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white";
 
-type Optionen = Record<Exclude<ZielKey, "allgemein">, Option[]>;
+type Optionen = Record<Exclude<ZielKey, "allgemein" | "eingang">, Option[]>;
 
 export function DokumentUpload({
   ordnerNamen,
@@ -43,7 +44,7 @@ export function DokumentUpload({
   const [ladefehler, setLadefehler] = useState(false);
 
   useEffect(() => {
-    if (bereich === "allgemein" || optionen) return;
+    if (bereich === "allgemein" || bereich === "eingang" || optionen) return;
     let aktiv = true;
     ladeUploadOptionen().then(
       (o) => aktiv && setOptionen(o),
@@ -94,7 +95,7 @@ export function DokumentUpload({
           </select>
         </div>
 
-        {bereich === "allgemein" ? (
+        {bereich === "eingang" ? null : bereich === "allgemein" ? (
           <div>
             <label className="mb-1 block text-xs text-neutral-400">Ordner (optional)</label>
             <input
@@ -120,7 +121,7 @@ export function DokumentUpload({
             {optionen ? (
               <MietvertragAuswahl
                 key={bereich}
-                kandidaten={optionen[bereich]}
+                kandidaten={optionen[bereich as Exclude<ZielKey, "allgemein" | "eingang">]}
                 value={bezugId}
                 onChange={setBezugId}
                 leerLabel="Bitte wählen…"
@@ -135,9 +136,11 @@ export function DokumentUpload({
         )}
 
         <div>
-          <label className="mb-1 block text-xs text-neutral-400">Art (optional)</label>
-          <select name="art" defaultValue="" className={FELD}>
-            <option value="">–</option>
+          <label className="mb-1 block text-xs text-neutral-400">
+            {bereich === "eingang" ? "Dokumenttyp (Pflicht)" : "Art (optional)"}
+          </label>
+          <select name="art" defaultValue="" required={bereich === "eingang"} className={FELD}>
+            <option value="">{bereich === "eingang" ? "Bitte wählen…" : "–"}</option>
             {ART_OPTIONEN.map((a) => (
               <option key={a.key} value={a.key}>
                 {a.label}
@@ -149,6 +152,10 @@ export function DokumentUpload({
           <label className="mb-1 block text-xs text-neutral-400">Belegdatum (optional)</label>
           <DateInput name="belegDatum" />
         </div>
+        <label className="flex h-[38px] items-center gap-2 text-sm text-neutral-300">
+          <input type="checkbox" name="erkennen" value="1" defaultChecked className="h-4 w-4" />
+          Inhalt automatisch erkennen
+        </label>
         <input
           type="file"
           name="file"
@@ -165,8 +172,11 @@ export function DokumentUpload({
         </button>
       </div>
       <p className="mt-2 text-xs text-neutral-500">
-        Maximal {maxMb} MB pro Datei, eine Datei je Upload. Kostenbelege werden weiterhin an der jeweiligen Kostenposition
-        hochgeladen (Kosten → Position) und erscheinen hier automatisch nach Jahr geordnet.
+        Maximal {maxMb} MB pro Datei, eine Datei je Upload. Im <strong>Eingang</strong> liegen Dokumente, bis sie einer Kostenposition
+        oder einem Mietvertrag zugeordnet sind; die Texterkennung liest Rechnungen, Bescheide und Abrechnungen (PDF oder Bild) und füllt
+        Aussteller, Rechnungsnummer, Betrag usw. vor — sie läuft nur für diese drei Typen, Verträge und Mieterunterlagen werden nicht
+        gelesen. Die Dokumente werden dafür an Anthropic (Claude) übertragen. Kostenbelege lassen sich weiterhin direkt an der
+        Kostenposition hochladen.
       </p>
       <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

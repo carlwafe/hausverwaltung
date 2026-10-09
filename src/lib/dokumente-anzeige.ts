@@ -2,6 +2,8 @@
 // Client-Komponenten (Tabelle, Upload) und Server-Seiten gleichermaßen nutzbar sind.
 
 export const BEREICHE = [
+  // Hochgeladen, aber noch keinem Bezug zugeordnet (Labels vorhanden, Zuordnung folgt später).
+  { key: "eingang", label: "Eingang", hinweis: "noch nicht zugeordnet" },
   { key: "mietvertraege", label: "Mieterakten", hinweis: "je Mietvertrag: Vertrag, Schreiben, Übergabe …" },
   { key: "einheiten", label: "Einheiten (Fotos)", hinweis: "je Einheit" },
   { key: "kosten", label: "Kostenbelege", hinweis: "je Kostenjahr" },
@@ -31,9 +33,18 @@ export const ART_OPTIONEN = [
   { key: "PROTOKOLL", label: "Protokoll" },
   { key: "RECHNUNG", label: "Rechnung" },
   { key: "BESCHEID", label: "Bescheid" },
+  { key: "ABRECHNUNG", label: "Abrechnung" },
   { key: "FOTO", label: "Foto" },
   { key: "SONSTIGES", label: "Sonstiges" },
 ] as const;
+
+/** Dokumenttypen, deren Inhalt die Texterkennung beim Hochladen automatisch liest (Rechnungen und Bescheide —
+ * keine Verträge/Mieterunterlagen; für andere nur auf ausdrücklichen Knopfdruck). */
+export const ERKENNUNG_ARTEN: readonly string[] = ["RECHNUNG", "BESCHEID", "ABRECHNUNG"];
+
+export function formatEuro(betrag: number) {
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(betrag);
+}
 
 export function artLabel(art: string | null): string {
   return ART_OPTIONEN.find((a) => a.key === art)?.label ?? "–";

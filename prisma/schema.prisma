@@ -628,6 +628,7 @@ model Kostenart {
   techemAllgemeinstromAnteile TechemAllgemeinstromAnteil[]
   nebenkostenQmAbweichungen   NebenkostenQmAbweichung[]
   dienstleister               Dienstleister[]
+  dokumente                   Dokument[]
 
   @@map("kostenarten")
 }
@@ -945,6 +946,30 @@ model Dokument {
   // und lassen sich wiederherstellen. Ausgeblendete Dokumente fehlen in den Listen der Ablage.
   ausgeblendetAm  DateTime?
   ausgeblendetVon String?
+  // Eingang: hochgeladen, aber noch keinem Bezug (Buchung, Mietvertrag, Einheit …) zugeordnet. Die
+  // Zuordnung erfolgt später einmalig (Seite /dokumente/[id], mit Vorschlägen aus den Labels unten);
+  // danach ist der Bezug fest wie bisher. Ohne Bezug und eingang = false = „Unkategorisiert“.
+  eingang         Boolean        @default(false)
+  // Labels für die automatische Zuordnung (alle optional, vom Nutzer oder von der Texterkennung
+  // gefüllt). art = Dokumenttyp, belegDatum = Rechnungs-/Belegdatum.
+  aussteller      String?
+  rechnungsnummer String?
+  // Gesamtbetrag laut Beleg wie eine Kostenposition: positiv = Rechnung (Ausgabe), negativ = Gutschrift.
+  betrag          Decimal?       @db.Decimal(10, 2)
+  leistungVon     DateTime?
+  leistungBis     DateTime?
+  kostenjahr      Int?
+  // IBAN des Rechnungsstellers (Zahlungsempfänger) — hilft beim Abgleich mit der Bankzeile.
+  iban            String?
+  kostenart       Kostenart?     @relation(fields: [kostenartId], references: [id], onDelete: SetNull)
+  kostenartId     String?
+  // Name des Rechnungsempfängers (z.B. Mieter) und Objektangabe (Adresse/Wohnung) laut Beleg —
+  // Grundlage für den Vorschlag zu Mietvertrag/Einheit.
+  adressat        String?
+  objektHinweis   String?
+  // Rohergebnis der Texterkennung (Vorschlag, Konfidenz, Modell) und Zeitpunkt.
+  erkennung       Json?
+  erkanntAm       DateTime?
   createdAt       DateTime       @default(now())
 
   @@map("dokumente")

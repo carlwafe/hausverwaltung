@@ -12,6 +12,7 @@ import {
   artLabel,
   formatBytes,
   formatDate,
+  formatEuro,
   type BereichKey,
 } from "@/lib/dokumente-anzeige";
 
@@ -32,6 +33,10 @@ export type DokumentRow = {
   schreibgeschuetzt: boolean;
   downloadHref: string;
   art: string | null;
+  aussteller: string | null;
+  rechnungsnummer: string | null;
+  betrag: number | null;
+  detailHref: string;
 };
 
 const bereichLabel = (k: BereichKey) =>
@@ -184,6 +189,26 @@ export function DokumentTabelle({
       sortValue: (d) => d.belegDatum ?? d.createdAt,
     },
     {
+      key: "aussteller",
+      label: "Aussteller",
+      render: (d) => (
+        <span className="block max-w-[180px] text-xs text-neutral-300 [overflow-wrap:anywhere]" title={d.rechnungsnummer ? `Rechnungsnr. ${d.rechnungsnummer}` : undefined}>
+          {d.aussteller ?? "–"}
+        </span>
+      ),
+      sortValue: (d) => (d.aussteller ?? "").toLowerCase(),
+      searchValue: (d) => `${d.aussteller ?? ""} ${d.rechnungsnummer ?? ""}`,
+    },
+    {
+      key: "betrag",
+      label: "Betrag",
+      align: "right",
+      render: (d) => (
+        <span className="whitespace-nowrap text-xs text-neutral-300">{d.betrag === null ? "–" : formatEuro(d.betrag)}</span>
+      ),
+      sortValue: (d) => d.betrag ?? 0,
+    },
+    {
       key: "upload",
       label: "Upload",
       render: (d) => (
@@ -207,6 +232,16 @@ export function DokumentTabelle({
         </span>
       ),
       sortValue: (d) => d.groesseBytes ?? 0,
+    },
+    {
+      key: "details",
+      label: "",
+      align: "right",
+      render: (d) => (
+        <Link href={d.detailHref} prefetch={false} className="whitespace-nowrap text-xs text-neutral-400 hover:text-white hover:underline">
+          Details
+        </Link>
+      ),
     },
     ...(editierbar
       ? [

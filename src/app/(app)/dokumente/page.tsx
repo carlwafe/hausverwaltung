@@ -8,6 +8,7 @@ import {
   ordnerVonBereich,
 } from "@/lib/dokumente-uebersicht";
 import { DokumentUpload } from "./dokument-upload";
+import { SichereVorschlaegeKnopf } from "./sichere-vorschlaege-knopf";
 import { DokumentTabelle, type DokumentRow } from "./dokument-tabelle";
 
 const LINK = "text-neutral-400 hover:text-white hover:underline";
@@ -57,6 +58,9 @@ function Ordnerkarte({
   );
 }
 
+// Die Texterkennung läuft beim Hochladen in derselben Anfrage (Claude liest das PDF).
+export const maxDuration = 60;
+
 export default async function DokumentePage({
   searchParams,
 }: {
@@ -78,9 +82,11 @@ export default async function DokumentePage({
   const sichtbareOrdner = ordnerListe.filter(
     (o) => statusFilter === "alle" || (statusFilter === "beendet") === (o.vertragStatus === "BEENDET"),
   );
+  // „Eingang“ hat keine Unterordner: der Bereich zeigt direkt die Liste.
+  const eingangAnsicht = bereich?.key === "eingang";
   const ordner = bereich && ordnerParam !== undefined ? ordnerListe.find((o) => o.key === ordnerParam) ?? null : null;
 
-  const sichtbar = alleAnsicht
+  const sichtbar = alleAnsicht || eingangAnsicht
     ? zeilen
     : bereich && ordner
       ? zeilen.filter((z) => z.bereich === bereich.key && z.ordnerKey === ordner.key)
@@ -102,13 +108,17 @@ export default async function DokumentePage({
     schreibgeschuetzt: z.schreibgeschuetzt,
     downloadHref: z.downloadHref,
     art: z.art,
+    aussteller: z.aussteller,
+    rechnungsnummer: z.rechnungsnummer,
+    betrag: z.betrag,
+    detailHref: z.detailHref,
   }));
 
   // Upload vorbelegen mit dem gerade geöffneten Ordner.
   const vorBereich: BereichKey | null = bereich?.key ?? null;
   const vorgabe = {
-    bereich: vorBereich && vorBereich !== "kosten" ? vorBereich : ("allgemein" as const),
-    bezugId: bereich && ordner && bereich.key !== "kosten" && bereich.key !== "allgemein"
+    bereich: vorBereich && vorBereich !== "kosten" ? vorBereich : ("eingang" as const),
+    bezugId: bereich && ordner && bereich.key !== "kosten" && bereich.key !== "allgemein" && bereich.key !== "eingang"
         ? ordner.key
         : "",
     ordner: bereich?.key === "allgemein" && ordner && ordner.label !== "Ohne Ordner" ? ordner.label : "",
@@ -122,12 +132,13 @@ export default async function DokumentePage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
         <p className="text-sm text-neutral-400">
-          Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Die Ordner
-          ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit, Kostenjahr, Dienstleister, Ticket); Unkategorisiertes legst du in
-          frei benannten Ordnern ab. Mit „Art“ (Vertrag, Schreiben, Rechnung …) lässt sich die Liste filtern; die Art ist optional und
-          nachträglich änderbar. Die Kontoauszug-Dateien der Importe stehen
-          nicht hier, sondern unter Kontoauszug → Importe. Der Bezug ist fest: ein Dokument lässt sich nicht in einen anderen Mietvertrag o.ä.
-          verschieben, dafür neu hochladen und das alte löschen (nur der Ordner von „Unkategorisiert“ ist änderbar).
+          Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Neue Dokumente
+          kommen in den <strong>Eingang</strong>: die Texterkennung liest Rechnungen und Bescheide (Aussteller, Rechnungsnummer,
+          Betrag …), die Seite „Details“ schlägt eine passende Kostenposition oder Mieterakte vor, und die Zuordnung ist
+          einmalig und danach fest. Die übrigen Ordner ergeben sich aus dem Bezug (Mieterakte je Mietvertrag, Einheit,
+          Kostenjahr, Dienstleister, Ticket); Unkategorisiertes legst du in frei benannten Ordnern ab. Mit „Art“ lässt sich die
+          Liste filtern. Kostenbelege lassen sich nicht löschen, nur ausblenden. Die Kontoauszug-Dateien der Importe stehen
+          nicht hier, sondern unter Kontoauszug → Importe.
         </p>
       </div>
 
@@ -160,7 +171,9 @@ export default async function DokumentePage({
         )}
       </div>
 
-      {alleAnsicht || (bereich && ordner) ? (
+      {eingangAnsicht && editierbar && sichtbar.length > 0 && <SichereVorschlaegeKnopf />}
+
+      {alleAnsicht || eingangAnsicht || (bereich && ordner) ? (
         <DokumentTabelle
           rows={rows}
           zeigeBereich={alleAnsicht}

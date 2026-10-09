@@ -18,6 +18,12 @@ export type DokumentZeile = {
   vertragStatus: "AKTIV" | "GEPLANT" | "BEENDET" | null;
   /** Dokumentart (Schlüssel, siehe ART_OPTIONEN) oder null. */
   art: string | null;
+  /** Labels (Rechnungsangaben), soweit erfasst oder erkannt. */
+  aussteller: string | null;
+  rechnungsnummer: string | null;
+  betrag: number | null;
+  /** Detailseite mit Labels, Zuordnung und Texterkennung. */
+  detailHref: string;
   dateiname: string;
   groesseBytes: number | null;
   belegDatum: Date | null;
@@ -53,19 +59,21 @@ function bereichWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
       return { mietvertragId: null, einheitId: k ?? { not: null } };
     case "kosten":
       return { mietvertragId: null, einheitId: null, buchungId: { not: null } };
+    case "eingang":
+      return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: null, ticketId: null, eingang: true };
     case "dienstleister":
       return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: k ?? { not: null } };
     case "tickets":
       return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: null, ticketId: k ?? { not: null } };
     case "allgemein":
-      return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: null, ticketId: null };
+      return { mietvertragId: null, einheitId: null, buchungId: null, dienstleisterId: null, ticketId: null, eingang: false };
   }
 }
 
-async function ladeDokumenteAusTabelle(filter?: DokumentFilter): Promise<DokumentZeile[]> {
+async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: string): Promise<DokumentZeile[]> {
   const dokumente = await prisma.dokument.findMany({
-    // Ausgeblendete Kostenbelege (Löschsperre) tauchen in der Ablage nicht auf.
-    where: { ausgeblendetAm: null, ...(filter ? bereichWhere(filter) : {}) },
+    // Ausgeblendete Kostenbelege (Löschsperre) tauchen in der Ablage nicht auf, nur auf ihrer Detailseite.
+    where: einzelneId ? { id: einzelneId } : { ausgeblendetAm: null, ...(filter ? bereichWhere(filter) : {}) },
     include: {
       mietvertrag: {
         include: { mieter: true, einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } } },
@@ -93,6 +101,10 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter): Promise<Dokumen
       schreibgeschuetzt: false,
       downloadHref: `/api/dokumente/${d.id}/download`,
       art: d.art,
+      aussteller: d.aussteller,
+      rechnungsnummer: d.rechnungsnummer,
+      betrag: d.betrag === null ? null : Number(d.betrag),
+      detailHref: `/dokumente/${d.id}`,
       vertragStatus: null as DokumentZeile["vertragStatus"],
       dateiname: d.dateiname,
       groesseBytes: d.groesseBytes,
@@ -170,6 +182,18 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter): Promise<Dokumen
         revalidatePath: `/tickets/${d.ticket.id}`,
       };
     }
+    if (d.eingang) {
+      return {
+        ...basis,
+        bereich: "eingang",
+        ordnerKey: "eingang",
+        ordnerLabel: "Eingang",
+        ordnerRang: 0,
+        bezugLabel: "Noch nicht zugeordnet",
+        bezugHref: `/dokumente/${d.id}`,
+        revalidatePath: "/dokumente",
+      };
+    }
     const ordner = d.ordner?.trim() || OHNE_ORDNER;
     return {
       ...basis,
@@ -188,6 +212,11 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter): Promise<Dokumen
 // Ohne Filter alle Dokumente (Ansicht „Alle Dokumente“), sonst nur Bereich bzw. Ordner.
 export async function ladeDokumente(filter?: DokumentFilter): Promise<DokumentZeile[]> {
   return ladeDokumenteAusTabelle(filter);
+}
+
+/** Eine Zeile samt Bezug (für die Detailseite); auch ausgeblendete Dokumente. */
+export async function ladeDokumentZeile(id: string): Promise<DokumentZeile | null> {
+  return (await ladeDokumenteAusTabelle(undefined, id))[0] ?? null;
 }
 
 /** Schlanker Eintrag je Dokument für die Übersicht (Zählungen, Ordnernamen) — ohne Bezugsobjekte. */
@@ -209,6 +238,7 @@ export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
       buchungId: true,
       dienstleisterId: true,
       ticketId: true,
+      eingang: true,
     },
   });
   return dokumente.map((d) => ({
@@ -222,7 +252,9 @@ export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
             ? "dienstleister"
             : d.ticketId
               ? "tickets"
-              : "allgemein",
+              : d.eingang
+                ? "eingang"
+                : "allgemein",
     groesseBytes: d.groesseBytes,
     ordner: d.ordner?.trim() || null,
   }));
@@ -275,7 +307,7 @@ export function allgemeineOrdnerNamen(index: DokumentIndexEintrag[]): string[] {
 export type BezugOption = { id: string; label: string };
 
 /** Auswahllisten für den zentralen Upload („Ablegen bei“). */
-export async function ladeBezugOptionen(): Promise<Record<Exclude<BereichKey, "allgemein" | "kosten">, BezugOption[]>> {
+export async function ladeBezugOptionen(): Promise<Record<Exclude<BereichKey, "allgemein" | "kosten" | "eingang">, BezugOption[]>> {
   const [einheiten, mietvertraege, dienstleister, tickets] = await Promise.all([
     prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
     prisma.mietvertrag.findMany({

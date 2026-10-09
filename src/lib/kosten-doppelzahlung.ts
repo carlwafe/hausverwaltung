@@ -25,7 +25,7 @@ export type DoppelzahlungPaar = {
   rueckzahlung: { id: string; datum: string | null } | null;
 };
 
-function ibanAus(rohdaten: unknown): string | null {
+export function ibanAus(rohdaten: unknown): string | null {
   if (!rohdaten || typeof rohdaten !== "object") return null;
   const r = rohdaten as Record<string, string>;
   const col = findColumn(Object.keys(r), ["kontonummeriban", "iban"]);

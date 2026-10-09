@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { leseDatei } from "@/lib/storage";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   await requireUser();
   const { id } = await params;
 
@@ -21,7 +21,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   // Bilder inline ausliefern (z.B. für Foto-Vorschauen als <img src>), alles andere weiterhin als
   // Download — ein Browser würde eine "attachment"-Disposition nicht als <img> rendern.
-  const disposition = dokument.mimeType?.startsWith("image/") ? "inline" : "attachment";
+  // Mit ?ansicht=inline auch PDFs (Vorschau auf der Detailseite /dokumente/[id]).
+  const inlineAngefordert = new URL(req.url).searchParams.get("ansicht") === "inline" && dokument.mimeType === "application/pdf";
+  const disposition = dokument.mimeType?.startsWith("image/") || inlineAngefordert ? "inline" : "attachment";
 
   return new NextResponse(new Uint8Array(inhalt), {
     headers: {

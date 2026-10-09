@@ -13,6 +13,10 @@ import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@
 import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
 import { ladeEinheitenFuerAuswahl } from "../einheiten-liste";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { getCurrentUser } from "@/lib/session";
+import { ladeEingangFuerBuchung } from "@/lib/dokument-zuordnung";
+import { ibanAus } from "@/lib/kosten-doppelzahlung";
+import { EingangHinweis } from "./eingang-hinweis";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -70,6 +74,30 @@ export default async function KostenpositionDetailPage({
   const aufteilungGeschwister = aufteilungGeschwisterRaw.filter(
     (p): p is typeof p & { kostenart: NonNullable<(typeof p)["kostenart"]> } => p.kostenart !== null,
   );
+
+  // Passende Dokumente aus dem Eingang der Ablage (nur für Bearbeiter, eine kleine Abfrage).
+  const user = await getCurrentUser();
+  const eingangTreffer =
+    user && user.role !== "GAST"
+      ? (
+          await ladeEingangFuerBuchung({
+            datum: kostenposition.datum,
+            jahr: kostenposition.jahr,
+            betrag: Number(kostenposition.betrag),
+            empfaenger: kostenposition.empfaenger,
+            verwendungszweck: kostenposition.verwendungszweck,
+            iban: ibanAus(kostenposition.rohdaten),
+          })
+        ).map((t) => ({
+          dokumentId: t.dokumentId,
+          dateiname: t.dateiname,
+          aussteller: t.aussteller,
+          rechnungsnummer: t.rechnungsnummer,
+          betragText: t.betrag === null ? null : formatEuro(t.betrag),
+          gruende: t.bewertung.gruende,
+          sicher: t.bewertung.sicher,
+        }))
+      : [];
 
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
   const gebaeudeLabel = gebaeudeOderHausLabel(
@@ -177,6 +205,12 @@ export default async function KostenpositionDetailPage({
         rueckPfad="/kosten"
         datum={kostenposition.datum!}
       />
+
+      {eingangTreffer.length > 0 && (
+        <div className="mt-6">
+          <EingangHinweis buchungId={id} treffer={eingangTreffer} />
+        </div>
+      )}
 
       <div className="mt-6">
         <BelegeSektion
