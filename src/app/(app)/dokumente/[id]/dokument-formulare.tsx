@@ -73,6 +73,10 @@ const FELDER_JE_ART: Record<string, Partial<Record<Exclude<FeldKey, "titel">, st
   RECHNUNG: KOSTEN_FELDER,
   BESCHEID: { ...KOSTEN_FELDER, belegDatum: "Bescheiddatum", aussteller: "Behörde / Aussteller", rechnungsnummer: "Bescheid- / Aktenzeichen", leistungVon: "Zeitraum von", leistungBis: "Zeitraum bis" },
   ABRECHNUNG: { ...KOSTEN_FELDER, belegDatum: "Datum der Abrechnung", rechnungsnummer: "Abrechnungsnummer", leistungVon: "Abrechnungszeitraum von", leistungBis: "Abrechnungszeitraum bis" },
+  ANGEBOT: {
+    belegDatum: "Angebotsdatum", betrag: "Angebotssumme (€)", aussteller: "Aussteller", rechnungsnummer: "Angebotsnummer",
+    kostenjahr: "Kostenjahr", kostenartId: "Kostenart", adressat: "Adressat", objektHinweis: "Objekt laut Dokument (Adresse/Wohnung, Mieter)",
+  },
   VERTRAG: {
     belegDatum: "Vertragsdatum", aussteller: "Vertragspartner", leistungVon: "Laufzeit von", leistungBis: "Laufzeit bis",
     adressat: "Mieter / Vertragsnehmer", objektHinweis: "Objekt (Adresse/Wohnung)",
@@ -298,6 +302,7 @@ const ART_ANZEIGE: Record<string, string> = Object.fromEntries(ART_OPTIONEN.map(
 
 // Welcher Bezug zu einem Dokumenttyp meist passt (vorbelegt in „Bezug hinzufügen“, änderbar).
 const ZIEL_ZU_ART: Record<string, ZuordnungsZiel> = {
+  ANGEBOT: "einheit",
   PROTOKOLL: "mietvertrag",
   VERTRAG: "mietvertrag",
   SCHREIBEN: "mietvertrag",

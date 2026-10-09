@@ -87,6 +87,8 @@ export default async function KostenpositionDetailPage({
             empfaenger: kostenposition.empfaenger,
             verwendungszweck: kostenposition.verwendungszweck,
             iban: ibanAus(kostenposition.rohdaten),
+            einheit: kostenposition.einheit?.bezeichnung ?? null,
+            hausnummer: kostenposition.gebaeude?.hausnummer ?? kostenposition.einheit?.gebaeude.hausnummer ?? null,
           })
         ).map((t) => ({
           dokumentId: t.dokumentId,

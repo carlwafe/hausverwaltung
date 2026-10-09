@@ -66,6 +66,7 @@ export const ART_OPTIONEN = [
   { key: "RECHNUNG", label: "Rechnung", gruppe: "Kosten" },
   { key: "BESCHEID", label: "Bescheid", gruppe: "Kosten" },
   { key: "ABRECHNUNG", label: "Abrechnung", gruppe: "Kosten" },
+  { key: "ANGEBOT", label: "Angebot / Kostenvoranschlag", gruppe: "Kosten" },
   { key: "VERTRAG", label: "Vertrag", gruppe: "Mietverhältnis & Verträge" },
   { key: "SCHREIBEN", label: "Schreiben", gruppe: "Mietverhältnis & Verträge" },
   { key: "PROTOKOLL", label: "Protokoll", gruppe: "Mietverhältnis & Verträge" },

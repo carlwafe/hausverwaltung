@@ -44,6 +44,7 @@ Regeln:
   RECHNUNG = Rechnung oder Gutschrift eines Handwerkers, Lieferanten, Versorgers;
   BESCHEID = Gebühren-/Steuerbescheid (Grundsteuer, Abfall, Straßenreinigung …);
   ABRECHNUNG = Jahres-/Verbrauchsabrechnung eines Versorgers oder Messdienstes;
+  ANGEBOT = Angebot oder Kostenvoranschlag eines Handwerkers/Dienstleisters (überschrieben „Angebot“, „Kostenvoranschlag“, „Kostenschätzung“; noch keine Rechnung — auch wenn der Dateiname etwas anderes sagt);
   VERTRAG = Miet-, Dienstleistungs-, Wartungsvertrag;
   SCHREIBEN = Brief/Korrespondenz (Mieterhöhung, Kündigung, Mahnung, Anschreiben, E-Mail-Ausdruck);
   PROTOKOLL = Übergabe-, Abnahme-, Begehungsprotokoll;
@@ -54,15 +55,15 @@ Regeln:
   SONSTIGES sonst.
 - titel: Kurzbeschreibung des Inhalts in höchstens 8 Wörtern (z.B. „Reparatur Warmwasserleitung“, „Mieterhöhung zum 01.12.2026“), ohne Namen von Privatpersonen.
 - aussteller: Name der Firma/Behörde/Person, die das Dokument ausstellt bzw. absendet (bei Verträgen der Vertragspartner), nicht der Empfänger.
-- rechnungsnummer: genau wie gedruckt (Rechnungs-, Bescheid- oder Belegnummer), ohne Kunden- oder Vertragsnummern; nur bei Rechnung, Bescheid, Abrechnung.
+- rechnungsnummer: genau wie gedruckt (Rechnungs-, Bescheid- oder Belegnummer, bei einem Angebot die Angebotsnummer), ohne Kunden- oder Vertragsnummern; nur bei Rechnung, Bescheid, Abrechnung, Angebot.
 - rechnungsdatum: Datum des Dokuments (Briefdatum, Rechnungsdatum, Vertragsdatum), Format YYYY-MM-DD.
 - leistungVon/leistungBis: Leistungs- bzw. Abrechnungszeitraum (YYYY-MM-DD), nur wenn genannt.
-- betrag: nur bei Rechnung, Bescheid, Abrechnung: Gesamtbetrag brutto, den der Empfänger zahlen muss (Dezimalpunkt, zwei Nachkommastellen, kein Tausenderpunkt). Gutschrift/Erstattung negativ. Bei Abschlags- oder Teilrechnungen der Betrag dieser Rechnung. Nicht Netto, nicht Zwischensummen. Sonst null.
+- betrag: nur bei Rechnung, Bescheid, Abrechnung, Angebot: Gesamtbetrag brutto (bei einem Angebot die angebotene Gesamtsumme; fehlt sie auf den gelieferten Seiten, null), den der Empfänger zahlen muss (Dezimalpunkt, zwei Nachkommastellen, kein Tausenderpunkt). Gutschrift/Erstattung negativ. Bei Abschlags- oder Teilrechnungen der Betrag dieser Rechnung. Nicht Netto, nicht Zwischensummen. Sonst null.
 - iban: IBAN des Rechnungsstellers (Zahlungsempfänger), ohne Leerzeichen; null, wenn keine genannt ist.
 - kostenjahr: Jahr der erbrachten Leistung bzw. des Abrechnungszeitraums, nur wenn eindeutig; sonst null.
 - kostenartId: nur bei Kostenbelegen und nur aus der gelieferten Liste (ID), wenn die Zuordnung klar ist; sonst null.
 - adressat: Name des Empfängers, wie gedruckt (kann ein Mieter, die Eigentümer oder die Verwaltung sein).
-- objekt: Objektangabe laut Dokument (Straße/Hausnummer, Wohnung, Leistungsort), falls genannt; sonst null.
+- objekt: Objektangabe laut Dokument (Straße/Hausnummer, Wohnung, Name des Mieters bei „Objekt:“, Leistungsort), falls genannt, möglichst wörtlich; sonst null.
 - Erfinde nichts. Ist etwas nicht lesbar oder nicht vorhanden, setze das Feld auf null und senke die Konfidenz.
 - konfidenz: "hoch", wenn Typ und die wesentlichen Angaben sicher lesbar sind, "mittel" bei einzelnen Unsicherheiten, sonst "niedrig".
 - hinweis: ein Satz (max. ~140 Zeichen), was unsicher oder auffällig ist (z.B. "Betrag schlecht lesbar", "mehrere Rechnungen im Dokument"); sonst kurze Zusammenfassung.

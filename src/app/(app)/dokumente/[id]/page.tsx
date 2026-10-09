@@ -7,6 +7,7 @@ import { allgemeineOrdnerNamen, ladeDokumentIndex, ladeDokumentZeile, type Bezug
 import {
   ladeBuchungVorschlaege,
   ladeDienstleisterVorschlag,
+  ladeEinheitVorschlaege,
   ladeGebaeudeVorschlaege,
   ladeMietvertragVorschlaege,
   type DokumentLabels,
@@ -50,6 +51,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     iban: dokument.iban,
     adressat: dokument.adressat,
     objektHinweis: dokument.objektHinweis,
+    art: dokument.art,
   };
 
   const bezuege: AktuellerBezug[] = zeile.bezuege.map((b) => ({
@@ -64,10 +66,12 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   // oder Aussteller als Anhaltspunkt.
   let vorschlaege: Vorschlag[] = [];
   if (editierbar) {
-    const hatAnhalt = labels.betrag !== null || !!labels.rechnungsnummer || !!labels.aussteller;
-    const [buchungen, vertraege, gebaeude, dienstleister] = await Promise.all([
+    // Ein Angebot findet seine Kostenposition über Objekt und Aussteller, nicht über Betrag oder Nummer.
+    const hatAnhalt = labels.betrag !== null || !!labels.rechnungsnummer || !!labels.aussteller || (labels.art === "ANGEBOT" && !!labels.objektHinweis);
+    const [buchungen, vertraege, einheiten, gebaeude, dienstleister] = await Promise.all([
       !hat("buchung") && hatAnhalt ? ladeBuchungVorschlaege(labels) : Promise.resolve([]),
       !hat("mietvertrag") ? ladeMietvertragVorschlaege(labels) : Promise.resolve([]),
+      !hat("einheit") ? ladeEinheitVorschlaege(labels) : Promise.resolve([]),
       !hat("gebaeude") ? ladeGebaeudeVorschlaege(labels) : Promise.resolve([]),
       !hat("dienstleister") ? ladeDienstleisterVorschlag(dokument.aussteller) : Promise.resolve(null),
     ]);
@@ -83,6 +87,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
         }),
       ),
       ...vertraege.map((v): Vorschlag => ({ ziel: "mietvertrag", zielId: v.mietvertragId, titel: v.label, details: "", gruende: v.gruende })),
+      ...einheiten.map((e): Vorschlag => ({ ziel: "einheit", zielId: e.einheitId, titel: e.label, details: "", gruende: ["Adresse und Wohnung stehen im Dokument"] })),
       ...gebaeude.map((g): Vorschlag => ({ ziel: "gebaeude", zielId: g.gebaeudeId, titel: g.label, details: "", gruende: ["Adresse steht im Dokument"] })),
       ...(dienstleister
         ? [{ ziel: "dienstleister", zielId: dienstleister.dienstleisterId, titel: dienstleister.name, details: "", gruende: ["Aussteller passt zu den Suchbegriffen des Dienstleisters"] } satisfies Vorschlag]

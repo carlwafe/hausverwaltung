@@ -20,6 +20,8 @@ export type DokumentLabels = {
   iban: string | null;
   adressat: string | null;
   objektHinweis: string | null;
+  /** Dokumenttyp; bei einem Angebot zählen Objekt und Zeitraum statt Betrag und Rechnungsnummer. */
+  art?: string | null;
 };
 
 export type BuchungFuerBewertung = {
@@ -29,6 +31,9 @@ export type BuchungFuerBewertung = {
   empfaenger: string | null;
   verwendungszweck: string | null;
   iban: string | null;
+  /** Bezeichnung der Einheit der Kostenposition (z.B. „HS 15 WHG 4 - 1OG recht“) bzw. Hausnummer des Gebäudes. */
+  einheit?: string | null;
+  hausnummer?: string | null;
 };
 
 /** hart = Betrag, Rechnungsnummer oder IBAN stimmen — Name, Datum und Jahr allein reichen nicht für einen Vorschlag. */
@@ -39,9 +44,12 @@ const cent = (x: number) => Math.round(x * 100);
 // Rechtsformen und Allerweltswörter tragen nichts zur Namensähnlichkeit bei.
 const FUELLWOERTER = new Set(["gmbh", "mbh", "kg", "ag", "ug", "ohg", "gbr", "eg", "ev", "co", "und", "der", "die", "das", "bau", "service", "gruppe", "haustechnik", "inh", "inhaber"]);
 
+// Einzelne Namenswörter des Ausstellers (z.B. „Wagner - Inh. Oliver Wignanek“ → wagner, oliver, wignanek). normalizeText zieht
+// alles zu einem Wort zusammen, deshalb wird vorher an Nicht-Buchstaben getrennt.
 function namenstoken(name: string | null): string[] {
-  return normalizeText(name ?? "")
-    .split(/\s+/)
+  return (name ?? "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((w) => normalizeText(w))
     .filter((t) => t.length >= 4 && !FUELLWOERTER.has(t));
 }
 
@@ -59,6 +67,32 @@ export function rechnungsnummerImText(nummer: string | null, text: string | null
   if (ueberSchluesselwort) return true;
   const mindest = /^\d+$/.test(kern) ? 5 : 4;
   return kern.length >= mindest && alnum(text).includes(kern);
+}
+
+// Straße vereinheitlichen („Breslauer Straße“ / „Breslauer Str.“ / „Breslauerstr.“ → „breslauer str“).
+function normStrasse(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/straße|strasse|str\./g, "str")
+    .replace(/[.,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Hausnummern („…str. 15“) und Wohnungsnummer („Wohnung Nr. 4“, „WHG 4“) aus einer Objektangabe. */
+export function objektAusText(text: string): { hausnummern: Set<string>; whg: string | null } {
+  const t = normStrasse(text);
+  const hausnummern = new Set<string>();
+  for (const m of t.matchAll(/str\s*(\d+[a-z]?)(?![0-9a-z])/g)) hausnummern.add(m[1]);
+  const whg = t.match(/(?:wohnung|whg|wohn)\s*(?:nr|nummer)?\s*(\d{1,2})(?![0-9])/)?.[1] ?? null;
+  return { hausnummern, whg };
+}
+
+/** Steht „Straße Hausnummer“ des Gebäudes in der Objektangabe? (Hausnummer als ganzes Wort, damit „2“ nicht „23“ trifft) */
+function adresseImText(strasse: string, hausnummer: string, text: string): boolean {
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`${esc(normStrasse(strasse))}\\s*${esc(hausnummer.toLowerCase())}(?![0-9a-z])`).test(normStrasse(text));
 }
 
 /**
@@ -101,10 +135,34 @@ export function bewerteBuchung(d: DokumentLabels, b: BuchungFuerBewertung): Bewe
     gruende.push("Aussteller passt zum Empfänger");
   }
 
+  // Angebot: es hat keine eigene Zahlung — die Rechnung zum Auftrag trägt eine andere Nummer und oft einen anderen Betrag
+  // (Aufwand nach Nachweis). Maßgeblich sind Objekt (Haus und Wohnung), Aussteller und Zeitraum bis zu einem Jahr danach.
+  const angebot = d.art === "ANGEBOT";
+  let objektStark = false;
+  if (angebot && d.objektHinweis) {
+    const o = objektAusText(d.objektHinweis);
+    const hn = (b.hausnummer ?? b.einheit?.match(/HS\s*(\d+[a-z]?)/i)?.[1] ?? "").toLowerCase();
+    const whg = b.einheit?.match(/WHG\s*(\d+)/i)?.[1] ?? null;
+    if (hn && o.hausnummern.has(hn)) {
+      if (whg && o.whg === whg) {
+        punkte += 45;
+        objektStark = true;
+        gruende.push("Objekt passt (Haus und Wohnung)");
+      } else if (!whg && !o.whg) {
+        punkte += 25;
+        objektStark = true;
+        gruende.push("Objekt passt (Haus)");
+      } else {
+        punkte += 10;
+        gruende.push("Haus passt");
+      }
+    }
+  }
+
   let datumPassend = false;
   if (d.belegDatum && b.datum) {
     const tage = (b.datum.getTime() - d.belegDatum.getTime()) / 86400000;
-    if (tage >= -10 && tage <= 150) {
+    if (tage >= -10 && tage <= (angebot ? 400 : 150)) {
       punkte += 10;
       datumPassend = true;
       gruende.push("Zahlung zeitlich passend zum Beleg");
@@ -118,7 +176,8 @@ export function bewerteBuchung(d: DokumentLabels, b: BuchungFuerBewertung): Bewe
   }
 
   const sicher = betragGleich && (nummerTreffer || ((ibanTreffer || nameTreffer) && datumPassend));
-  return { punkte, gruende, sicher, hart: betragGleich || nummerTreffer || ibanTreffer };
+  // Ein Angebot braucht neben dem Objekt auch einen passenden Aussteller, sonst stünde jede Kostenposition der Einheit zur Wahl.
+  return { punkte, gruende, sicher, hart: betragGleich || nummerTreffer || ibanTreffer || (angebot && objektStark && nameTreffer) };
 }
 
 export type BuchungVorschlag = {
@@ -140,7 +199,7 @@ export async function ladeBuchungVorschlaege(d: DokumentLabels, max = 8): Promis
   const heute = new Date();
   const bezug = d.belegDatum ?? (d.kostenjahr ? new Date(Date.UTC(d.kostenjahr, 6, 1)) : heute);
   const von = new Date(bezug.getTime() - 120 * 86400000);
-  const bis = new Date(bezug.getTime() + 330 * 86400000);
+  const bis = new Date(bezug.getTime() + (d.art === "ANGEBOT" ? 420 : 330) * 86400000);
 
   const kandidaten = await prisma.buchung.findMany({
     where: {
@@ -151,6 +210,8 @@ export async function ladeBuchungVorschlaege(d: DokumentLabels, max = 8): Promis
     select: {
       id: true, datum: true, jahr: true, betrag: true, empfaenger: true, verwendungszweck: true,
       kostenart: { select: { name: true } },
+      einheit: { select: { bezeichnung: true, gebaeude: { select: { hausnummer: true } } } },
+      gebaeude: { select: { hausnummer: true } },
       _count: { select: { dokumente: { where: { ausgeblendetAm: null } } } },
     },
     take: 1500,
@@ -160,6 +221,7 @@ export async function ladeBuchungVorschlaege(d: DokumentLabels, max = 8): Promis
     k,
     bewertung: bewerteBuchung(d, {
       datum: k.datum, jahr: k.jahr, betrag: Number(k.betrag), empfaenger: k.empfaenger, verwendungszweck: k.verwendungszweck, iban: null,
+      einheit: k.einheit?.bezeichnung ?? null, hausnummer: k.gebaeude?.hausnummer ?? k.einheit?.gebaeude.hausnummer ?? null,
     }),
   }));
 
@@ -172,6 +234,7 @@ export async function ladeBuchungVorschlaege(d: DokumentLabels, max = 8): Promis
       x.bewertung = bewerteBuchung(d, {
         datum: x.k.datum, jahr: x.k.jahr, betrag: Number(x.k.betrag), empfaenger: x.k.empfaenger,
         verwendungszweck: x.k.verwendungszweck, iban: ibans.get(x.k.id) ?? null,
+        einheit: x.k.einheit?.bezeichnung ?? null, hausnummer: x.k.gebaeude?.hausnummer ?? x.k.einheit?.gebaeude.hausnummer ?? null,
       });
     }
   }
@@ -222,7 +285,8 @@ export async function ladeMietvertragVorschlaege(d: DokumentLabels, max = 5): Pr
   const vertraege = await prisma.mietvertrag.findMany({
     include: { mieter: true, einheit: { include: { gebaeude: true } } },
   });
-  const adressat = normalizeText(d.adressat ?? "");
+  // Der Mietername steht je nach Dokument beim Adressaten oder bei „Objekt: Name, Wohnung …“.
+  const adressat = normalizeText(`${d.adressat ?? ""} ${d.objektHinweis ?? ""}`);
   const objekt = normalizeText(`${d.objektHinweis ?? ""} ${d.adressat ?? ""}`);
 
   return vertraege
@@ -232,7 +296,7 @@ export async function ladeMietvertragVorschlaege(d: DokumentLabels, max = 5): Pr
       const namen = v.mieter.filter((m) => normalizeText(m.nachname).length >= 3 && adressat.includes(normalizeText(m.nachname)));
       if (namen.length > 0) {
         punkte += 50;
-        gruende.push(`Name „${namen.map((m) => m.nachname).join(" & ")}“ im Adressaten`);
+        gruende.push(`Name „${namen.map((m) => m.nachname).join(" & ")}“ im Dokument`);
         if (namen.some((m) => m.vorname && adressat.includes(normalizeText(m.vorname)))) punkte += 10;
       }
       const g = v.einheit.gebaeude;
@@ -260,27 +324,28 @@ export async function ladeMietvertragVorschlaege(d: DokumentLabels, max = 5): Pr
 
 export type GebaeudeVorschlag = { gebaeudeId: string; label: string };
 
-// Straße vereinheitlichen („Breslauer Straße“ / „Breslauer Str.“ / „Breslauerstr.“ → „breslauer str“).
-function normStrasse(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/ß/g, "ss")
-    .replace(/straße|strasse|str\./g, "str")
-    .replace(/[.,]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Gebäude-Vorschläge: „Straße Hausnummer“ steht in der Objektangabe des Belegs (Hausnummer als ganzes Wort, damit „2“ nicht „23“ trifft). */
+/** Gebäude-Vorschläge: „Straße Hausnummer“ steht in der Objektangabe des Belegs. */
 export async function ladeGebaeudeVorschlaege(d: DokumentLabels, max = 3): Promise<GebaeudeVorschlag[]> {
   if (!d.objektHinweis) return [];
-  const text = normStrasse(d.objektHinweis);
   const gebaeude = await prisma.gebaeude.findMany({ select: { id: true, strasse: true, hausnummer: true } });
-  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return gebaeude
-    .filter((g) => new RegExp(`${esc(normStrasse(g.strasse))}\\s*${esc(g.hausnummer.toLowerCase())}(?![0-9a-z])`).test(text))
+    .filter((g) => adresseImText(g.strasse, g.hausnummer, d.objektHinweis!))
     .slice(0, max)
     .map((g) => ({ gebaeudeId: g.id, label: `${g.strasse} ${g.hausnummer}` }));
+}
+
+export type EinheitVorschlag = { einheitId: string; label: string };
+
+/** Einheit-Vorschläge: Gebäude über die Adresse und die Wohnung über „Wohnung Nr. 4“ / „WHG 4“ in der Objektangabe. */
+export async function ladeEinheitVorschlaege(d: DokumentLabels, max = 3): Promise<EinheitVorschlag[]> {
+  if (!d.objektHinweis) return [];
+  const whg = objektAusText(d.objektHinweis).whg;
+  if (!whg) return [];
+  const einheiten = await prisma.einheit.findMany({ include: { gebaeude: true } });
+  return einheiten
+    .filter((e) => adresseImText(e.gebaeude.strasse, e.gebaeude.hausnummer, d.objektHinweis!) && e.bezeichnung.match(/WHG\s*(\d+)/i)?.[1] === whg)
+    .slice(0, max)
+    .map((e) => ({ einheitId: e.id, label: `${e.gebaeude.strasse} ${e.gebaeude.hausnummer} – ${e.bezeichnung}` }));
 }
 
 export type DienstleisterVorschlag = { dienstleisterId: string; name: string };
@@ -310,7 +375,7 @@ export async function ladeEingangFuerBuchung(b: BuchungFuerBewertung): Promise<E
     where: { eingang: true, ausgeblendetAm: null },
     select: {
       id: true, dateiname: true, aussteller: true, rechnungsnummer: true, betrag: true, belegDatum: true,
-      kostenjahr: true, iban: true, adressat: true, objektHinweis: true,
+      kostenjahr: true, iban: true, adressat: true, objektHinweis: true, art: true,
     },
   });
   return dokumente
@@ -323,7 +388,7 @@ export async function ladeEingangFuerBuchung(b: BuchungFuerBewertung): Promise<E
       bewertung: bewerteBuchung(
         {
           aussteller: x.aussteller, rechnungsnummer: x.rechnungsnummer, betrag: x.betrag === null ? null : Number(x.betrag),
-          belegDatum: x.belegDatum, kostenjahr: x.kostenjahr, iban: x.iban, adressat: x.adressat, objektHinweis: x.objektHinweis,
+          belegDatum: x.belegDatum, kostenjahr: x.kostenjahr, iban: x.iban, adressat: x.adressat, objektHinweis: x.objektHinweis, art: x.art,
         },
         b,
       ),
