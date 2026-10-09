@@ -8,8 +8,6 @@ export const BEREICHE = [
   { key: "dienstleister", label: "Dienstleister", hinweis: "je Dienstleister" },
   { key: "tickets", label: "Tickets", hinweis: "je Ticket" },
   { key: "allgemein", label: "Unkategorisiert", hinweis: "frei benannte Ordner" },
-  // Nur Anzeige: die Originaldateien der Kontoauszug-Importe (gehören nicht zur Tabelle `dokumente`).
-  { key: "kontoauszuege", label: "Kontoauszüge", hinweis: "je Jahr, aus den Importen" },
 ] as const;
 
 export type BereichKey = (typeof BEREICHE)[number]["key"];
@@ -37,11 +35,7 @@ export const ART_OPTIONEN = [
   { key: "SONSTIGES", label: "Sonstiges" },
 ] as const;
 
-/** Kontoauszug-Dateien tragen immer diese Art (nicht wählbar, nur Anzeige/Filter). */
-export const ART_KONTOAUSZUG = "KONTOAUSZUG";
-
 export function artLabel(art: string | null): string {
-  if (art === ART_KONTOAUSZUG) return "Kontoauszug";
   return ART_OPTIONEN.find((a) => a.key === art)?.label ?? "–";
 }
 

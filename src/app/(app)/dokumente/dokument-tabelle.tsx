@@ -7,7 +7,6 @@ import { DeleteButton } from "@/components/delete-button";
 import { BelegDatumFeld } from "@/components/belege-sektion";
 import { aendereArt, aendereOrdner, deleteDokument } from "./actions";
 import {
-  ART_KONTOAUSZUG,
   ART_OPTIONEN,
   BEREICHE,
   artLabel,
@@ -242,7 +241,6 @@ export function DokumentTabelle({
           placeholder: "Alle Arten",
           options: [
             ...ART_OPTIONEN.map((a) => ({ value: a.key as string, label: a.label })),
-            { value: ART_KONTOAUSZUG, label: "Kontoauszug" },
             { value: "_ohne", label: "Ohne Art" },
           ],
         }}
