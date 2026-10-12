@@ -389,13 +389,14 @@ export const erkenneDokument = mitMeldung(async function erkenneDokument(id: str
   return null;
 });
 
-export type ZuordnungsZiel = "buchung" | "mietvertrag" | "einheit" | "gebaeude" | "dienstleister" | "ticket";
+export type ZuordnungsZiel = "buchung" | "mietvertrag" | "einheit" | "haus" | "gebaeude" | "dienstleister" | "ticket";
 
 // Zuordnung von Bereich (Ordneransicht) bzw. Ziel zum Fremdschlüsselfeld und zur Detailseite des Bezugs.
 const BEZUG_FELD = {
   buchung: "buchungId",
   mietvertrag: "mietvertragId",
   einheit: "einheitId",
+  haus: "hausId",
   gebaeude: "gebaeudeId",
   dienstleister: "dienstleisterId",
   ticket: "ticketId",
@@ -405,6 +406,7 @@ const ZIEL_PFAD: Record<ZuordnungsZiel, (id: string) => string> = {
   buchung: (id) => `/kosten/${id}`,
   mietvertrag: (id) => `/mietvertraege/${id}`,
   einheit: (id) => `/einheiten/${id}`,
+  haus: (id) => `/haeuser/${id}`,
   gebaeude: (id) => `/gebaeude/${id}`,
   dienstleister: (id) => `/dienstleister/${id}`,
   ticket: (id) => `/tickets/${id}`,
@@ -414,6 +416,7 @@ const ZIEL_NAME: Record<ZuordnungsZiel, string> = {
   buchung: "Kostenposition",
   mietvertrag: "Mietvertrag",
   einheit: "Einheit",
+  haus: "Haus",
   gebaeude: "Gebäude",
   dienstleister: "Dienstleister",
   ticket: "Ticket",
@@ -428,7 +431,7 @@ const DIREKT_BEREICHE = {
   tickets: "ticket",
 } as const satisfies Record<string, ZuordnungsZiel>;
 
-type DokumentMitBezug = Pick<Prisma.DokumentUncheckedCreateInput, "buchungId" | "mietvertragId" | "einheitId" | "gebaeudeId" | "dienstleisterId" | "ticketId">;
+type DokumentMitBezug = Pick<Prisma.DokumentUncheckedCreateInput, "buchungId" | "mietvertragId" | "einheitId" | "hausId" | "gebaeudeId" | "dienstleisterId" | "ticketId">;
 
 function hatBezug(d: DokumentMitBezug): boolean {
   return (Object.values(BEZUG_FELD) as (keyof DokumentMitBezug)[]).some((f) => !!d[f]);
@@ -444,8 +447,10 @@ async function pruefeZiel(ziel: ZuordnungsZiel, id: string): Promise<void> {
         ? await prisma.mietvertrag.findUnique({ where: { id }, select })
         : ziel === "einheit"
           ? await prisma.einheit.findUnique({ where: { id }, select })
-          : ziel === "gebaeude"
-            ? await prisma.gebaeude.findUnique({ where: { id }, select })
+          : ziel === "haus"
+            ? await prisma.haus.findUnique({ where: { id }, select })
+            : ziel === "gebaeude"
+              ? await prisma.gebaeude.findUnique({ where: { id }, select })
             : ziel === "dienstleister"
               ? await prisma.dienstleister.findUnique({ where: { id }, select })
               : await prisma.ticket.findUnique({ where: { id }, select });
@@ -502,6 +507,22 @@ export const entferneBezug = mitMeldung(async function entferneBezug(id: string,
   return null;
 });
 
+// Ersetzt einen bestehenden Bezug derselben Art durch einen anderen (z.B. Gebäude „2“ → „4“) in einem Schritt.
+// Die Kostenposition bleibt ausgenommen (fester Nachweis).
+export const ersetzeBezug = mitMeldung(async function ersetzeBezug(id: string, ziel: ZuordnungsZiel, zielId: string): Promise<string | null> {
+  await requireEditor();
+  if (ziel === "buchung") throw new AktionsFehler("Die Kostenposition eines Belegs lässt sich nicht ersetzen (Löschsperre).");
+  if (!zielId) throw new AktionsFehler("Bitte ein Ziel wählen.");
+  const alt = await prisma.dokument.findUnique({ where: { id } });
+  if (!alt) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  if (alt[BEZUG_FELD[ziel]] === zielId) return null;
+  await pruefeZiel(ziel, zielId);
+  const neu = await prisma.dokument.update({ where: { id }, data: { [BEZUG_FELD[ziel]]: zielId, eingang: false } });
+  revalidiereDokument(id, alt);
+  revalidiereDokument(id, neu);
+  return null;
+});
+
 // Legt ein Dokument aus dem Eingang ab, auch ohne Bezug (z.B. Versicherungspolice); der optionale Ordnername gilt nur ohne Bezug.
 export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: string, ordner: string): Promise<string | null> {
   await requireEditor();
@@ -535,6 +556,7 @@ export async function ladeBezugAuswahl(id: string) {
     buchung: buchungen,
     mietvertrag: bezug.mietvertraege,
     einheit: bezug.einheiten,
+    haus: bezug.haus,
     gebaeude: bezug.gebaeude,
     dienstleister: bezug.dienstleister,
     ticket: bezug.tickets,

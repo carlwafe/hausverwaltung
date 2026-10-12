@@ -7,6 +7,7 @@ import { ART_GRUPPEN, ART_OPTIONEN } from "@/lib/dokumente-anzeige";
 import Link from "next/link";
 import {
   entferneBezug,
+  ersetzeBezug,
   erkenneDokument,
   ladeBezugAuswahl,
   legeDokumentAb,
@@ -373,7 +374,8 @@ const ZIEL_LABEL: Record<ZuordnungsZiel, string> = {
   buchung: "Kostenposition",
   mietvertrag: "Mieterakte (Mietvertrag)",
   einheit: "Einheit",
-  gebaeude: "Gebäude",
+  haus: "Haus (mehrere Hausnummern)",
+  gebaeude: "Gebäude (Hausnummer)",
   dienstleister: "Dienstleister",
   ticket: "Ticket",
 };
@@ -425,6 +427,8 @@ export function BezuegePanel({
   const [offen, setOffen] = useState(eingang && bezuege.length === 0 && vorschlaege.length === 0);
   const gesetzt = new Set(bezuege.map((b) => b.ziel));
   const freieZiele = ZIELE.filter((z) => !gesetzt.has(z));
+  // „ändern“ an einem Bezug: die Auswahl steht dann fest auf dessen Art und ersetzt den bisherigen Bezug in einem Schritt.
+  const [ersetze, setErsetze] = useState<ZuordnungsZiel | null>(null);
   const vorbelegt = art && ZIEL_ZU_ART[art] && freieZiele.includes(ZIEL_ZU_ART[art]) ? ZIEL_ZU_ART[art] : (freieZiele[0] ?? "buchung");
   const [ziel, setZiel] = useState<ZuordnungsZiel>(vorbelegt);
   const [zielId, setZielId] = useState("");
@@ -486,6 +490,22 @@ export function BezuegePanel({
                   ×
                 </button>
               )}
+              {b.entfernbar && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  title="Bezug ändern"
+                  onClick={() => {
+                    setErsetze(b.ziel);
+                    setZiel(b.ziel);
+                    setZielId("");
+                    setOffen(true);
+                  }}
+                  className="rounded-full px-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+                >
+                  ändern
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -537,20 +557,21 @@ export function BezuegePanel({
         </>
       )}
 
-      {freieZiele.length > 0 &&
+      {(freieZiele.length > 0 || ersetze !== null) &&
         (offen ? (
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className={LABEL}>Bezug hinzufügen</label>
+              <label className={LABEL}>{ersetze ? "Bezug ändern" : "Bezug hinzufügen"}</label>
               <select
                 value={ziel}
+                disabled={ersetze !== null}
                 onChange={(e) => {
                   setZiel(e.target.value as ZuordnungsZiel);
                   setZielId("");
                 }}
-                className="h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white"
+                className="h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white disabled:opacity-70"
               >
-                {freieZiele.map((z) => (
+                {(ersetze ? [ersetze] : freieZiele).map((z) => (
                   <option key={z} value={z}>
                     {ZIEL_LABEL[z]}
                   </option>
@@ -567,11 +588,24 @@ export function BezuegePanel({
             <button
               type="button"
               disabled={pending || !zielId}
-              onClick={() => fuehreAus(() => ordneDokumentZu(id, ziel, zielId), ziel === "buchung" ? "Als Beleg an diese Kostenposition hängen? Das lässt sich nicht mehr rückgängig machen." : undefined)}
+              onClick={() => {
+                if (ersetze) {
+                  fuehreAus(() => ersetzeBezug(id, ziel, zielId));
+                  setErsetze(null);
+                  setZielId("");
+                } else {
+                  fuehreAus(() => ordneDokumentZu(id, ziel, zielId), ziel === "buchung" ? "Als Beleg an diese Kostenposition hängen? Das lässt sich nicht mehr rückgängig machen." : undefined);
+                }
+              }}
               className="h-[38px] rounded-md border border-neutral-700 px-3 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
             >
-              Hinzufügen
+              {ersetze ? "Ersetzen" : "Hinzufügen"}
             </button>
+            {ersetze && (
+              <button type="button" onClick={() => { setErsetze(null); setZielId(""); }} className="h-[38px] px-2 text-sm text-neutral-400 hover:text-white">
+                Abbrechen
+              </button>
+            )}
           </div>
         ) : (
           <button

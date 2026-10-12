@@ -17,6 +17,7 @@ const ABSCHNITT_TITEL: Record<BereichKey, string> = {
   eingang: "Eingang",
   mietvertraege: "Je Mietvertrag",
   einheiten: "Je Einheit",
+  haus: "Je Haus",
   gebaeude: "Je Gebäude",
   kosten: "Je Kostenjahr",
   dienstleister: "Je Dienstleister",

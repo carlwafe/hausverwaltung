@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
+import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { KOSTEN_ARTEN, OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
 
 // Die Dokument-Tabelle hat bewusst keine eigene Ordnerstruktur: ein Dokument kann mehrere Bezüge haben
@@ -70,6 +71,8 @@ function filterWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
         return { mietvertragId: k ?? { not: null } };
       case "einheiten":
         return { einheitId: k ?? { not: null } };
+      case "haus":
+        return { hausId: k ?? { not: null } };
       case "gebaeude":
         return { gebaeudeId: k ?? { not: null } };
       case "kosten":
@@ -82,7 +85,7 @@ function filterWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
       case "eingang":
         return { eingang: true };
       case "allgemein":
-        return { mietvertragId: null, einheitId: null, gebaeudeId: null, buchungId: null, dienstleisterId: null, ticketId: null, eingang: false };
+        return { mietvertragId: null, einheitId: null, gebaeudeId: null, hausId: null, buchungId: null, dienstleisterId: null, ticketId: null, eingang: false };
       default:
         return {};
     }
@@ -100,6 +103,7 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: str
       mietvertrag: { include: { mieter: true, einheit: { include: { gebaeude: GEBAEUDE_MIT_HAUS } } } },
       einheit: { include: { gebaeude: GEBAEUDE_MIT_HAUS } },
       gebaeude: GEBAEUDE_MIT_HAUS,
+      haus: { include: { gebaeude: true } },
       buchung: { select: { id: true, datum: true, jahr: true, empfaenger: true, kostenart: { select: { name: true } } } },
       dienstleister: { select: { id: true, name: true } },
       ticket: { select: { id: true, nummer: true, titel: true } },
@@ -115,6 +119,8 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: str
   sortEinheitenNachGebaeude([...new Map(alleEinheiten.map((e) => [e.id, e])).values()]).forEach((e, i) =>
     einheitenRang.set(e.id, i),
   );
+  const hausRang = new Map<string, number>();
+  [...new Map(dokumente.flatMap((d) => (d.haus ? [[d.haus.id, d.haus] as const] : []))).values()].sort(vergleicheHaus).forEach((h, i) => hausRang.set(h.id, i));
   const gebaeudeRang = new Map<string, number>();
   const alleGebaeude = dokumente.flatMap((d) => (d.gebaeude ? [d.gebaeude] : []));
   sortGebaeudeNachHaus([...new Map(alleGebaeude.map((g) => [g.id, g])).values()]).forEach((g, i) => gebaeudeRang.set(g.id, i));
@@ -134,6 +140,13 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: str
       bezuege.push({
         typ: "einheiten", id: d.einheit.id, label, href: `/einheiten/${d.einheit.id}`, ordnerKey: d.einheit.id,
         ordnerLabel: label, ordnerRang: einheitenRang.get(d.einheit.id) ?? 0, vertragStatus: null,
+      });
+    }
+    if (d.haus) {
+      const label = hausLabel(d.haus.gebaeude);
+      bezuege.push({
+        typ: "haus", id: d.haus.id, label, href: `/haeuser/${d.haus.id}`, ordnerKey: d.haus.id,
+        ordnerLabel: label, ordnerRang: hausRang.get(d.haus.id) ?? 0, vertragStatus: null,
       });
     }
     if (d.gebaeude) {
@@ -252,6 +265,7 @@ export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
       mietvertragId: true,
       einheitId: true,
       gebaeudeId: true,
+      hausId: true,
       buchungId: true,
       dienstleisterId: true,
       ticketId: true,
@@ -262,6 +276,7 @@ export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
     const bereiche: BereichKey[] = [];
     if (d.mietvertragId) bereiche.push("mietvertraege");
     if (d.einheitId) bereiche.push("einheiten");
+    if (d.hausId) bereiche.push("haus");
     if (d.gebaeudeId) bereiche.push("gebaeude");
     if (d.buchungId) bereiche.push("kosten");
     if (d.dienstleisterId) bereiche.push("dienstleister");
@@ -321,9 +336,10 @@ export type BezugOption = { id: string; label: string };
 
 /** Auswahllisten für „Bezug hinzufügen“ (ohne Kostenpositionen — die hängen vom Dokument ab, siehe dokument-zuordnung.ts). */
 export async function ladeBezugOptionen(): Promise<Record<Exclude<BezugTyp, "kosten">, BezugOption[]>> {
-  const [einheiten, gebaeude, mietvertraege, dienstleister, tickets] = await Promise.all([
+  const [einheiten, gebaeude, haeuser, mietvertraege, dienstleister, tickets] = await Promise.all([
     prisma.einheit.findMany({ include: { gebaeude: GEBAEUDE_MIT_HAUS } }),
     prisma.gebaeude.findMany({ include: { haus: { include: { gebaeude: true } } } }),
+    prisma.haus.findMany({ include: { gebaeude: true } }),
     prisma.mietvertrag.findMany({
       include: { mieter: true, einheit: { include: { gebaeude: GEBAEUDE_MIT_HAUS } } },
     }),
@@ -339,6 +355,7 @@ export async function ladeBezugOptionen(): Promise<Record<Exclude<BezugTyp, "kos
       label: `${einheitLabel(v.einheit)} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})${v.status === "BEENDET" ? " – beendet" : ""}`,
     })),
     einheiten: sortEinheitenNachGebaeude(einheiten).map((e) => ({ id: e.id, label: einheitLabel(e) })),
+    haus: [...haeuser].sort(vergleicheHaus).map((h) => ({ id: h.id, label: hausLabel(h.gebaeude) })),
     gebaeude: sortGebaeudeNachHaus(gebaeude).map((g) => ({ id: g.id, label: `${g.strasse} ${g.hausnummer}` })),
     dienstleister: dienstleister.map((d) => ({ id: d.id, label: d.name })),
     tickets: tickets.map((t) => ({ id: t.id, label: `#${t.nummer} ${t.titel}` })),

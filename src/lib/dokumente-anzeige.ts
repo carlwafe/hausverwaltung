@@ -8,6 +8,7 @@ export const BEREICHE = [
   { key: "eingang", label: "Eingang", hinweis: "noch nicht abgelegt" },
   { key: "mietvertraege", label: "Mieterakten", hinweis: "je Mietvertrag: Vertrag, Schreiben, Übergabe …" },
   { key: "einheiten", label: "Einheiten", hinweis: "je Einheit (Fotos, Unterlagen)" },
+  { key: "haus", label: "Häuser", hinweis: "je Haus (mehrere Hausnummern)" },
   { key: "gebaeude", label: "Gebäude", hinweis: "je Hausnummer" },
   { key: "kosten", label: "Kostenbelege", hinweis: "je Kostenjahr" },
   { key: "dienstleister", label: "Dienstleister", hinweis: "je Dienstleister" },
@@ -31,7 +32,7 @@ export const HAUPTORDNER = [
   { key: "eingang", label: "Eingang", hinweis: "noch nicht abgelegt", bereiche: ["eingang"], arten: [], href: "/dokumente?bereich=eingang" },
   { key: "kosten", label: "Kosten", hinweis: "Rechnungen, Bescheide, Abrechnungen — je Kostenjahr und Dienstleister", bereiche: ["kosten", "dienstleister"], arten: [], href: "/dokumente?gruppe=kosten" },
   { key: "mietverhaeltnisse", label: "Mietverhältnisse", hinweis: "je Mietvertrag: Vertrag, Schreiben, Übergabe …", bereiche: ["mietvertraege"], arten: [], href: "/dokumente?bereich=mietvertraege" },
-  { key: "objekt", label: "Objekt", hinweis: "je Gebäude und Einheit, Versicherung, Prüfberichte, Behörde", bereiche: ["gebaeude", "einheiten"], arten: OBJEKT_ARTEN, href: "/dokumente?gruppe=objekt" },
+  { key: "objekt", label: "Objekt", hinweis: "je Haus, Gebäude und Einheit, Versicherung, Prüfberichte, Behörde", bereiche: ["haus", "gebaeude", "einheiten"], arten: OBJEKT_ARTEN, href: "/dokumente?gruppe=objekt" },
   { key: "sonstiges", label: "Sonstiges", hinweis: "Tickets und frei benannte Ordner", bereiche: ["tickets", "allgemein"], arten: [], href: "/dokumente?gruppe=sonstiges" },
 ] as const satisfies readonly { key: string; label: string; hinweis: string; bereiche: readonly BereichKey[]; arten: readonly string[]; href: string }[];
 

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { mieterName } from "@/lib/mieter-name";
+import { hausLabel } from "@/lib/gebaeude-gruppen";
 import { normalizeText } from "@/lib/import/bank-csv";
 import { parseSuchbegriffe, findeDienstleister } from "@/lib/import/dienstleister";
 import { extrahiereRechnungsnummern } from "@/lib/import/doppelzahlung";
@@ -83,8 +84,7 @@ function normStrasse(s: string): string {
 /** Hausnummern („…str. 15“) und Wohnungsnummer („Wohnung Nr. 4“, „WHG 4“) aus einer Objektangabe. */
 export function objektAusText(text: string): { hausnummern: Set<string>; whg: string | null } {
   const t = normStrasse(text);
-  const hausnummern = new Set<string>();
-  for (const m of t.matchAll(/str\s*(\d+[a-z]?)(?![0-9a-z])/g)) hausnummern.add(m[1]);
+  const hausnummern = new Set<string>(hausnummernAusText(text).map(String));
   const whg = t.match(/(?:wohnung|whg|wohn)\s*(?:nr|nummer)?\s*(\d{1,2})(?![0-9])/)?.[1] ?? null;
   return { hausnummern, whg };
 }
@@ -92,7 +92,18 @@ export function objektAusText(text: string): { hausnummern: Set<string>; whg: st
 /** Steht „Straße Hausnummer“ des Gebäudes in der Objektangabe? (Hausnummer als ganzes Wort, damit „2“ nicht „23“ trifft) */
 function adresseImText(strasse: string, hausnummer: string, text: string): boolean {
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`${esc(normStrasse(strasse))}\\s*${esc(hausnummer.toLowerCase())}(?![0-9a-z])`).test(normStrasse(text));
+  // „Straße 2/6“ oder „Straße 2-6“ nennt mehrere Hausnummern (ein Haus), nicht die Hausnummer 2 allein.
+  return new RegExp(`${esc(normStrasse(strasse))}\\s*${esc(hausnummer.toLowerCase())}(?![0-9a-z]|\\s*[/\\-]\\s*\\d)`).test(normStrasse(text));
+}
+
+/**
+ * Hausnummern hinter „Straße“ in einer Objektangabe: „Breslauer Straße 2/6“ → [2, 6], „…Str. 2-6“ → [2, 6], „…Str. 2/4/6, Ve 0054,
+ * 23701 Eutin“ → [2, 4, 6], „…Str. 15, 23701“ → [15]. Mehr als dreistellige Zahlen (Postleitzahl) zählen nicht.
+ */
+export function hausnummernAusText(text: string): number[] {
+  const t = text.toLowerCase().replace(/ß/g, "ss").replace(/straße|strasse|str\./g, "str");
+  const treffer = t.match(/str\s*(\d{1,3}[a-z]?(?![0-9])(?:\s*[/\-,]\s*\d{1,3}[a-z]?(?![0-9]))*)/);
+  return treffer ? (treffer[1].match(/\d+/g) ?? []).map(Number) : [];
 }
 
 /**
@@ -324,14 +335,39 @@ export async function ladeMietvertragVorschlaege(d: DokumentLabels, max = 5): Pr
 
 export type GebaeudeVorschlag = { gebaeudeId: string; label: string };
 
-/** Gebäude-Vorschläge: „Straße Hausnummer“ steht in der Objektangabe des Belegs. */
+/** Gebäude-Vorschläge: „Straße Hausnummer“ steht in der Objektangabe des Belegs (bei „2/6“ jede genannte Nummer einzeln). */
 export async function ladeGebaeudeVorschlaege(d: DokumentLabels, max = 3): Promise<GebaeudeVorschlag[]> {
   if (!d.objektHinweis) return [];
+  const nummern = new Set(hausnummernAusText(d.objektHinweis).map(String));
+  if (nummern.size === 0) return [];
+  const t = normStrasse(d.objektHinweis);
   const gebaeude = await prisma.gebaeude.findMany({ select: { id: true, strasse: true, hausnummer: true } });
   return gebaeude
-    .filter((g) => adresseImText(g.strasse, g.hausnummer, d.objektHinweis!))
+    .filter((g) => nummern.has(g.hausnummer.toLowerCase()) && t.includes(normStrasse(g.strasse)))
     .slice(0, max)
     .map((g) => ({ gebaeudeId: g.id, label: `${g.strasse} ${g.hausnummer}` }));
+}
+
+export type HausVorschlag = { hausId: string; label: string };
+
+/**
+ * Haus-Vorschläge: Nennt die Objektangabe mehrere Hausnummern („Breslauer Straße 2/6“), passt das Haus, dessen Gebäude
+ * (Hausnummern) diese Nummern enthalten und dessen kleinste und größte Nummer den genannten Grenzen entsprechen („Haus 2, 4, 6“).
+ */
+export async function ladeHausVorschlaege(d: DokumentLabels, max = 2): Promise<HausVorschlag[]> {
+  if (!d.objektHinweis) return [];
+  const nummern = hausnummernAusText(d.objektHinweis);
+  if (nummern.length < 2) return [];
+  const t = normStrasse(d.objektHinweis);
+  const haeuser = await prisma.haus.findMany({ include: { gebaeude: true } });
+  return haeuser
+    .filter((h) => {
+      const hn = h.gebaeude.map((g) => parseInt(g.hausnummer, 10)).filter((n) => !Number.isNaN(n));
+      if (hn.length < 2 || !h.gebaeude.some((g) => t.includes(normStrasse(g.strasse)))) return false;
+      return nummern.every((n) => hn.includes(n)) && Math.min(...nummern) === Math.min(...hn) && Math.max(...nummern) === Math.max(...hn);
+    })
+    .slice(0, max)
+    .map((h) => ({ hausId: h.id, label: hausLabel(h.gebaeude) }));
 }
 
 export type EinheitVorschlag = { einheitId: string; label: string };

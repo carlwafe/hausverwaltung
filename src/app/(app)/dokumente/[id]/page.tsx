@@ -9,6 +9,7 @@ import {
   ladeDienstleisterVorschlag,
   ladeEinheitVorschlaege,
   ladeGebaeudeVorschlaege,
+  ladeHausVorschlaege,
   ladeMietvertragVorschlaege,
   type DokumentLabels,
 } from "@/lib/dokument-zuordnung";
@@ -25,6 +26,7 @@ const betragText = (b: unknown) => (b === null || b === undefined ? "" : Number(
 const ZIEL_VON_TYP: Record<BezugTyp, ZuordnungsZiel> = {
   mietvertraege: "mietvertrag",
   einheiten: "einheit",
+  haus: "haus",
   gebaeude: "gebaeude",
   kosten: "buchung",
   dienstleister: "dienstleister",
@@ -78,13 +80,16 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   if (kannBearbeiten) {
     // Ein Angebot findet seine Kostenposition über Objekt und Aussteller, nicht über Betrag oder Nummer.
     const hatAnhalt = labels.betrag !== null || !!labels.rechnungsnummer || !!labels.aussteller || (labels.art === "ANGEBOT" && !!labels.objektHinweis);
-    const [buchungen, vertraege, einheiten, gebaeude, dienstleister] = await Promise.all([
+    const [buchungen, vertraege, einheiten, haeuser, gebaeudeRoh, dienstleister] = await Promise.all([
       !hat("buchung") && hatAnhalt ? ladeBuchungVorschlaege(labels) : Promise.resolve([]),
       !hat("mietvertrag") ? ladeMietvertragVorschlaege(labels) : Promise.resolve([]),
       !hat("einheit") ? ladeEinheitVorschlaege(labels) : Promise.resolve([]),
+      !hat("haus") ? ladeHausVorschlaege(labels) : Promise.resolve([]),
       !hat("gebaeude") ? ladeGebaeudeVorschlaege(labels) : Promise.resolve([]),
       !hat("dienstleister") ? ladeDienstleisterVorschlag(dokument.aussteller) : Promise.resolve(null),
     ]);
+    // Nennt die Objektangabe mehrere Hausnummern und es gibt ein passendes Haus, wären die einzelnen Hausnummern nur Rauschen.
+    const gebaeude = haeuser.length > 0 ? [] : gebaeudeRoh;
     vorschlaege = [
       ...buchungen.map(
         (b): Vorschlag => ({
@@ -98,6 +103,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
       ),
       ...vertraege.map((v): Vorschlag => ({ ziel: "mietvertrag", zielId: v.mietvertragId, titel: v.label, details: "", gruende: v.gruende })),
       ...einheiten.map((e): Vorschlag => ({ ziel: "einheit", zielId: e.einheitId, titel: e.label, details: "", gruende: ["Adresse und Wohnung stehen im Dokument"] })),
+      ...haeuser.map((h): Vorschlag => ({ ziel: "haus", zielId: h.hausId, titel: h.label, details: "", gruende: ["Hausnummern stehen im Dokument"] })),
       ...gebaeude.map((g): Vorschlag => ({ ziel: "gebaeude", zielId: g.gebaeudeId, titel: g.label, details: "", gruende: ["Adresse steht im Dokument"] })),
       ...(dienstleister
         ? [{ ziel: "dienstleister", zielId: dienstleister.dienstleisterId, titel: dienstleister.name, details: "", gruende: ["Aussteller passt zu den Suchbegriffen des Dienstleisters"] } satisfies Vorschlag]

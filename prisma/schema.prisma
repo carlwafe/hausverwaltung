@@ -292,6 +292,7 @@ model Haus {
   gebaeude  Gebaeude[]
   buchungen Buchung[]
   tickets   Ticket[]
+  dokumente Dokument[]
 
   @@map("haeuser")
 }
@@ -937,6 +938,9 @@ model Dokument {
   // Einheit, Gebäude, Dienstleister, Ticket) — die Felder schließen sich nicht mehr aus.
   gebaeude        Gebaeude?      @relation(fields: [gebaeudeId], references: [id], onDelete: SetNull)
   gebaeudeId      String?
+  // Haus (mehrere Hausnummern, „Haus 2, 4, 6“) als Bezug, z.B. Schornsteinfeger-Rechnung für „Breslauer Straße 2/6“.
+  haus            Haus?          @relation(fields: [hausId], references: [id], onDelete: SetNull)
+  hausId          String?
   // Ordner für allgemeine Dokumente ohne Bezug (alle FK-Felder leer); mit Bezug ordnet sich das
   // Dokument automatisch nach dem Bezug ein (Seite /dokumente).
   ordner          String?
