@@ -66,14 +66,21 @@ export type AnlageVAufstellung = {
   umlagefaehig: number;
   nichtUmlagefaehig: number;
   summeKosten: number;
-  ueberschuss: number; // vor AfA und Schuldzinsen
+  ueberschuss: number; // vor AfA und Schuldzinsen, nach 10-Tage-Regel
+  // 10-Tage-Regel für die Mieteinnahmen: ueberschuss = ueberschussBericht + abgrenzungHinzu − abgrenzungHeraus
+  ueberschussBericht: number; // Ergebnis des Jahresberichts (Zahlungsdatum)
+  abgrenzungHinzu: number; // Dezember-Zahlungen des Vorjahres für den Januar des Berichtsjahres
+  anzahlHinzu: number;
+  abgrenzungHeraus: number; // Dezember-Zahlungen des Berichtsjahres für den Januar des Folgejahres
+  anzahlHeraus: number;
 };
 
 const gerundet = (n: number) => Math.round(n * 100) / 100;
 
 // Setzt die Summen des Jahresberichts in der Gliederung des Steuerberaters zusammen. Das Ergebnis
 // ist dasselbe wie im Jahresbericht (Einnahmen − Ausgaben); ausgezahlte NK-Guthaben mindern hier die
-// Nebenkosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen.
+// Nebenkosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen. Die Mietzahlungen sind nach der
+// 10-Tage-Regel dem Jahr zugeordnet (siehe zuflussJahrMiete); die Abweichung zum Bericht steht in `abgrenzung`.
 export function baueAnlageVAufstellung(eingabe: {
   kaltmiete: number;
   nkVorauszahlungen: number;
@@ -84,6 +91,7 @@ export function baueAnlageVAufstellung(eingabe: {
   // Übrige eur-relevante Buchungen ohne eigene Kategorie: positiv = Einnahme, negativ = Ausgabe.
   sonstigeEurRelevant: number;
   kosten: KostenSumme[];
+  abgrenzung: { hinzu: number; anzahlHinzu: number; heraus: number; anzahlHeraus: number };
 }): AnlageVAufstellung {
   let sonstigeEinnahmen = eingabe.sonderzahlungen + Math.max(eingabe.sonstigeEurRelevant, 0);
   let instandhaltung = 0;
@@ -112,5 +120,10 @@ export function baueAnlageVAufstellung(eingabe: {
     nichtUmlagefaehig: gerundet(nichtUmlagefaehig),
     summeKosten: gerundet(summeKosten),
     ueberschuss: gerundet(summeEinnahmen - summeKosten),
+    ueberschussBericht: gerundet(summeEinnahmen - summeKosten - eingabe.abgrenzung.hinzu + eingabe.abgrenzung.heraus),
+    abgrenzungHinzu: gerundet(eingabe.abgrenzung.hinzu),
+    anzahlHinzu: eingabe.abgrenzung.anzahlHinzu,
+    abgrenzungHeraus: gerundet(eingabe.abgrenzung.heraus),
+    anzahlHeraus: eingabe.abgrenzung.anzahlHeraus,
   };
 }

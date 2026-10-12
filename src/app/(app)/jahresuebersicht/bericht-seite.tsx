@@ -63,7 +63,7 @@ export function bildeZeitraum(jahr: number, quartal: number): Zeitraum {
   };
 }
 
-async function ladeJahresuebersicht(zeitraum: Zeitraum) {
+export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const { jahr, quartal } = zeitraum;
   const jahresanfang = zeitraum.von;
   const jahresende = zeitraum.bisExklusiv;
@@ -87,7 +87,7 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
         buchungsart: { eurRelevant: true, code: "KOSTENPOSITION" },
         // Abflussprinzip: es zählt das Abbuchungsdatum, nicht das Kostenjahr (`jahr` gilt nur für
         // die Nebenkostenabrechnung) — z.B. ein Abfallbescheid 2024, abgebucht am 2.1.2025, zählt
-        // für 2025. Die 10-Tage-Regel (§ 11 Abs. 2 Satz 2 EStG) ist bewusst nicht umgesetzt.
+        // für 2025. Die 10-Tage-Regel (§ 11 Abs. 2 Satz 2 EStG) ist für Kosten bewusst nicht umgesetzt.
         // Positionen ohne Datum fallen aufs Kostenjahr zurück und sind keinem Quartal zuordenbar.
         OR: [
           { datum: { gte: jahresanfang, lt: jahresende } },
@@ -168,18 +168,18 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const ausgaben = kostenSumme + guthabenAusgezahlt + Math.max(-sonstigeEurRelevant, 0);
   const ergebnis = einnahmen - ausgaben;
 
-  // Gleiches Ergebnis in der Gliederung des Steuerberaters (nur im Gesamtjahr angezeigt). Kaltmiete =
-  // Mietzahlungen − NK-Anteil; ohne Aufteilung (Quartal) bleibt alles bei der Kaltmiete.
-  const nkVorauszahlungen = mietAufteilung?.nebenkosten ?? 0;
+  // Gleiches Ergebnis in der Gliederung des Steuerberaters (nur im Gesamtjahr angezeigt). Die Mieten sind
+  // nach der 10-Tage-Regel dem Jahr zugeordnet; ohne Aufteilung (Quartal) bleibt alles bei der Kaltmiete.
   const steuer = baueAnlageVAufstellung({
-    kaltmiete: mieteinnahmen - nkVorauszahlungen,
-    nkVorauszahlungen,
+    kaltmiete: mietAufteilung ? mietAufteilung.kaltmiete : mieteinnahmen,
+    nkVorauszahlungen: mietAufteilung?.nebenkosten ?? 0,
     nachzahlungenEingezogen,
     guthabenAusgezahlt,
     kautionEinbehalte,
     sonderzahlungen,
     sonstigeEurRelevant,
     kosten: [...steuerKosten.values()],
+    abgrenzung: mietAufteilung?.abgrenzung ?? { hinzu: 0, anzahlHinzu: 0, heraus: 0, anzahlHeraus: 0 },
   });
 
   return {
@@ -256,7 +256,7 @@ async function ladeMietAufteilung(zeitraum: Zeitraum) {
       const v = vertragNachId.get(vertragId);
       return v ? ermittleMieteFuerMonat(v, j, monat).nebenkostenVorauszahlung : 0;
     },
-    (datum) => datum >= zeitraum.von && datum < zeitraum.bisExklusiv,
+    jahr,
   );
 }
 
@@ -511,7 +511,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           Mieteinnahmen ./. Ausgaben nach dem Zuflussprinzip (Anlage V) — Einnahmen nach
           tatsächlichem Zahlungseingang,{" "}
           Kosten nach Abbuchungsdatum (Abflussprinzip, auch wenn sie ein anderes Kostenjahr betreffen —
-          z.B. Abfallbescheid des Vorjahres im Januar; die 10-Tage-Regel ist nicht berücksichtigt).
+          z.B. Abfallbescheid des Vorjahres im Januar; die 10-Tage-Regel gilt nur für die Mieten der Aufstellung für die Steuererklärung).
           {istQuartal
             ? " Zum Abgleich mit den Quartalsberichten des früheren Verwalters."
             : " Kostenpositionen ohne Datum zählen im Kostenjahr."}
@@ -899,10 +899,42 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         {tabelle("Einnahmen", einnahmen)}
         {tabelle("Kosten", kosten)}
       </div>
-      <div className="mt-4 flex justify-between rounded-lg border border-neutral-800 px-4 py-3 text-sm font-medium text-white">
-        <span>Überschuss vor AfA und Schuldzinsen</span>
-        <span>{formatEuro(st.ueberschuss)}</span>
+      <div className="mt-4 rounded-lg border border-neutral-800">
+        <table className="w-full text-sm">
+          <tbody>
+            <tr className="border-b border-neutral-800">
+              <td className="px-4 py-2 text-neutral-400">Ergebnis laut Bericht oben (nach Zahlungsdatum)</td>
+              <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-400">{formatEuro(st.ueberschussBericht)}</td>
+            </tr>
+            <tr className="border-b border-neutral-800">
+              <td className="px-4 py-2 text-white">
+                Zuzüglich Dezember-Zahlungen {jahr - 1} für Januar {jahr}
+                <span className="ml-2 text-xs text-neutral-500">({st.anzahlHinzu} Zahlungen, 10-Tage-Regel)</span>
+              </td>
+              <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(st.abgrenzungHinzu)}</td>
+            </tr>
+            <tr className="border-b border-neutral-800">
+              <td className="px-4 py-2 text-white">
+                Abzüglich Dezember-Zahlungen {jahr} für Januar {jahr + 1}
+                <span className="ml-2 text-xs text-neutral-500">({st.anzahlHeraus} Zahlungen, 10-Tage-Regel)</span>
+              </td>
+              <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(-st.abgrenzungHeraus)}</td>
+            </tr>
+            <tr>
+              <td className="px-4 py-3 font-medium text-white">Überschuss vor AfA und Schuldzinsen</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-white">{formatEuro(st.ueberschuss)}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+      <p className="mt-3 flex flex-wrap gap-4 text-sm">
+        <Link prefetch={false} href={`/jahresuebersicht/aufstellung?jahr=${jahr}`} className="text-neutral-300 underline hover:text-white">
+          Aufstellung drucken / als PDF
+        </Link>
+        <a href={`/api/aufstellung?jahr=${jahr}`} className="text-neutral-300 underline hover:text-white">
+          Als CSV herunterladen
+        </a>
+      </p>
       <details className="mt-3">
         <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">
           Hinweise zur Aufstellung
@@ -923,8 +955,16 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             sie dagegen als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.
           </p>
           <p>
+            10-Tage-Regel (§ 11 Abs. 1 Satz 2 EStG): Eine im Voraus gezahlte Januarmiete, die ab dem 22.12.
+            eingeht, zählt zum neuen Jahr (Fälligkeit im Januar, Mietperiode Januar). Die Mieten und Nebenkosten
+            der Aufstellung sind danach zugeordnet; der Bericht oben und der Kontenabgleich zählen dagegen nach
+            Zahlungsdatum — die Zeilen unter der Tabelle leiten über. Eine im Januar gezahlte Dezembermiete ist
+            nicht betroffen (war schon im Dezember fällig). Für Kosten ist die Regel nicht umgesetzt. Greift nur,
+            wenn die Mietperiode der Zahlung stimmt.
+          </p>
+          <p>
             Nicht enthalten: AfA und Schuldzinsen (Darlehen laufen über ein anderes Konto), der Überschuss gilt
-            daher vor beiden. Die 10-Tage-Regel ist nicht berücksichtigt. Ob Sanierung/Modernisierung
+            daher vor beiden. Ob Sanierung/Modernisierung
             Instandhaltung oder Herstellungskosten sind, ist mit dem Steuerberater zu klären.
           </p>
         </div>
