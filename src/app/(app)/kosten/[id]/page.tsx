@@ -122,7 +122,7 @@ export default async function KostenpositionDetailPage({
       </div>
       <BuchungsartInfo code="KOSTENPOSITION" erstelltAm={kostenposition.erstelltAm} erstelltVon={kostenposition.erstelltVon} />
       <KostenpositionForm
-        kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name }))}
+        kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name, anschaffung: k.anlageVZeile === "ANSCHAFFUNG" }))}
         gebaeude={gebaeudeGruppen}
         virtuelleAuszahlungen={virtuelleAuszahlungen}
         istImportiert={kostenposition.rohdaten !== null}
@@ -140,6 +140,7 @@ export default async function KostenpositionDetailPage({
           beschreibung: kostenposition.verwendungszweck,
           empfaenger: kostenposition.empfaenger,
           virtuelleKautionBuchungId: virtuelleKautionBuchung?.id ?? null,
+          bezugsbereitAb: kostenposition.bezugsbereitAb ? kostenposition.bezugsbereitAb.toISOString().slice(0, 10) : null,
         }}
         action={updateKostenposition.bind(null, id)}
       />

@@ -954,7 +954,10 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
                     <td className="whitespace-nowrap px-4 py-2 text-neutral-400">{e.datum}</td>
                     <td className="px-4 py-2 text-white">
                       {e.objekt}
-                      {e.vermietung && <span className="ml-2 text-xs text-neutral-400">({e.vermietung})</span>}
+                      <span className={`ml-2 text-xs ${e.bezugsbereit ? "text-neutral-400" : "text-amber-400"}`}>
+                        ({e.bezugsbereit || "bezugsbereit ab: fehlt — Kostenposition bearbeiten"}
+                        {e.vermietung && `; ${e.vermietung}`})
+                      </span>
                       <span className="mt-0.5 block text-xs text-neutral-500">
                         {e.kostenart}
                         {e.beschreibung && ` · ${e.beschreibung}`}

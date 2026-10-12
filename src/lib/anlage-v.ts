@@ -24,6 +24,12 @@ export const WAHL_IM_FORMULAR = ["ERHALTUNGSAUFWAND", "ANSCHAFFUNG", "SONSTIGE_E
 // Kosten (nicht umlagefähig).
 export const AFA_AB_JAHR = 2026;
 
+// Bei Anschaffung/Herstellung (AfA) ist das Datum „bezugsbereit ab“ Pflicht (Beginn der Abschreibung);
+// maßgeblich ist das Buchungsjahr bzw. ohne Datum das Kostenjahr.
+export function verlangtBezugsbereit(anlageVZeile: AnlageVZeile | null | undefined, jahr: number | null): boolean {
+  return anlageVZeile === "ANSCHAFFUNG" && (jahr === null || jahr >= AFA_AB_JAHR);
+}
+
 export type Kostengruppe = "INSTANDHALTUNG" | "UMLAGEFAEHIG" | "NICHT_UMLAGEFAEHIG" | "ANSCHAFFUNG" | "EINNAHME";
 
 export const KOSTENGRUPPE_LABEL: Record<Kostengruppe, string> = {

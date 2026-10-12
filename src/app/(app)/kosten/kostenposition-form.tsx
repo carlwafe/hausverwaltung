@@ -18,6 +18,8 @@ type Kostenposition = {
   beschreibung: string | null;
   empfaenger: string | null;
   virtuelleKautionBuchungId: string | null;
+  // yyyy-mm-dd: ab wann die modernisierte Wohnung bezugsbereit war (nur Anschaffung / Herstellung).
+  bezugsbereitAb: string | null;
 };
 
 export function KostenpositionForm({
@@ -30,7 +32,8 @@ export function KostenpositionForm({
   istImportiert = false,
   action,
 }: {
-  kostenarten: { id: string; label: string }[];
+  // anschaffung: Kostenart mit Einordnung „Anschaffung / Herstellung“ (AfA) — dann ist „bezugsbereit ab“ Pflicht.
+  kostenarten: { id: string; label: string; anschaffung?: boolean }[];
   gebaeude: { label: string; optionen: { value: string; label: string }[] }[];
   /** Kautionsbuchungen der Kategorie VIRTUELLE_AUSZAHLUNG — mögliche Gegenbuchungen. */
   virtuelleAuszahlungen: VirtuelleAuszahlungOption[];
@@ -43,6 +46,8 @@ export function KostenpositionForm({
     null,
   );
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.label);
+  const [kostenartId, setKostenartId] = useState(initial?.kostenartId ?? "");
+  const verlangtBezugsbereit = kostenarten.find((k) => k.id === kostenartId)?.anschaffung === true;
   const [virtuelleKautionBuchungId, setVirtuelleKautionBuchungId] = useState(
     initial?.virtuelleKautionBuchungId ?? "",
   );
@@ -63,7 +68,8 @@ export function KostenpositionForm({
           id="kostenartId"
           name="kostenartId"
           required
-          defaultValue={initial?.kostenartId ?? ""}
+          value={kostenartId}
+          onChange={(e) => setKostenartId(e.target.value)}
           className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
         >
           <option value="" disabled>
@@ -88,6 +94,23 @@ export function KostenpositionForm({
           )}
         </select>
       </div>
+
+      {verlangtBezugsbereit && (
+        <div className="rounded-lg border border-amber-900/50 bg-amber-500/5 p-3">
+          <DateInput
+            id="bezugsbereitAb"
+            name="bezugsbereitAb"
+            label="Bezugsbereit ab (Pflicht)"
+            required
+            defaultValue={initial?.bezugsbereitAb ?? ""}
+          />
+          <p className="mt-1 text-xs text-neutral-400">
+            Anschaffung / Herstellung wird über die Nutzungsdauer abgeschrieben (AfA). Der Beginn hängt davon ab,
+            ab wann die Wohnung bezugsbereit bzw. die Anschaffung nutzbar war — z.B. das Datum der Übergabe oder
+            der letzten Rechnung zur Modernisierung.
+          </p>
+        </div>
+      )}
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="gebaeudeId">

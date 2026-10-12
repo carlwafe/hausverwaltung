@@ -20,7 +20,8 @@ import {
 import { findeDienstleister, type DienstleisterKandidat } from "./dienstleister";
 import { gebaeudeWert, hausWert, kostengruppeWert, einheitWert } from "../gebaeude-gruppen";
 
-export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean };
+// anschaffung: Kostenart mit Einordnung „Anschaffung / Herstellung“ (AfA) — dann „bezugsbereit ab“ Pflicht.
+export type KostenartKandidat = { id: string; name: string; umlagefaehig: boolean; anschaffung?: boolean };
 export type GebaeudeKandidat = {
   id: string;
   label: string;

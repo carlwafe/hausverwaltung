@@ -16,6 +16,8 @@ import { gruppiereGebaeude, type EinheitMitAdresse } from "@/lib/gebaeude-gruppe
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { datumBetragSchluessel } from "@/lib/import/bank-csv";
 import { ermittleKostenjahrVorschlag } from "@/lib/import/kostenjahr";
+import { DateInput } from "@/components/date-input";
+import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
 import { kiPruefeZeilen } from "./ki-actions";
 
@@ -129,6 +131,8 @@ type BuchungEditRow = VereinheitlichteZeile & {
   kostenartId: string;
   gebaeudeAuswahl: string;
   jahrEingabe: string;
+  // yyyy-mm-dd, nur bei Kostenart „Anschaffung / Herstellung“ (Pflicht): ab wann die Wohnung bezugsbereit war.
+  bezugsbereitAb: string;
   ausgewaehlt: boolean;
   // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung) — nur Vorschlag + Begründung.
   ki?: { kommentar: string; konfidenz: "hoch" | "mittel" | "niedrig" };
@@ -230,6 +234,7 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
       gruppe === "NEBENKOSTENAUSGLEICH"
         ? ermittleJahrVorschlag(r.verwendungszweck, r.datum)
         : String(ermittleKostenjahrVorschlag(r.verwendungszweck, r.datum) ?? jahr),
+    bezugsbereitAb: "",
     ausgewaehlt: false,
   };
   row.ausgewaehlt =
@@ -252,7 +257,7 @@ export function BuchungenTabelle({
   zeilen: VereinheitlichteZeile[];
   buchungsarten: BuchungsartKandidat[];
   mietvertragKandidaten: { id: string; label: string }[];
-  kostenarten: { id: string; name: string; umlagefaehig: boolean }[];
+  kostenarten: { id: string; name: string; umlagefaehig: boolean; anschaffung?: boolean }[];
   gebaeude: {
     id: string;
     label: string;
@@ -413,9 +418,19 @@ export function BuchungenTabelle({
     },
   );
 
+  // Kostenart „Anschaffung / Herstellung“ (AfA): ohne „Bezugsbereit ab“ nicht importierbar.
+  function brauchtBezugsbereit(r: BuchungEditRow): boolean {
+    if (ermittleBuchungsartGruppe(r.buchungsartCode) !== "KOSTEN") return false;
+    const kostenart = kostenarten.find((k) => k.id === r.kostenartId);
+    return (
+      kostenart?.anschaffung === true &&
+      verlangtBezugsbereit("ANSCHAFFUNG", r.datum ? Number(r.datum.slice(0, 4)) : r.jahrEingabe ? Number(r.jahrEingabe) : null)
+    );
+  }
+
   function kannAuswaehlen(r: BuchungEditRow): boolean {
     const gruppe = ermittleBuchungsartGruppe(r.buchungsartCode);
-    return r.errors.length === 0 && pflichtfeldErfuellt(gruppe, r);
+    return r.errors.length === 0 && pflichtfeldErfuellt(gruppe, r) && (!brauchtBezugsbereit(r) || Boolean(r.bezugsbereitAb));
   }
 
   // Der Alle-auswählen-Haken betrifft nur Zeilen, die sich tatsächlich auswählen lassen: bereits
@@ -456,6 +471,7 @@ export function BuchungenTabelle({
       kostenartId: gruppe === "KOSTEN" ? r.kostenartId : undefined,
       gebaeudeAuswahl: gruppe === "KOSTEN" ? r.gebaeudeAuswahl : undefined,
       jahr: gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH" ? (r.jahrEingabe ? Number(r.jahrEingabe) : null) : undefined,
+      bezugsbereitAb: gruppe === "KOSTEN" && brauchtBezugsbereit(r) ? r.bezugsbereitAb || null : undefined,
     };
   });
 
@@ -706,6 +722,17 @@ export function BuchungenTabelle({
                               ),
                             )}
                           </select>
+                          {brauchtBezugsbereit(r) && (
+                            <div className="rounded-md border border-amber-900/50 bg-amber-500/5 p-1.5">
+                              <DateInput
+                                size="sm"
+                                label="Bezugsbereit ab (Pflicht, AfA)"
+                                labelClassName="text-xs text-amber-300"
+                                value={r.bezugsbereitAb}
+                                onChange={(iso) => updateRow(r.rowNumber, { bezugsbereitAb: iso })}
+                              />
+                            </div>
+                          )}
                           <select
                             value={r.gebaeudeAuswahl}
                             onChange={(e) => updateRow(r.rowNumber, { gebaeudeAuswahl: e.target.value })}

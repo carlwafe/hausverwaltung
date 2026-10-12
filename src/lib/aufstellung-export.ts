@@ -100,13 +100,22 @@ const datumText = (d: Date | null, jahr: number | null) =>
 // Empfänger und Rechnungstext, damit der Steuerberater die Abschreibung je Anschaffung bestimmen kann.
 export function afaEinzelposten(
   positionen: AfaPosition[],
-): { datum: string; kostenart: string; objekt: string; beschreibung: string; vermietung: string; betrag: number }[] {
+): {
+  datum: string;
+  kostenart: string;
+  objekt: string;
+  beschreibung: string;
+  vermietung: string;
+  bezugsbereit: string; // „ab 28.05.2026“, leer wenn nicht angegeben
+  betrag: number;
+}[] {
   return positionen.map((p) => ({
     datum: datumText(p.datum, p.jahr),
     kostenart: p.kostenart,
     objekt: p.objekt,
     beschreibung: [p.empfaenger, p.text].filter(Boolean).join(" – "),
     vermietung: p.vermietung,
+    bezugsbereit: p.bezugsbereitAb ? `bezugsbereit ab ${datumText(p.bezugsbereitAb, null)}` : "",
     betrag: p.betrag,
   }));
 }
@@ -160,7 +169,7 @@ export function aufstellungAlsCsv(
     for (const a of g.arten) zeilen.push([`Kostenarten – ${g.label}`, a.name, csvZahl(a.summe)]);
   }
   for (const e of afaEinzelposten(afaPositionen))
-    zeilen.push(["Anschaffung (AfA) – Einzelposten", `${e.datum} · ${e.kostenart} · ${e.objekt}${e.vermietung ? ` (${e.vermietung})` : ""} · ${e.beschreibung}`, csvZahl(e.betrag)]);
+    zeilen.push(["Anschaffung (AfA) – Einzelposten", `${e.datum} · ${e.kostenart} · ${e.objekt} (${[e.bezugsbereit || "bezugsbereit ab: nicht angegeben", e.vermietung].filter(Boolean).join("; ")}) · ${e.beschreibung}`, csvZahl(e.betrag)]);
   for (const e of sonstigeEinnahmenZeilen(st, kosten)) zeilen.push(["Sonstige Einnahmen", e.text, csvZahl(e.betrag)]);
   zeilen.push(["Hinweis", `Aufstellung ${jahr} ${objekt}: ohne AfA und Schuldzinsen${st.anschaffung !== 0 ? " (Anschaffungs-/Herstellungskosten gesondert als Grundlage der AfA, nicht in den Kosten)" : ""}; Mietzahlungen nach Zuflussprinzip inkl. 10-Tage-Regel (22.12.–31.12. für Januar); Kosten nach Abbuchungsdatum`, ""]);
   return "﻿" + zeilen.map((r) => r.map(csvText).join(";")).join("\r\n") + "\r\n";

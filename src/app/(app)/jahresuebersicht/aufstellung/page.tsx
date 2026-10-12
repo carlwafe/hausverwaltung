@@ -117,7 +117,10 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
                         <td className="whitespace-nowrap py-0.5 pr-2">{e.datum}</td>
                         <td className="py-0.5 pr-2">
                           {e.objekt}
-                          {e.vermietung && <span className="ml-1 text-[7.5pt] text-neutral-600">({e.vermietung})</span>}
+                          <span className="ml-1 text-[7.5pt] text-neutral-600">
+                            ({e.bezugsbereit || "bezugsbereit ab: nicht angegeben"}
+                            {e.vermietung && `; ${e.vermietung}`})
+                          </span>
                           <span className="block text-[7.5pt] text-neutral-600">
                             {e.kostenart}
                             {e.beschreibung && ` · ${e.beschreibung}`}

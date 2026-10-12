@@ -10,6 +10,7 @@ import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
+import { verlangtBezugsbereit } from "@/lib/anlage-v";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -81,6 +82,28 @@ async function ermittleDatumFuerVirtuelleGutschrift(
   return buchung?.datum ?? null;
 }
 
+// „Bezugsbereit ab“ gehört nur zu Kostenarten mit Einordnung „Anschaffung / Herstellung“ (AfA) und ist dort
+// Pflicht (ab dem Berichtsjahr 2026): der Beginn der Abschreibung hängt daran. Bei jeder anderen Kostenart
+// wird ein mitgeschicktes Datum verworfen.
+async function ermittleBezugsbereit(
+  kostenartId: string,
+  datum: Date | null,
+  kostenjahr: number | null,
+  eingabe: FormDataEntryValue | null,
+): Promise<Date | null> {
+  const kostenart = await prisma.kostenart.findUnique({ where: { id: kostenartId }, select: { anlageVZeile: true } });
+  if (kostenart?.anlageVZeile !== "ANSCHAFFUNG") return null;
+  const text = typeof eingabe === "string" ? eingabe.trim() : "";
+  const wert = text ? new Date(text) : null;
+  if (wert && Number.isNaN(wert.getTime())) throw new AktionsFehler("„Bezugsbereit ab“ ist kein gültiges Datum.");
+  if (!wert && verlangtBezugsbereit("ANSCHAFFUNG", datum ? datum.getFullYear() : kostenjahr)) {
+    throw new AktionsFehler(
+      "Bitte angeben, ab wann die Wohnung bezugsbereit war („Bezugsbereit ab“) — Pflicht bei Anschaffung / Herstellung (AfA).",
+    );
+  }
+  return wert;
+}
+
 export const createKostenposition = mitMeldung(async function createKostenposition(formData: FormData) {
   const user = await requireEditor();
   const { kostenartId, gebaeudeId, hausId, kostengruppeId, einheitId, virtuelleKautionBuchungId, ...rest } =
@@ -88,6 +111,7 @@ export const createKostenposition = mitMeldung(async function createKostenpositi
   const { wert: explizitesDatum } = parseDatumFeld(formData);
   const datum = explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId));
   const buchungsartId = await ladeKostenpositionBuchungsartId();
+  const bezugsbereitAb = await ermittleBezugsbereit(kostenartId, datum, rest.jahr, formData.get("bezugsbereitAb"));
 
   await prisma.buchung.create({
     data: {
@@ -95,6 +119,7 @@ export const createKostenposition = mitMeldung(async function createKostenpositi
       buchungsartId,
       kostenartId,
       datum,
+      bezugsbereitAb,
       gebaeudeId: gebaeudeId || null,
       hausId: hausId || null,
       kostengruppeId: kostengruppeId || null,
@@ -126,6 +151,8 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
     ? (explizitesDatum ?? (await ermittleDatumFuerVirtuelleGutschrift(virtuelleKautionBuchungId)))
     : bisherige.datum;
 
+  const bezugsbereitAb = await ermittleBezugsbereit(kostenartId, datum, rest.jahr, formData.get("bezugsbereitAb"));
+
   const erstelltVon = benutzerLabel(user);
   await prisma.$transaction(async (tx) => {
     await storniereBuchung(tx, id, erstelltVon);
@@ -135,6 +162,7 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
         buchungsartId: bisherige.buchungsartId,
         kostenartId,
         datum,
+        bezugsbereitAb,
         gebaeudeId: gebaeudeId || null,
         hausId: hausId || null,
         kostengruppeId: kostengruppeId || null,
@@ -248,6 +276,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
           einheitId: original.einheitId,
           jahr: teil.jahr ?? original.jahr,
           datum: original.datum,
+          bezugsbereitAb: original.bezugsbereitAb,
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
@@ -325,6 +354,7 @@ export async function hebeAufteilungAuf(positionId: string) {
         einheitId: position.einheitId,
         jahr: position.jahr,
         datum: position.datum,
+        bezugsbereitAb: position.bezugsbereitAb,
         rohdaten: position.rohdaten ?? undefined,
         importBatchId: position.importBatchId,
         erstelltVon,

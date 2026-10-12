@@ -7,6 +7,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
 import { requireUser, requireEditor, benutzerLabel } from "@/lib/session";
 import { mitMeldung } from "@/lib/aktion";
+import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
@@ -554,6 +555,7 @@ export async function previewImport(
       id: k.id,
       name: k.name,
       umlagefaehig: k.umlagefaehig,
+      anschaffung: k.anlageVZeile === "ANSCHAFFUNG",
     }));
     const gebaeude: GebaeudeKandidat[] = gebaeudeRaw.map((g) => ({
       id: g.id,
@@ -676,6 +678,8 @@ export type BuchungCommitRow = {
   gebaeudeAuswahl?: string | null;
   // Bei "KOSTEN" das Kostenjahr, bei "NEBENKOSTENAUSGLEICH" das Abrechnungsjahr (optional).
   jahr?: number | null;
+  // Nur bei "KOSTEN" mit Kostenart „Anschaffung / Herstellung“: ab wann die Wohnung bezugsbereit war (yyyy-mm-dd).
+  bezugsbereitAb?: string | null;
 };
 
 // Ersetzt commitZahlungen/commitKosten/commitMietweiterleitungen/commitKautionsbuchungen/
@@ -717,6 +721,22 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
   const fehlendeKostenart = gruppen.filter((g) => g.gruppe === "KOSTEN" && !g.row.kostenartId);
   if (fehlendeKostenart.length > 0) {
     return `${fehlendeKostenart.length} Zeile(n) mit Buchungsart "Kosten" haben noch keine Kostenart ausgewählt.`;
+  }
+
+  // Anschaffung / Herstellung (AfA): „bezugsbereit ab“ ist Pflicht (Beginn der Abschreibung).
+  const anschaffungKostenartIds = new Set(
+    (await prisma.kostenart.findMany({ where: { anlageVZeile: "ANSCHAFFUNG" }, select: { id: true } })).map((k) => k.id),
+  );
+  const ohneBezugsbereit = gruppen.filter(
+    (g) =>
+      g.gruppe === "KOSTEN" &&
+      g.row.kostenartId &&
+      anschaffungKostenartIds.has(g.row.kostenartId) &&
+      !g.row.bezugsbereitAb &&
+      verlangtBezugsbereit("ANSCHAFFUNG", g.row.datum ? Number(g.row.datum.slice(0, 4)) : (g.row.jahr ?? null)),
+  );
+  if (ohneBezugsbereit.length > 0) {
+    return `${ohneBezugsbereit.length} Zeile(n) mit Kostenart „Anschaffung / Herstellung“ haben noch kein Datum „Bezugsbereit ab“ (Pflicht für die Abschreibung).`;
   }
 
   const arten = await ladeBuchungsartMap();
@@ -868,6 +888,10 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
           periodeMonat: r.gruppe === "MIETE" ? r.periodeMonat : undefined,
           periodeJahr: r.gruppe === "MIETE" ? r.periodeJahr : undefined,
           jahr: r.gruppe === "KOSTEN" || r.gruppe === "NEBENKOSTENAUSGLEICH" ? r.jahr : undefined,
+          bezugsbereitAb:
+            r.gruppe === "KOSTEN" && r.bezugsbereitAb && r.kostenartId && anschaffungKostenartIds.has(r.kostenartId)
+              ? new Date(r.bezugsbereitAb)
+              : undefined,
           rohdaten: r.rohdaten,
           importBatchId: typeof importBatchId === "string" ? importBatchId : undefined,
           erstelltVon: benutzerLabel(user),

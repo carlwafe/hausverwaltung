@@ -12,9 +12,12 @@ export type AfaPosition = {
   objekt: string;
   empfaenger: string;
   text: string;
-  // Vermietung der Wohnung zum Zeitpunkt der Anschaffung (Beginn der Abschreibung hängt davon ab, ab wann
-  // die Wohnung bezugsfertig/vermietet ist), z.B. „Mietvertrag seit 01.03.2026“; leer bei Gebäude-Kosten.
+  // Vermietung der Wohnung zum Zeitpunkt der Anschaffung, z.B. „Mietvertrag seit 01.03.2026“; leer bei
+  // Gebäude-Kosten.
   vermietung: string;
+  // Beginn der Abschreibung: ab wann die Wohnung bezugsbereit war (Pflichtangabe bei der Erfassung);
+  // null bei Positionen, die vor Einführung des Feldes gebucht wurden.
+  bezugsbereitAb: Date | null;
   betrag: number; // wie die Kostenposition: positiv = Ausgabe, negativ = Gutschrift
 };
 
@@ -25,6 +28,7 @@ type KostenpositionFuerAfa = {
   betrag: { toString(): string } | number;
   empfaenger: string | null;
   verwendungszweck: string | null;
+  bezugsbereitAb: Date | null;
   einheitId: string | null;
   gebaeudeId: string | null;
   hausId: string | null;
@@ -99,6 +103,7 @@ export async function ladeAfaPositionen(positionen: KostenpositionFuerAfa[]): Pr
         "Gesamtes Objekt",
       empfaenger: p.empfaenger ?? "",
       text: (p.verwendungszweck ?? "").replace(/\s+/g, " ").trim(),
+      bezugsbereitAb: p.bezugsbereitAb,
       vermietung: p.einheitId ? vermietungText(einheitVertraege.get(p.einheitId) ?? [], p.datum) : "",
       betrag: Number(p.betrag),
     }))

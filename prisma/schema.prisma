@@ -173,6 +173,12 @@ model Buchung {
   verwendungszweck String?
   bemerkung        String?
 
+  // Nur bei Kostenpositionen einer Kostenart mit Einordnung „Anschaffung / Herstellung“ (AfA): ab wann die
+  // modernisierte Wohnung bezugsbereit war — der Beginn der Abschreibung hängt daran. Wird beim Anlegen
+  // gesetzt (Pflicht im Kosten-Formular und im Kontoauszug-Import); eine Änderung ist wie alles an
+  // Buchungen Storno + Neuanlage (Bearbeiten übernimmt den Wert).
+  bezugsbereitAb DateTime?
+
   // Polymorpher Bezug auf das auslösende Ereignis (z.B. "NebenkostenabrechnungPosition") — ersetzt
   // die vorher typisierte virtuelleKautionBuchungId-Relation; büßt dafür referenzielle Integrität
   // auf DB-Ebene ein (Postgres kann bezugId nicht als echten FK prüfen).
