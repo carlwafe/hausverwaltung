@@ -28,7 +28,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     },
   });
   if (!ticket) notFound();
-  const optionen = await ladeTicketOptionen({ mietvertragId: ticket.mietvertragId });
+  const optionen = await ladeTicketOptionen();
 
   const status = TICKET_STATUS.find((s) => s.value === ticket.status);
   const ersteller = ticket.erstelltVon ? (ticket.erstelltVon.name ?? ticket.erstelltVon.email) : null;

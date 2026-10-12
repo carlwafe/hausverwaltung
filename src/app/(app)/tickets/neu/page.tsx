@@ -9,7 +9,7 @@ export default async function NeuesTicketPage({
   searchParams: Promise<{ einheitId?: string; mietvertragId?: string; dienstleisterId?: string; gebaeudeId?: string; hausId?: string }>;
 }) {
   const q = await searchParams;
-  const optionen = await ladeTicketOptionen({ mietvertragId: q.mietvertragId });
+  const optionen = await ladeTicketOptionen();
   const mietvertrag = optionen.mietvertraege.find((v) => v.id === q.mietvertragId);
 
   return (
