@@ -64,7 +64,11 @@ export type AnlageVAufstellung = {
   nkVorauszahlungen: number;
   nkNachzahlungen: number;
   nkGuthaben: number; // ausgezahlt, als positiver Betrag
-  kautionEinbehalte: number;
+  // Einbehalte aus Kautionen, nach Art den Zeilen zugeordnet (Summen sind schon in mieten/nebenkosten/
+  // sonstigeEinnahmen enthalten, hier nur für Hinweise und die Auflistung)
+  kautionMitNk: number; // mit Nachzahlung der Nebenkostenabrechnung verrechnet
+  kautionMitMiete: number; // mit Mietrückstand/Miete (Mieterkonto) verrechnet
+  kautionPauschal: number; // pauschal einbehalten (Schlüssel, Gebühren …)
   sonstigeEinnahmen: number;
   // Bestandteile von sonstigeEinnahmen außer den Kostenarten-Gutschriften (für die Auflistung im Export)
   sonderzahlungen: number; // Zahlungen von Mietern auf Gebühren-Forderungen
@@ -95,14 +99,16 @@ export function baueAnlageVAufstellung(eingabe: {
   nkVorauszahlungen: number;
   nachzahlungenEingezogen: number;
   guthabenAusgezahlt: number;
-  kautionEinbehalte: number;
+  kautionMitNk: number;
+  kautionMitMiete: number;
+  kautionPauschal: number;
   sonderzahlungen: number;
   // Übrige eur-relevante Buchungen ohne eigene Kategorie: positiv = Einnahme, negativ = Ausgabe.
   sonstigeEurRelevant: number;
   kosten: KostenSumme[];
   abgrenzung: { hinzu: number; anzahlHinzu: number; heraus: number; anzahlHeraus: number };
 }): AnlageVAufstellung {
-  let sonstigeEinnahmen = eingabe.sonderzahlungen + Math.max(eingabe.sonstigeEurRelevant, 0);
+  let sonstigeEinnahmen = eingabe.sonderzahlungen + eingabe.kautionPauschal + Math.max(eingabe.sonstigeEurRelevant, 0);
   let instandhaltung = 0;
   let umlagefaehig = 0;
   let nichtUmlagefaehig = Math.max(-eingabe.sonstigeEurRelevant, 0);
@@ -114,18 +120,22 @@ export function baueAnlageVAufstellung(eingabe: {
     else nichtUmlagefaehig += k.summe;
   }
 
-  const nebenkosten = eingabe.nkVorauszahlungen + eingabe.nachzahlungenEingezogen - eingabe.guthabenAusgezahlt;
-  const summeEinnahmen = eingabe.kaltmiete + eingabe.umsatzsteuer + nebenkosten + eingabe.kautionEinbehalte + sonstigeEinnahmen;
+  const nebenkosten =
+    eingabe.nkVorauszahlungen + eingabe.nachzahlungenEingezogen + eingabe.kautionMitNk - eingabe.guthabenAusgezahlt;
+  const mieten = eingabe.kaltmiete + eingabe.kautionMitMiete;
+  const summeEinnahmen = mieten + eingabe.umsatzsteuer + nebenkosten + sonstigeEinnahmen;
   const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig;
 
   return {
-    mieten: gerundet(eingabe.kaltmiete),
+    mieten: gerundet(mieten),
     umsatzsteuer: gerundet(eingabe.umsatzsteuer),
     nebenkosten: gerundet(nebenkosten),
     nkVorauszahlungen: gerundet(eingabe.nkVorauszahlungen),
-    nkNachzahlungen: gerundet(eingabe.nachzahlungenEingezogen),
+    nkNachzahlungen: gerundet(eingabe.nachzahlungenEingezogen + eingabe.kautionMitNk),
     nkGuthaben: gerundet(eingabe.guthabenAusgezahlt),
-    kautionEinbehalte: gerundet(eingabe.kautionEinbehalte),
+    kautionMitNk: gerundet(eingabe.kautionMitNk),
+    kautionMitMiete: gerundet(eingabe.kautionMitMiete),
+    kautionPauschal: gerundet(eingabe.kautionPauschal),
     sonstigeEinnahmen: gerundet(sonstigeEinnahmen),
     sonderzahlungen: gerundet(eingabe.sonderzahlungen),
     uebrigeEinnahmen: gerundet(Math.max(eingabe.sonstigeEurRelevant, 0)),

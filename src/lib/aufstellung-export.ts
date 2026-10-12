@@ -2,6 +2,8 @@
 // Reine Funktionen ohne Prisma.
 import { KOSTENGRUPPE_LABEL, type AnlageVAufstellung, type KostenSumme, type Kostengruppe } from "./anlage-v";
 
+const euroText = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+
 export type ExportZeile = { text: string; betrag: number; hinweis?: string; fett?: boolean; davon?: boolean };
 
 export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
@@ -12,15 +14,23 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
   zehnTage: ExportZeile[];
 } {
   const einnahmen: ExportZeile[] = [
-    { text: "Vereinnahmte Mieten (Kaltmiete, netto)", betrag: st.mieten },
+    {
+      text: "Vereinnahmte Mieten (Kaltmiete, netto)",
+      betrag: st.mieten,
+      hinweis: st.kautionMitMiete !== 0 ? `darin ${euroText(st.kautionMitMiete)} mit Kaution verrechnet` : undefined,
+    },
     ...(st.umsatzsteuer !== 0
       ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer }]
       : []),
     { text: "Vereinnahmte Nebenkosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − Erstattungen" },
     { text: "davon Vorauszahlungen", betrag: st.nkVorauszahlungen, davon: true },
-    { text: "davon Nachzahlungen aus der Abrechnung", betrag: st.nkNachzahlungen, davon: true },
+    {
+      text: "davon Nachzahlungen aus der Abrechnung",
+      betrag: st.nkNachzahlungen,
+      davon: true,
+      hinweis: st.kautionMitNk !== 0 ? `darin ${euroText(st.kautionMitNk)} mit Kaution verrechnet` : undefined,
+    },
     { text: "davon Erstattungen (ausgezahlte Guthaben)", betrag: -st.nkGuthaben, davon: true },
-    { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
     { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
     { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
   ];
@@ -79,6 +89,7 @@ export function sonstigeEinnahmenZeilen(st: AnlageVAufstellung, kosten: KostenSu
     .map((k) => ({ text: k.name, betrag: -k.summe }))
     .sort((a, b) => b.betrag - a.betrag);
   if (st.sonderzahlungen !== 0) zeilen.push({ text: "Gebühren-Zahlungen von Mietern (Sonderforderungen)", betrag: st.sonderzahlungen });
+  if (st.kautionPauschal !== 0) zeilen.push({ text: "Pauschale Kautionseinbehalte (Schlüssel, Gebühren)", betrag: st.kautionPauschal });
   if (st.uebrigeEinnahmen !== 0) zeilen.push({ text: "Übrige Einnahmen", betrag: st.uebrigeEinnahmen });
   return zeilen;
 }
@@ -106,7 +117,7 @@ export function aufstellungAlsCsv(
   const zeilen: string[][] = [["Abschnitt", "Bezeichnung", "Betrag"]];
   const block = (abschnitt: string, liste: ExportZeile[]) => {
     // „davon“-Zeilen stehen im eigenen Abschnitt, damit eine Spaltensumme nichts doppelt zählt.
-    for (const e of liste) zeilen.push([e.davon ? `${abschnitt} (davon)` : abschnitt, e.text, csvZahl(e.betrag)]);
+    for (const e of liste) zeilen.push([e.davon ? `${abschnitt} (davon)` : abschnitt, e.hinweis?.startsWith("darin") ? `${e.text} (${e.hinweis})` : e.text, csvZahl(e.betrag)]);
   };
   block("Einnahmen", z.einnahmen);
   block("Kosten", z.kosten);

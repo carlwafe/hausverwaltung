@@ -1,6 +1,6 @@
 import { mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import Link from "next/link";
-import { SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
+import { MIETERKONTO_VERRECHNUNG_BEZUG, SONDERBUCHUNGEN_FILTER, sonderWirkung } from "@/lib/sonderforderungen";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, nkBegleichung } from "@/lib/nk-verrechnung";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
@@ -80,7 +80,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
         datum: { gte: jahresanfang, lt: jahresende },
         ...AKTIVE_BUCHUNG_FILTER,
       },
-      select: { betrag: true, buchungsart: { select: { code: true } } },
+      select: { betrag: true, jahr: true, bezugTyp: true, buchungsart: { select: { code: true } } },
     }),
     prisma.buchung.findMany({
       where: {
@@ -111,6 +111,9 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   // einbehaltener, erfolgswirksamer Betrag — kein Kontofluss, aber eur-relevant wie eine
   // Betriebskosten-Erstattung (siehe Artefakt-Vergleich).
   let kautionEinbehalte = 0;
+  let kautionMitMiete = 0;
+  let kautionMitNk = 0;
+  let kautionPauschal = 0;
   // Fängt jede eur-relevante, datumsbasierte Buchungsart auf, die oben nicht explizit einer der
   // drei bekannten Kategorien zugeordnet wird — nur zur Absicherung der Summen, keine eigene
   // Anzeige-Zeile.
@@ -130,6 +133,11 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
       }
       case "KAUTION_EINBEHALT":
         kautionEinbehalte += -betrag;
+        // Für die Steuer-Aufstellung nach Art: Verrechnung mit Mieterkonto (Miete), mit der
+        // Nebenkostenabrechnung (Abrechnungsjahr gesetzt) oder pauschaler Einbehalt.
+        if (b.bezugTyp === MIETERKONTO_VERRECHNUNG_BEZUG) kautionMitMiete += -betrag;
+        else if (b.jahr !== null) kautionMitNk += -betrag;
+        else kautionPauschal += -betrag;
         break;
       case "SONDERZAHLUNG":
         sonderzahlungen += betrag;
@@ -176,7 +184,9 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     nkVorauszahlungen: mietAufteilung?.nebenkosten ?? 0,
     nachzahlungenEingezogen,
     guthabenAusgezahlt,
-    kautionEinbehalte,
+    kautionMitNk,
+    kautionMitMiete,
+    kautionPauschal,
     sonderzahlungen,
     sonstigeEurRelevant,
     kosten: [...steuerKosten.values()],
@@ -846,7 +856,9 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
     {
       text: "Vereinnahmte Mieten (Kaltmiete, netto)",
       betrag: st.mieten,
-      hinweis: "Zahlungen je Monat zuerst auf die NK-Vorauszahlung angerechnet, der Rest ist Kaltmiete",
+      hinweis:
+        "Zahlungen je Monat zuerst auf die NK-Vorauszahlung angerechnet, der Rest ist Kaltmiete" +
+        (st.kautionMitMiete !== 0 ? `; darin ${formatEuro(st.kautionMitMiete)} mit Kaution verrechnet` : ""),
     },
     ...(st.umsatzsteuer !== 0
       ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer, hinweis: "anteilig aus den Garagen-Zahlungen, keine Nebenkosten" }]
@@ -857,9 +869,13 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
       hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben",
     },
     { text: "davon Vorauszahlungen", betrag: st.nkVorauszahlungen, davon: true },
-    { text: "davon Nachzahlungen aus der Abrechnung", betrag: st.nkNachzahlungen, davon: true },
+    {
+      text: "davon Nachzahlungen aus der Abrechnung",
+      betrag: st.nkNachzahlungen,
+      davon: true,
+      hinweis: st.kautionMitNk !== 0 ? `darin ${formatEuro(st.kautionMitNk)} mit Kaution verrechnet` : undefined,
+    },
     { text: "davon Erstattungen (ausgezahlte Guthaben)", betrag: -st.nkGuthaben, davon: true },
-    { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
     { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
     { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
   ];
