@@ -15,6 +15,7 @@ import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-fo
 import { mieterName } from "@/lib/mieter-name";
 import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
+import { ANLAGE_V_ZEILE_KURZ, anlageVZeileFuer, baueAnlageVUeberleitung, type AnlageVKostenSumme } from "@/lib/anlage-v";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -134,6 +135,7 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   }
 
   const kostenNachArtMap = new Map<string, { summe: number; umlagefaehig: boolean }>();
+  const anlageVKosten = new Map<string, AnlageVKostenSumme>();
   for (const k of kostenpositionen) {
     const name = k.kostenart?.name ?? "Unbekannt";
     const eintrag = kostenNachArtMap.get(name) ?? {
@@ -142,6 +144,15 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     };
     eintrag.summe += Number(k.betrag);
     kostenNachArtMap.set(name, eintrag);
+
+    const zuordnung = anlageVZeileFuer({
+      name,
+      umlagefaehig: k.kostenart?.umlagefaehig ?? false,
+      anlageVZeile: k.kostenart?.anlageVZeile ?? null,
+    });
+    const av = anlageVKosten.get(name) ?? { name, ...zuordnung, summe: 0 };
+    av.summe += Number(k.betrag);
+    anlageVKosten.set(name, av);
   }
   const kostenNachArt = [...kostenNachArtMap.entries()]
     .map(([name, v]) => ({ name, ...v }))
@@ -152,7 +163,20 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const ausgaben = kostenSumme + guthabenAusgezahlt + Math.max(-sonstigeEurRelevant, 0);
   const ergebnis = einnahmen - ausgaben;
 
+  // Gleiches Ergebnis, nach den Zeilen der Anlage V gegliedert (nur im Gesamtjahr angezeigt).
+  const anlageV = baueAnlageVUeberleitung({
+    mieteinnahmen,
+    nachzahlungenEingezogen,
+    guthabenAusgezahlt,
+    kautionEinbehalte,
+    sonderzahlungen,
+    sonstigeEurRelevant,
+    kosten: [...anlageVKosten.values()],
+  });
+
   return {
+    anlageV,
+    anlageVKosten: [...anlageVKosten.values()].sort((a, b) => b.summe - a.summe),
     mieteinnahmen,
     kostenNachArt,
     kostenSumme,
@@ -641,6 +665,8 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
         </div>
       </div>
 
+      {!istQuartal && <AnlageVUeberleitung jahr={jahr} daten={daten} />}
+
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Kontenabgleich {label}</h2>
         {kontenabgleich === null ? (
@@ -729,6 +755,94 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+type JahresDaten = Awaited<ReturnType<typeof ladeJahresuebersicht>>;
+
+// Überleitung auf die Anlage V: dasselbe Ergebnis wie oben, gegliedert nach den Zeilen des Formulars.
+// Kaltmiete (Z. 9/11) und Umlagen (Z. 13) lassen sich aus den Zahlungen noch nicht trennen, AfA (Z. 33)
+// und Schuldzinsen (Z. 37) sind nicht im Journal — der Überschuss gilt deshalb vor AfA und Schuldzinsen.
+function AnlageVUeberleitung({ jahr, daten }: { jahr: number; daten: JahresDaten }) {
+  const av = daten.anlageV;
+  const zeilen: { zeile: string; text: string; betrag: number | null; hinweis?: string; fett?: boolean }[] = [
+    {
+      zeile: "Z. 9–13",
+      text: "Mieteinnahmen und Umlagen, verrechnet mit Erstattungen",
+      betrag: av.mieteUndUmlagen,
+      hinweis: "Mietzahlungen + NK-Nachzahlungen − ausgezahlte NK-Guthaben; Kaltmiete (Z. 9) und Umlagen (Z. 13) noch nicht getrennt",
+    },
+    { zeile: "Z. 15", text: "Verrechnete Mietkautionen (Einbehalte)", betrag: av.kautionEinbehalte },
+    { zeile: "Z. 19", text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: av.sonstigeEinnahmen },
+    { zeile: "Z. 21", text: "Summe der Einnahmen", betrag: av.summeEinnahmen, fett: true },
+    { zeile: "Z. 33", text: "Absetzung für Abnutzung (AfA)", betrag: null, hinweis: "noch nicht erfasst" },
+    { zeile: "Z. 37", text: "Schuldzinsen", betrag: null, hinweis: "noch nicht erfasst" },
+    { zeile: "Z. 40", text: "Erhaltungsaufwendungen (voll abziehbar)", betrag: av.werbungskosten.ERHALTUNGSAUFWAND },
+    { zeile: "Z. 47", text: "Grundsteuer, Wasser, Heizung, Versicherungen, Hauswart …", betrag: av.werbungskosten.BETRIEBSKOSTEN },
+    { zeile: "Z. 48", text: "Verwaltungskosten", betrag: av.werbungskosten.VERWALTUNG },
+    { zeile: "Z. 50", text: "Sonstiges", betrag: av.werbungskosten.SONSTIGES },
+    { zeile: "Z. 22", text: "Summe der Werbungskosten (ohne AfA und Schuldzinsen)", betrag: av.summeWerbungskosten, fett: true },
+    { zeile: "Z. 23", text: "Überschuss vor AfA und Schuldzinsen", betrag: av.ueberschuss, fett: true },
+  ];
+  const automatisch = daten.anlageVKosten.filter((k) => k.automatisch && k.summe !== 0);
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-3 text-lg font-medium text-white">Überleitung Anlage V {jahr}</h2>
+      <p className="mb-3 max-w-3xl text-sm text-neutral-400">
+        Dasselbe Ergebnis wie oben, gegliedert nach den Zeilen des Formulars „Anlage V“. Ausgezahlte
+        NK-Guthaben mindern hier die Einnahmen (Z. 13) statt als Ausgabe zu erscheinen. AfA und Schuldzinsen
+        fehlen noch — der Überschuss liegt dadurch über dem steuerlichen Ergebnis.
+      </p>
+      <div className="rounded-lg border border-neutral-800">
+        <table className="w-full text-sm">
+          <tbody>
+            {zeilen.map((z) => (
+              <tr key={z.zeile} className="border-b border-neutral-800 last:border-b-0">
+                <td className="w-24 whitespace-nowrap px-4 py-2 text-neutral-500">{z.zeile}</td>
+                <td className={`px-4 py-2 ${z.fett ? "font-medium text-white" : "text-white"}`}>
+                  {z.text}
+                  {z.hinweis && <span className="ml-2 text-xs text-neutral-500">({z.hinweis})</span>}
+                </td>
+                <td className={`px-4 py-2 text-right ${z.fett ? "font-medium text-white" : "text-white"}`}>
+                  {z.betrag === null ? <span className="text-neutral-600">–</span> : formatEuro(z.betrag)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">
+          Zuordnung der Kostenarten zu den Zeilen
+        </summary>
+        <div className="mt-3 max-h-[400px] overflow-auto rounded-lg border border-neutral-800">
+          <table className="w-full text-sm">
+            <tbody>
+              {daten.anlageVKosten.map((k) => (
+                <tr key={k.name} className="border-b border-neutral-800">
+                  <td className="px-4 py-2 text-white">{k.name}</td>
+                  <td className="px-4 py-2 text-neutral-400">
+                    {ANLAGE_V_ZEILE_KURZ[k.zeile]}
+                    {k.automatisch && <span className="ml-1 text-xs text-neutral-500">(automatisch)</span>}
+                  </td>
+                  <td className="px-4 py-2 text-right text-white">{formatEuro(k.summe)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {automatisch.length > 0 && (
+          <p className="mt-2 text-xs text-neutral-500">
+            {automatisch.length} Kostenarten sind nur automatisch zugeordnet — unter{" "}
+            <Link href="/kostenarten" className="underline hover:text-white">
+              Kostenarten
+            </Link>{" "}
+            lässt sich die Zeile festlegen.
+          </p>
+        )}
+      </details>
     </div>
   );
 }

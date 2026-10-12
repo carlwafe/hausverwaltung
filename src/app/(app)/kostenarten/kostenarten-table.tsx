@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { ANLAGE_V_ZEILE_KURZ, anlageVZeileFuer, type AnlageVZeile } from "@/lib/anlage-v";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
@@ -22,6 +23,7 @@ export type KostenartRow = {
   istSonstigeBetriebskosten: boolean;
   vertraglicheGrundlage: string | null;
   anzahlPositionen: number;
+  anlageVZeile: AnlageVZeile | null;
 };
 
 const columns: Column<KostenartRow>[] = [
@@ -59,6 +61,23 @@ const columns: Column<KostenartRow>[] = [
     label: "Kostenpositionen",
     sortValue: (k) => k.anzahlPositionen,
     render: (k) => k.anzahlPositionen,
+  },
+  {
+    key: "anlageV",
+    label: "Anlage V",
+    sortValue: (k) => ANLAGE_V_ZEILE_KURZ[anlageVZeileFuer(k).zeile],
+    render: (k) => {
+      const { zeile, automatisch } = anlageVZeileFuer(k);
+      return (
+        <span
+          className={automatisch ? "text-neutral-500" : ""}
+          title={automatisch ? "Automatischer Vorschlag — im Formular festlegen" : "Festgelegt"}
+        >
+          {ANLAGE_V_ZEILE_KURZ[zeile]}
+          {automatisch && " (auto)"}
+        </span>
+      );
+    },
   },
   {
     key: "betrKv",

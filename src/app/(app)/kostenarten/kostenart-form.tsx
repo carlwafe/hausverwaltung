@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { runFormAction, type FormAktion } from "@/lib/form-utils";
+import { ANLAGE_V_ZEILEN, ANLAGE_V_ZEILE_LABEL, vorschlagAnlageVZeile, type AnlageVZeile } from "@/lib/anlage-v";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
@@ -37,6 +38,7 @@ type Kostenart = {
   betrKvNummer: number | null;
   istSonstigeBetriebskosten: boolean;
   vertraglicheGrundlage: string | null;
+  anlageVZeile: AnlageVZeile | null;
 };
 
 export function KostenartForm({
@@ -56,6 +58,9 @@ export function KostenartForm({
   const [istSonstigeBetriebskosten, setIstSonstigeBetriebskosten] = useState(
     initial?.istSonstigeBetriebskosten ?? false,
   );
+  const [name, setName] = useState(initial?.name ?? "");
+  const [anlageVZeile, setAnlageVZeile] = useState<string>(initial?.anlageVZeile ?? "");
+  const vorschlag = vorschlagAnlageVZeile({ name, umlagefaehig });
 
   return (
     <form action={formAction} className="max-w-md space-y-4">
@@ -67,7 +72,8 @@ export function KostenartForm({
           id="name"
           name="name"
           required
-          defaultValue={initial?.name}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           placeholder="z.B. Heizung, Wasser, Hausmeister"
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
@@ -175,6 +181,31 @@ export function KostenartForm({
           />
         </div>
       )}
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="anlageVZeile">
+          Zeile der Anlage V (Steuererklärung)
+        </label>
+        <select
+          id="anlageVZeile"
+          name="anlageVZeile"
+          value={anlageVZeile}
+          onChange={(e) => setAnlageVZeile(e.target.value)}
+          className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        >
+          <option value="">– automatisch: {ANLAGE_V_ZEILE_LABEL[vorschlag].split(" — ")[0]} –</option>
+          {ANLAGE_V_ZEILEN.map((z) => (
+            <option key={z} value={z}>
+              {ANLAGE_V_ZEILE_LABEL[z]}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-neutral-500">
+          Bestimmt, wo die Kosten in der Überleitung „Anlage V“ der Jahresübersicht erscheinen. Ohne Auswahl
+          gilt ein Vorschlag (umlagefähig = Z. 47, sonst nach dem Namen). Garagenstrom, Versicherung der
+          Garagen u.ä. sind nicht umlagefähig, gehören aber ebenfalls in Z. 47 — dann hier von Hand wählen.
+        </p>
+      </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 

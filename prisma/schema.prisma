@@ -632,7 +632,22 @@ model Kostenart {
   dienstleister               Dienstleister[]
   dokumente                   Dokument[]
 
+  // Zeile der Anlage V (Einkommensteuer), in die diese Kostenart in der Überleitung der
+  // Jahresübersicht einfließt. NULL = automatischer Vorschlag (siehe src/lib/anlage-v.ts).
+  anlageVZeile                AnlageVZeile?
+
   @@map("kostenarten")
+}
+
+// Zeilen der Anlage V, in die Kostenarten einfließen: Werbungskosten Z. 40 (voll abziehbarer
+// Erhaltungsaufwand), Z. 47 (Grundsteuer, Wasser, Heizung, Versicherungen … = laufende Betriebskosten),
+// Z. 48 (Verwaltungskosten), Z. 50 (Sonstiges) sowie Z. 19 (sonstige Einnahmen, z.B. Waschgeld).
+enum AnlageVZeile {
+  ERHALTUNGSAUFWAND
+  BETRIEBSKOSTEN
+  VERWALTUNG
+  SONSTIGES
+  SONSTIGE_EINNAHMEN
 }
 
 // Handwerker (Elektriker, Sanitär, Tischler ...) getrennt von allen übrigen Dienstleistern und

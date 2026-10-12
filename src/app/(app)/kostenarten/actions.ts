@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { zodFehler, mitMeldung } from "@/lib/aktion";
+import { ANLAGE_V_ZEILEN } from "@/lib/anlage-v";
 
 const VERTEILERSCHLUESSEL = [
   "WOHNFLAECHE",
@@ -23,6 +24,7 @@ const kostenartSchema = z
     betrKvNummer: z.coerce.number().int().min(1).max(16).optional(),
     istSonstigeBetriebskosten: z.coerce.boolean(),
     vertraglicheGrundlage: z.string().optional(),
+    anlageVZeile: z.enum(ANLAGE_V_ZEILEN).optional(),
   })
   .refine(
     (data) => !(data.umlagefaehig && data.istSonstigeBetriebskosten) || !!data.vertraglicheGrundlage?.trim(),
@@ -46,6 +48,7 @@ function parseForm(formData: FormData) {
     betrKvNummer: formData.get("betrKvNummer") || undefined,
     istSonstigeBetriebskosten: formData.get("istSonstigeBetriebskosten") === "on",
     vertraglicheGrundlage: formData.get("vertraglicheGrundlage") || undefined,
+    anlageVZeile: formData.get("anlageVZeile") || undefined,
   });
 
   if (!parsed.success) {
@@ -65,6 +68,7 @@ export const createKostenart = mitMeldung(async function createKostenart(formDat
       masseinheit: data.masseinheit ?? null,
       betrKvNummer: data.betrKvNummer ?? null,
       vertraglicheGrundlage: data.vertraglicheGrundlage ?? null,
+      anlageVZeile: data.anlageVZeile ?? null,
     },
   });
 
@@ -87,6 +91,7 @@ export const updateKostenart = mitMeldung(async function updateKostenart(id: str
       masseinheit: data.masseinheit ?? null,
       betrKvNummer: data.betrKvNummer ?? null,
       vertraglicheGrundlage: data.vertraglicheGrundlage ?? null,
+      anlageVZeile: data.anlageVZeile ?? null,
     },
   });
 

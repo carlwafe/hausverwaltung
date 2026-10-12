@@ -18,6 +18,7 @@ async function ladeKostenarten(): Promise<KostenartRow[]> {
     istSonstigeBetriebskosten: k.istSonstigeBetriebskosten,
     vertraglicheGrundlage: k.vertraglicheGrundlage,
     anzahlPositionen: k._count.buchungen,
+    anlageVZeile: k.anlageVZeile,
   }));
 }
 
