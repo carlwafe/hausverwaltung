@@ -858,7 +858,10 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
     { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
     { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
   ];
-  const automatisch = daten.steuerKosten.filter((k) => k.automatisch && k.summe !== 0 && k.gruppe !== "UMLAGEFAEHIG");
+  // Kostenarten, bei denen offen sein kann, ob es Instandhaltung oder Herstellungskosten (AfA) ist.
+  const zuPruefen = daten.steuerKosten.filter(
+    (k) => k.automatisch && k.summe !== 0 && k.gruppe === "NICHT_UMLAGEFAEHIG" && /modernisier|sanier|ausstattung|umbau/i.test(k.name),
+  );
 
   const tabelle = (titel: string, zeilen: Zeile[]) => (
     <div>
@@ -948,8 +951,8 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             Kostenarten
           </Link>{" "}
           festlegen; sonst entscheidet die Umlagefähigkeit (Reparaturen automatisch als Instandhaltung).
-          {automatisch.length > 0 &&
-            ` Prüfen: ${automatisch.map((k) => k.name).join(", ")} — ggf. Instandhaltung oder Herstellungskosten statt laufender Kosten.`}
+          {zuPruefen.length > 0 &&
+            ` Prüfen: ${zuPruefen.map((k) => k.name).join(", ")} — ggf. Instandhaltung oder Herstellungskosten (AfA) statt laufender Kosten.`}
         </p>
       </details>
     </div>
