@@ -31,7 +31,8 @@ type TicketMitBezug = {
 
 export function ticketZeile(t: TicketMitBezug): TicketRow {
   const teile: string[] = [];
-  if (t.einheit) teile.push(`${t.einheit.gebaeude.strasse} ${t.einheit.gebaeude.hausnummer} – ${t.einheit.bezeichnung}`);
+  // Die Einheiten-Bezeichnung nennt Haus und Wohnung schon ("HS 13 WHG 4 - 1 OG rechts"), die Straße wäre nur Ballast.
+  if (t.einheit) teile.push(t.einheit.bezeichnung);
   else if (t.gebaeude) teile.push(`${t.gebaeude.strasse} ${t.gebaeude.hausnummer}`);
   else if (t.haus) teile.push(hausLabel(t.haus.gebaeude));
   if (t.mietvertrag && t.mietvertrag.mieter.length > 0) teile.push(t.mietvertrag.mieter.map(mieterName).join(" & "));
@@ -46,7 +47,7 @@ export function ticketZeile(t: TicketMitBezug): TicketRow {
     prioritaet: t.prioritaet,
     faelligAm: t.faelligAm ? t.faelligAm.toISOString().slice(0, 10) : null,
     ueberfaellig: istUeberfaellig(t),
-    bezug: teile.join(" · "),
+    bezug: teile.join(" - "),
     zustaendig: t.zugewiesenAn ? (t.zugewiesenAn.name ?? t.zugewiesenAn.email) : "",
   };
 }
