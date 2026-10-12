@@ -902,8 +902,30 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
       </div>
       <details className="mt-3">
         <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">
-          Zuordnung der Kostenarten
+          Hinweise zur Aufstellung
         </summary>
+        <div className="mt-3 max-w-3xl space-y-2 text-sm text-neutral-400">
+          <p>
+            Grundlage ist die Rückmeldung des Steuerberaters: Ein Jahresbericht mit Einnahmen und Ausgaben
+            genügt (keine Einzelbuchungen); wichtig sind tatsächlich vereinnahmte Mieten und Nebenkosten,
+            separat ausgewiesene Instandhaltung und die Unterteilung der Kosten in umlagefähig / nicht
+            umlagefähig. Eine weitere Gliederung der laufenden Betriebskosten ist nicht nötig.
+          </p>
+          <p>
+            Mieten und Nebenkosten: Jede Mietzahlung wird je Mietmonat zuerst auf die NK-Vorauszahlung
+            angerechnet (höchstens das NK-Soll, § 366 Abs. 2 BGB — wie in der Nebenkostenabrechnung), der Rest
+            ist Kaltmiete (z.B. 380 € bei 280 € NK = 280 € Nebenkosten + 100 € Kaltmiete). Maßgeblich für den
+            Zeitraum ist das Zahlungsdatum, für die Aufteilung der Mietmonat. Ausgezahlte NK-Guthaben mindern
+            die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie (wie Anlage V, Z. 13); im Bericht oben stehen
+            sie dagegen als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.
+          </p>
+          <p>
+            Nicht enthalten: AfA und Schuldzinsen (Darlehen laufen über ein anderes Konto), der Überschuss gilt
+            daher vor beiden. Die 10-Tage-Regel ist nicht berücksichtigt. Ob Sanierung/Modernisierung
+            Instandhaltung oder Herstellungskosten sind, ist mit dem Steuerberater zu klären.
+          </p>
+        </div>
+        <h3 className="mb-2 mt-4 text-sm font-medium text-neutral-300">Zuordnung der Kostenarten</h3>
         <div className="mt-3 max-h-[400px] overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
             <tbody>
