@@ -110,6 +110,8 @@ export function DokumentTabelle({
     {
       key: "datei",
       label: "Datei",
+      // Mindestbreite: sonst quetscht die Tabelle die Spalte auf ein Wort pro Zeile (overflow-wrap:anywhere).
+      className: "min-w-[240px]",
       render: (d) => (
         <div className="max-w-[340px]">
           <a
@@ -143,6 +145,7 @@ export function DokumentTabelle({
     {
       key: "bezug",
       label: "Zugeordnet zu",
+      className: "min-w-[150px]",
       render: (d) =>
         d.bezuege.length > 0 ? (
           <div className="flex max-w-[280px] flex-col gap-0.5">
@@ -205,6 +208,7 @@ export function DokumentTabelle({
     {
       key: "aussteller",
       label: "Aussteller",
+      className: "min-w-[110px]",
       render: (d) => (
         <span className="block max-w-[180px] text-xs text-neutral-300 [overflow-wrap:anywhere]" title={d.rechnungsnummer ? `Rechnungsnr. ${d.rechnungsnummer}` : undefined}>
           {d.aussteller ?? "–"}
@@ -226,26 +230,13 @@ export function DokumentTabelle({
       key: "upload",
       label: "Upload",
       render: (d) => (
-        <span
-          className="whitespace-nowrap text-xs text-neutral-500"
-          title={d.hochgeladenVon ?? undefined}
-        >
-          {formatDate(new Date(d.createdAt))}
-        </span>
+        <div className="whitespace-nowrap text-xs" title={d.hochgeladenVon ?? undefined}>
+          <span className="block text-neutral-300">{formatDate(new Date(d.createdAt))}</span>
+          <span className="block text-neutral-500">{formatBytes(d.groesseBytes)}</span>
+        </div>
       ),
       sortValue: (d) => d.createdAt,
       searchValue: (d) => d.hochgeladenVon ?? "",
-    },
-    {
-      key: "groesse",
-      label: "Größe",
-      align: "right",
-      render: (d) => (
-        <span className="whitespace-nowrap text-xs text-neutral-500">
-          {formatBytes(d.groesseBytes)}
-        </span>
-      ),
-      sortValue: (d) => d.groesseBytes ?? 0,
     },
     {
       key: "details",
