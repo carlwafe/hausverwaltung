@@ -3,6 +3,8 @@ import { berechneSoll, berechneIstNachPeriode, mietnachlaesseFuerSoll } from "@/
 import { DateInput } from "@/components/date-input";
 import { toDateInputValue } from "@/lib/date-utils";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
+import { ladeNkGegenrechnungen } from "@/lib/nk-gegenrechnung";
+import { gegenrechnungVorJahr } from "@/lib/nk-saldo";
 import { OffenePostenTable, type OffenePostenRow } from "./offene-posten-table";
 import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
@@ -54,31 +56,36 @@ async function ladeZeilen(objekt: { buchhaltungAb: Date | null } | null, bis: Da
     ).map((v, i) => [v.id, i]),
   );
 
+  const sollIstDaten = (v: (typeof vertraege)[number]) => ({
+    beginn: v.beginn,
+    ende: v.ende,
+    kaltmiete: Number(v.kaltmiete),
+    nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+    mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
+    mieterhoehungen: v.mieterhoehungen.map((m) => ({
+      gueltigAb: m.gueltigAb,
+      kaltmiete: Number(m.kaltmiete),
+      nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+    })),
+    mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
+  });
+  // Unbezahlte NK-Vorauszahlung abgeschlossener Abrechnungen (Abrechnungsjahr vor dem Stichtagsjahr): nicht
+  // mehr geschuldet, gehört also nicht in den Rückstand (siehe gegenrechnungenJeJahr).
+  const gegenrechnungen = await ladeNkGegenrechnungen(
+    vertraege.map((v) => ({ id: v.id, vertrag: sollIstDaten(v), buchhaltungAb: effektiverStichtag(v, objekt) })),
+    bis.getFullYear() - 1,
+  );
+
   return vertraege
     .map((v) => {
       const buchhaltungAb = effektiverStichtag(v, objekt);
-      const soll = berechneSoll(
-        {
-          beginn: v.beginn,
-          ende: v.ende,
-          kaltmiete: Number(v.kaltmiete),
-          nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-          mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
-          mieterhoehungen: v.mieterhoehungen.map((m) => ({
-            gueltigAb: m.gueltigAb,
-            kaltmiete: Number(m.kaltmiete),
-            nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
-          })),
-          mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
-        },
-        bis,
-        buchhaltungAb,
-      );
+      const soll = berechneSoll(sollIstDaten(v), bis, buchhaltungAb);
       const ist = berechneIstNachPeriode(zahlungenNachVertrag.get(v.id) ?? [], buchhaltungAb, bis);
       const saldovortrag = Number(v.saldovortrag);
       const sonderforderung = sonderforderungen.get(v.id)?.offen ?? 0;
       // Offene Sonderforderungen (z.B. Rücklastschriftgebühren) mindern den Saldo wie ein Rückstand.
-      const saldo = ist - soll + saldovortrag - sonderforderung;
+      const nkGegenrechnung = gegenrechnungVorJahr(gegenrechnungen.get(v.id) ?? [], bis.getFullYear());
+      const saldo = ist - soll + saldovortrag - sonderforderung + nkGegenrechnung;
 
       return {
         id: v.id,
@@ -91,6 +98,7 @@ async function ladeZeilen(objekt: { buchhaltungAb: Date | null } | null, bis: Da
         saldovortrag,
         saldo,
         sonderforderung,
+        nkGegenrechnung,
         eigenerStichtag: hatEigenenStichtag(v, objekt) ? formatDatum(v.buchhaltungAb!) : null,
       };
     })
@@ -118,7 +126,11 @@ export default async function OffenePostenPage() {
           , gerechnet bis {formatDatum(bis)}) im Vergleich zu den{" "}
           {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
           = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
-          sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen.
+          sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen. Ebenso die
+          Gegenrechnung der NK-Vorauszahlung abgeschlossener Nebenkostenabrechnungen (Spalte &bdquo;davon
+          NK-Gegenrechnung&ldquo;): Eine nicht gezahlte NK-Vorauszahlung steht zwar als Rückstand im Soll, ist
+          nach der Abrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) steht
+          nicht im Saldo.
         </p>
         {zeilen.some((z) => z.eigenerStichtag) && (
           <p className="mt-1 text-xs text-amber-300">

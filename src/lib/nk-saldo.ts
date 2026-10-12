@@ -43,3 +43,33 @@ export function unbezahlteNkVorauszahlung(
   }
   return Math.round((soll - position.vorauszahlungGesamt) * 100) / 100;
 }
+
+export type BerechnetePosition = { jahr: number; zeitraumVon: Date; zeitraumBis: Date; vorauszahlungGesamt: number };
+
+/**
+ * Gegenrechnung je Abrechnungsjahr (nur Beträge ≠ 0) für die *berechneten* Positionen eines Vertrags.
+ *
+ * Sie gehört zum Mietsaldo: Die unbezahlte NK-Vorauszahlung steht dort als Rückstand, ist aber nach
+ * der Abrechnung nicht mehr geschuldet (die Abrechnung vergleicht die Kosten nur mit der gezahlten
+ * Vorauszahlung). Eine Abrechnung für das Jahr Y zählt zum Saldo, sobald der Stichtag in einem späteren
+ * Jahr liegt (siehe `gegenrechnungVorJahr`); gespeichert wird nichts, der Wert ändert sich mit
+ * „Neu berechnen“ und den Zahlungen.
+ */
+export function gegenrechnungenJeJahr(
+  vertrag: Pick<MietvertragFuerSollIst, "kaltmiete" | "nebenkostenVorauszahlung" | "mieterhoehungen">,
+  positionen: BerechnetePosition[],
+  buchhaltungAb: Date | null,
+): { jahr: number; betrag: number }[] {
+  const liste: { jahr: number; betrag: number }[] = [];
+  for (const p of positionen) {
+    const betrag = unbezahlteNkVorauszahlung(vertrag, p, buchhaltungAb);
+    if (betrag !== 0) liste.push({ jahr: p.jahr, betrag });
+  }
+  return liste.sort((a, b) => a.jahr - b.jahr);
+}
+
+/** Summe der Gegenrechnungen aller Abrechnungsjahre vor `jahr` (Abrechnungsjahr < jahr), cent-genau. */
+export function gegenrechnungVorJahr(liste: { jahr: number; betrag: number }[], jahr: number): number {
+  const summe = liste.filter((g) => g.jahr < jahr).reduce((s, g) => s + g.betrag, 0);
+  return Math.round(summe * 100) / 100 || 0;
+}

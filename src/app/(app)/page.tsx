@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
+import { ladeNkGegenrechnungen } from "@/lib/nk-gegenrechnung";
+import { gegenrechnungVorJahr } from "@/lib/nk-saldo";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc } from "@/lib/ticket";
@@ -87,25 +89,28 @@ export default async function DashboardPage() {
       abJeVertrag: new Map(abrechenbareVertraege.map((v) => [v.id, effektiverStichtag(v, objekt)])),
     },
   );
+  const heute = new Date();
+  const sollIstDaten = (v: (typeof abrechenbareVertraege)[number]) => ({
+    beginn: v.beginn,
+    ende: v.ende,
+    kaltmiete: Number(v.kaltmiete),
+    nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+    mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
+    mieterhoehungen: v.mieterhoehungen.map((m) => ({
+      gueltigAb: m.gueltigAb,
+      kaltmiete: Number(m.kaltmiete),
+      nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+    })),
+    mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
+  });
+  // Wie in den Offenen Posten: unbezahlte NK-Vorauszahlung abgeschlossener Abrechnungen ist kein Rückstand.
+  const gegenrechnungen = await ladeNkGegenrechnungen(
+    abrechenbareVertraege.map((v) => ({ id: v.id, vertrag: sollIstDaten(v), buchhaltungAb: effektiverStichtag(v, objekt) })),
+    heute.getFullYear() - 1,
+  );
   const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
     const buchhaltungAb = effektiverStichtag(v, objekt);
-    const soll = berechneSoll(
-      {
-        beginn: v.beginn,
-        ende: v.ende,
-        kaltmiete: Number(v.kaltmiete),
-        nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-        mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
-        mieterhoehungen: v.mieterhoehungen.map((m) => ({
-          gueltigAb: m.gueltigAb,
-          kaltmiete: Number(m.kaltmiete),
-          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
-        })),
-        mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
-      },
-      new Date(),
-      buchhaltungAb,
-    );
+    const soll = berechneSoll(sollIstDaten(v), heute, buchhaltungAb);
     const ist = berechneIstNachPeriode(
       v.buchungen.map((z) => ({
         datum: z.datum!,
@@ -115,7 +120,9 @@ export default async function DashboardPage() {
       })),
       buchhaltungAb,
     );
-    const saldo = ist - soll + Number(v.saldovortrag) - (sonderforderungen.get(v.id)?.offen ?? 0);
+    const saldo =
+      ist - soll + Number(v.saldovortrag) - (sonderforderungen.get(v.id)?.offen ?? 0) +
+      gegenrechnungVorJahr(gegenrechnungen.get(v.id) ?? [], heute.getFullYear());
     return sum + Math.min(saldo, 0);
   }, 0);
 

@@ -548,7 +548,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             noch einzuziehende Nachzahlung. Die Spalte &bdquo;Gutschrift unbezahlte NK-Vorauszahlung
             (Vorjahr)&ldquo; gleicht den unbezahlten Teil der Vorauszahlung aus: Er steht schon als
             Rückstand in Soll/Saldo alt, die Abrechnung vergleicht die Kosten aber nur mit der
-            tatsächlich gezahlten Vorauszahlung. Im Mieterkonto des Mietvertrags steht Saldo neu als
+            tatsächlich gezahlten Vorauszahlung. Bei älteren Abrechnungen (bis {jahr - 2}) steckt die Gutschrift schon in Saldo alt. Im Mieterkonto des Mietvertrags steht Saldo neu als
             &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
           </p>
           {!zeitraum.mitNkOffen && (

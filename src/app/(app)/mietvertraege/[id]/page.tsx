@@ -14,7 +14,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
-import { saldoMitToleranz, unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
+import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungVorJahr } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
@@ -131,7 +131,22 @@ export default async function MietvertragDetailPage({
   const sonderOffenImSaldo = sonderBuchungen
     .filter((b) => b.datum && (!stichtagAb || b.datum >= stichtagAb) && b.datum <= bis)
     .reduce((sum, b) => sum - sonderWirkung(b.buchungsart.code, Number(b.betrag)), 0);
-  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo;
+  // Unbezahlte NK-Vorauszahlung berechneter Abrechnungen (je Abrechnungsjahr): steht als Rückstand im Soll, ist
+  // nach der Abrechnung aber nicht mehr geschuldet. Zählt zum Saldo, sobald der Stichtag in einem späteren
+  // Jahr liegt (siehe gegenrechnungenJeJahr); die Abrechnung selbst (Nachzahlung/Guthaben) steht nicht darin.
+  const nkGegenrechnungen = gegenrechnungenJeJahr(
+    vertragFuerSollIst,
+    vertrag.abrechnungspositionen
+      .filter((p) => Array.isArray(p.details))
+      .map((p) => ({
+        jahr: p.abrechnung.jahr,
+        zeitraumVon: p.zeitraumVon,
+        zeitraumBis: p.zeitraumBis,
+        vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+      })),
+    stichtagAb,
+  );
+  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo + gegenrechnungVorJahr(nkGegenrechnungen, bis.getFullYear());
   const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, stichtagAb);
   // Jahre für das Mieterkonto: ab dem ersten Jahr mit Zahlungen (oder dem Stichtag/Soll-Beginn) bis
   // zum "erfasst bis"-Jahr. Vor dem Buchhaltungs-Stichtag (stichtagAb, des Vertrags) gibt es kein vom System
@@ -257,27 +272,12 @@ export default async function MietvertragDetailPage({
       mieterkonto: e.bezugTyp === "Mieterkonto",
     })),
   });
-  // Offene NK-Abrechnung des Vorjahres. Bei berechneten Positionen (details gesetzt) wird die unbezahlte
-  // NK-Vorauszahlung gegengerechnet: sie steht schon als Rückstand im Saldo und würde sonst zusätzlich
-  // in der Nachzahlung zählen (siehe unbezahlteNkVorauszahlung).
-  const nkOffenFuerJahr = (jahr: number): { offen: number; gegenrechnung: number } | null => {
+  // Offene NK-Abrechnung des Vorjahres: Saldo der Position ./. Auszahlung/Verrechnung. Die Gegenrechnung der
+  // unbezahlten NK-Vorauszahlung gehört zum Mietsaldo (nkGegenrechnungen, Zeile im Mieterkonto) und steht hier nicht.
+  const nkOffenFuerJahr = (jahr: number): number | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
     if (!position) return null;
-    const gegenrechnung = Array.isArray(position.details)
-      ? unbezahlteNkVorauszahlung(
-          vertragFuerSollIst,
-          {
-            zeitraumVon: position.zeitraumVon,
-            zeitraumBis: position.zeitraumBis,
-            vorauszahlungGesamt: Number(position.vorauszahlungGesamt),
-          },
-          stichtagAb,
-        )
-      : 0;
-    return {
-      offen: saldoMitToleranz(Number(position.saldo) + gegenrechnung - (nkZahlungNachJahr.get(jahr - 1) ?? 0)),
-      gegenrechnung,
-    };
+    return saldoMitToleranz(Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0));
   };
   const letztesJahr = bis.getFullYear();
   const erstesJahr = Math.min(
@@ -301,8 +301,8 @@ export default async function MietvertragDetailPage({
       sonderBuchungen: sonderListe,
       ab: vorStichtag ? null : stichtagAb,
       bis,
-      nebenkostenabrechnungOffen: nkOffen?.offen ?? null,
-      nebenkostenGegenrechnung: nkOffen?.gegenrechnung ?? 0,
+      nebenkostenabrechnungOffen: nkOffen,
+      gegenrechnungen: nkGegenrechnungen,
     });
   }
 

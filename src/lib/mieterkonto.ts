@@ -30,13 +30,12 @@ export type MieterkontoJahr = {
   uebertragVorjahr: number;
   sollKaltmieteMonatlich: number;
   sollNebenkostenMonatlich: number;
-  // Offener Saldo der Nebenkostenabrechnung des Vorjahres (positiv = noch auszuzahlendes Guthaben,
+  // Offener Saldo der Nebenkostenabrechnung des Vorjahres selbst (positiv = noch auszuzahlendes Guthaben,
   // negativ = noch einzuziehende Nachzahlung), null = keine Abrechnung vorhanden. Wie in der
-  // Jahresübersicht fließt sie nur in den Saldo am Jahresende ein, nicht in den Übertrag.
+  // Jahresübersicht fließt sie nur in den Saldo am Jahresende ein, nicht in den Übertrag. Die Gegenrechnung
+  // der unbezahlten NK-Vorauszahlung ist dagegen Teil des Saldos (Zeile in der Tabelle, siehe
+  // gegenrechnungen in baueMieterkontoJahr).
   nebenkostenabrechnungOffen: number | null;
-  // Teil von nebenkostenabrechnungOffen: Gegenrechnung der unbezahlten NK-Vorauszahlung des Vorjahres
-  // (steht schon als Rückstand im Saldo, siehe unbezahlteNkVorauszahlung); 0 = keine.
-  nebenkostenGegenrechnung: number;
   saldoInklNebenkostenabrechnung: number;
   zeilen: MieterkontoZeile[];
   summe: { sollKaltmiete: number; sollNebenkosten: number; sollGesamt: number; betrag: number; differenz: number; saldo: number };
@@ -94,7 +93,10 @@ export function baueMieterkontoJahr(input: {
   ab: Date | null;
   bis: Date;
   nebenkostenabrechnungOffen?: number | null;
-  nebenkostenGegenrechnung?: number;
+  // Gegenrechnung der unbezahlten (+) bzw. überzahlten (−) NK-Vorauszahlung je Abrechnungsjahr (siehe
+  // gegenrechnungenJeJahr in nk-saldo.ts). Die Abrechnung des Vorjahres steht als Zeile am Jahresanfang, ältere
+  // stecken im Übertrag.
+  gegenrechnungen?: { jahr: number; betrag: number }[];
 }): MieterkontoJahr {
   const { jahr } = input;
   // Zahlungen zählen nach ihrer Mietperiode: von der Periode des Stichtags `ab` bis zur Periode von
@@ -113,11 +115,29 @@ export function baueMieterkontoJahr(input: {
   for (const s of input.sollZeilen) if (s.jahr < jahr) uebertrag -= s.betrag;
   for (const z of zahlungen) if (periodeIndex(z) < monatsIndex(jahr, 1)) uebertrag += z.betrag;
   for (const s of sonder) if (s.datum < jahresanfang) uebertrag += s.istForderung ? -s.betrag : s.betrag;
+  const gegenrechnungen = input.gegenrechnungen ?? [];
+  for (const g of gegenrechnungen) if (g.jahr < jahr - 1) uebertrag += g.betrag;
 
   const zeilen: MieterkontoZeile[] = [];
   let saldo = uebertrag;
   const summe = { sollKaltmiete: 0, sollNebenkosten: 0, sollGesamt: 0, betrag: 0, differenz: 0, saldo: 0 };
   let letzteMiete = { kalt: 0, nk: 0 };
+
+  // Abrechnung des Vorjahres: unbezahlte (bzw. überzahlte) NK-Vorauszahlung ist nach der Abrechnung nicht mehr
+  // geschuldet und gleicht den Rückstand im Soll aus.
+  const vorjahr = gegenrechnungen.find((g) => g.jahr === jahr - 1);
+  if (vorjahr && vorjahr.betrag !== 0) {
+    saldo += vorjahr.betrag;
+    zeilen.push({
+      monat: "Abrechnung",
+      sollKaltmiete: null, sollNebenkosten: null, sollGesamt: null,
+      buchungsart: `${vorjahr.betrag > 0 ? "Gutschrift unbezahlte" : "Belastung überzahlte"} NK-Vorauszahlung ${jahr - 1}`,
+      datum: null, betrag: null, differenz: vorjahr.betrag, saldo,
+      bemerkung: "Aus der Nebenkostenabrechnung: nicht gezahlte NK-Vorauszahlung ist nicht mehr geschuldet",
+      sonderbuchung: true,
+    });
+    summe.differenz += vorjahr.betrag;
+  }
 
   const imMonat = <T extends { datum: Date }>(liste: T[], monat: number) =>
     liste.filter((e) => e.datum.getFullYear() === jahr && e.datum.getMonth() + 1 === monat).sort((a, b) => a.datum.getTime() - b.datum.getTime());
@@ -210,7 +230,6 @@ export function baueMieterkontoJahr(input: {
     sollKaltmieteMonatlich: letzteMiete.kalt,
     sollNebenkostenMonatlich: letzteMiete.nk,
     nebenkostenabrechnungOffen: input.nebenkostenabrechnungOffen ?? null,
-    nebenkostenGegenrechnung: input.nebenkostenabrechnungOffen != null ? (input.nebenkostenGegenrechnung ?? 0) : 0,
     saldoInklNebenkostenabrechnung: saldo + (input.nebenkostenabrechnungOffen ?? 0),
     zeilen,
     summe,

@@ -28,12 +28,6 @@ export function MieterkontoAnsicht({
   stichtagAb: { jahr: number; datum: string } | null;
 }) {
   const vorStichtag = stichtagAb !== null && jahr < stichtagAb.jahr;
-  // Offene Abrechnung ohne die Gegenrechnung (die steht in einer eigenen Zeile); die Summe bleibt unverändert.
-  const abrechnungOffen =
-    konto.nebenkostenabrechnungOffen === null
-      ? 0
-      : Math.round((konto.nebenkostenabrechnungOffen - konto.nebenkostenGegenrechnung) * 100) / 100;
-
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -139,32 +133,20 @@ export function MieterkontoAnsicht({
       {konto.nebenkostenabrechnungOffen !== null && (
         <table className="ml-auto mt-3 text-sm">
           <tbody>
-            {/* Abrechnung und Gegenrechnung getrennt: die Abrechnung zeigt, was sie selbst ausweist
-                (Kosten ./. gezahlte Vorauszahlung, abzüglich Auszahlung/Verrechnung); die unbezahlte
-                NK-Vorauszahlung steht schon als Rückstand in der Tabelle und wird als Gutschrift
-                ausgeglichen (so bucht sie auch der Verwalter). Die Summe ist unverändert. */}
+            {/* Die Gegenrechnung der unbezahlten NK-Vorauszahlung steht als Zeile in der Tabelle (Teil des
+                Saldos); hier bleibt die Abrechnung selbst (Kosten ./. gezahlte Vorauszahlung, abzüglich
+                Auszahlung/Verrechnung). */}
             <tr>
               <td className="py-0.5 pr-8 text-neutral-300">
                 Nebenkostenabrechnung {konto.jahr - 1} offen{" "}
                 <span className="text-xs text-neutral-500">
-                  ({abrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
+                  ({konto.nebenkostenabrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
                 </span>
               </td>
-              <td className={`py-0.5 text-right ${farbeSaldo(abrechnungOffen)}`}>{formatEuro(abrechnungOffen)}</td>
+              <td className={`py-0.5 text-right ${farbeSaldo(konto.nebenkostenabrechnungOffen)}`}>
+                {formatEuro(konto.nebenkostenabrechnungOffen)}
+              </td>
             </tr>
-            {konto.nebenkostenGegenrechnung !== 0 && (
-              <tr>
-                <td className="py-0.5 pr-8 text-neutral-300">
-                  {konto.nebenkostenGegenrechnung > 0
-                    ? `Gutschrift unbezahlte NK-Vorauszahlung ${konto.jahr - 1}`
-                    : `Belastung überzahlte NK-Vorauszahlung ${konto.jahr - 1}`}{" "}
-                  <span className="text-xs text-neutral-500">(steht als Rückstand im Saldo oben)</span>
-                </td>
-                <td className={`py-0.5 text-right ${farbeSaldo(konto.nebenkostenGegenrechnung)}`}>
-                  {formatEuro(konto.nebenkostenGegenrechnung)}
-                </td>
-              </tr>
-            )}
             <tr className="border-t border-neutral-700 font-medium">
               <td className="py-1 pr-8 text-white">Saldo inkl. offener Nebenkostenabrechnung</td>
               <td className={`py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>
@@ -175,7 +157,7 @@ export function MieterkontoAnsicht({
         </table>
       )}
       <div className="mt-2 space-y-0.5 text-xs italic text-neutral-500">
-        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr; die offene Nebenkostenabrechnung des Vorjahres fließt nur in den Saldo am Jahresende ein (wie in der Jahresübersicht).</p>
+        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr. Die Zeile &bdquo;Abrechnung&ldquo; (Gutschrift bzw. Belastung der NK-Vorauszahlung) gehört dazu: Eine nicht gezahlte NK-Vorauszahlung steht im Soll als Rückstand, ist nach der Nebenkostenabrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) fließt nur unter &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo; ein (wie in der Jahresübersicht).</p>
         <p>Positiver Saldo = Guthaben des Mieters. Negativer Saldo = Mietrückstand.</p>
         <p>
           Orange Zeilen = Sonderbuchungen (z.B. Rücklastschriftgebühr und die Zahlung darauf, im Monat des

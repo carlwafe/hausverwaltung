@@ -1,4 +1,4 @@
-import { saldoMitToleranz } from "./nk-saldo";
+import { gegenrechnungVorJahr, saldoMitToleranz } from "./nk-saldo";
 import { berechneSoll, berechneSollKaltmiete, ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "./soll-ist";
 
 export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
@@ -86,17 +86,24 @@ function istNachZuordnung(
  * Saldo (wie bei Offene Posten: ist - soll + saldovortrag) zu einem beliebigen Stichtag —
  * dieselbe Formel, nur zweimal aufgerufen (Jahresanfang/-ende) statt einmal, um die
  * Jahresbewegung als Differenz zu zeigen. Bewusst ohne jeden Bezug zur
- * Nebenkostenabrechnung — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
- * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung.
+ * Nebenkostenabrechnung selbst — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
+ * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung. Ausnahme: die Gegenrechnung der
+ * unbezahlten NK-Vorauszahlung *älterer* Abrechnungen (Abrechnungsjahr < `gegenrechnungVorJahr`, im Bericht
+ * für das Jahr J also bis J−2): nach der Abrechnung nicht mehr geschuldet, gehört sie dauerhaft zum Saldo. Die
+ * Abrechnung des Vorjahres J−1 kommt als Spalte „Nebenkostenabrechnung offen / Gutschrift“ dazu (Q1/Q2 ohne).
  */
-function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date): number {
+function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, gegenrechnungVorJahrGrenze: number): number {
   const buchhaltungAb = v.buchhaltungAb;
   const soll = berechneSoll(v, bis, buchhaltungAb);
   const ist = istNachZuordnung(v.zahlungen, buchhaltungAb ? periodeVon(buchhaltungAb) : -Infinity, periodeVon(bis));
   const sonder = v.sonderbewegungen
     .filter((s) => (!buchhaltungAb || s.datum >= buchhaltungAb) && s.datum <= bis)
     .reduce((sum, s) => sum + s.betrag, 0);
-  return ist - soll + v.saldovortrag + sonder;
+  const gegenrechnung = gegenrechnungVorJahr(
+    v.nebenkostenPositionen.map((p) => ({ jahr: p.jahr, betrag: p.unbezahlteVorauszahlung ?? 0 })),
+    gegenrechnungVorJahrGrenze,
+  );
+  return ist - soll + v.saldovortrag + sonder + gegenrechnung;
 }
 
 /**
@@ -185,7 +192,7 @@ export function berechneMieterBericht(
 
   for (const v of vertraege) {
     // Stichtag je Vertrag (v.buchhaltungAb): die Summen der Tabelle mischen dadurch ggf. unterschiedliche Stichtage.
-    const saldoAlt = saldoZuStichtag(v, saldoAltBis);
+    const saldoAlt = saldoZuStichtag(v, saldoAltBis, jahr - 1);
     const soll = berechneSoll(v, saldoNeuBis, v.buchhaltungAb) - berechneSoll(v, saldoAltBis, v.buchhaltungAb);
     const sollKaltmiete =
       berechneSollKaltmiete(v, saldoNeuBis, v.buchhaltungAb) - berechneSollKaltmiete(v, saldoAltBis, v.buchhaltungAb);
@@ -206,7 +213,7 @@ export function berechneMieterBericht(
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
     const saldoNeu =
-      Math.round((saldoZuStichtag(v, saldoNeuBis) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
+      Math.round((saldoZuStichtag(v, saldoNeuBis, jahr - 1) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
 
     if (
       !immerAnzeigen?.has(v.id) &&
