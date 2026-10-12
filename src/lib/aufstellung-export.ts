@@ -7,28 +7,43 @@ export type ExportZeile = { text: string; betrag: number; hinweis?: string; fett
 export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
   einnahmen: ExportZeile[];
   kosten: ExportZeile[];
-  ueberleitung: ExportZeile[];
+  ueberschuss: ExportZeile[];
+  // Hinweise zur 10-Tage-Regel (mit Betrag), ohne Verweis auf den internen Jahresbericht.
+  zehnTage: ExportZeile[];
 } {
+  const einnahmen: ExportZeile[] = [
+    { text: "Vereinnahmte Mieten (Kaltmiete, netto)", betrag: st.mieten },
+    ...(st.umsatzsteuer !== 0
+      ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer }]
+      : []),
+    { text: "Vereinnahmte Nebenkosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben" },
+    { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
+    { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
+    { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
+  ];
+  const zehnTage: ExportZeile[] = [];
+  if (st.anzahlHinzu > 0)
+    zehnTage.push({
+      text: `In den Mieten enthalten: Dezember-Zahlungen ${jahr - 1} für Januar ${jahr}`,
+      betrag: st.abgrenzungHinzu,
+      hinweis: `${st.anzahlHinzu} Zahlungen`,
+    });
+  if (st.anzahlHeraus > 0)
+    zehnTage.push({
+      text: `Nicht enthalten (zählen ${jahr + 1}): Dezember-Zahlungen ${jahr} für Januar ${jahr + 1}`,
+      betrag: st.abgrenzungHeraus,
+      hinweis: `${st.anzahlHeraus} Zahlungen`,
+    });
   return {
-    einnahmen: [
-      { text: "Vereinnahmte Mieten (Kaltmiete)", betrag: st.mieten },
-      { text: "Vereinnahmte Nebenkosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben" },
-      { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
-      { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
-      { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
-    ],
+    einnahmen,
     kosten: [
       { text: "Instandhaltung (Reparaturen)", betrag: st.instandhaltung },
       { text: "Umlagefähige Kosten", betrag: st.umlagefaehig },
       { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
       { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
     ],
-    ueberleitung: [
-      { text: "Ergebnis laut Jahresbericht (nach Zahlungsdatum)", betrag: st.ueberschussBericht },
-      { text: `Zuzüglich Dezember-Zahlungen ${jahr - 1} für Januar ${jahr}`, betrag: st.abgrenzungHinzu, hinweis: `${st.anzahlHinzu} Zahlungen, 10-Tage-Regel` },
-      { text: `Abzüglich Dezember-Zahlungen ${jahr} für Januar ${jahr + 1}`, betrag: -st.abgrenzungHeraus, hinweis: `${st.anzahlHeraus} Zahlungen, 10-Tage-Regel` },
-      { text: "Überschuss vor AfA und Schuldzinsen", betrag: st.ueberschuss, fett: true },
-    ],
+    ueberschuss: [{ text: "Überschuss vor AfA und Schuldzinsen (Einnahmen − Kosten)", betrag: st.ueberschuss, fett: true }],
+    zehnTage,
   };
 }
 
@@ -91,7 +106,8 @@ export function aufstellungAlsCsv(
   };
   block("Einnahmen", z.einnahmen);
   block("Kosten", z.kosten);
-  block("Überleitung", z.ueberleitung);
+  block("Überschuss", z.ueberschuss);
+  block("10-Tage-Regel", z.zehnTage);
   for (const g of kostenNachGruppe(kosten)) {
     for (const a of g.arten) zeilen.push([`Kostenarten – ${g.label}`, a.name, csvZahl(a.summe)]);
   }

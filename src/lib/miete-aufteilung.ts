@@ -33,16 +33,20 @@ export function zuflussJahrMiete(z: Pick<MietzahlungFuerAufteilung, "datum" | "p
 }
 
 export type MietAufteilung = {
-  kaltmiete: number;
+  kaltmiete: number; // netto, ohne Umsatzsteuer
   nebenkosten: number;
+  umsatzsteuer: number; // in den Zahlungen enthaltene Umsatzsteuer (Garagenmieten mit MwSt)
   // Zahlungen, die nach der 10-Tage-Regel zum Berichtsjahr zählen, obwohl sie im Vorjahr eingingen,
   // bzw. die im Berichtsjahr eingingen, aber zum Folgejahr zählen.
   abgrenzung: { hinzu: number; anzahlHinzu: number; heraus: number; anzahlHeraus: number };
 };
 
+// Monatliches Soll eines Vertrags, wie es für die Aufteilung gebraucht wird.
+export type SollFuerAufteilung = { kaltmiete: number; nebenkosten: number; mehrwertsteuer: number };
+
 export function teileMietzahlungen(
   zahlungen: MietzahlungFuerAufteilung[],
-  nkSollFuerMonat: (mietvertragId: string, jahr: number, monat: number) => number,
+  sollFuerMonat: (mietvertragId: string, jahr: number, monat: number) => SollFuerAufteilung,
   berichtsjahr: number,
 ): MietAufteilung {
   const nachPeriode = new Map<string, MietzahlungFuerAufteilung[]>();
@@ -55,15 +59,23 @@ export function teileMietzahlungen(
 
   let kaltmiete = 0;
   let nebenkosten = 0;
+  let umsatzsteuer = 0;
   const abgrenzung = { hinzu: 0, anzahlHinzu: 0, heraus: 0, anzahlHeraus: 0 };
   for (const liste of nachPeriode.values()) {
     liste.sort((a, b) => a.datum.getTime() - b.datum.getTime() || a.reihenfolge - b.reihenfolge);
     const { mietvertragId, periodeJahr, periodeMonat } = liste[0];
-    // Ohne Mietvertrag lässt sich kein NK-Soll bestimmen — alles zählt als Kaltmiete.
-    const nkSoll = mietvertragId ? Math.max(nkSollFuerMonat(mietvertragId, periodeJahr, periodeMonat), 0) : 0;
+    // Ohne Mietvertrag lässt sich kein Soll bestimmen — alles zählt als Kaltmiete.
+    const soll = mietvertragId ? sollFuerMonat(mietvertragId, periodeJahr, periodeMonat) : null;
+    const nkSoll = soll ? Math.max(soll.nebenkosten, 0) : 0;
+    // Umsatzsteuer (Garagen): anteilig am Gesamtsoll, jede Zahlung enthält sie im selben Verhältnis.
+    const gesamtSoll = soll ? soll.kaltmiete + soll.nebenkosten + soll.mehrwertsteuer : 0;
+    const ustAnteil = soll && soll.mehrwertsteuer > 0 && gesamtSoll > 0 ? soll.mehrwertsteuer / gesamtSoll : 0;
     let summe = 0;
     let nkBisher = 0;
-    for (const z of liste) {
+    for (const zahlung of liste) {
+      const z = { ...zahlung };
+      const ust = z.betrag * ustAnteil;
+      z.betrag -= ust; // ab hier ohne Umsatzsteuer
       summe += z.betrag;
       const nkKumuliert = Math.min(Math.max(summe, 0), nkSoll);
       const nkAnteil = nkKumuliert - nkBisher;
@@ -72,16 +84,17 @@ export function teileMietzahlungen(
       const zufluss = zuflussJahrMiete(z);
       const datumsJahr = z.datum.getFullYear();
       if (zufluss === berichtsjahr && datumsJahr < berichtsjahr) {
-        abgrenzung.hinzu += z.betrag;
+        abgrenzung.hinzu += zahlung.betrag;
         abgrenzung.anzahlHinzu++;
       } else if (zufluss !== berichtsjahr && datumsJahr === berichtsjahr) {
-        abgrenzung.heraus += z.betrag;
+        abgrenzung.heraus += zahlung.betrag;
         abgrenzung.anzahlHeraus++;
       }
       if (zufluss !== berichtsjahr) continue;
       nebenkosten += nkAnteil;
+      umsatzsteuer += ust;
       kaltmiete += z.betrag - nkAnteil;
     }
   }
-  return { kaltmiete, nebenkosten, abgrenzung };
+  return { kaltmiete, nebenkosten, umsatzsteuer, abgrenzung };
 }

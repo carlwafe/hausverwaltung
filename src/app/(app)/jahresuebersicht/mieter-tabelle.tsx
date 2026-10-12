@@ -102,7 +102,7 @@ export function MieterTabelle({
       farbe: (z) => (z.saldoAlt < 0 ? "text-red-400" : "text-neutral-300"),
     }),
     zahlSpalte("sollKaltmiete", "Soll Kaltmiete", (z) => z.sollKaltmiete),
-    zahlSpalte("sollNebenkosten", "Soll Nebenkosten", (z) => z.sollNebenkosten),
+    zahlSpalte("sollNebenkosten", "Soll Nebenkosten / MwSt.", (z) => z.sollNebenkosten),
     zahlSpalte("soll", "Soll gesamt", (z) => z.soll, { farbe: () => "text-neutral-200" }),
     zahlSpalte("miete", "Miete", (z) => z.miete),
     ...(mitNkOffen

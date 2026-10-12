@@ -63,16 +63,18 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
             <h1 className="text-[15pt] font-semibold">Einnahmen und Ausgaben {jahr}</h1>
             <p className="mb-6 text-[10pt] text-neutral-700">
               Aufstellung für die Anlage V (Einkünfte aus Vermietung und Verpachtung)
-              {objekt && <> · {objekt.name}, {objekt.strasse} {objekt.hausnummer}, {objekt.plz} {objekt.ort}</>}
+              {objekt && <> · Objekt: {objekt.strasse} {objekt.hausnummer}, {objekt.plz} {objekt.ort}</>}
             </p>
             <Tabelle titel="Einnahmen" zeilen={z.einnahmen} />
             <Tabelle titel="Kosten" zeilen={z.kosten} />
-            <Tabelle titel="Überschuss" zeilen={z.ueberleitung} />
+            <Tabelle titel="Überschuss" zeilen={z.ueberschuss} />
+            {z.zehnTage.length > 0 && <Tabelle titel="Hinweis: 10-Tage-Regel" zeilen={z.zehnTage} />}
             <p className="mt-6 text-[8.5pt] leading-snug text-neutral-700">
               Grundlage: Mieten und Nebenkosten nach tatsächlichem Zahlungseingang (Zuflussprinzip), Kosten nach
               Abbuchungsdatum. Zahlungen ab dem 22.12. für die Januarmiete des Folgejahres sind nach der
               10-Tage-Regel (§ 11 Abs. 1 Satz 2 EStG) dem Folgejahr zugeordnet, entsprechende Zahlungen des
-              Vorjahres diesem Jahr. Mieten und Nebenkosten: Zahlungen sind je Monat zuerst auf die
+              Vorjahres diesem Jahr. Die Umsatzsteuer auf Garagenmieten ist von der Kaltmiete getrennt
+              ausgewiesen; ihre Abführung an das Finanzamt ist hier nicht enthalten. Mieten und Nebenkosten: Zahlungen sind je Monat zuerst auf die
               Nebenkosten-Vorauszahlung angerechnet, der Rest ist Kaltmiete. Ausgezahlte Nebenkosten-Guthaben
               mindern die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie. Nicht enthalten: Absetzung für
               Abnutzung und Schuldzinsen.

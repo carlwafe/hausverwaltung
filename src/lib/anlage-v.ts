@@ -57,7 +57,8 @@ export type KostenSumme = {
 };
 
 export type AnlageVAufstellung = {
-  mieten: number; // vereinnahmte Kaltmiete
+  mieten: number; // vereinnahmte Kaltmiete (netto)
+  umsatzsteuer: number; // vereinnahmte Umsatzsteuer auf Garagenmieten
   nebenkosten: number; // vereinnahmte NK-Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben
   kautionEinbehalte: number;
   sonstigeEinnahmen: number;
@@ -85,7 +86,8 @@ const gerundet = (n: number) => Math.round(n * 100) / 100;
 // Nebenkosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen. Die Mietzahlungen sind nach der
 // 10-Tage-Regel dem Jahr zugeordnet (siehe zuflussJahrMiete); die Abweichung zum Bericht steht in `abgrenzung`.
 export function baueAnlageVAufstellung(eingabe: {
-  kaltmiete: number;
+  kaltmiete: number; // netto, ohne Umsatzsteuer
+  umsatzsteuer: number;
   nkVorauszahlungen: number;
   nachzahlungenEingezogen: number;
   guthabenAusgezahlt: number;
@@ -109,11 +111,12 @@ export function baueAnlageVAufstellung(eingabe: {
   }
 
   const nebenkosten = eingabe.nkVorauszahlungen + eingabe.nachzahlungenEingezogen - eingabe.guthabenAusgezahlt;
-  const summeEinnahmen = eingabe.kaltmiete + nebenkosten + eingabe.kautionEinbehalte + sonstigeEinnahmen;
+  const summeEinnahmen = eingabe.kaltmiete + eingabe.umsatzsteuer + nebenkosten + eingabe.kautionEinbehalte + sonstigeEinnahmen;
   const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig;
 
   return {
     mieten: gerundet(eingabe.kaltmiete),
+    umsatzsteuer: gerundet(eingabe.umsatzsteuer),
     nebenkosten: gerundet(nebenkosten),
     kautionEinbehalte: gerundet(eingabe.kautionEinbehalte),
     sonstigeEinnahmen: gerundet(sonstigeEinnahmen),

@@ -172,6 +172,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   // nach der 10-Tage-Regel dem Jahr zugeordnet; ohne Aufteilung (Quartal) bleibt alles bei der Kaltmiete.
   const steuer = baueAnlageVAufstellung({
     kaltmiete: mietAufteilung ? mietAufteilung.kaltmiete : mieteinnahmen,
+    umsatzsteuer: mietAufteilung?.umsatzsteuer ?? 0,
     nkVorauszahlungen: mietAufteilung?.nebenkosten ?? 0,
     nachzahlungenEingezogen,
     guthabenAusgezahlt,
@@ -222,6 +223,7 @@ async function ladeMietAufteilung(zeitraum: Zeitraum) {
       id: true,
       kaltmiete: true,
       nebenkostenVorauszahlung: true,
+      mehrwertsteuer: true,
       mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
     },
   });
@@ -231,6 +233,7 @@ async function ladeMietAufteilung(zeitraum: Zeitraum) {
       {
         kaltmiete: Number(v.kaltmiete),
         nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+        mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
         mieterhoehungen: v.mieterhoehungen.map((m) => ({
           gueltigAb: m.gueltigAb,
           kaltmiete: Number(m.kaltmiete),
@@ -254,7 +257,9 @@ async function ladeMietAufteilung(zeitraum: Zeitraum) {
       })),
     (vertragId, j, monat) => {
       const v = vertragNachId.get(vertragId);
-      return v ? ermittleMieteFuerMonat(v, j, monat).nebenkostenVorauszahlung : 0;
+      if (!v) return { kaltmiete: 0, nebenkosten: 0, mehrwertsteuer: 0 };
+      const miete = ermittleMieteFuerMonat(v, j, monat);
+      return { kaltmiete: miete.kaltmiete, nebenkosten: miete.nebenkostenVorauszahlung, mehrwertsteuer: v.mehrwertsteuer };
     },
     jahr,
   );
@@ -839,10 +844,13 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
   type Zeile = { text: string; betrag: number; hinweis?: string; fett?: boolean };
   const einnahmen: Zeile[] = [
     {
-      text: "Vereinnahmte Mieten (Kaltmiete)",
+      text: "Vereinnahmte Mieten (Kaltmiete, netto)",
       betrag: st.mieten,
       hinweis: "Zahlungen je Monat zuerst auf die NK-Vorauszahlung angerechnet, der Rest ist Kaltmiete",
     },
+    ...(st.umsatzsteuer !== 0
+      ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer, hinweis: "anteilig aus den Garagen-Zahlungen, keine Nebenkosten" }]
+      : []),
     {
       text: "Vereinnahmte Nebenkosten",
       betrag: st.nebenkosten,
@@ -961,6 +969,11 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             Zahlungsdatum — die Zeilen unter der Tabelle leiten über. Eine im Januar gezahlte Dezembermiete ist
             nicht betroffen (war schon im Dezember fällig). Für Kosten ist die Regel nicht umgesetzt. Greift nur,
             wenn die Mietperiode der Zahlung stimmt.
+          </p>
+          <p>
+            Umsatzsteuer: Garagenmieten enthalten Umsatzsteuer (Vertragsfeld „Mehrwertsteuer“); sie ist anteilig aus
+            den Zahlungen herausgerechnet und steht als eigene Zeile, nicht in der Kaltmiete und nicht bei den
+            Nebenkosten. Ob und wie sie an das Finanzamt abgeführt wird, ist in der App nicht erfasst.
           </p>
           <p>
             Nicht enthalten: AfA und Schuldzinsen (Darlehen laufen über ein anderes Konto), der Überschuss gilt
