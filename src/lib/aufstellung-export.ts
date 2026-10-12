@@ -34,7 +34,9 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
 
 // Für den Steuerberater ohne den internen Zusatz „(über Techem verrechnet)“; gleiche Namen danach
 // werden zusammengefasst.
-const exportName = (name: string) => name.replace(/\s*\(über Techem verrechnet\)/gi, "").trim();
+// Die Heizkosten je Haus ("Heizkosten Haus 2-12" …) stehen als eine Position „Heizkosten“.
+const exportName = (name: string) =>
+  name.replace(/\s*\(über Techem verrechnet\)/gi, "").replace(/^Heizkosten Haus .+$/i, "Heizkosten").trim();
 
 function fuerExport(kosten: KostenSumme[]): KostenSumme[] {
   const nachName = new Map<string, KostenSumme>();
