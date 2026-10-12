@@ -160,7 +160,7 @@ export default async function DokumentePage({
         <p className="text-sm text-neutral-400">
           Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Hochladen heißt nur
           Datei wählen: die Texterkennung bestimmt Typ, Aussteller, Betrag usw., und im <strong>Eingang</strong> bestätigst du die
-          vorgeschlagenen Bezüge (Kostenposition, Mietvertrag, Einheit, Gebäude, Dienstleister, Ticket). Ein Dokument kann mehrere
+          vorgeschlagenen Bezüge (Kostenposition, Mietvertrag, Einheit, Haus, Gebäude, Dienstleister, Ticket). „Haus“ ist das ganze Bauwerk mit mehreren Hausnummern, „Gebäude“ eine einzelne Hausnummer. Ein Dokument kann mehrere
           Bezüge haben und erscheint dann in jedem passenden Ordner (Kosten, Mietverhältnisse, Objekt, Sonstiges). Kostenbelege lassen sich nicht löschen, nur ausblenden. Die
           Kontoauszug-Dateien der Importe stehen unter Kontoauszug → Importe.
         </p>
