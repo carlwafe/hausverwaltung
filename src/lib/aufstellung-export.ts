@@ -32,13 +32,29 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
   };
 }
 
+// Für den Steuerberater ohne den internen Zusatz „(über Techem verrechnet)“; gleiche Namen danach
+// werden zusammengefasst.
+const exportName = (name: string) => name.replace(/\s*\(über Techem verrechnet\)/gi, "").trim();
+
+function fuerExport(kosten: KostenSumme[]): KostenSumme[] {
+  const nachName = new Map<string, KostenSumme>();
+  for (const k of kosten) {
+    const name = exportName(k.name);
+    const schluessel = `${k.gruppe}|${name}`;
+    const vorhanden = nachName.get(schluessel);
+    if (vorhanden) vorhanden.summe += k.summe;
+    else nachName.set(schluessel, { ...k, name });
+  }
+  return [...nachName.values()];
+}
+
 const GRUPPEN_REIHENFOLGE: Kostengruppe[] = ["INSTANDHALTUNG", "UMLAGEFAEHIG", "NICHT_UMLAGEFAEHIG"];
 
 // Alle Bestandteile der Zeile „Sonstige Einnahmen“ (Summe = st.sonstigeEinnahmen): Gutschriften auf
 // Kostenarten (Waschgeld, Mahngebühren …, als positive Einnahme), Zahlungen von Mietern auf
 // Gebühren-Forderungen und übrige Buchungen.
 export function sonstigeEinnahmenZeilen(st: AnlageVAufstellung, kosten: KostenSumme[]): { text: string; betrag: number }[] {
-  const zeilen = kosten
+  const zeilen = fuerExport(kosten)
     .filter((k) => k.gruppe === "EINNAHME" && k.summe !== 0)
     .map((k) => ({ text: k.name, betrag: -k.summe }))
     .sort((a, b) => b.betrag - a.betrag);
@@ -49,8 +65,9 @@ export function sonstigeEinnahmenZeilen(st: AnlageVAufstellung, kosten: KostenSu
 
 // Kostenarten je Gruppe (nach Betrag absteigend), ohne Kostenarten mit Summe 0.
 export function kostenNachGruppe(kosten: KostenSumme[]): { gruppe: Kostengruppe; label: string; summe: number; arten: KostenSumme[] }[] {
+  const exportKosten = fuerExport(kosten);
   return GRUPPEN_REIHENFOLGE.map((gruppe) => {
-    const arten = kosten.filter((k) => k.gruppe === gruppe && k.summe !== 0).sort((a, b) => b.summe - a.summe);
+    const arten = exportKosten.filter((k) => k.gruppe === gruppe && k.summe !== 0).sort((a, b) => b.summe - a.summe);
     return { gruppe, label: KOSTENGRUPPE_LABEL[gruppe], summe: arten.reduce((s, k) => s + k.summe, 0), arten };
   }).filter((g) => g.arten.length > 0);
 }
