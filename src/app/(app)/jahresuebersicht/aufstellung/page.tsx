@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ladeJahresuebersicht, bildeZeitraum } from "../bericht-seite";
-import { aufstellungZeilen, kostenNachGruppe, type ExportZeile } from "@/lib/aufstellung-export";
+import { aufstellungZeilen, kostenNachGruppe, sonstigeEinnahmenZeilen, type ExportZeile } from "@/lib/aufstellung-export";
 import { DruckenKnopf } from "./drucken-knopf";
 
 function formatEuro(value: number) {
@@ -39,6 +39,7 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
   ]);
   const z = aufstellungZeilen(daten.steuer, jahr);
   const gruppen = kostenNachGruppe(daten.steuerKosten);
+  const sonstige = sonstigeEinnahmenZeilen(daten.steuer, daten.steuerKosten);
 
   return (
     <div>
@@ -78,7 +79,7 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
             </p>
           </section>
           <section className="box-border h-[297mm] overflow-hidden px-[20mm] py-[18mm] [break-before:page]">
-            <h2 className="mb-3 text-[13pt] font-semibold">Anlage: Kosten nach Kostenart {jahr}</h2>
+            <h2 className="mb-3 text-[13pt] font-semibold">Anlage: Kosten nach Kostenart und sonstige Einnahmen {jahr}</h2>
             {gruppen.map((g) => (
               <div key={g.gruppe} className="mb-4">
                 <h3 className="mb-1 text-[10pt] font-semibold">
@@ -96,10 +97,23 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
                 </table>
               </div>
             ))}
-            <p className="mt-2 text-[8pt] text-neutral-600">
-              „Sonstige Einnahme“: Gutschriften auf Kostenarten (z. B. Waschgeld, Mahngebühren), als Betrag mit
-              negativem Vorzeichen = Einnahme.
-            </p>
+            {sonstige.length > 0 && (
+              <div className="mb-4">
+                <h3 className="mb-1 text-[10pt] font-semibold">
+                  Sonstige Einnahmen <span className="font-normal text-neutral-600">— {formatEuro(daten.steuer.sonstigeEinnahmen)}</span>
+                </h3>
+                <table className="w-full border-collapse text-[9pt]">
+                  <tbody>
+                    {sonstige.map((e) => (
+                      <tr key={e.text} className="border-b border-neutral-300">
+                        <td className="py-0.5 pr-2">{e.text}</td>
+                        <td className="whitespace-nowrap py-0.5 text-right">{formatEuro(e.betrag)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </div>
       </div>

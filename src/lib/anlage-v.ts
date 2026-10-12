@@ -61,6 +61,9 @@ export type AnlageVAufstellung = {
   nebenkosten: number; // vereinnahmte NK-Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben
   kautionEinbehalte: number;
   sonstigeEinnahmen: number;
+  // Bestandteile von sonstigeEinnahmen außer den Kostenarten-Gutschriften (für die Auflistung im Export)
+  sonderzahlungen: number; // Zahlungen von Mietern auf Gebühren-Forderungen
+  uebrigeEinnahmen: number; // übrige eur-relevante Buchungen ohne eigene Kategorie
   summeEinnahmen: number;
   instandhaltung: number;
   umlagefaehig: number;
@@ -114,6 +117,8 @@ export function baueAnlageVAufstellung(eingabe: {
     nebenkosten: gerundet(nebenkosten),
     kautionEinbehalte: gerundet(eingabe.kautionEinbehalte),
     sonstigeEinnahmen: gerundet(sonstigeEinnahmen),
+    sonderzahlungen: gerundet(eingabe.sonderzahlungen),
+    uebrigeEinnahmen: gerundet(Math.max(eingabe.sonstigeEurRelevant, 0)),
     summeEinnahmen: gerundet(summeEinnahmen),
     instandhaltung: gerundet(instandhaltung),
     umlagefaehig: gerundet(umlagefaehig),

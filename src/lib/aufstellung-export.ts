@@ -32,7 +32,20 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
   };
 }
 
-const GRUPPEN_REIHENFOLGE: Kostengruppe[] = ["INSTANDHALTUNG", "UMLAGEFAEHIG", "NICHT_UMLAGEFAEHIG", "EINNAHME"];
+const GRUPPEN_REIHENFOLGE: Kostengruppe[] = ["INSTANDHALTUNG", "UMLAGEFAEHIG", "NICHT_UMLAGEFAEHIG"];
+
+// Alle Bestandteile der Zeile „Sonstige Einnahmen“ (Summe = st.sonstigeEinnahmen): Gutschriften auf
+// Kostenarten (Waschgeld, Mahngebühren …, als positive Einnahme), Zahlungen von Mietern auf
+// Gebühren-Forderungen und übrige Buchungen.
+export function sonstigeEinnahmenZeilen(st: AnlageVAufstellung, kosten: KostenSumme[]): { text: string; betrag: number }[] {
+  const zeilen = kosten
+    .filter((k) => k.gruppe === "EINNAHME" && k.summe !== 0)
+    .map((k) => ({ text: k.name, betrag: -k.summe }))
+    .sort((a, b) => b.betrag - a.betrag);
+  if (st.sonderzahlungen !== 0) zeilen.push({ text: "Gebühren-Zahlungen von Mietern (Sonderforderungen)", betrag: st.sonderzahlungen });
+  if (st.uebrigeEinnahmen !== 0) zeilen.push({ text: "Übrige Einnahmen", betrag: st.uebrigeEinnahmen });
+  return zeilen;
+}
 
 // Kostenarten je Gruppe (nach Betrag absteigend), ohne Kostenarten mit Summe 0.
 export function kostenNachGruppe(kosten: KostenSumme[]): { gruppe: Kostengruppe; label: string; summe: number; arten: KostenSumme[] }[] {
@@ -63,6 +76,7 @@ export function aufstellungAlsCsv(
   for (const g of kostenNachGruppe(kosten)) {
     for (const a of g.arten) zeilen.push([`Kostenarten – ${g.label}`, a.name, csvZahl(a.summe)]);
   }
+  for (const e of sonstigeEinnahmenZeilen(st, kosten)) zeilen.push(["Sonstige Einnahmen", e.text, csvZahl(e.betrag)]);
   zeilen.push(["Hinweis", `Aufstellung ${jahr} ${objekt}: ohne AfA und Schuldzinsen; Mietzahlungen nach Zuflussprinzip inkl. 10-Tage-Regel (22.12.–31.12. für Januar); Kosten nach Abbuchungsdatum`, ""]);
   return "﻿" + zeilen.map((r) => r.map(csvText).join(";")).join("\r\n") + "\r\n";
 }
