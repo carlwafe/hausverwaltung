@@ -12,6 +12,9 @@ export type AfaPosition = {
   objekt: string;
   empfaenger: string;
   text: string;
+  // Vermietung der Wohnung zum Zeitpunkt der Anschaffung (Beginn der Abschreibung hängt davon ab, ab wann
+  // die Wohnung bezugsfertig/vermietet ist), z.B. „Mietvertrag seit 01.03.2026“; leer bei Gebäude-Kosten.
+  vermietung: string;
   betrag: number; // wie die Kostenposition: positiv = Ausgabe, negativ = Gutschrift
 };
 
@@ -29,6 +32,23 @@ type KostenpositionFuerAfa = {
   kostenart: { name: string } | null;
 };
 
+const tag = (d: Date) => new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+
+type Vertrag = { beginn: Date | null; ende: Date | null };
+
+// Mietvertrag der Wohnung zum Datum der Anschaffung: läuft einer, gilt dessen Beginn; sonst der nächste
+// Mietbeginn danach; sonst kein Vertrag erfasst. Kein Übergabedatum — das steht nicht in den Daten.
+function vermietungText(vertraege: Vertrag[], datum: Date | null): string {
+  if (vertraege.length === 0) return "kein Mietvertrag erfasst";
+  if (!datum) return "";
+  const laufend = vertraege.find((v) => (!v.beginn || v.beginn <= datum) && (!v.ende || v.ende >= datum));
+  if (laufend) return laufend.beginn ? `Mietvertrag seit ${tag(laufend.beginn)}` : "Mietvertrag läuft";
+  const spaeter = vertraege
+    .filter((v) => v.beginn && v.beginn > datum)
+    .sort((a, b) => a.beginn!.getTime() - b.beginn!.getTime())[0];
+  return spaeter ? `nächster Mietbeginn ${tag(spaeter.beginn!)}` : "zum Zeitpunkt nicht vermietet";
+}
+
 // Lädt die Bezeichnung des Objekts (Wohnung, Gebäude, Haus, Kostengruppe) nur für die übergebenen
 // Positionen — meist eine Handvoll, daher nur vier kleine Abfragen und nur, wenn es etwas zu laden gibt.
 export async function ladeAfaPositionen(positionen: KostenpositionFuerAfa[]): Promise<AfaPosition[]> {
@@ -38,7 +58,10 @@ export async function ladeAfaPositionen(positionen: KostenpositionFuerAfa[]): Pr
   ];
   const [einheiten, gebaeude, haeuser, gruppen] = await Promise.all([
     ids("einheitId").length
-      ? prisma.einheit.findMany({ where: { id: { in: ids("einheitId") } }, select: { id: true, bezeichnung: true } })
+      ? prisma.einheit.findMany({
+          where: { id: { in: ids("einheitId") } },
+          select: { id: true, bezeichnung: true, mietvertraege: { select: { beginn: true, ende: true } } },
+        })
       : [],
     ids("gebaeudeId").length
       ? prisma.gebaeude.findMany({
@@ -57,6 +80,7 @@ export async function ladeAfaPositionen(positionen: KostenpositionFuerAfa[]): Pr
       : [],
   ]);
   const einheitName = new Map(einheiten.map((e) => [e.id, e.bezeichnung]));
+  const einheitVertraege = new Map(einheiten.map((e) => [e.id, e.mietvertraege]));
   const gebaeudeName = new Map(gebaeude.map((g) => [g.id, `${g.strasse} ${g.hausnummer}`]));
   const hausName = new Map(haeuser.map((h) => [h.id, hausLabel(h.gebaeude)]));
   const gruppeName = new Map(gruppen.map((g) => [g.id, g.bezeichnung]));
@@ -75,6 +99,7 @@ export async function ladeAfaPositionen(positionen: KostenpositionFuerAfa[]): Pr
         "Gesamtes Objekt",
       empfaenger: p.empfaenger ?? "",
       text: (p.verwendungszweck ?? "").replace(/\s+/g, " ").trim(),
+      vermietung: p.einheitId ? vermietungText(einheitVertraege.get(p.einheitId) ?? [], p.datum) : "",
       betrag: Number(p.betrag),
     }))
     .sort((a, b) => (a.datum?.getTime() ?? 0) - (b.datum?.getTime() ?? 0));
