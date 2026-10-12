@@ -40,6 +40,12 @@ export default async function KostenartenPage() {
             verrechnet)&ldquo;, weil Techem sie in der Heizkostenabrechnung berechnet). Die Warnung
             &bdquo;kein Verteilerschlüssel&ldquo; in der Abrechnung ist dann erwartet.
           </p>
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+            &bdquo;Winterdienst&ldquo; ist nicht umlagefähig angelegt. Die Winterdienst-Rechnung 11/2025
+            (535,50 €) kam so vom Vorverwalter und blieb in der Nebenkostenabrechnung 2025 bewusst
+            unberücksichtigt (Abrechnung abgeschlossen, Änderung lohnt nicht); die Rechnung 12/2025
+            steht dagegen unter &bdquo;Hauswart&ldquo; und ist enthalten.
+          </p>
         </div>
         <Link
           href="/kostenarten/neu"
