@@ -36,6 +36,7 @@ export function MietvertragForm({
   mieter,
   initial,
   objektStichtag = "",
+  mieterMitWohnung = [],
   action,
 }: {
   einheiten: EinheitOption[];
@@ -43,6 +44,8 @@ export function MietvertragForm({
   initial?: Initial;
   // Buchhaltungs-Stichtag des Objekts (yyyy-mm-dd), "" = keiner gesetzt.
   objektStichtag?: string;
+  // IDs der Mieter mit laufendem/geplantem Wohnungsvertrag (für den MwSt-Hinweis bei Garagen).
+  mieterMitWohnung?: string[];
   action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -74,6 +77,15 @@ export function MietvertragForm({
   const [saldovortrag, setSaldovortrag] = useState(initial?.saldovortrag ?? "0");
   const [buchhaltungAb, setBuchhaltungAb] = useState(initial?.buchhaltungAb ?? "");
   const [zahlungsweg, setZahlungsweg] = useState(initial?.zahlungsweg ?? "");
+
+  // Garage zur Wohnung desselben Mieters = Nebenleistung (steuerfrei), allein vermietet = 19 % USt.
+  const hatWohnung = [mieterId1, mieterId2].some((id) => id && mieterMitWohnung.includes(id));
+  const kaltmieteZahl = Number(kaltmiete.replace(",", "."));
+  const mwstVorschlag = hatWohnung
+    ? "0"
+    : kaltmiete !== "" && Number.isFinite(kaltmieteZahl)
+      ? (Math.round(kaltmieteZahl * 19) / 100).toFixed(2)
+      : "";
 
   return (
     <form action={formAction} className="max-w-lg space-y-4">
@@ -213,6 +225,25 @@ export function MietvertragForm({
             onChange={(e) => setMehrwertsteuer(e.target.value)}
             className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
           />
+          {mieterId1 && (
+            <p className="mt-1 text-xs text-neutral-400">
+              {hatWohnung
+                ? "Dieser Mieter hat auch eine Wohnung bei uns: Die Garage gilt als Nebenleistung zur Wohnung und ist umsatzsteuerfrei — Mehrwertsteuer 0 €."
+                : "Dieser Mieter hat keine Wohnung bei uns: Die Garage wird allein vermietet und ist umsatzsteuerpflichtig — Mehrwertsteuer 19 % der Kaltmiete."}
+              {mwstVorschlag !== "" && mehrwertsteuer !== mwstVorschlag && (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    onClick={() => setMehrwertsteuer(mwstVorschlag)}
+                    className="underline hover:text-white"
+                  >
+                    {hatWohnung ? "0 € eintragen" : `${mwstVorschlag.replace(".", ",")} € eintragen`}
+                  </button>
+                </>
+              )}
+            </p>
+          )}
         </div>
       )}
 
