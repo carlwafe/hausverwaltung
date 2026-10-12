@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     ladeJahresuebersicht(bildeZeitraum(jahr, 0)),
     prisma.objekt.findFirst({ select: { name: true } }),
   ]);
-  const csv = aufstellungAlsCsv(daten.steuer, daten.steuerKosten, jahr, objekt?.name ?? "");
+  const csv = aufstellungAlsCsv(daten.steuer, daten.steuerKosten, jahr, objekt?.name ?? "", daten.afaPositionen);
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

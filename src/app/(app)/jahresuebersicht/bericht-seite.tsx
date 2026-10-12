@@ -16,6 +16,8 @@ import { mieterName } from "@/lib/mieter-name";
 import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 import { KOSTENGRUPPE_LABEL, baueAnlageVAufstellung, kostengruppeFuer, type KostenSumme } from "@/lib/anlage-v";
+import { ladeAfaPositionen } from "@/lib/afa-positionen";
+import { afaEinzelposten } from "@/lib/aufstellung-export";
 import { teileMietzahlungen } from "@/lib/miete-aufteilung";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 
@@ -149,6 +151,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
 
   const kostenNachArtMap = new Map<string, { summe: number; umlagefaehig: boolean }>();
   const steuerKosten = new Map<string, KostenSumme>();
+  const afaBuchungen: typeof kostenpositionen = [];
   for (const k of kostenpositionen) {
     const name = k.kostenart?.name ?? "Unbekannt";
     const eintrag = kostenNachArtMap.get(name) ?? {
@@ -158,11 +161,16 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     eintrag.summe += Number(k.betrag);
     kostenNachArtMap.set(name, eintrag);
 
-    const zuordnung = kostengruppeFuer({
-      name,
-      umlagefaehig: k.kostenart?.umlagefaehig ?? false,
-      anlageVZeile: k.kostenart?.anlageVZeile ?? null,
-    });
+    // Die Einordnung als Anschaffung/Herstellung (AfA) gilt ab 2026 (AFA_AB_JAHR), davor zählen die Kosten wie bisher.
+    const zuordnung = kostengruppeFuer(
+      {
+        name,
+        umlagefaehig: k.kostenart?.umlagefaehig ?? false,
+        anlageVZeile: k.kostenart?.anlageVZeile ?? null,
+      },
+      jahr,
+    );
+    if (zuordnung.gruppe === "ANSCHAFFUNG") afaBuchungen.push(k);
     const gruppenSumme = steuerKosten.get(name) ?? { name, ...zuordnung, summe: 0 };
     gruppenSumme.summe += Number(k.betrag);
     steuerKosten.set(name, gruppenSumme);
@@ -193,8 +201,13 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     abgrenzung: mietAufteilung?.abgrenzung ?? { hinzu: 0, anzahlHinzu: 0, heraus: 0, anzahlHeraus: 0 },
   });
 
+  // Einzelposten der Anschaffungs-/Herstellungskosten (Grundlage der Abschreibung) — nur im Gesamtjahr, da
+  // nur dort die Aufstellung angezeigt wird.
+  const afaPositionen = quartal === 0 ? await ladeAfaPositionen(afaBuchungen) : [];
+
   return {
     steuer,
+    afaPositionen,
     steuerKosten: [...steuerKosten.values()].sort((a, b) => b.summe - a.summe),
     mieteinnahmen,
     kostenNachArt,
@@ -885,6 +898,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
     { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
     { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
   ];
+  const afa = afaEinzelposten(daten.afaPositionen);
   // Kostenarten, bei denen offen sein kann, ob es Instandhaltung oder Herstellungskosten (AfA) ist.
   const zuPruefen = daten.steuerKosten.filter(
     (k) => k.automatisch && k.summe !== 0 && k.gruppe === "NICHT_UMLAGEFAEHIG" && /modernisier|sanier|ausstattung|umbau/i.test(k.name),
@@ -920,12 +934,45 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         Dasselbe Ergebnis wie oben, gegliedert für die Anlage V: tatsächlich vereinnahmte Mieten und
         Nebenkosten getrennt, Instandhaltung separat, übrige Kosten nach umlagefähig / nicht umlagefähig.
         Ausgezahlte NK-Guthaben mindern die Nebenkosten-Einnahmen (Anlage V, Z. 13). AfA und Schuldzinsen
-        sind hier nicht enthalten.
+        sind hier nicht enthalten; Anschaffungs- und Herstellungskosten (Kostenarten mit Einordnung
+        „Anschaffung / Herstellung“, ab 2026) stehen gesondert als Grundlage der Abschreibung.
       </p>
       <div className="grid grid-cols-2 gap-6">
         {tabelle("Einnahmen", einnahmen)}
         {tabelle("Kosten", kosten)}
       </div>
+      {afa.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-2 text-sm font-medium text-neutral-300">
+            Anschaffungs- und Herstellungskosten — Grundlage der Abschreibung (nicht in den Kosten)
+          </h3>
+          <div className="rounded-lg border border-neutral-800">
+            <table className="w-full text-sm">
+              <tbody>
+                {afa.map((e, i) => (
+                  <tr key={i} className="border-b border-neutral-800 align-top">
+                    <td className="whitespace-nowrap px-4 py-2 text-neutral-400">{e.datum}</td>
+                    <td className="px-4 py-2 text-white">
+                      {e.objekt}
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        {e.kostenart}
+                        {e.beschreibung && ` · ${e.beschreibung}`}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(e.betrag)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="px-4 py-2 font-medium text-white" colSpan={2}>
+                    Summe Anschaffung / Herstellung
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-white">{formatEuro(st.anschaffung)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       <div className="mt-4 rounded-lg border border-neutral-800">
         <table className="w-full text-sm">
           <tbody>
@@ -933,6 +980,15 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
               <td className="px-4 py-2 text-neutral-400">Ergebnis laut Bericht oben (nach Zahlungsdatum)</td>
               <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-400">{formatEuro(st.ueberschussBericht)}</td>
             </tr>
+            {st.anschaffung !== 0 && (
+              <tr className="border-b border-neutral-800">
+                <td className="px-4 py-2 text-white">
+                  Zuzüglich Anschaffungs-/Herstellungskosten
+                  <span className="ml-2 text-xs text-neutral-500">(im Bericht als Ausgabe, hier über die AfA)</span>
+                </td>
+                <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(st.anschaffung)}</td>
+              </tr>
+            )}
             <tr className="border-b border-neutral-800">
               <td className="px-4 py-2 text-white">
                 Zuzüglich Dezember-Zahlungen {jahr - 1} für Januar {jahr}
@@ -996,7 +1052,12 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
           </p>
           <p>
             Nicht enthalten: AfA und Schuldzinsen (Darlehen laufen über ein anderes Konto), der Überschuss gilt
-            daher vor beiden. Ob Sanierung/Modernisierung
+            daher vor beiden. Anschaffungs- und Herstellungskosten (z.B. Einbauküche, Modernisierung, Sanierung)
+            sind nicht sofort abziehbar: Kostenarten mit der Einordnung „Anschaffung / Herstellung“ zählen ab dem
+            Berichtsjahr 2026 nicht mehr zu den Kosten, sondern stehen mit ihren Einzelposten gesondert; die
+            Abschreibung (Nutzungsdauer, Gebäude oder bewegliches Wirtschaftsgut) bestimmt der Steuerberater. Im
+            Jahresbericht darüber bleiben sie als Ausgabe (Abfluss, passend zum Kontoauszug), der Überschuss der
+            Aufstellung weicht deshalb genau um diese Summe ab. Ob Sanierung/Modernisierung
             Instandhaltung oder Herstellungskosten sind, ist mit dem Steuerberater zu klären.
           </p>
         </div>
@@ -1018,7 +1079,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
           </table>
         </div>
         <p className="mt-2 text-xs text-neutral-500">
-          „Instandhaltung“ und „Sonstige Einnahme“ lassen sich unter{" "}
+          „Instandhaltung“, „Anschaffung / Herstellung“ und „Sonstige Einnahme“ lassen sich unter{" "}
           <Link href="/kostenarten" className="underline hover:text-white">
             Kostenarten
           </Link>{" "}

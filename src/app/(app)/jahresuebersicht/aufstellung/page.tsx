@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ladeJahresuebersicht, bildeZeitraum } from "../bericht-seite";
-import { aufstellungZeilen, kostenNachGruppe, sonstigeEinnahmenZeilen, type ExportZeile } from "@/lib/aufstellung-export";
+import { afaEinzelposten, aufstellungZeilen, kostenNachGruppe, sonstigeEinnahmenZeilen, type ExportZeile } from "@/lib/aufstellung-export";
 import { DruckenKnopf } from "./drucken-knopf";
 
 function formatEuro(value: number) {
@@ -38,8 +38,10 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
     prisma.objekt.findFirst({ select: { name: true, strasse: true, hausnummer: true, plz: true, ort: true } }),
   ]);
   const z = aufstellungZeilen(daten.steuer, jahr);
-  const gruppen = kostenNachGruppe(daten.steuerKosten);
+  // Anschaffungs-/Herstellungskosten stehen mit ihren Einzelposten in eigenem Abschnitt.
+  const gruppen = kostenNachGruppe(daten.steuerKosten).filter((g) => g.gruppe !== "ANSCHAFFUNG");
   const sonstige = sonstigeEinnahmenZeilen(daten.steuer, daten.steuerKosten);
+  const afa = afaEinzelposten(daten.afaPositionen);
 
   return (
     <div>
@@ -67,6 +69,7 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
             </p>
             <Tabelle titel="Einnahmen" zeilen={z.einnahmen} />
             <Tabelle titel="Kosten" zeilen={z.kosten} />
+            {z.anschaffung.length > 0 && <Tabelle titel="Anschaffungs- und Herstellungskosten (Abschreibung)" zeilen={z.anschaffung} />}
             <Tabelle titel="Überschuss" zeilen={z.ueberschuss} />
             {z.zehnTage.length > 0 && <Tabelle titel="Hinweis: 10-Tage-Regel" zeilen={z.zehnTage} />}
             <p className="mt-6 text-[8.5pt] leading-snug text-neutral-700">
@@ -78,6 +81,8 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
               Nebenkosten-Vorauszahlung angerechnet, der Rest ist Kaltmiete. Ausgezahlte Nebenkosten-Guthaben
               mindern die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie. Nicht enthalten: Absetzung für
               Abnutzung und Schuldzinsen.
+              {z.anschaffung.length > 0 &&
+                " Anschaffungs- und Herstellungskosten (z. B. Einbauküchen, Modernisierung) sind nicht in den Kosten enthalten, sondern gesondert ausgewiesen; die Abschreibung bestimmt der Steuerberater."}
             </p>
           </section>
           <section className="box-border h-[297mm] overflow-hidden px-[20mm] py-[18mm] [break-before:page]">
@@ -99,6 +104,31 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
                 </table>
               </div>
             ))}
+            {afa.length > 0 && (
+              <div className="mb-4">
+                <h3 className="mb-1 text-[10pt] font-semibold">
+                  Anschaffungs- und Herstellungskosten (Grundlage der AfA){" "}
+                  <span className="font-normal text-neutral-600">— {formatEuro(daten.steuer.anschaffung)}</span>
+                </h3>
+                <table className="w-full border-collapse text-[8.5pt]">
+                  <tbody>
+                    {afa.map((e, i) => (
+                      <tr key={i} className="border-b border-neutral-300 align-top">
+                        <td className="whitespace-nowrap py-0.5 pr-2">{e.datum}</td>
+                        <td className="py-0.5 pr-2">
+                          {e.objekt}
+                          <span className="block text-[7.5pt] text-neutral-600">
+                            {e.kostenart}
+                            {e.beschreibung && ` · ${e.beschreibung}`}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap py-0.5 text-right">{formatEuro(e.betrag)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {sonstige.length > 0 && (
               <div className="mb-4">
                 <h3 className="mb-1 text-[10pt] font-semibold">

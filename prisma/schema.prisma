@@ -648,6 +648,7 @@ enum AnlageVZeile {
   VERWALTUNG
   SONSTIGES
   SONSTIGE_EINNAHMEN
+  ANSCHAFFUNG
 }
 
 // Handwerker (Elektriker, Sanitär, Tischler ...) getrennt von allen übrigen Dienstleistern und

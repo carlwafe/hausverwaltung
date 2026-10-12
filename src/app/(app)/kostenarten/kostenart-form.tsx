@@ -60,7 +60,9 @@ export function KostenartForm({
   );
   const [name, setName] = useState(initial?.name ?? "");
   const [anlageVZeile, setAnlageVZeile] = useState<string>(
-    initial?.anlageVZeile === "ERHALTUNGSAUFWAND" || initial?.anlageVZeile === "SONSTIGE_EINNAHMEN"
+    initial?.anlageVZeile === "ERHALTUNGSAUFWAND" ||
+      initial?.anlageVZeile === "ANSCHAFFUNG" ||
+      initial?.anlageVZeile === "SONSTIGE_EINNAHMEN"
       ? initial.anlageVZeile
       : "",
   );
@@ -199,12 +201,15 @@ export function KostenartForm({
         >
           <option value="">– automatisch: {KOSTENGRUPPE_LABEL[vorschlag]} –</option>
           <option value="ERHALTUNGSAUFWAND">Instandhaltung / Erhaltungsaufwand (separat ausgewiesen)</option>
+          <option value="ANSCHAFFUNG">Anschaffung / Herstellung (Abschreibung statt Sofortabzug, ab 2026)</option>
           <option value="SONSTIGE_EINNAHMEN">Sonstige Einnahme (z.B. Waschgeld, Gebühren)</option>
         </select>
         <p className="mt-1 text-xs text-neutral-500">
           Die Aufstellung weist Instandhaltung separat aus, die übrigen Kosten nach umlagefähig / nicht
           umlagefähig. Ohne Auswahl gilt ein Vorschlag (Reparaturen = Instandhaltung, sonst nach der
-          Umlagefähigkeit). Sanierung/Modernisierung ggf. mit dem Steuerberater klären (Herstellungskosten).
+          Umlagefähigkeit). Anschaffung / Herstellung (z.B. Einbauküche, Modernisierung, Sanierung) zählt ab
+          dem Berichtsjahr 2026 nicht zu den Kosten, sondern steht gesondert als Grundlage der Abschreibung
+          (AfA); frühere Jahre bleiben unverändert.
         </p>
       </div>
 
