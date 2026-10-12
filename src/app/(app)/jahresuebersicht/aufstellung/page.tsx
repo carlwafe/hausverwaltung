@@ -15,12 +15,12 @@ function Tabelle({ titel, zeilen }: { titel: string; zeilen: ExportZeile[] }) {
       <table className="w-full border-collapse text-[10pt]">
         <tbody>
           {zeilen.map((z) => (
-            <tr key={z.text} className={`border-b border-neutral-300 ${z.fett ? "font-semibold" : ""}`}>
-              <td className="py-1 pr-2">
+            <tr key={z.text} className={`border-b border-neutral-300 ${z.fett ? "font-semibold" : ""} ${z.davon ? "text-[9pt] text-neutral-700" : ""}`}>
+              <td className={`pr-2 ${z.davon ? "py-0.5 pl-6" : "py-1"}`}>
                 {z.text}
                 {z.hinweis && <span className="ml-2 text-[8pt] font-normal text-neutral-600">({z.hinweis})</span>}
               </td>
-              <td className="whitespace-nowrap py-1 text-right">{formatEuro(z.betrag)}</td>
+              <td className={`whitespace-nowrap text-right ${z.davon ? "py-0.5" : "py-1"}`}>{formatEuro(z.betrag)}</td>
             </tr>
           ))}
         </tbody>

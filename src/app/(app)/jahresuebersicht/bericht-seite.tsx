@@ -841,7 +841,7 @@ type JahresDaten = Awaited<ReturnType<typeof ladeJahresuebersicht>>;
 // AfA und Schuldzinsen sind nicht im Journal — der Überschuss gilt vor beiden.
 function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten }) {
   const st = daten.steuer;
-  type Zeile = { text: string; betrag: number; hinweis?: string; fett?: boolean };
+  type Zeile = { text: string; betrag: number; hinweis?: string; fett?: boolean; davon?: boolean };
   const einnahmen: Zeile[] = [
     {
       text: "Vereinnahmte Mieten (Kaltmiete, netto)",
@@ -856,6 +856,9 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
       betrag: st.nebenkosten,
       hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben",
     },
+    { text: "davon Vorauszahlungen", betrag: st.nkVorauszahlungen, davon: true },
+    { text: "davon Nachzahlungen aus der Abrechnung", betrag: st.nkNachzahlungen, davon: true },
+    { text: "davon Erstattungen (ausgezahlte Guthaben)", betrag: -st.nkGuthaben, davon: true },
     { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
     { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
     { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
@@ -879,11 +882,11 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
           <tbody>
             {zeilen.map((z) => (
               <tr key={z.text} className="border-b border-neutral-800 last:border-b-0">
-                <td className={`px-4 py-2 ${z.fett ? "font-medium text-white" : "text-white"}`}>
+                <td className={`px-4 py-2 ${z.fett ? "font-medium text-white" : z.davon ? "pl-8 text-xs text-neutral-400" : "text-white"}`}>
                   {z.text}
                   {z.hinweis && <span className="mt-0.5 block text-xs font-normal text-neutral-500">{z.hinweis}</span>}
                 </td>
-                <td className={`whitespace-nowrap px-4 py-2 text-right ${z.fett ? "font-medium text-white" : "text-white"}`}>
+                <td className={`whitespace-nowrap px-4 py-2 text-right ${z.fett ? "font-medium text-white" : z.davon ? "text-xs text-neutral-400" : "text-white"}`}>
                   {formatEuro(z.betrag)}
                 </td>
               </tr>

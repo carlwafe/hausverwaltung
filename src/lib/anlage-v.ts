@@ -60,6 +60,10 @@ export type AnlageVAufstellung = {
   mieten: number; // vereinnahmte Kaltmiete (netto)
   umsatzsteuer: number; // vereinnahmte Umsatzsteuer auf Garagenmieten
   nebenkosten: number; // vereinnahmte NK-Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben
+  // Bestandteile von nebenkosten (für die „davon“-Zeilen)
+  nkVorauszahlungen: number;
+  nkNachzahlungen: number;
+  nkGuthaben: number; // ausgezahlt, als positiver Betrag
   kautionEinbehalte: number;
   sonstigeEinnahmen: number;
   // Bestandteile von sonstigeEinnahmen außer den Kostenarten-Gutschriften (für die Auflistung im Export)
@@ -118,6 +122,9 @@ export function baueAnlageVAufstellung(eingabe: {
     mieten: gerundet(eingabe.kaltmiete),
     umsatzsteuer: gerundet(eingabe.umsatzsteuer),
     nebenkosten: gerundet(nebenkosten),
+    nkVorauszahlungen: gerundet(eingabe.nkVorauszahlungen),
+    nkNachzahlungen: gerundet(eingabe.nachzahlungenEingezogen),
+    nkGuthaben: gerundet(eingabe.guthabenAusgezahlt),
     kautionEinbehalte: gerundet(eingabe.kautionEinbehalte),
     sonstigeEinnahmen: gerundet(sonstigeEinnahmen),
     sonderzahlungen: gerundet(eingabe.sonderzahlungen),

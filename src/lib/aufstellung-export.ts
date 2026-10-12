@@ -2,7 +2,7 @@
 // Reine Funktionen ohne Prisma.
 import { KOSTENGRUPPE_LABEL, type AnlageVAufstellung, type KostenSumme, type Kostengruppe } from "./anlage-v";
 
-export type ExportZeile = { text: string; betrag: number; hinweis?: string; fett?: boolean };
+export type ExportZeile = { text: string; betrag: number; hinweis?: string; fett?: boolean; davon?: boolean };
 
 export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
   einnahmen: ExportZeile[];
@@ -16,7 +16,10 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
     ...(st.umsatzsteuer !== 0
       ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer }]
       : []),
-    { text: "Vereinnahmte Nebenkosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben" },
+    { text: "Vereinnahmte Nebenkosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − Erstattungen" },
+    { text: "davon Vorauszahlungen", betrag: st.nkVorauszahlungen, davon: true },
+    { text: "davon Nachzahlungen aus der Abrechnung", betrag: st.nkNachzahlungen, davon: true },
+    { text: "davon Erstattungen (ausgezahlte Guthaben)", betrag: -st.nkGuthaben, davon: true },
     { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
     { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
     { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
@@ -102,7 +105,8 @@ export function aufstellungAlsCsv(
   const z = aufstellungZeilen(st, jahr);
   const zeilen: string[][] = [["Abschnitt", "Bezeichnung", "Betrag"]];
   const block = (abschnitt: string, liste: ExportZeile[]) => {
-    for (const e of liste) zeilen.push([abschnitt, e.text, csvZahl(e.betrag)]);
+    // „davon“-Zeilen stehen im eigenen Abschnitt, damit eine Spaltensumme nichts doppelt zählt.
+    for (const e of liste) zeilen.push([e.davon ? `${abschnitt} (davon)` : abschnitt, e.text, csvZahl(e.betrag)]);
   };
   block("Einnahmen", z.einnahmen);
   block("Kosten", z.kosten);
