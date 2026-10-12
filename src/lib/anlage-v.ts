@@ -1,6 +1,11 @@
-// Überleitung der Jahresübersicht auf die Zeilen der Anlage V (Einkünfte aus Vermietung und
-// Verpachtung). Reine Rechenlogik ohne Prisma, damit auch Client-Komponenten die Bezeichnungen nutzen.
+// Aufstellung für die Steuererklärung (Anlage V): Einnahmen und Kosten so gegliedert, wie der
+// Steuerberater sie braucht — Mieten und Nebenkosten getrennt, Instandhaltung separat, übrige Kosten
+// nach umlagefähig / nicht umlagefähig. Reine Rechenlogik ohne Prisma, damit auch Client-Komponenten
+// die Bezeichnungen nutzen.
 
+// Werte des Prisma-Enums `AnlageVZeile` (Kostenart.anlageVZeile). Angeboten werden im Formular nur
+// ERHALTUNGSAUFWAND und SONSTIGE_EINNAHMEN; die übrigen stammen aus der ersten Fassung (Zeilen 47/48/50)
+// und gelten wie „automatisch“.
 export const ANLAGE_V_ZEILEN = [
   "ERHALTUNGSAUFWAND",
   "BETRIEBSKOSTEN",
@@ -8,23 +13,17 @@ export const ANLAGE_V_ZEILEN = [
   "SONSTIGES",
   "SONSTIGE_EINNAHMEN",
 ] as const;
-
 export type AnlageVZeile = (typeof ANLAGE_V_ZEILEN)[number];
 
-export const ANLAGE_V_ZEILE_LABEL: Record<AnlageVZeile, string> = {
-  ERHALTUNGSAUFWAND: "Z. 40 — Erhaltungsaufwand (Reparaturen, voll abziehbar)",
-  BETRIEBSKOSTEN: "Z. 47 — Grundsteuer, Wasser, Heizung, Versicherungen, Hauswart … (laufende Betriebskosten)",
-  VERWALTUNG: "Z. 48 — Verwaltungskosten",
-  SONSTIGES: "Z. 50 — Sonstiges",
-  SONSTIGE_EINNAHMEN: "Z. 19 — sonstige Einnahmen (z.B. Waschgeld, Gebühren)",
-};
+export const WAHL_IM_FORMULAR = ["ERHALTUNGSAUFWAND", "SONSTIGE_EINNAHMEN"] as const;
 
-export const ANLAGE_V_ZEILE_KURZ: Record<AnlageVZeile, string> = {
-  ERHALTUNGSAUFWAND: "Z. 40",
-  BETRIEBSKOSTEN: "Z. 47",
-  VERWALTUNG: "Z. 48",
-  SONSTIGES: "Z. 50",
-  SONSTIGE_EINNAHMEN: "Z. 19",
+export type Kostengruppe = "INSTANDHALTUNG" | "UMLAGEFAEHIG" | "NICHT_UMLAGEFAEHIG" | "EINNAHME";
+
+export const KOSTENGRUPPE_LABEL: Record<Kostengruppe, string> = {
+  INSTANDHALTUNG: "Instandhaltung",
+  UMLAGEFAEHIG: "Umlagefähig",
+  NICHT_UMLAGEFAEHIG: "Nicht umlagefähig",
+  EINNAHME: "Sonstige Einnahme",
 };
 
 type KostenartFuerZuordnung = {
@@ -33,85 +32,85 @@ type KostenartFuerZuordnung = {
   anlageVZeile: AnlageVZeile | null;
 };
 
-// Vorschlag, solange an der Kostenart nichts gewählt ist: umlagefähig = laufende Betriebskosten
-// (Z. 47); sonst nach dem Namen. Nicht umlagefähige Betriebskosten (z.B. Strom/Versicherung der
-// Garagen) und Anschaffungs-/Herstellungskosten (Modernisierung, Sanierung — nicht als
-// Erhaltungsaufwand, sondern ggf. über die AfA) bleiben bewusst bei „Sonstiges“ und müssen von Hand
-// zugeordnet werden.
-export function vorschlagAnlageVZeile(k: Pick<KostenartFuerZuordnung, "name" | "umlagefaehig">): AnlageVZeile {
+// Vorschlag, solange an der Kostenart nichts gewählt ist: nach dem Namen Einnahmen (Waschgeld,
+// Mahngebühren) und Reparaturen, sonst nach der Umlagefähigkeit. Sanierung/Modernisierung bleiben
+// bewusst „nicht umlagefähig“ — ob es Instandhaltung oder Herstellungskosten (AfA) ist, entscheidet
+// der Eigentümer mit dem Steuerberater und wird von Hand an der Kostenart gesetzt.
+export function vorschlagKostengruppe(k: Pick<KostenartFuerZuordnung, "name" | "umlagefaehig">): Kostengruppe {
   const name = k.name.toLowerCase();
-  if (/einnahmen|mahngeb/.test(name)) return "SONSTIGE_EINNAHMEN";
-  if (k.umlagefaehig) return "BETRIEBSKOSTEN";
-  if (/verwaltung|vermietung|geldverkehr/.test(name)) return "VERWALTUNG";
-  if (/reparatur/.test(name)) return "ERHALTUNGSAUFWAND";
-  return "SONSTIGES";
+  if (/einnahmen|mahngeb/.test(name)) return "EINNAHME";
+  if (/reparatur/.test(name)) return "INSTANDHALTUNG";
+  return k.umlagefaehig ? "UMLAGEFAEHIG" : "NICHT_UMLAGEFAEHIG";
 }
 
-export function anlageVZeileFuer(k: KostenartFuerZuordnung): { zeile: AnlageVZeile; automatisch: boolean } {
-  if (k.anlageVZeile) return { zeile: k.anlageVZeile, automatisch: false };
-  return { zeile: vorschlagAnlageVZeile(k), automatisch: true };
+export function kostengruppeFuer(k: KostenartFuerZuordnung): { gruppe: Kostengruppe; automatisch: boolean } {
+  if (k.anlageVZeile === "ERHALTUNGSAUFWAND") return { gruppe: "INSTANDHALTUNG", automatisch: false };
+  if (k.anlageVZeile === "SONSTIGE_EINNAHMEN") return { gruppe: "EINNAHME", automatisch: false };
+  return { gruppe: vorschlagKostengruppe(k), automatisch: true };
 }
 
-export type AnlageVKostenSumme = {
+export type KostenSumme = {
   name: string;
-  zeile: AnlageVZeile;
+  gruppe: Kostengruppe;
   automatisch: boolean;
   summe: number;
 };
 
-export type AnlageVUeberleitung = {
-  // Einnahmen
-  mieteUndUmlagen: number; // Z. 9–13: Mietzahlungen + Nachzahlungen − ausgezahlte Guthaben
-  kautionEinbehalte: number; // Z. 15
-  sonstigeEinnahmen: number; // Z. 19
-  summeEinnahmen: number; // Z. 21
-  // Werbungskosten je Zeile (nur Kostenpositionen), Z. 40/47/48/50
-  werbungskosten: Record<Exclude<AnlageVZeile, "SONSTIGE_EINNAHMEN">, number>;
-  summeWerbungskosten: number; // Z. 22/51 (ohne AfA und Schuldzinsen, die noch nicht erfasst sind)
-  ueberschuss: number; // Z. 23 vor AfA und Schuldzinsen
+export type AnlageVAufstellung = {
+  mieten: number; // vereinnahmte Kaltmiete
+  nebenkosten: number; // vereinnahmte NK-Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben
+  kautionEinbehalte: number;
+  sonstigeEinnahmen: number;
+  summeEinnahmen: number;
+  instandhaltung: number;
+  umlagefaehig: number;
+  nichtUmlagefaehig: number;
+  summeKosten: number;
+  ueberschuss: number; // vor AfA und Schuldzinsen
 };
 
 const gerundet = (n: number) => Math.round(n * 100) / 100;
 
-// Setzt die Summen des Jahresberichts nach der Struktur der Anlage V zusammen. Das Ergebnis ist
-// dasselbe wie im Jahresbericht (Einnahmen − Ausgaben), nur anders gegliedert: Das Finanzamt saldiert
-// ausgezahlte NK-Guthaben mit den Umlagen (Z. 13) statt sie als Ausgabe zu führen.
-export function baueAnlageVUeberleitung(eingabe: {
-  mieteinnahmen: number;
+// Setzt die Summen des Jahresberichts in der Gliederung des Steuerberaters zusammen. Das Ergebnis
+// ist dasselbe wie im Jahresbericht (Einnahmen − Ausgaben); ausgezahlte NK-Guthaben mindern hier die
+// Nebenkosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen.
+export function baueAnlageVAufstellung(eingabe: {
+  kaltmiete: number;
+  nkVorauszahlungen: number;
   nachzahlungenEingezogen: number;
   guthabenAusgezahlt: number;
   kautionEinbehalte: number;
   sonderzahlungen: number;
   // Übrige eur-relevante Buchungen ohne eigene Kategorie: positiv = Einnahme, negativ = Ausgabe.
   sonstigeEurRelevant: number;
-  kosten: AnlageVKostenSumme[];
-}): AnlageVUeberleitung {
-  const werbungskosten = { ERHALTUNGSAUFWAND: 0, BETRIEBSKOSTEN: 0, VERWALTUNG: 0, SONSTIGES: 0 };
+  kosten: KostenSumme[];
+}): AnlageVAufstellung {
   let sonstigeEinnahmen = eingabe.sonderzahlungen + Math.max(eingabe.sonstigeEurRelevant, 0);
-  werbungskosten.SONSTIGES += Math.max(-eingabe.sonstigeEurRelevant, 0);
+  let instandhaltung = 0;
+  let umlagefaehig = 0;
+  let nichtUmlagefaehig = Math.max(-eingabe.sonstigeEurRelevant, 0);
   for (const k of eingabe.kosten) {
     // Kostenposition: positiv = Ausgabe, negativ = Gutschrift/Einnahme.
-    if (k.zeile === "SONSTIGE_EINNAHMEN") sonstigeEinnahmen += -k.summe;
-    else werbungskosten[k.zeile] += k.summe;
+    if (k.gruppe === "EINNAHME") sonstigeEinnahmen += -k.summe;
+    else if (k.gruppe === "INSTANDHALTUNG") instandhaltung += k.summe;
+    else if (k.gruppe === "UMLAGEFAEHIG") umlagefaehig += k.summe;
+    else nichtUmlagefaehig += k.summe;
   }
 
-  const mieteUndUmlagen = eingabe.mieteinnahmen + eingabe.nachzahlungenEingezogen - eingabe.guthabenAusgezahlt;
-  const summeEinnahmen = mieteUndUmlagen + eingabe.kautionEinbehalte + sonstigeEinnahmen;
-  const summeWerbungskosten =
-    werbungskosten.ERHALTUNGSAUFWAND + werbungskosten.BETRIEBSKOSTEN + werbungskosten.VERWALTUNG + werbungskosten.SONSTIGES;
+  const nebenkosten = eingabe.nkVorauszahlungen + eingabe.nachzahlungenEingezogen - eingabe.guthabenAusgezahlt;
+  const summeEinnahmen = eingabe.kaltmiete + nebenkosten + eingabe.kautionEinbehalte + sonstigeEinnahmen;
+  const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig;
 
   return {
-    mieteUndUmlagen: gerundet(mieteUndUmlagen),
+    mieten: gerundet(eingabe.kaltmiete),
+    nebenkosten: gerundet(nebenkosten),
     kautionEinbehalte: gerundet(eingabe.kautionEinbehalte),
     sonstigeEinnahmen: gerundet(sonstigeEinnahmen),
     summeEinnahmen: gerundet(summeEinnahmen),
-    werbungskosten: {
-      ERHALTUNGSAUFWAND: gerundet(werbungskosten.ERHALTUNGSAUFWAND),
-      BETRIEBSKOSTEN: gerundet(werbungskosten.BETRIEBSKOSTEN),
-      VERWALTUNG: gerundet(werbungskosten.VERWALTUNG),
-      SONSTIGES: gerundet(werbungskosten.SONSTIGES),
-    },
-    summeWerbungskosten: gerundet(summeWerbungskosten),
-    ueberschuss: gerundet(summeEinnahmen - summeWerbungskosten),
+    instandhaltung: gerundet(instandhaltung),
+    umlagefaehig: gerundet(umlagefaehig),
+    nichtUmlagefaehig: gerundet(nichtUmlagefaehig),
+    summeKosten: gerundet(summeKosten),
+    ueberschuss: gerundet(summeEinnahmen - summeKosten),
   };
 }

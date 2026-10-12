@@ -15,7 +15,9 @@ import { KontenabgleichVerifikationForm } from "./kontenabgleich-verifikation-fo
 import { mieterName } from "@/lib/mieter-name";
 import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
-import { ANLAGE_V_ZEILE_KURZ, anlageVZeileFuer, baueAnlageVUeberleitung, type AnlageVKostenSumme } from "@/lib/anlage-v";
+import { KOSTENGRUPPE_LABEL, baueAnlageVAufstellung, kostengruppeFuer, type KostenSumme } from "@/lib/anlage-v";
+import { teileMietzahlungen } from "@/lib/miete-aufteilung";
+import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -66,7 +68,7 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const jahresanfang = zeitraum.von;
   const jahresende = zeitraum.bisExklusiv;
 
-  const [datumsBasiert, kostenpositionen] = await Promise.all([
+  const [datumsBasiert, kostenpositionen, mietAufteilung] = await Promise.all([
     // Alle eur-relevanten Buchungen mit echtem Buchungsdatum im Jahr — außer Kostenpositionen,
     // die wegen des Fallbacks ohne Datum eine eigene Abfrage haben (siehe unten). Die
     // Auswahl läuft über das eurRelevant-Flag im Buchungsart-Katalog statt einer von Hand
@@ -95,6 +97,9 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
       },
       include: { kostenart: true },
     }),
+    // Aufteilung der Mietzahlungen in Kaltmiete und NK-Vorauszahlung — nur für die Aufstellung
+    // Anlage V im Gesamtjahr (lädt auch frühere Zahlungen derselben Mietmonate).
+    quartal === 0 ? ladeMietAufteilung(zeitraum) : Promise.resolve(null),
   ]);
 
   let mieteinnahmen = 0;
@@ -135,7 +140,7 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   }
 
   const kostenNachArtMap = new Map<string, { summe: number; umlagefaehig: boolean }>();
-  const anlageVKosten = new Map<string, AnlageVKostenSumme>();
+  const steuerKosten = new Map<string, KostenSumme>();
   for (const k of kostenpositionen) {
     const name = k.kostenart?.name ?? "Unbekannt";
     const eintrag = kostenNachArtMap.get(name) ?? {
@@ -145,14 +150,14 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     eintrag.summe += Number(k.betrag);
     kostenNachArtMap.set(name, eintrag);
 
-    const zuordnung = anlageVZeileFuer({
+    const zuordnung = kostengruppeFuer({
       name,
       umlagefaehig: k.kostenart?.umlagefaehig ?? false,
       anlageVZeile: k.kostenart?.anlageVZeile ?? null,
     });
-    const av = anlageVKosten.get(name) ?? { name, ...zuordnung, summe: 0 };
-    av.summe += Number(k.betrag);
-    anlageVKosten.set(name, av);
+    const gruppenSumme = steuerKosten.get(name) ?? { name, ...zuordnung, summe: 0 };
+    gruppenSumme.summe += Number(k.betrag);
+    steuerKosten.set(name, gruppenSumme);
   }
   const kostenNachArt = [...kostenNachArtMap.entries()]
     .map(([name, v]) => ({ name, ...v }))
@@ -163,20 +168,23 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const ausgaben = kostenSumme + guthabenAusgezahlt + Math.max(-sonstigeEurRelevant, 0);
   const ergebnis = einnahmen - ausgaben;
 
-  // Gleiches Ergebnis, nach den Zeilen der Anlage V gegliedert (nur im Gesamtjahr angezeigt).
-  const anlageV = baueAnlageVUeberleitung({
-    mieteinnahmen,
+  // Gleiches Ergebnis in der Gliederung des Steuerberaters (nur im Gesamtjahr angezeigt). Kaltmiete =
+  // Mietzahlungen − NK-Anteil; ohne Aufteilung (Quartal) bleibt alles bei der Kaltmiete.
+  const nkVorauszahlungen = mietAufteilung?.nebenkosten ?? 0;
+  const steuer = baueAnlageVAufstellung({
+    kaltmiete: mieteinnahmen - nkVorauszahlungen,
+    nkVorauszahlungen,
     nachzahlungenEingezogen,
     guthabenAusgezahlt,
     kautionEinbehalte,
     sonderzahlungen,
     sonstigeEurRelevant,
-    kosten: [...anlageVKosten.values()],
+    kosten: [...steuerKosten.values()],
   });
 
   return {
-    anlageV,
-    anlageVKosten: [...anlageVKosten.values()].sort((a, b) => b.summe - a.summe),
+    steuer,
+    steuerKosten: [...steuerKosten.values()].sort((a, b) => b.summe - a.summe),
     mieteinnahmen,
     kostenNachArt,
     kostenSumme,
@@ -188,6 +196,68 @@ async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     ausgaben,
     ergebnis,
   };
+}
+
+// Teilt die im Zeitraum eingegangenen Mietzahlungen in Kaltmiete und NK-Vorauszahlung (siehe
+// teileMietzahlungen). Berücksichtigt auch frühere Zahlungen derselben Mietmonate, weil sich der
+// NK-Anteil nach den davor eingegangenen Zahlungen richtet.
+async function ladeMietAufteilung(zeitraum: Zeitraum) {
+  const { jahr } = zeitraum;
+  const zahlungen = await prisma.buchung.findMany({
+    where: {
+      buchungsart: { code: "MIETZAHLUNG" },
+      datum: { lt: zeitraum.bisExklusiv },
+      OR: [
+        { datum: { gte: new Date(zeitraum.von.getFullYear(), zeitraum.von.getMonth() - 2, 1) } },
+        { periodeJahr: { in: [jahr - 1, jahr, jahr + 1] } },
+      ],
+      ...AKTIVE_BUCHUNG_FILTER,
+    },
+    select: { mietvertragId: true, datum: true, erstelltAm: true, betrag: true, periodeJahr: true, periodeMonat: true },
+  });
+  const vertragIds = [...new Set(zahlungen.map((z) => z.mietvertragId).filter((id): id is string => !!id))];
+  const vertraege = await prisma.mietvertrag.findMany({
+    where: { id: { in: vertragIds } },
+    select: {
+      id: true,
+      kaltmiete: true,
+      nebenkostenVorauszahlung: true,
+      mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
+    },
+  });
+  const vertragNachId = new Map(
+    vertraege.map((v) => [
+      v.id,
+      {
+        kaltmiete: Number(v.kaltmiete),
+        nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
+        mieterhoehungen: v.mieterhoehungen.map((m) => ({
+          gueltigAb: m.gueltigAb,
+          kaltmiete: Number(m.kaltmiete),
+          nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
+        })),
+      },
+    ]),
+  );
+
+  return teileMietzahlungen(
+    zahlungen
+      .filter((z) => z.datum !== null)
+      .map((z) => ({
+        mietvertragId: z.mietvertragId,
+        datum: z.datum!,
+        reihenfolge: z.erstelltAm.getTime(),
+        betrag: Number(z.betrag),
+        // Ohne Mietperiode zählt der Monat des Buchungsdatums (wie in der Nebenkostenabrechnung).
+        periodeJahr: z.periodeJahr ?? z.datum!.getFullYear(),
+        periodeMonat: z.periodeMonat ?? z.datum!.getMonth() + 1,
+      })),
+    (vertragId, j, monat) => {
+      const v = vertragNachId.get(vertragId);
+      return v ? ermittleMieteFuerMonat(v, j, monat).nebenkostenVorauszahlung : 0;
+    },
+    (datum) => datum >= zeitraum.von && datum < zeitraum.bisExklusiv,
+  );
 }
 
 // Kontenabgleich (Artefakt-Vergleich, Abschnitt 7): Kontostand-Anfang + Summe aller
@@ -665,7 +735,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
         </div>
       </div>
 
-      {!istQuartal && <AnlageVUeberleitung jahr={jahr} daten={daten} />}
+      {!istQuartal && <AnlageVAufstellung jahr={jahr} daten={daten} />}
 
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Kontenabgleich {label}</h2>
@@ -761,70 +831,87 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
 
 type JahresDaten = Awaited<ReturnType<typeof ladeJahresuebersicht>>;
 
-// Überleitung auf die Anlage V: dasselbe Ergebnis wie oben, gegliedert nach den Zeilen des Formulars.
-// Kaltmiete (Z. 9/11) und Umlagen (Z. 13) lassen sich aus den Zahlungen noch nicht trennen, AfA (Z. 33)
-// und Schuldzinsen (Z. 37) sind nicht im Journal — der Überschuss gilt deshalb vor AfA und Schuldzinsen.
-function AnlageVUeberleitung({ jahr, daten }: { jahr: number; daten: JahresDaten }) {
-  const av = daten.anlageV;
-  const zeilen: { zeile: string; text: string; betrag: number | null; hinweis?: string; fett?: boolean }[] = [
+// Aufstellung für den Steuerberater (Anlage V): dasselbe Ergebnis wie oben, aber Mieten und Nebenkosten
+// getrennt, Instandhaltung separat und die übrigen Kosten nach umlagefähig / nicht umlagefähig.
+// AfA und Schuldzinsen sind nicht im Journal — der Überschuss gilt vor beiden.
+function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten }) {
+  const st = daten.steuer;
+  type Zeile = { text: string; betrag: number; hinweis?: string; fett?: boolean };
+  const einnahmen: Zeile[] = [
     {
-      zeile: "Z. 9–13",
-      text: "Mieteinnahmen und Umlagen, verrechnet mit Erstattungen",
-      betrag: av.mieteUndUmlagen,
-      hinweis: "Mietzahlungen + NK-Nachzahlungen − ausgezahlte NK-Guthaben; Kaltmiete (Z. 9) und Umlagen (Z. 13) noch nicht getrennt",
+      text: "Vereinnahmte Mieten (Kaltmiete)",
+      betrag: st.mieten,
+      hinweis: "Zahlungen je Monat zuerst auf die NK-Vorauszahlung angerechnet, der Rest ist Kaltmiete",
     },
-    { zeile: "Z. 15", text: "Verrechnete Mietkautionen (Einbehalte)", betrag: av.kautionEinbehalte },
-    { zeile: "Z. 19", text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: av.sonstigeEinnahmen },
-    { zeile: "Z. 21", text: "Summe der Einnahmen", betrag: av.summeEinnahmen, fett: true },
-    { zeile: "Z. 33", text: "Absetzung für Abnutzung (AfA)", betrag: null, hinweis: "noch nicht erfasst" },
-    { zeile: "Z. 37", text: "Schuldzinsen", betrag: null, hinweis: "noch nicht erfasst" },
-    { zeile: "Z. 40", text: "Erhaltungsaufwendungen (voll abziehbar)", betrag: av.werbungskosten.ERHALTUNGSAUFWAND },
-    { zeile: "Z. 47", text: "Grundsteuer, Wasser, Heizung, Versicherungen, Hauswart …", betrag: av.werbungskosten.BETRIEBSKOSTEN },
-    { zeile: "Z. 48", text: "Verwaltungskosten", betrag: av.werbungskosten.VERWALTUNG },
-    { zeile: "Z. 50", text: "Sonstiges", betrag: av.werbungskosten.SONSTIGES },
-    { zeile: "Z. 22", text: "Summe der Werbungskosten (ohne AfA und Schuldzinsen)", betrag: av.summeWerbungskosten, fett: true },
-    { zeile: "Z. 23", text: "Überschuss vor AfA und Schuldzinsen", betrag: av.ueberschuss, fett: true },
+    {
+      text: "Vereinnahmte Nebenkosten",
+      betrag: st.nebenkosten,
+      hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben",
+    },
+    { text: "Verrechnete Mietkautionen (Einbehalte)", betrag: st.kautionEinbehalte },
+    { text: "Sonstige Einnahmen (Waschgeld, Gebühren)", betrag: st.sonstigeEinnahmen },
+    { text: "Summe der Einnahmen", betrag: st.summeEinnahmen, fett: true },
   ];
-  const automatisch = daten.anlageVKosten.filter((k) => k.automatisch && k.summe !== 0);
+  const kosten: Zeile[] = [
+    { text: "Instandhaltung (Reparaturen)", betrag: st.instandhaltung },
+    { text: "Umlagefähige Kosten", betrag: st.umlagefaehig },
+    { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
+    { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
+  ];
+  const automatisch = daten.steuerKosten.filter((k) => k.automatisch && k.summe !== 0 && k.gruppe !== "UMLAGEFAEHIG");
 
-  return (
-    <div className="mb-6">
-      <h2 className="mb-3 text-lg font-medium text-white">Überleitung Anlage V {jahr}</h2>
-      <p className="mb-3 max-w-3xl text-sm text-neutral-400">
-        Dasselbe Ergebnis wie oben, gegliedert nach den Zeilen des Formulars „Anlage V“. Ausgezahlte
-        NK-Guthaben mindern hier die Einnahmen (Z. 13) statt als Ausgabe zu erscheinen. AfA und Schuldzinsen
-        fehlen noch — der Überschuss liegt dadurch über dem steuerlichen Ergebnis.
-      </p>
+  const tabelle = (titel: string, zeilen: Zeile[]) => (
+    <div>
+      <h3 className="mb-2 text-sm font-medium text-neutral-300">{titel}</h3>
       <div className="rounded-lg border border-neutral-800">
         <table className="w-full text-sm">
           <tbody>
             {zeilen.map((z) => (
-              <tr key={z.zeile} className="border-b border-neutral-800 last:border-b-0">
-                <td className="w-24 whitespace-nowrap px-4 py-2 text-neutral-500">{z.zeile}</td>
+              <tr key={z.text} className="border-b border-neutral-800 last:border-b-0">
                 <td className={`px-4 py-2 ${z.fett ? "font-medium text-white" : "text-white"}`}>
                   {z.text}
-                  {z.hinweis && <span className="ml-2 text-xs text-neutral-500">({z.hinweis})</span>}
+                  {z.hinweis && <span className="mt-0.5 block text-xs font-normal text-neutral-500">{z.hinweis}</span>}
                 </td>
-                <td className={`px-4 py-2 text-right ${z.fett ? "font-medium text-white" : "text-white"}`}>
-                  {z.betrag === null ? <span className="text-neutral-600">–</span> : formatEuro(z.betrag)}
+                <td className={`whitespace-nowrap px-4 py-2 text-right ${z.fett ? "font-medium text-white" : "text-white"}`}>
+                  {formatEuro(z.betrag)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-3 text-lg font-medium text-white">Aufstellung für die Steuererklärung {jahr}</h2>
+      <p className="mb-3 max-w-3xl text-sm text-neutral-400">
+        Dasselbe Ergebnis wie oben, gegliedert für die Anlage V: tatsächlich vereinnahmte Mieten und
+        Nebenkosten getrennt, Instandhaltung separat, übrige Kosten nach umlagefähig / nicht umlagefähig.
+        Ausgezahlte NK-Guthaben mindern die Nebenkosten-Einnahmen (Anlage V, Z. 13). AfA und Schuldzinsen
+        sind hier nicht enthalten.
+      </p>
+      <div className="grid grid-cols-2 gap-6">
+        {tabelle("Einnahmen", einnahmen)}
+        {tabelle("Kosten", kosten)}
+      </div>
+      <div className="mt-4 flex justify-between rounded-lg border border-neutral-800 px-4 py-3 text-sm font-medium text-white">
+        <span>Überschuss vor AfA und Schuldzinsen</span>
+        <span>{formatEuro(st.ueberschuss)}</span>
+      </div>
       <details className="mt-3">
         <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">
-          Zuordnung der Kostenarten zu den Zeilen
+          Zuordnung der Kostenarten
         </summary>
         <div className="mt-3 max-h-[400px] overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
             <tbody>
-              {daten.anlageVKosten.map((k) => (
+              {daten.steuerKosten.map((k) => (
                 <tr key={k.name} className="border-b border-neutral-800">
                   <td className="px-4 py-2 text-white">{k.name}</td>
                   <td className="px-4 py-2 text-neutral-400">
-                    {ANLAGE_V_ZEILE_KURZ[k.zeile]}
+                    {KOSTENGRUPPE_LABEL[k.gruppe]}
                     {k.automatisch && <span className="ml-1 text-xs text-neutral-500">(automatisch)</span>}
                   </td>
                   <td className="px-4 py-2 text-right text-white">{formatEuro(k.summe)}</td>
@@ -833,15 +920,15 @@ function AnlageVUeberleitung({ jahr, daten }: { jahr: number; daten: JahresDaten
             </tbody>
           </table>
         </div>
-        {automatisch.length > 0 && (
-          <p className="mt-2 text-xs text-neutral-500">
-            {automatisch.length} Kostenarten sind nur automatisch zugeordnet — unter{" "}
-            <Link href="/kostenarten" className="underline hover:text-white">
-              Kostenarten
-            </Link>{" "}
-            lässt sich die Zeile festlegen.
-          </p>
-        )}
+        <p className="mt-2 text-xs text-neutral-500">
+          „Instandhaltung“ und „Sonstige Einnahme“ lassen sich unter{" "}
+          <Link href="/kostenarten" className="underline hover:text-white">
+            Kostenarten
+          </Link>{" "}
+          festlegen; sonst entscheidet die Umlagefähigkeit (Reparaturen automatisch als Instandhaltung).
+          {automatisch.length > 0 &&
+            ` Prüfen: ${automatisch.map((k) => k.name).join(", ")} — ggf. Instandhaltung oder Herstellungskosten statt laufender Kosten.`}
+        </p>
       </details>
     </div>
   );

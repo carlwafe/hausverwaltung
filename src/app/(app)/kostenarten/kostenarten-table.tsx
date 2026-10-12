@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
-import { ANLAGE_V_ZEILE_KURZ, anlageVZeileFuer, type AnlageVZeile } from "@/lib/anlage-v";
+import { KOSTENGRUPPE_LABEL, kostengruppeFuer, type AnlageVZeile } from "@/lib/anlage-v";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
@@ -64,16 +64,16 @@ const columns: Column<KostenartRow>[] = [
   },
   {
     key: "anlageV",
-    label: "Anlage V",
-    sortValue: (k) => ANLAGE_V_ZEILE_KURZ[anlageVZeileFuer(k).zeile],
+    label: "Steuerlich",
+    sortValue: (k) => KOSTENGRUPPE_LABEL[kostengruppeFuer(k).gruppe],
     render: (k) => {
-      const { zeile, automatisch } = anlageVZeileFuer(k);
+      const { gruppe, automatisch } = kostengruppeFuer(k);
       return (
         <span
           className={automatisch ? "text-neutral-500" : ""}
           title={automatisch ? "Automatischer Vorschlag — im Formular festlegen" : "Festgelegt"}
         >
-          {ANLAGE_V_ZEILE_KURZ[zeile]}
+          {KOSTENGRUPPE_LABEL[gruppe]}
           {automatisch && " (auto)"}
         </span>
       );
