@@ -165,7 +165,7 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
         </div>
         <label className="flex h-[38px] items-center gap-2 text-sm text-neutral-300">
           <input type="checkbox" name="erkennen" value="1" checked={erkennen} onChange={(e) => setErkennen(e.target.checked)} className="h-4 w-4" />
-          Inhalt automatisch erkennen
+          Inhalt automatisch erkennen (PDF, lokal)
         </label>
         <button
           type="submit"
@@ -225,10 +225,10 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
         </div>
       )}
       <p className="mt-2 text-xs text-neutral-500">
-        Bis zu {MAX_DATEIEN} Dateien auf einmal, je höchstens {maxMb} MB (zusammen 4 MB). Beim Erkennen liest Claude PDF und Bilder und füllt Typ,
-        Aussteller, Betrag, Rechnungsnummer usw. vor; die Dokumente werden dafür an Anthropic übertragen. Verträge, Schreiben, Protokolle und
-        Fotos liest die App nie automatisch, wenn du sie hier als Typ wählst — bei Mietverträgen und Mieterunterlagen also den Typ vorab wählen
-        oder das Häkchen entfernen. Wählst du vorab Vertrag, Schreiben, Protokoll oder Foto (immer) bzw. Versicherung, Prüfbericht oder Steuer / Behörde (ohne Häkchen), kannst du Mietvertrag, Einheit, Gebäude oder Ordner, Datum und Titel gleich angeben — das Dokument wird dann sofort abgelegt. Rechnungen laufen über den Eingang, damit sie später mit der Zahlung abgeglichen werden. Kostenbelege lassen sich auch direkt an der Kostenposition hochladen.
+        Bis zu {MAX_DATEIEN} Dateien auf einmal, je höchstens {maxMb} MB (zusammen 4 MB). Beim Erkennen liest die App den Text von PDFs auf dem Server (Regeln, ohne KI, ohne Datenversand) und füllt Typ,
+        Aussteller, Betrag, Rechnungsnummer usw. vor. Was sie nicht sicher erkennt (Scans, Fotos, unklare Beträge, Sammel-PDFs), bleibt im Eingang
+        „nicht erkannt“ — dort startest du die KI-Prüfung (Claude, das Dokument geht dann an Anthropic) auf Knopfdruck. Verträge, Schreiben,
+        Protokolle und Fotos liest die App beim Hochladen nie automatisch, wenn du sie hier als Typ wählst. Wählst du vorab Vertrag, Schreiben, Protokoll oder Foto (immer) bzw. Versicherung, Prüfbericht oder Steuer / Behörde (ohne Häkchen), kannst du Mietvertrag, Einheit, Gebäude oder Ordner, Datum und Titel gleich angeben — das Dokument wird dann sofort abgelegt. Rechnungen laufen über den Eingang, damit sie später mit der Zahlung abgeglichen werden. Kostenbelege lassen sich auch direkt an der Kostenposition hochladen.
       </p>
       <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

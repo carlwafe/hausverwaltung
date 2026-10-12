@@ -43,7 +43,12 @@ export type ErkennungTeil = Erkennung & { seiteVon: number; seiteBis: number };
  * Rechnungen), steht in `teile` je Dokument ein Eintrag mit Seitenbereich und eigenen Angaben und `seiten` nennt die
  * Seitenzahl; die Felder oben sind dann die des ersten Teils. Sonst fehlt `teile`.
  */
-export type ErkennungErgebnis = Erkennung & { teile?: ErkennungTeil[]; seiten?: number };
+export type ErkennungErgebnis = Erkennung & {
+  teile?: ErkennungTeil[];
+  seiten?: number;
+  /** Womit erkannt wurde: Regeln (lokal, dokument-regeln.ts) oder KI (Claude). Fehlt bei älteren Ergebnissen = KI. */
+  quelle?: "regeln" | "ki";
+};
 
 export type ErkennungKontext = { kostenarten: { id: string; name: string }[] };
 

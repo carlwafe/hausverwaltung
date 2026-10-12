@@ -9,6 +9,7 @@ import {
   entferneBezug,
   ersetzeBezug,
   erkenneDokument,
+  erkenneDokumentRegeln,
   ladeBezugAuswahl,
   legeDokumentAb,
   ordneDokumentZu,
@@ -209,6 +210,9 @@ export function ErkennenBereich({
   erkanntAm,
   konfidenz,
   hinweis,
+  quelle,
+  regelGrund,
+  istPdf,
   erkennbar,
   editierbar,
 }: {
@@ -216,59 +220,74 @@ export function ErkennenBereich({
   erkanntAm: string | null;
   konfidenz: string | null;
   hinweis: string | null;
+  /** Womit zuletzt erkannt wurde (null = noch nicht erkannt). */
+  quelle: "regeln" | "ki" | null;
+  /** Warum die Regeln das Dokument nicht sicher erkannt haben (nur wenn sie es versucht haben). */
+  regelGrund: string | null;
+  istPdf: boolean;
   erkennbar: boolean;
   editierbar: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  const [laeuft, setLaeuft] = useState<"regeln" | "ki" | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
 
-  function starte(ueberschreiben: boolean) {
+  function starte(art: "regeln" | "ki", ueberschreiben = false) {
     setMeldung(null);
+    setLaeuft(art);
     startTransition(async () => {
-      const fehler = await erkenneDokument(id, ueberschreiben);
+      const fehler = art === "regeln" ? await erkenneDokumentRegeln(id) : await erkenneDokument(id, ueberschreiben);
       if (typeof fehler === "string") setMeldung(fehler);
+      setLaeuft(null);
     });
   }
 
+  const knopf = "rounded-md border border-neutral-700 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-50";
   return (
     <div className="rounded-lg border border-neutral-800 p-4">
       <h2 className="mb-2 text-lg font-medium text-white">Texterkennung</h2>
       {erkanntAm ? (
         <p className="mb-3 text-sm text-neutral-300">
-          Erkannt am {erkanntAm}
+          Erkannt am {erkanntAm} · {quelle === "regeln" ? "per Regeln (lokal)" : "per KI-Prüfung"}
           {konfidenz && <> · Sicherheit: <strong>{konfidenz}</strong></>}
           {hinweis && <span className="block text-xs text-neutral-500">{hinweis}</span>}
+        </p>
+      ) : regelGrund ? (
+        <p className="mb-3 text-sm text-neutral-300">
+          Noch nicht erkannt — die Regeln waren nicht sicher.
+          <span className="block text-xs text-neutral-500">{regelGrund} Die KI-Prüfung liest das Dokument genauer.</span>
         </p>
       ) : (
         <p className="mb-3 text-sm text-neutral-500">Noch nicht erkannt.</p>
       )}
       {editierbar && erkennbar && (
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => starte(false)}
-            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
-          >
-            {pending ? "Liest das Dokument…" : erkanntAm ? "Erneut erkennen (leere Felder füllen)" : "Inhalt erkennen"}
+          {istPdf && (
+            <button type="button" disabled={pending} onClick={() => starte("regeln")} className={`${knopf} font-medium text-white`}>
+              {laeuft === "regeln" ? "Wendet Regeln an…" : "Regeln anwenden (lokal)"}
+            </button>
+          )}
+          <button type="button" disabled={pending} onClick={() => starte("ki")} className={`${knopf} font-medium text-white`}>
+            {laeuft === "ki" ? "Liest das Dokument…" : "KI-Prüfung starten"}
           </button>
           {erkanntAm && (
             <button
               type="button"
               disabled={pending}
               onClick={() => {
-                if (confirm("Alle Angaben löschen und neu aus dem Dokument einlesen? Eigene Eingaben gehen verloren.")) starte(true);
+                if (confirm("Alle Angaben löschen und per KI neu aus dem Dokument einlesen? Eigene Eingaben gehen verloren.")) starte("ki", true);
               }}
-              className="rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-900 disabled:opacity-50"
+              className={`${knopf} text-neutral-300`}
             >
-              Neu erkennen (Angaben ersetzen)
+              KI: neu erkennen (Angaben ersetzen)
             </button>
           )}
         </div>
       )}
       {!erkennbar && <p className="text-xs text-neutral-500">Erkennbar sind PDF-Dateien und Bilder (PNG, JPG, WebP).</p>}
       <p className="mt-2 text-xs text-neutral-500">
-        Das Dokument wird zum Lesen an Anthropic (Claude) übertragen. Das Ergebnis ist ein Vorschlag — bitte Betrag und Rechnungsnummer
+        Die Regeln lesen den Text des PDFs auf dem Server und übertragen nichts. Nur die KI-Prüfung sendet das Dokument zum Lesen an Anthropic (Claude) —
+        sie ist für Scans, Bilder und unklare Fälle gedacht (auch Sammel-PDFs). Das Ergebnis ist ein Vorschlag: bitte Betrag und Rechnungsnummer
         gegen das Original prüfen.
       </p>
       {meldung && <p className="mt-2 text-sm text-red-400">{meldung}</p>}
@@ -514,8 +533,8 @@ export function BezuegePanel({
           <p>{eingang ? "Noch kein Bezug — das Dokument liegt im Eingang, bis du einen Bezug wählst oder es ohne Bezug ablegst." : "Kein Bezug (Unkategorisiert)."}</p>
           {eingang && !gelesen && sichtbareVorschlaege.length === 0 && (
             <p className="mt-1 text-xs text-neutral-500">
-              Der Inhalt wurde nicht gelesen (Erkennung aus oder Typ vorab gewählt), deshalb gibt es keine Vorschläge. Wähle den Bezug unten von Hand
-              {art ? ` (vorbelegt passend zum Typ „${ART_ANZEIGE[art] ?? art}“)` : ""} oder starte weiter unten „Inhalt erkennen“.
+              Der Inhalt wurde nicht gelesen (Erkennung aus, Typ vorab gewählt oder noch nicht erkannt), deshalb gibt es keine Vorschläge. Wähle den Bezug unten von Hand
+              {art ? ` (vorbelegt passend zum Typ „${ART_ANZEIGE[art] ?? art}“)` : ""} oder starte weiter unten die Regeln bzw. die KI-Prüfung.
             </p>
           )}
         </div>

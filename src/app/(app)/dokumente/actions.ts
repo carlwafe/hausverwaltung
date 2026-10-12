@@ -7,8 +7,11 @@ import { benutzerLabel, requireEditor } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { AUTOMATISCH_NICHT_LESEN, istGueltigeArt } from "@/lib/dokumente-anzeige";
-import { erkenneDokumentInhalt, gueltigeSeitenbereiche, istErkennbar, istGueltigeIban, type Erkennung, type ErkennungTeil } from "@/lib/dokument-erkennung";
+import { erkenneDokumentInhalt, gueltigeSeitenbereiche, istErkennbar, istGueltigeIban, type Erkennung, type ErkennungErgebnis, type ErkennungTeil } from "@/lib/dokument-erkennung";
 import { PDFDocument } from "pdf-lib";
+import { leseTextProSeite } from "@/lib/dokument-pdf-text";
+import { erkenneDokumentPerRegeln, type RegelKontext } from "@/lib/dokument-regeln";
+import { EINGANG_OFFEN_WHERE } from "@/lib/dokument-eingang-offen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
@@ -67,13 +70,11 @@ function felderAusErkennung(e: Erkennung) {
   };
 }
 
-// Liest den Inhalt per Claude und trägt die Ergebnisse in die noch leeren Labels ein (vorhandene Angaben
-// des Nutzers werden nie überschrieben); das Rohergebnis bleibt als Vorschlag am Dokument stehen.
-// Enthält ein PDF mehrere Dokumente (Sammel-Scan), bekommt das Original nur Typ und einen Titel; die Angaben je
-// Teil stehen im Rohergebnis, aufgeteilt wird erst nach Bestätigung (teileDokumentAuf).
-async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string): Promise<void> {
-  const kostenarten = await prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
-  const e = await erkenneDokumentInhalt(inhalt, mimeType, { kostenarten }, await seitenzahlVon(inhalt, mimeType));
+// Trägt eine Erkennung (Regeln oder KI) in die noch leeren Labels ein (vorhandene Angaben des Nutzers werden nie
+// überschrieben); das Rohergebnis bleibt als Vorschlag am Dokument stehen.
+// Enthält ein PDF mehrere Dokumente (Sammel-Scan, nur die KI erkennt das), bekommt das Original nur Typ und einen Titel;
+// die Angaben je Teil stehen im Rohergebnis, aufgeteilt wird erst nach Bestätigung (teileDokumentAuf).
+async function uebernehmeErkennung(id: string, e: ErkennungErgebnis): Promise<void> {
   const d = await prisma.dokument.findUniqueOrThrow({ where: { id } });
   if (e.teile && e.teile.length > 1) {
     await prisma.dokument.update({
@@ -110,6 +111,51 @@ async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string):
   });
 }
 
+// KI-Prüfung: Claude liest das PDF bzw. Bild (das Dokument wird an Anthropic übertragen).
+async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string): Promise<void> {
+  const kostenarten = await prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
+  const e = await erkenneDokumentInhalt(inhalt, mimeType, { kostenarten }, await seitenzahlVon(inhalt, mimeType));
+  await uebernehmeErkennung(id, { ...e, quelle: "ki" });
+}
+
+async function ladeRegelKontext(): Promise<RegelKontext> {
+  const [kostenarten, dienstleister, gebaeude] = await Promise.all([
+    prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.dienstleister.findMany({ select: { name: true, suchbegriffe: true, kostenarten: { select: { id: true } } } }),
+    prisma.gebaeude.findMany({ select: { strasse: true }, distinct: ["strasse"] }),
+  ]);
+  return {
+    kostenarten,
+    dienstleister: dienstleister.map((d) => ({ name: d.name, suchbegriffe: d.suchbegriffe, kostenartIds: d.kostenarten.map((k) => k.id) })),
+    strassen: gebaeude.map((g) => g.strasse),
+  };
+}
+
+type RegelStatus = "erkannt" | "unsicher" | "kein_text" | "nicht_lesbar";
+
+// Erste Stufe: Regel-Erkennung (lokal, kostenlos, ohne Datenversand). Nur eindeutige Ergebnisse werden übernommen
+// (erkanntAm gesetzt); sonst bleibt das Dokument „nicht erkannt“ und der Grund steht im Rohergebnis (ohne erkanntAm),
+// damit die Detailseite ihn zeigt und die KI-Prüfung gezielt folgen kann. Bilder und Scans ohne Textebene kann nur die KI lesen.
+async function fuehreRegelErkennungAus(id: string, inhalt: Buffer, mimeType: string, kontext: RegelKontext): Promise<{ status: RegelStatus; grund: string | null }> {
+  if (mimeType !== "application/pdf") return { status: "nicht_lesbar", grund: "Bilder kann nur die KI-Prüfung lesen." };
+  let seiten: string[];
+  try {
+    seiten = await leseTextProSeite(inhalt);
+  } catch {
+    return { status: "nicht_lesbar", grund: "Das PDF lässt sich nicht lesen (defekt oder passwortgeschützt)." };
+  }
+  const r = erkenneDokumentPerRegeln(seiten, kontext);
+  if (r.status === "erkannt") {
+    await uebernehmeErkennung(id, { ...r.erkennung, quelle: "regeln", seiten: seiten.length });
+    return { status: "erkannt", grund: null };
+  }
+  await prisma.dokument.update({
+    where: { id },
+    data: { erkennung: { quelle: "regeln", offen: true, grund: r.grund } as unknown as Prisma.InputJsonValue },
+  });
+  return { status: r.status, grund: r.grund };
+}
+
 function erkennungsMeldung(err: unknown): string {
   const text = err instanceof Error ? err.message : String(err);
   return text.includes("ANTHROPIC_API_KEY") ? "ANTHROPIC_API_KEY fehlt in der Umgebung." : text.slice(0, 200);
@@ -138,9 +184,10 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   // Optionaler Titel (z.B. beim Upload eines Vertrags), gilt für alle Dateien dieses Uploads.
   const titel = textFeld(formData.get("titel"), 200);
 
-  // Texterkennung beim Hochladen mit gesetztem Häkchen; Mieterunterlagen (Vertrag, Schreiben, Protokoll) und
-  // Fotos werden nie automatisch gelesen (siehe AUTOMATISCH_NICHT_LESEN). Schlägt sie fehl, bleibt das
-  // Dokument trotzdem gespeichert.
+  // Erkennung beim Hochladen mit gesetztem Häkchen: zuerst die Regeln (lokal, ohne Datenversand); was sie nicht sicher
+  // erkennen, bleibt „nicht erkannt“ und lässt sich per KI-Prüfung nachholen. Mieterunterlagen (Vertrag, Schreiben,
+  // Protokoll) und Fotos werden beim Hochladen nie automatisch gelesen (siehe AUTOMATISCH_NICHT_LESEN). Schlägt die
+  // Erkennung fehl, bleibt das Dokument trotzdem gespeichert.
   const erkennen = formData.get("erkennen") === "1" && !(art !== null && AUTOMATISCH_NICHT_LESEN.includes(art));
 
   const angelegt: { id: string; inhalt: Buffer; mimeType: string }[] = [];
@@ -167,26 +214,25 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
         belegDatum,
       },
     });
-    if (erkennen && istErkennbar(file.type)) angelegt.push({ id: dokument.id, inhalt, mimeType: file.type });
+    if (erkennen && file.type === "application/pdf") angelegt.push({ id: dokument.id, inhalt, mimeType: file.type });
   }
 
-  // Erkennung der (höchstens ein paar) Dateien parallel — jede dauert einige Sekunden.
+  // Regel-Erkennung der (höchstens ein paar) PDFs: lokal und schnell, daher nacheinander.
   let erkennungsFehler: string | null = null;
-  await Promise.all(
-    angelegt.map(async (d) => {
-      try {
-        await fuehreErkennungAus(d.id, d.inhalt, d.mimeType);
-      } catch (err) {
-        console.error("Texterkennung fehlgeschlagen", err);
-        erkennungsFehler = erkennungsMeldung(err);
-      }
-    }),
-  );
+  if (angelegt.length > 0) {
+    try {
+      const kontext = await ladeRegelKontext();
+      for (const d of angelegt) await fuehreRegelErkennungAus(d.id, d.inhalt, d.mimeType, kontext);
+    } catch (err) {
+      console.error("Regel-Erkennung fehlgeschlagen", err);
+      erkennungsFehler = erkennungsMeldung(err);
+    }
+  }
 
   revalidatePath(ziel.revalidatePath);
   revalidatePath("/dokumente");
   return erkennungsFehler
-    ? `Hochgeladen, aber die Texterkennung ist fehlgeschlagen (${erkennungsFehler}). Auf der Detailseite lässt sie sich erneut starten.`
+    ? `Hochgeladen, aber die Erkennung ist fehlgeschlagen (${erkennungsFehler}). Auf der Detailseite lässt sie sich erneut starten.`
     : null;
 });
 
@@ -387,6 +433,52 @@ export const erkenneDokument = mitMeldung(async function erkenneDokument(id: str
   revalidatePath(`/dokumente/${id}`);
   revalidatePath("/dokumente");
   return null;
+});
+
+// Regel-Erkennung auf Knopfdruck (lokal, ohne KI): füllt nur leere Labels; das Ergebnis bzw. der Grund, warum die Regeln nicht
+// sicher sind, steht danach auf der Detailseite.
+export const erkenneDokumentRegeln = mitMeldung(async function erkenneDokumentRegeln(id: string): Promise<string | null> {
+  await requireEditor();
+  const dokument = await prisma.dokument.findUnique({ where: { id } });
+  if (!dokument) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  if (dokument.mimeType !== "application/pdf") throw new AktionsFehler("Die Regeln lesen nur PDF-Dateien — bei Bildern bitte die KI-Prüfung nutzen.");
+  let inhalt: Buffer;
+  try {
+    inhalt = await leseDatei(dokument.speicherpfad);
+  } catch {
+    throw new AktionsFehler("Die Datei ist nicht mehr verfügbar.");
+  }
+  await fuehreRegelErkennungAus(id, inhalt, dokument.mimeType, await ladeRegelKontext());
+  revalidatePath(`/dokumente/${id}`);
+  revalidatePath("/dokumente");
+  return null;
+});
+
+// KI-Prüfung für alle Dokumente im Eingang, die die Regeln nicht sicher erkannt haben (Sammelknopf auf der Eingang-Liste).
+// Höchstens ein paar pro Klick (jede Prüfung dauert einige Sekunden, der Aufruf darf nur 60 s laufen); der Rest folgt beim
+// nächsten Klick. Vertrag/Schreiben/Protokoll/Foto sind ausgenommen (siehe EINGANG_OFFEN_WHERE).
+const KI_STAPEL = 6;
+export const pruefeEingangPerKi = mitMeldung(async function pruefeEingangPerKi(): Promise<string | null> {
+  await requireEditor();
+  const offen = await prisma.dokument.findMany({ where: EINGANG_OFFEN_WHERE, orderBy: { createdAt: "asc" }, take: KI_STAPEL + 1 });
+  const stapel = offen.slice(0, KI_STAPEL);
+  if (stapel.length === 0) return "Keine Dokumente zu prüfen.";
+  let fehler = 0;
+  await Promise.all(
+    stapel.map(async (d) => {
+      try {
+        await fuehreErkennungAus(d.id, await leseDatei(d.speicherpfad), d.mimeType!);
+      } catch (err) {
+        console.error("KI-Prüfung fehlgeschlagen", err);
+        fehler += 1;
+      }
+    }),
+  );
+  revalidatePath("/dokumente");
+  const rest = offen.length > KI_STAPEL ? " Es sind weitere offen — Knopf erneut drücken." : "";
+  return fehler > 0
+    ? `${stapel.length - fehler} von ${stapel.length} geprüft, ${fehler} fehlgeschlagen (Details in den Logs).${rest}`
+    : `${stapel.length} ${stapel.length === 1 ? "Dokument" : "Dokumente"} per KI geprüft.${rest}`;
 });
 
 export type ZuordnungsZiel = "buchung" | "mietvertrag" | "einheit" | "haus" | "gebaeude" | "dienstleister" | "ticket";

@@ -9,6 +9,9 @@ import {
 } from "@/lib/dokumente-uebersicht";
 import { DokumentUpload } from "./dokument-upload";
 import { SichereVorschlaegeKnopf } from "./sichere-vorschlaege-knopf";
+import { KiPruefungKnopf } from "./ki-pruefung-knopf";
+import { prisma } from "@/lib/prisma";
+import { EINGANG_OFFEN_WHERE } from "@/lib/dokument-eingang-offen";
 import { DokumentTabelle, type DokumentRow } from "./dokument-tabelle";
 
 const LINK = "text-neutral-400 hover:text-white hover:underline";
@@ -70,7 +73,7 @@ function Ordnerkarte({
   );
 }
 
-// Die Texterkennung läuft beim Hochladen in derselben Anfrage (Claude liest das PDF).
+// Die Regel-Erkennung läuft beim Hochladen in derselben Anfrage; die KI-Prüfung (Claude) per Knopf, bis zu 6 Dokumente pro Klick.
 export const maxDuration = 60;
 
 export default async function DokumentePage({
@@ -113,6 +116,9 @@ export default async function DokumentePage({
   // „Eingang“ hat keine Unterordner: der Bereich zeigt direkt die Liste.
   const eingangAnsicht = bereich?.key === "eingang" && !typAnsicht;
   const ordner = bereich && ordnerParam !== undefined && !typAnsicht ? ordnerListe.find((o) => o.key === ordnerParam) ?? null : null;
+
+  // Eingang: wie viele Dokumente haben die Regeln nicht sicher erkannt (KI-Prüfung per Knopf)?
+  const kiOffen = eingangAnsicht && editierbar ? await prisma.dokument.count({ where: EINGANG_OFFEN_WHERE }) : 0;
 
   const sichtbar = alleAnsicht || eingangAnsicht || artGewaehlt
     ? zeilen
@@ -159,7 +165,7 @@ export default async function DokumentePage({
         <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
         <p className="text-sm text-neutral-400">
           Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Hochladen heißt nur
-          Datei wählen: die Texterkennung bestimmt Typ, Aussteller, Betrag usw., und im <strong>Eingang</strong> bestätigst du die
+          Datei wählen: die App liest PDFs zuerst per Regeln (lokal) und bestimmt Typ, Aussteller, Betrag usw.; was sie nicht sicher erkennt, prüft die KI auf Knopfdruck. Im <strong>Eingang</strong> bestätigst du die
           vorgeschlagenen Bezüge (Kostenposition, Mietvertrag, Einheit, Haus, Gebäude, Dienstleister, Ticket). „Haus“ ist das ganze Bauwerk mit mehreren Hausnummern, „Gebäude“ eine einzelne Hausnummer. Ein Dokument kann mehrere
           Bezüge haben und erscheint dann in jedem passenden Ordner (Kosten, Mietverhältnisse, Objekt, Sonstiges). Kostenbelege lassen sich nicht löschen, nur ausblenden. Die
           Kontoauszug-Dateien der Importe stehen unter Kontoauszug → Importe.
@@ -211,6 +217,7 @@ export default async function DokumentePage({
         )}
       </div>
 
+      {eingangAnsicht && editierbar && kiOffen > 0 && <KiPruefungKnopf anzahl={kiOffen} />}
       {eingangAnsicht && editierbar && sichtbar.length > 0 && <SichereVorschlaegeKnopf />}
 
       {alleAnsicht || eingangAnsicht || artGewaehlt || (bereich && ordner) ? (

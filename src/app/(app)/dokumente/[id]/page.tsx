@@ -129,6 +129,8 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     objektHinweis: dokument.objektHinweis ?? "",
   };
   const erkennung = dokument.erkennung as ErkennungErgebnis | null;
+  // Regeln unsicher: Rohergebnis ohne erkanntAm, nur mit dem Grund (siehe fuehreRegelErkennungAus).
+  const regelGrund = (dokument.erkennung as { offen?: boolean; grund?: string } | null)?.offen ? ((dokument.erkennung as { grund?: string }).grund ?? null) : null;
   // Sammel-PDF: nur anbieten, solange es nicht aufgeteilt ist und noch keine Bezüge hat.
   const aufteilbar =
     editierbar && !dokument.ausgeblendetAm && bezuege.length === 0 && dokument.mimeType === "application/pdf" && (erkennung?.teile?.length ?? 0) > 1
@@ -219,6 +221,9 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
             erkanntAm={dokument.erkanntAm ? formatDate(dokument.erkanntAm) : null}
             konfidenz={erkennung?.konfidenz ?? null}
             hinweis={erkennung?.hinweis ?? null}
+            quelle={dokument.erkanntAm ? (erkennung?.quelle ?? "ki") : null}
+            regelGrund={regelGrund}
+            istPdf={dokument.mimeType === "application/pdf"}
             erkennbar={istErkennbar(dokument.mimeType)}
             editierbar={kannBearbeiten}
           />
