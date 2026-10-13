@@ -12,6 +12,9 @@ type Objekt = {
   plz: string;
   ort: string;
   beschreibung: string | null;
+  telefonMieter: string | null;
+  emailVerwaltung: string | null;
+  emailMieter: string | null;
   buchhaltungAb: Date | string | null;
   kontostandAnkerDatum: Date | string | null;
   kontostandAnkerBetrag: string | null;
@@ -100,6 +103,48 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
           defaultValue={initial.beschreibung ?? ""}
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
         />
+      </div>
+
+      <div className="rounded-md border border-neutral-800 p-4">
+        <p className="mb-3 text-sm font-medium">Kontakt</p>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="telefonMieter">
+              Telefon für Mieter
+            </label>
+            <input
+              id="telefonMieter"
+              name="telefonMieter"
+              type="tel"
+              defaultValue={initial.telefonMieter ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="emailVerwaltung">
+              E-Mail für Verwaltungssachen
+            </label>
+            <input
+              id="emailVerwaltung"
+              name="emailVerwaltung"
+              type="email"
+              defaultValue={initial.emailVerwaltung ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="emailMieter">
+              E-Mail für Mieter
+            </label>
+            <input
+              id="emailMieter"
+              name="emailMieter"
+              type="email"
+              defaultValue={initial.emailMieter ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="rounded-md border border-neutral-800 p-4">

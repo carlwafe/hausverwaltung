@@ -15,6 +15,17 @@ const objektSchema = z
     plz: z.string().min(1, "PLZ ist erforderlich"),
     ort: z.string().min(1, "Ort ist erforderlich"),
     beschreibung: z.string().optional(),
+    telefonMieter: z.string().trim().transform((v) => v || null),
+    emailVerwaltung: z
+      .string()
+      .trim()
+      .transform((v) => v || null)
+      .refine((v) => v === null || z.email().safeParse(v).success, "E-Mail Verwaltung ist ungültig"),
+    emailMieter: z
+      .string()
+      .trim()
+      .transform((v) => v || null)
+      .refine((v) => v === null || z.email().safeParse(v).success, "E-Mail Mieter ist ungültig"),
     buchhaltungAb: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerDatum: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerBetrag: z
@@ -40,6 +51,9 @@ export const updateObjekt = mitMeldung(async function updateObjekt(
     plz: formData.get("plz"),
     ort: formData.get("ort"),
     beschreibung: formData.get("beschreibung") || undefined,
+    telefonMieter: formData.get("telefonMieter") ?? "",
+    emailVerwaltung: formData.get("emailVerwaltung") ?? "",
+    emailMieter: formData.get("emailMieter") ?? "",
     buchhaltungAb: formData.get("buchhaltungAb") || "",
     kontostandAnkerDatum: formData.get("kontostandAnkerDatum") || "",
     kontostandAnkerBetrag: formData.get("kontostandAnkerBetrag") || "",

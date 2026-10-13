@@ -252,6 +252,11 @@ model Objekt {
   plz                   String
   ort                   String    @default("Eutin")
   beschreibung          String?
+  // Kontaktdaten des Objekts: Telefon für Mieter, getrennte E-Mail-Adressen für Verwaltungssachen
+  // und für Mieter (rein zur Information/für Schreiben, ohne Wirkung auf die Berechnung).
+  telefonMieter         String?
+  emailVerwaltung       String?
+  emailMieter           String?
   // Stichtag, ab dem Soll/Ist-Vergleiche gerechnet werden (z.B. weil ältere Kontoauszüge
   // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
   // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.
