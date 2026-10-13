@@ -54,7 +54,7 @@ export function MieterkontoAnsicht({
       )}
 
       <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full min-w-[1400px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
               <th className="px-4 py-2.5">Monat / Buchung</th>
@@ -103,7 +103,7 @@ export function MieterkontoAnsicht({
                   {formatEuro(z.differenz)}
                 </td>
                 <td className={`px-4 py-2 text-right font-medium ${farbeSaldo(z.saldo)}`}>{formatEuro(z.saldo)}</td>
-                <td className="min-w-[520px] px-4 py-2 text-xs italic text-neutral-500 [overflow-wrap:anywhere]">
+                <td className="whitespace-nowrap px-4 py-2 text-xs italic text-neutral-500">
                   {z.bemerkung}
                 </td>
               </tr>
