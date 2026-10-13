@@ -8,6 +8,8 @@ import { requireEditor, benutzerLabel } from "@/lib/session";
 import { optionalesDatum, pflichtDatum } from "@/lib/zod-datum";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
+import { istGueltigeIban } from "@/lib/dokument-erkennung";
+import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -37,6 +39,11 @@ const mietvertragSchema = z
     saldovortrag: z.coerce.number().optional().default(0),
     buchhaltungAb: optionalesDatum(),
     zahlungsweg: z.enum(["LASTSCHRIFT", "UEBERWEISUNG"]).optional(),
+    mandatReferenz: z.string().trim().max(35, "Mandatsreferenz: höchstens 35 Zeichen").optional(),
+    mandatGlaeubigerId: z.string().optional(),
+    mandatDatum: optionalesDatum(),
+    mandatKontoinhaber: z.string().trim().max(70, "Kontoinhaber: höchstens 70 Zeichen").optional(),
+    mandatIban: z.string().optional(),
   })
   .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
     message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
@@ -69,6 +76,11 @@ async function parseForm(formData: FormData) {
     saldovortrag: formData.get("saldovortrag") || "0",
     buchhaltungAb: formData.get("buchhaltungAb") || "",
     zahlungsweg: formData.get("zahlungsweg") || undefined,
+    mandatReferenz: formData.get("mandatReferenz") || undefined,
+    mandatGlaeubigerId: formData.get("mandatGlaeubigerId") || undefined,
+    mandatDatum: formData.get("mandatDatum") || "",
+    mandatKontoinhaber: formData.get("mandatKontoinhaber") || undefined,
+    mandatIban: formData.get("mandatIban") || undefined,
   });
 
   if (!parsed.success) {
@@ -83,6 +95,16 @@ async function parseForm(formData: FormData) {
     throw new AktionsFehler("Mehrwertsteuer ist bei Garagen/Stellplätzen erforderlich");
   }
 
+  // Mandatsangaben: Gläubiger-ID und IBAN ohne Leerzeichen in Großschreibung speichern, beide mit Prüfziffer.
+  const mandatGlaeubigerId = parsed.data.mandatGlaeubigerId?.replace(/\s+/g, "").toUpperCase();
+  if (mandatGlaeubigerId && !glaeubigerIdGueltig(mandatGlaeubigerId)) {
+    throw new AktionsFehler("Gläubiger-ID des Mandats ist ungültig (Aufbau oder Prüfziffer stimmt nicht).");
+  }
+  const mandatIban = parsed.data.mandatIban?.replace(/\s+/g, "").toUpperCase();
+  if (mandatIban && !istGueltigeIban(mandatIban)) {
+    throw new AktionsFehler("IBAN des Mandats ist ungültig (Aufbau oder Prüfziffer stimmt nicht).");
+  }
+
   // Eigener Stichtag nur früher als der des Objekts (sonst gäbe es nichts zu überschreiben — Feld leer lassen).
   if (parsed.data.buchhaltungAb) {
     const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
@@ -93,7 +115,18 @@ async function parseForm(formData: FormData) {
     }
   }
 
-  return parsed.data;
+  return { ...parsed.data, mandatGlaeubigerId, mandatIban };
+}
+
+/** Mandatsfelder für create/update; leere Felder werden zu null (bei update sonst „unverändert“). */
+function mandatFelder(data: Awaited<ReturnType<typeof parseForm>>) {
+  return {
+    mandatReferenz: data.mandatReferenz || null,
+    mandatGlaeubigerId: data.mandatGlaeubigerId || null,
+    mandatDatum: data.mandatDatum ?? null,
+    mandatKontoinhaber: data.mandatKontoinhaber || null,
+    mandatIban: data.mandatIban || null,
+  };
 }
 
 function mieterIds(data: { mieterId1: string; mieterId2?: string }) {
@@ -117,6 +150,7 @@ export const createMietvertrag = mitMeldung(async function createMietvertrag(for
       saldovortrag: data.saldovortrag,
       buchhaltungAb: data.buchhaltungAb ?? null,
       zahlungsweg: data.zahlungsweg ?? null,
+      ...mandatFelder(data),
       ...(data.kautionBetrag !== undefined
         ? {
             kaution: {
@@ -163,6 +197,7 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
         // ?? null wie bei ende: ein geleertes Feld setzt den Stichtag zurück auf den des Objekts.
         buchhaltungAb: data.buchhaltungAb ?? null,
         zahlungsweg: data.zahlungsweg ?? null,
+        ...mandatFelder(data),
       },
     });
 
@@ -198,6 +233,7 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
 
   revalidatePath("/mietvertraege");
   revalidatePath(`/mietvertraege/${id}`);
+  revalidatePath("/mietvertraege/lastschrift-mandate");
   revalidatePath("/kautionen");
   revalidatePath("/offene-posten");
   revalidatePath("/jahresuebersicht");

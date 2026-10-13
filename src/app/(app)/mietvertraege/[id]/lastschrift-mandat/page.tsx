@@ -22,6 +22,13 @@ export default async function LastschriftMandatPage({ params }: { params: Promis
             Mietvertrag
           </Link>
         </p>
+        {vertrag.mandatReferenz && (
+          <p className="mt-3 rounded-md border border-amber-900 bg-amber-950/30 p-3 text-sm text-amber-300">
+            Für diesen Vertrag besteht bereits ein Mandat (Referenz <span className="font-mono">{vertrag.mandatReferenz}</span>
+            ). Ein neues ist nur bei geänderter Kontoverbindung des Mieters oder neuem Gläubiger nötig — dann eine
+            andere Referenz wählen.
+          </p>
+        )}
         <p className="mt-1 text-xs text-neutral-500">
           Nur zum Ausdrucken, nichts wird gespeichert. Das unterschriebene Mandat als Scan in der Mieterakte (Dokumente) ablegen.
         </p>

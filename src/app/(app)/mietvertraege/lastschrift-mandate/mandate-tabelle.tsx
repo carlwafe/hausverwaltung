@@ -30,15 +30,34 @@ const columns: Column<MandatZeile>[] = [
     searchValue: (z) => z.mieterNamen,
   },
   {
+    key: "bestehend",
+    label: "Bestehendes Mandat",
+    title: "Am Mietvertrag erfasstes Mandat (Seite des Mietvertrags → Bearbeiten)",
+    render: (z) =>
+      z.mandatReferenz ? (
+        <span className="text-xs">
+          <span className="font-mono text-green-400">{z.mandatReferenz}</span>
+          {z.mandatDatum && <span className="ml-2 text-neutral-500">vom {formatDate(z.mandatDatum)}</span>}
+        </span>
+      ) : (
+        <span className="text-xs text-neutral-500">keines erfasst</span>
+      ),
+    sortValue: (z) => z.mandatReferenz ?? "",
+    searchValue: (z) => z.mandatReferenz ?? "",
+  },
+  {
     key: "mandat",
     label: "Mandat",
     render: (z) => (
       <Link
         href={`/mietvertraege/${z.id}/lastschrift-mandat`}
         prefetch={false}
-        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
+        title={z.mandatReferenz ? "Es besteht bereits ein Mandat — nur bei geänderter Kontoverbindung oder neuem Gläubiger neu erstellen" : undefined}
+        className={`inline-block whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-neutral-800 ${
+          z.mandatReferenz ? "border-neutral-800 text-neutral-500" : "border-neutral-600 text-white"
+        }`}
       >
-        Erstellen
+        {z.mandatReferenz ? "Neu erstellen" : "Erstellen"}
       </Link>
     ),
   },
@@ -50,8 +69,8 @@ const columns: Column<MandatZeile>[] = [
   },
   {
     key: "referenz",
-    label: "Mandatsreferenz",
-    title: "Vorschlag, je Einheit vergeben; nichts gespeichert",
+    label: "Referenz für neues Mandat",
+    title: "Vorschlag für ein neues Mandat, je Einheit vergeben; nichts gespeichert",
     render: (z) => <span className="font-mono text-xs text-neutral-400">{mandatsreferenz(z.einheit)}</span>,
   },
   {
@@ -71,25 +90,41 @@ const selectKlasse =
   "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
 
 type Ansicht = "alle" | "LASTSCHRIFT" | "UEBERWEISUNG" | "offen";
+type MandatAnsicht = "ohne" | "mit" | "alle";
 
 export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
   const [ansicht, setAnsicht] = useState<Ansicht>("alle");
+  // Standard: nur Verträge ohne erfasstes Mandat — nur für diese kommt ein neues Mandat überhaupt in Frage.
+  const [mandatAnsicht, setMandatAnsicht] = useState<MandatAnsicht>("ohne");
   const [auswahl, setAuswahl] = useState<MandatZeile[]>([]);
 
   const rows = useMemo(
     () =>
       alle.filter((z) => {
+        if (mandatAnsicht === "ohne" && z.mandatReferenz) return false;
+        if (mandatAnsicht === "mit" && !z.mandatReferenz) return false;
         if (ansicht === "alle") return true;
         if (ansicht === "offen") return z.zahlungsweg === null;
         return z.zahlungsweg === ansicht;
       }),
-    [alle, ansicht],
+    [alle, ansicht, mandatAnsicht],
   );
-  const ids = auswahl.filter((z) => rows.some((r) => r.id === z.id)).map((z) => z.id);
+  const gewaehlt = auswahl.filter((z) => rows.some((r) => r.id === z.id));
+  const ids = gewaehlt.map((z) => z.id);
+  const mitMandat = gewaehlt.filter((z) => z.mandatReferenz).length;
+  const filterAktiv = ansicht !== "alle" || mandatAnsicht !== "alle";
 
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-400">
+        <label className="flex items-center gap-2">
+          Mandat
+          <select value={mandatAnsicht} onChange={(e) => setMandatAnsicht(e.target.value as MandatAnsicht)} className={selectKlasse}>
+            <option value="ohne">ohne erfasstes Mandat</option>
+            <option value="mit">mit erfasstem Mandat</option>
+            <option value="alle">alle</option>
+          </select>
+        </label>
         <label className="flex items-center gap-2">
           Zahlungsweg
           <select value={ansicht} onChange={(e) => setAnsicht(e.target.value as Ansicht)} className={selectKlasse}>
@@ -99,7 +134,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
             <option value="offen">nicht erfasst</option>
           </select>
         </label>
-        {ansicht !== "alle" && (
+        {filterAktiv && (
           <span className="text-xs text-neutral-500">
             {rows.length} von {alle.length} Verträgen
           </span>
@@ -115,13 +150,18 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
         ) : (
           <span className="text-xs text-neutral-500">Zeilen ankreuzen, um mehrere Mandate in einem Druckvorgang zu erstellen.</span>
         )}
+        {mitMandat > 0 && (
+          <span className="text-xs text-amber-400">
+            {mitMandat} der ausgewählten Verträge {mitMandat === 1 ? "hat" : "haben"} bereits ein Mandat — ein neues ist meist nicht nötig.
+          </span>
+        )}
       </div>
       <DataTable
         columns={columns}
         rows={rows}
         selectable
         onSelectionChange={setAuswahl}
-        emptyMessage="Keine Mietverträge."
+        emptyMessage={mandatAnsicht === "ohne" ? "Keine Verträge ohne erfasstes Mandat." : "Keine Mietverträge."}
         defaultSort={{ key: "einheit" }}
       />
     </>

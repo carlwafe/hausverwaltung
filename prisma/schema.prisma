@@ -455,6 +455,14 @@ model Mietvertrag {
   saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
   // null = nicht erfasst.
   zahlungsweg              Zahlungsweg?
+  // SEPA-Lastschriftmandat des Mieters (alle optional): Referenz, Gläubiger-ID, Unterschriftsdatum, Kontoinhaber, IBAN
+  // des Zahlers. Reine Stammdaten zum Nachschlagen — die Einzüge selbst entstehen erst durch den Kontoauszug.
+  // Werte für bestehende Mandate stammen aus den Bankzeilen der Lastschrift-Gutschriften (Unterschriftsdatum dort nicht).
+  mandatReferenz           String?
+  mandatGlaeubigerId       String?
+  mandatDatum              DateTime?
+  mandatKontoinhaber       String?
+  mandatIban               String?
   createdAt                DateTime          @default(now())
 
   kaution                         Kaution?

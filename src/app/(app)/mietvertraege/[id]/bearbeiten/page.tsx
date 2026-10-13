@@ -111,6 +111,11 @@ export default async function MietvertragBearbeitenPage({
           saldovortrag: vertrag.saldovortrag.toString(),
           buchhaltungAb: toDateInputValue(vertrag.buchhaltungAb),
           zahlungsweg: vertrag.zahlungsweg ?? "",
+          mandatReferenz: vertrag.mandatReferenz ?? "",
+          mandatGlaeubigerId: vertrag.mandatGlaeubigerId ?? "",
+          mandatDatum: toDateInputValue(vertrag.mandatDatum),
+          mandatKontoinhaber: vertrag.mandatKontoinhaber ?? "",
+          mandatIban: vertrag.mandatIban ?? "",
         }}
         objektStichtag={toDateInputValue(objekt?.buchhaltungAb)}
         mieterMitWohnung={mieterMitWohnung}

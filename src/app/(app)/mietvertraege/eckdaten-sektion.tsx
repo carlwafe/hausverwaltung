@@ -46,6 +46,7 @@ export function EckdatenSektion({
   saldovortragText,
   eigenerStichtagText,
   zahlungsweg,
+  mandat = null,
   kaution,
   letzteErhoehungText,
   nachlassTexte = [],
@@ -63,6 +64,8 @@ export function EckdatenSektion({
   // Eigener Buchhaltungs-Stichtag des Vertrags (formatiert), nur wenn er vom Objekt abweicht.
   eigenerStichtagText: string | null;
   zahlungsweg: string | null;
+  // SEPA-Mandat des Vertrags (alle Werte bereits formatiert); null = nichts erfasst.
+  mandat?: { referenz: string | null; glaeubigerId: string | null; datumText: string | null; kontoinhaber: string | null; iban: string | null } | null;
   kaution: { betragText: string; anlageform: string; einzahlungUnbekannt: boolean } | null;
   // Fliesstext-Hinweis auf die letzte Mieterhöhung (z.B. "Miete zuletzt zum 1.5.2026 auf 620,00 €
   // erhöht") — die volle Historie/Erfassung steht auf der Bearbeiten-Unterseite.
@@ -105,6 +108,24 @@ export function EckdatenSektion({
             </>
           )}
         </div>
+        {(mandat || zahlungsweg === "LASTSCHRIFT") && (
+          <div className="mt-4 border-t border-neutral-800 pt-3">
+            <p className="mb-2 text-xs font-medium text-neutral-300">SEPA-Lastschriftmandat</p>
+            {mandat ? (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                <Feld label="Mandatsreferenz" value={mandat.referenz ?? "–"} />
+                <Feld label="Gläubiger-ID" value={mandat.glaeubigerId ?? "–"} />
+                <Feld label="Datum der Unterschrift" value={mandat.datumText ?? "nicht erfasst"} />
+                <Feld label="Kontoinhaber" value={mandat.kontoinhaber ?? "–"} />
+                <Feld label="IBAN des Zahlers" value={mandat.iban ?? "–"} />
+              </div>
+            ) : (
+              <p className="text-xs text-amber-400">
+                Zahlt per Lastschrift, aber es ist kein Mandat erfasst — unter „Bearbeiten“ nachtragen.
+              </p>
+            )}
+          </div>
+        )}
         {letzteErhoehungText && (
           <p className="mt-4 text-xs text-neutral-400">
             {letzteErhoehungText} — Historie und Erfassung unter &bdquo;Bearbeiten&ldquo;.

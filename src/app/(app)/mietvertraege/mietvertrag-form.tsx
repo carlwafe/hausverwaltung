@@ -26,6 +26,12 @@ type Initial = {
   // Eigener Buchhaltungs-Stichtag (yyyy-mm-dd), leer = der des Objekts.
   buchhaltungAb?: string;
   zahlungsweg?: string;
+  // SEPA-Lastschriftmandat (alle optional); Datum yyyy-mm-dd.
+  mandatReferenz?: string;
+  mandatGlaeubigerId?: string;
+  mandatDatum?: string;
+  mandatKontoinhaber?: string;
+  mandatIban?: string;
 };
 
 // yyyy-mm-dd → dd.mm.yyyy für Hinweistexte.
@@ -77,6 +83,11 @@ export function MietvertragForm({
   const [saldovortrag, setSaldovortrag] = useState(initial?.saldovortrag ?? "0");
   const [buchhaltungAb, setBuchhaltungAb] = useState(initial?.buchhaltungAb ?? "");
   const [zahlungsweg, setZahlungsweg] = useState(initial?.zahlungsweg ?? "");
+  const [mandatReferenz, setMandatReferenz] = useState(initial?.mandatReferenz ?? "");
+  const [mandatGlaeubigerId, setMandatGlaeubigerId] = useState(initial?.mandatGlaeubigerId ?? "");
+  const [mandatDatum, setMandatDatum] = useState(initial?.mandatDatum ?? "");
+  const [mandatKontoinhaber, setMandatKontoinhaber] = useState(initial?.mandatKontoinhaber ?? "");
+  const [mandatIban, setMandatIban] = useState(initial?.mandatIban ?? "");
 
   // Garage zur Wohnung desselben Mieters = Nebenleistung (steuerfrei), allein vermietet = 19 % USt.
   const hatWohnung = [mieterId1, mieterId2].some((id) => id && mieterMitWohnung.includes(id));
@@ -284,6 +295,73 @@ export function MietvertragForm({
           eingezogen wurden. Bei gemischten Zahlungen (Einzug, Rücklastschrift, dann
           Dauerauftrag) „Überweisung“ wählen oder offen lassen und von Hand entscheiden.
         </p>
+      </div>
+
+      <div className="rounded-md border border-neutral-800 p-4">
+        <h3 className="mb-1 text-sm font-medium">SEPA-Lastschriftmandat</h3>
+        <p className="mb-3 text-xs text-neutral-400">
+          Nur zum Nachschlagen (Nachweis bei Widerspruch, spätere Einzugsdatei). Bestehende Mandate sind aus dem
+          Kontoauszug eingetragen; das Unterschriftsdatum steht dort nicht und kommt aus den Mandatsunterlagen.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-sm" htmlFor="mandatReferenz">
+              Mandatsreferenz
+            </label>
+            <input
+              id="mandatReferenz"
+              name="mandatReferenz"
+              value={mandatReferenz}
+              maxLength={35}
+              onChange={(e) => setMandatReferenz(e.target.value)}
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm" htmlFor="mandatGlaeubigerId">
+              Gläubiger-ID
+            </label>
+            <input
+              id="mandatGlaeubigerId"
+              name="mandatGlaeubigerId"
+              value={mandatGlaeubigerId}
+              onChange={(e) => setMandatGlaeubigerId(e.target.value)}
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <DateInput
+            id="mandatDatum"
+            name="mandatDatum"
+            label="Datum der Unterschrift"
+            value={mandatDatum}
+            onChange={setMandatDatum}
+          />
+          <div>
+            <label className="mb-1 block text-sm" htmlFor="mandatKontoinhaber">
+              Kontoinhaber (Zahler)
+            </label>
+            <input
+              id="mandatKontoinhaber"
+              name="mandatKontoinhaber"
+              value={mandatKontoinhaber}
+              maxLength={70}
+              onChange={(e) => setMandatKontoinhaber(e.target.value)}
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm" htmlFor="mandatIban">
+              IBAN des Zahlers
+            </label>
+            <input
+              id="mandatIban"
+              name="mandatIban"
+              value={mandatIban}
+              onChange={(e) => setMandatIban(e.target.value)}
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="rounded-md border border-neutral-800 p-4">

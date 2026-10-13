@@ -8,6 +8,9 @@ export type MandatZeile = MandatVertrag & {
   einheitRang: number;
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
   geplant: boolean;
+  /** Am Vertrag erfasstes, bereits bestehendes Mandat (null = keines erfasst). */
+  mandatReferenz: string | null;
+  mandatDatum: string | null; // ISO
 };
 
 /** Mietverträge mit den Angaben für die Mandatsformulare (temporär, siehe `sepa-mandat.ts`), in Haus-Reihenfolge. */
@@ -33,6 +36,8 @@ export async function ladeMandatZeilen(where: Prisma.MietvertragWhereInput): Pro
       beginn: v.beginn ? v.beginn.toISOString() : null,
       zahlungsweg: v.zahlungsweg,
       geplant: v.status === "GEPLANT",
+      mandatReferenz: v.mandatReferenz,
+      mandatDatum: v.mandatDatum ? v.mandatDatum.toISOString() : null,
     }))
     .sort((a, b) => a.einheitRang - b.einheitRang);
 }

@@ -332,6 +332,17 @@ export default async function MietvertragDetailPage({
         saldovortragText={formatEuro(saldovortrag)}
         eigenerStichtagText={eigenerStichtag && stichtagAb ? formatDate(stichtagAb) : null}
         zahlungsweg={vertrag.zahlungsweg}
+        mandat={
+          vertrag.mandatReferenz || vertrag.mandatGlaeubigerId || vertrag.mandatDatum || vertrag.mandatIban || vertrag.mandatKontoinhaber
+            ? {
+                referenz: vertrag.mandatReferenz,
+                glaeubigerId: vertrag.mandatGlaeubigerId,
+                datumText: vertrag.mandatDatum ? formatDate(vertrag.mandatDatum) : null,
+                kontoinhaber: vertrag.mandatKontoinhaber,
+                iban: vertrag.mandatIban?.replace(/(.{4})/g, "$1 ").trim() ?? null,
+              }
+            : null
+        }
         kaution={
           vertrag.kaution
             ? {
