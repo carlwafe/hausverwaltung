@@ -15,8 +15,6 @@ type Objekt = {
   telefonMieter: string | null;
   emailVerwaltung: string | null;
   emailMieter: string | null;
-  sepaZahlungsempfaenger: string | null;
-  sepaZahlungsempfaengerAnschrift: string | null;
   sepaGlaeubigerName: string | null;
   sepaGlaeubigerAnschrift: string | null;
   sepaGlaeubigerId: string | null;
@@ -156,30 +154,8 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
         <p className="mb-3 text-sm font-medium">SEPA-Lastschrift (Mandate)</p>
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="sepaZahlungsempfaenger">
-              Zahlungsempfänger (Vermieterin)
-            </label>
-            <input
-              id="sepaZahlungsempfaenger"
-              name="sepaZahlungsempfaenger"
-              defaultValue={initial.sepaZahlungsempfaenger ?? ""}
-              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="sepaZahlungsempfaengerAnschrift">
-              Anschrift des Zahlungsempfängers (optional)
-            </label>
-            <input
-              id="sepaZahlungsempfaengerAnschrift"
-              name="sepaZahlungsempfaengerAnschrift"
-              defaultValue={initial.sepaZahlungsempfaengerAnschrift ?? ""}
-              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
-            />
-          </div>
-          <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="sepaGlaeubigerName">
-              Gläubiger (zieht die Lastschrift ein)
+              Gläubiger (Vermieterin)
             </label>
             <input
               id="sepaGlaeubigerName"
@@ -213,9 +189,8 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
           </div>
         </div>
         <p className="mt-2 text-xs text-neutral-400">
-          Vorbelegung der Lastschriftmandate (Stammdaten → Lastschrift-Mandate). Zahlungsempfänger ist die Vermieterin,
-          Gläubiger der Inhaber der Gläubiger-ID, der die Lastschriften einzieht. Die Gläubiger-ID wird auf Aufbau und
-          Prüfziffer geprüft.
+          Vorbelegung der Lastschriftmandate (Stammdaten → Lastschrift-Mandate). Gläubiger ist die Vermieterin, der die
+          Gläubiger-ID und das Mietkonto gehören. Die Gläubiger-ID wird auf Aufbau und Prüfziffer geprüft.
         </p>
       </div>
 

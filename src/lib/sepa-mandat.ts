@@ -1,10 +1,11 @@
 // Temporäre Hilfen für die Mandatsformulare (Seite „Lastschrift-Mandate“, Entscheidung 13.10.2026): Die Mandate werden
 // nur gedruckt, nichts wird gespeichert. Ohne Browser-/Server-Abhängigkeiten, damit auch Client-Komponenten sie nutzen.
 
-/** Gläubigerangaben im Formular; stehen nicht im Quelltext, sondern am Objekt (Seite „Objekt“) und werden dort vorbelegt. */
+/**
+ * Gläubigerangaben im Formular: Gläubiger ist die Vermieterin (Inhaberin der Gläubiger-ID und des Mietkontos). Sie
+ * stehen nicht im Quelltext, sondern am Objekt (Seite „Objekt“) und werden dort vorbelegt.
+ */
 export const GLAEUBIGER_LEER = {
-  zahlungsempfaenger: "",
-  zahlungsempfaengerAnschrift: "", // optional
   name: "",
   anschrift: "",
   id: "",

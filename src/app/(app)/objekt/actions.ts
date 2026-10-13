@@ -27,8 +27,6 @@ const objektSchema = z
       .trim()
       .transform((v) => v || null)
       .refine((v) => v === null || z.email().safeParse(v).success, "E-Mail Mieter ist ungültig"),
-    sepaZahlungsempfaenger: z.string().trim().transform((v) => v || null),
-    sepaZahlungsempfaengerAnschrift: z.string().trim().transform((v) => v || null),
     sepaGlaeubigerName: z.string().trim().transform((v) => v || null),
     sepaGlaeubigerAnschrift: z.string().trim().transform((v) => v || null),
     sepaGlaeubigerId: z
@@ -64,8 +62,6 @@ export const updateObjekt = mitMeldung(async function updateObjekt(
     telefonMieter: formData.get("telefonMieter") ?? "",
     emailVerwaltung: formData.get("emailVerwaltung") ?? "",
     emailMieter: formData.get("emailMieter") ?? "",
-    sepaZahlungsempfaenger: formData.get("sepaZahlungsempfaenger") ?? "",
-    sepaZahlungsempfaengerAnschrift: formData.get("sepaZahlungsempfaengerAnschrift") ?? "",
     sepaGlaeubigerName: formData.get("sepaGlaeubigerName") ?? "",
     sepaGlaeubigerAnschrift: formData.get("sepaGlaeubigerAnschrift") ?? "",
     sepaGlaeubigerId: formData.get("sepaGlaeubigerId") ?? "",

@@ -49,16 +49,7 @@ export function MandatBlatt({ daten, letzte = false }: { daten: MandatBlattDaten
 
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "4mm" }}>
         <tbody>
-          <Zeile label="Zahlungsempfänger (Vermieterin)">
-            {glaeubiger.zahlungsempfaenger}
-            {glaeubiger.zahlungsempfaengerAnschrift.trim() !== "" && (
-              <>
-                <br />
-                {glaeubiger.zahlungsempfaengerAnschrift}
-              </>
-            )}
-          </Zeile>
-          <Zeile label="Gläubiger (zieht die Lastschrift ein)">
+          <Zeile label="Gläubiger (Vermieterin)">
             {glaeubiger.name}
             <br />
             {glaeubiger.anschrift}
@@ -74,8 +65,8 @@ export function MandatBlatt({ daten, letzte = false }: { daten: MandatBlattDaten
       </table>
 
       <p style={{ margin: "0 0 3mm" }}>
-        Ich ermächtige / Wir ermächtigen den Gläubiger {glaeubiger.name}, Zahlungen zugunsten der Vermieterin {glaeubiger.zahlungsempfaenger} von meinem /
-        unserem Konto mittels SEPA-Basis-Lastschrift einzuziehen. Zugleich weise ich mein / weisen wir unser Kreditinstitut an, die von {glaeubiger.name} auf
+        Ich ermächtige / Wir ermächtigen den Gläubiger {glaeubiger.name}, Zahlungen von meinem / unserem Konto mittels SEPA-Basis-Lastschrift
+        einzuziehen. Zugleich weise ich mein / weisen wir unser Kreditinstitut an, die von {glaeubiger.name} auf
         mein / unser Konto gezogenen SEPA-Basis-Lastschriften einzulösen.
       </p>
 
