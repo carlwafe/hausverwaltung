@@ -257,6 +257,12 @@ model Objekt {
   telefonMieter         String?
   emailVerwaltung       String?
   emailMieter           String?
+  // SEPA-Lastschriftmandate (Seite „Lastschrift-Mandate“): Vermieterin als Zahlungsempfänger, Inhaber der
+  // Gläubiger-ID als Gläubiger (zieht ein). Werden in den Mandatsformularen vorausgefüllt.
+  sepaZahlungsempfaenger String?
+  sepaGlaeubigerName     String?
+  sepaGlaeubigerAnschrift String?
+  sepaGlaeubigerId       String?
   // Stichtag, ab dem Soll/Ist-Vergleiche gerechnet werden (z.B. weil ältere Kontoauszüge
   // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
   // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.

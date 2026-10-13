@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MandatEinzel } from "@/components/mandat-seite";
-import { ladeMandatZeilen } from "@/lib/mandat-laden";
+import { ladeGlaeubiger, ladeMandatZeilen } from "@/lib/mandat-laden";
 
 export default async function LastschriftMandatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [vertrag] = await ladeMandatZeilen({ id });
+  const [[vertrag], glaeubiger] = await Promise.all([ladeMandatZeilen({ id }), ladeGlaeubiger()]);
   if (!vertrag) notFound();
 
   return (
@@ -26,7 +26,7 @@ export default async function LastschriftMandatPage({ params }: { params: Promis
           Nur zum Ausdrucken, nichts wird gespeichert. Das unterschriebene Mandat als Scan in der Mieterakte (Dokumente) ablegen.
         </p>
       </div>
-      <MandatEinzel vertrag={vertrag} />
+      <MandatEinzel vertrag={vertrag} glaeubiger={glaeubiger} />
     </div>
   );
 }

@@ -1,31 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useState } from "react";
 import { MandatBlatt } from "@/components/mandat-blatt";
 import { GLAEUBIGER_LEER, mandatsreferenz, type MandatBlattDaten, type MandatGlaeubiger, type MandatVertrag } from "@/lib/sepa-mandat";
 
 const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
-
-const GLAEUBIGER_KEY = "sepa-glaeubiger";
-
-// Gläubigerangaben stehen nicht im Quelltext — einmal eingeben, im Browser gemerkt (reine Bequemlichkeit).
-function useGlaeubiger(): [MandatGlaeubiger, (w: MandatGlaeubiger) => void] {
-  const [wert, setWert] = useState<MandatGlaeubiger>(GLAEUBIGER_LEER);
-  useEffect(() => {
-    try {
-      const gemerkt = window.localStorage.getItem(GLAEUBIGER_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- einmalig aus dem Browser-Speicher laden
-      if (gemerkt) setWert({ ...GLAEUBIGER_LEER, ...JSON.parse(gemerkt) });
-    } catch {}
-  }, []);
-  const aendern = (w: MandatGlaeubiger) => {
-    setWert(w);
-    try {
-      window.localStorage.setItem(GLAEUBIGER_KEY, JSON.stringify(w));
-    } catch {}
-  };
-  return [wert, aendern];
-}
 
 const glaeubigerVollstaendig = (g: MandatGlaeubiger) => Object.values(g).every((v) => v.trim() !== "");
 
@@ -40,9 +20,15 @@ function GlaeubigerFelder({ wert, onChange }: { wert: MandatGlaeubiger; onChange
   );
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <p className="text-xs text-neutral-500 sm:col-span-2">
-        Gläubiger-Angaben (stehen nicht in der App und werden nur in diesem Browser gemerkt):
-      </p>
+      {!glaeubigerVollstaendig(wert) && (
+        <p className="text-xs text-amber-400 sm:col-span-2">
+          Die Gläubiger-Angaben sind noch nicht vollständig hinterlegt — einmal unter{" "}
+          <Link href="/objekt" className="underline">
+            Objekt → SEPA-Lastschrift
+          </Link>{" "}
+          eintragen, dann sind sie hier vorausgefüllt. Für diesen Ausdruck lassen sie sich auch hier ausfüllen.
+        </p>
+      )}
       {feld("zahlungsempfaenger", "Zahlungsempfänger (Vermieterin)")}
       {feld("name", "Gläubiger (zieht ein)")}
       {feld("anschrift", "Anschrift des Gläubigers")}
@@ -73,8 +59,8 @@ function blattDaten(v: MandatVertrag, glaeubiger: MandatGlaeubiger, vorausfuelle
 }
 
 /** Mandat für einen Mietvertrag: Angaben prüfen, Vorschau, drucken. */
-export function MandatEinzel({ vertrag }: { vertrag: MandatVertrag }) {
-  const [glaeubiger, setGlaeubiger] = useGlaeubiger();
+export function MandatEinzel({ vertrag, glaeubiger: vorbelegung }: { vertrag: MandatVertrag; glaeubiger: MandatGlaeubiger }) {
+  const [glaeubiger, setGlaeubiger] = useState<MandatGlaeubiger>(vorbelegung);
   const [vorausfuellen, setVorausfuellen] = useState(true);
   const [referenz, setReferenz] = useState(() => mandatsreferenz(vertrag.einheit));
   const [mietobjekt, setMietobjekt] = useState(() => blattDaten(vertrag, GLAEUBIGER_LEER, true).mietobjekt);
@@ -121,8 +107,8 @@ export function MandatEinzel({ vertrag }: { vertrag: MandatVertrag }) {
 }
 
 /** Mandate für mehrere Mietverträge in einem Druckvorgang, je Vertrag ein Blatt. */
-export function MandatSammel({ vertraege }: { vertraege: MandatVertrag[] }) {
-  const [glaeubiger, setGlaeubiger] = useGlaeubiger();
+export function MandatSammel({ vertraege, glaeubiger: vorbelegung }: { vertraege: MandatVertrag[]; glaeubiger: MandatGlaeubiger }) {
+  const [glaeubiger, setGlaeubiger] = useState<MandatGlaeubiger>(vorbelegung);
   const [vorausfuellen, setVorausfuellen] = useState(true);
 
   return (

@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { MandatSammel } from "@/components/mandat-seite";
-import { ladeMandatZeilen } from "@/lib/mandat-laden";
+import { ladeGlaeubiger, ladeMandatZeilen } from "@/lib/mandat-laden";
 
 export default async function MandateDruckenPage({ searchParams }: { searchParams: Promise<{ ids?: string }> }) {
   const { ids } = await searchParams;
   const idListe = (ids ?? "").split(",").map((i) => i.trim()).filter(Boolean);
-  const vertraege = idListe.length > 0 ? await ladeMandatZeilen({ id: { in: idListe } }) : [];
+  const [vertraege, glaeubiger] = await Promise.all([idListe.length > 0 ? ladeMandatZeilen({ id: { in: idListe } }) : Promise.resolve([]), ladeGlaeubiger()]);
 
   return (
     <div>
@@ -15,7 +15,7 @@ export default async function MandateDruckenPage({ searchParams }: { searchParam
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-white">Mandate drucken</h1>
       </div>
-      <MandatSammel vertraege={vertraege} />
+      <MandatSammel vertraege={vertraege} glaeubiger={glaeubiger} />
     </div>
   );
 }

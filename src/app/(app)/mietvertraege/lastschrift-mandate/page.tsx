@@ -15,7 +15,7 @@ export default async function LastschriftMandatePage() {
           Gezeigt werden aktive und geplante Mietverträge. Es wird nichts gespeichert — das unterschriebene Mandat
           als Scan in der Mieterakte ablegen (Dokumente). Die Mandatsreferenz ist je Einheit vorgeschlagen; für ein neues
           Mandat derselben Einheit die Endnummer von Hand hochzählen. Gläubiger, Zahlungsempfänger, Anschrift und Gläubiger-ID
-          einmal im Formular eintragen (werden in diesem Browser gemerkt; drucken geht erst, wenn alle vier ausgefüllt sind). Die Seite entfällt, sobald Mandate in der App erfasst werden.
+          stehen beim Objekt (Verwaltung → Objekt → SEPA-Lastschrift) und sind in den Mandaten vorausgefüllt. Die Seite entfällt, sobald Mandate in der App erfasst werden.
         </p>
       </div>
       <MandateTabelle alle={zeilen} />

@@ -15,6 +15,10 @@ type Objekt = {
   telefonMieter: string | null;
   emailVerwaltung: string | null;
   emailMieter: string | null;
+  sepaZahlungsempfaenger: string | null;
+  sepaGlaeubigerName: string | null;
+  sepaGlaeubigerAnschrift: string | null;
+  sepaGlaeubigerId: string | null;
   buchhaltungAb: Date | string | null;
   kontostandAnkerDatum: Date | string | null;
   kontostandAnkerBetrag: string | null;
@@ -145,6 +149,62 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
             />
           </div>
         </div>
+      </div>
+
+      <div className="rounded-md border border-neutral-800 p-4">
+        <p className="mb-3 text-sm font-medium">SEPA-Lastschrift (Mandate)</p>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="sepaZahlungsempfaenger">
+              Zahlungsempfänger (Vermieterin)
+            </label>
+            <input
+              id="sepaZahlungsempfaenger"
+              name="sepaZahlungsempfaenger"
+              defaultValue={initial.sepaZahlungsempfaenger ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="sepaGlaeubigerName">
+              Gläubiger (zieht die Lastschrift ein)
+            </label>
+            <input
+              id="sepaGlaeubigerName"
+              name="sepaGlaeubigerName"
+              defaultValue={initial.sepaGlaeubigerName ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="sepaGlaeubigerAnschrift">
+              Anschrift des Gläubigers
+            </label>
+            <input
+              id="sepaGlaeubigerAnschrift"
+              name="sepaGlaeubigerAnschrift"
+              defaultValue={initial.sepaGlaeubigerAnschrift ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="sepaGlaeubigerId">
+              Gläubiger-Identifikationsnummer
+            </label>
+            <input
+              id="sepaGlaeubigerId"
+              name="sepaGlaeubigerId"
+              defaultValue={initial.sepaGlaeubigerId ?? ""}
+              placeholder="DE00ZZZ00000000000"
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-neutral-400">
+          Vorbelegung der Lastschriftmandate (Stammdaten → Lastschrift-Mandate). Zahlungsempfänger ist die Vermieterin,
+          Gläubiger der Inhaber der Gläubiger-ID, der die Lastschriften einzieht. Die Gläubiger-ID wird auf Aufbau und
+          Prüfziffer geprüft.
+        </p>
       </div>
 
       <div className="rounded-md border border-neutral-800 p-4">

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import type { MandatVertrag } from "@/lib/sepa-mandat";
+import { GLAEUBIGER_LEER, type MandatGlaeubiger, type MandatVertrag } from "@/lib/sepa-mandat";
 
 export type MandatZeile = MandatVertrag & {
   einheitRang: number;
@@ -35,4 +35,18 @@ export async function ladeMandatZeilen(where: Prisma.MietvertragWhereInput): Pro
       geplant: v.status === "GEPLANT",
     }))
     .sort((a, b) => a.einheitRang - b.einheitRang);
+}
+
+/** Gläubigerangaben des Objekts (Seite „Objekt“) zur Vorbelegung der Mandate; nicht hinterlegte Felder bleiben leer. */
+export async function ladeGlaeubiger(): Promise<MandatGlaeubiger> {
+  const o = await prisma.objekt.findFirst({
+    select: { sepaZahlungsempfaenger: true, sepaGlaeubigerName: true, sepaGlaeubigerAnschrift: true, sepaGlaeubigerId: true },
+  });
+  if (!o) return GLAEUBIGER_LEER;
+  return {
+    zahlungsempfaenger: o.sepaZahlungsempfaenger ?? "",
+    name: o.sepaGlaeubigerName ?? "",
+    anschrift: o.sepaGlaeubigerAnschrift ?? "",
+    id: o.sepaGlaeubigerId ?? "",
+  };
 }

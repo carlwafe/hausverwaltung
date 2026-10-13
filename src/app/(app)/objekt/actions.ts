@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { mitMeldung } from "@/lib/aktion";
+import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
 
 const objektSchema = z
   .object({
@@ -26,6 +27,14 @@ const objektSchema = z
       .trim()
       .transform((v) => v || null)
       .refine((v) => v === null || z.email().safeParse(v).success, "E-Mail Mieter ist ungültig"),
+    sepaZahlungsempfaenger: z.string().trim().transform((v) => v || null),
+    sepaGlaeubigerName: z.string().trim().transform((v) => v || null),
+    sepaGlaeubigerAnschrift: z.string().trim().transform((v) => v || null),
+    sepaGlaeubigerId: z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/\s+/g, "").toUpperCase() || null)
+      .refine((v) => v === null || glaeubigerIdGueltig(v), "Gläubiger-ID ist ungültig (Aufbau oder Prüfziffer stimmt nicht)"),
     buchhaltungAb: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerDatum: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerBetrag: z
@@ -54,6 +63,10 @@ export const updateObjekt = mitMeldung(async function updateObjekt(
     telefonMieter: formData.get("telefonMieter") ?? "",
     emailVerwaltung: formData.get("emailVerwaltung") ?? "",
     emailMieter: formData.get("emailMieter") ?? "",
+    sepaZahlungsempfaenger: formData.get("sepaZahlungsempfaenger") ?? "",
+    sepaGlaeubigerName: formData.get("sepaGlaeubigerName") ?? "",
+    sepaGlaeubigerAnschrift: formData.get("sepaGlaeubigerAnschrift") ?? "",
+    sepaGlaeubigerId: formData.get("sepaGlaeubigerId") ?? "",
     buchhaltungAb: formData.get("buchhaltungAb") || "",
     kontostandAnkerDatum: formData.get("kontostandAnkerDatum") || "",
     kontostandAnkerBetrag: formData.get("kontostandAnkerBetrag") || "",
@@ -72,5 +85,6 @@ export const updateObjekt = mitMeldung(async function updateObjekt(
   revalidatePath("/");
   revalidatePath("/offene-posten");
   revalidatePath("/kontostand");
+  revalidatePath("/mietvertraege/lastschrift-mandate", "layout");
   return null;
 });
