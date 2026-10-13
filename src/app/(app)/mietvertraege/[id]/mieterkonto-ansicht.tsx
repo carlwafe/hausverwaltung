@@ -103,7 +103,7 @@ export function MieterkontoAnsicht({
                   {formatEuro(z.differenz)}
                 </td>
                 <td className={`px-4 py-2 text-right font-medium ${farbeSaldo(z.saldo)}`}>{formatEuro(z.saldo)}</td>
-                <td className="max-w-[300px] truncate px-4 py-2 text-xs italic text-neutral-500" title={z.bemerkung}>
+                <td className="min-w-[260px] max-w-[400px] px-4 py-2 text-xs italic text-neutral-500 [overflow-wrap:anywhere]">
                   {z.bemerkung}
                 </td>
               </tr>
