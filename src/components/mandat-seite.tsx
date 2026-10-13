@@ -70,12 +70,13 @@ export function MandatEinzel({ vertrag, glaeubiger: vorbelegung }: { vertrag: Ma
   return (
     <div>
       <div className="mb-6 space-y-3 print:hidden">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid items-start gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="mandat-referenz">
-              Mandatsreferenz (höchstens 35 Zeichen, keine Namen; bei einem neuen Mandat für diese Einheit hochzählen)
+              Mandatsreferenz
             </label>
             <input id="mandat-referenz" value={referenz} maxLength={35} onChange={(e) => setReferenz(e.target.value)} className={eingabeKlasse} />
+            <p className="mt-1 text-xs text-neutral-500">Höchstens 35 Zeichen, keine Namen; bei einem neuen Mandat für diese Einheit hochzählen.</p>
           </div>
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="mandat-mietobjekt">
