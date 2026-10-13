@@ -257,11 +257,8 @@ model Objekt {
   telefonMieter         String?
   emailVerwaltung       String?
   emailMieter           String?
-  // SEPA-Lastschriftmandate (Seite „Lastschrift-Mandate“): Gläubiger ist die Vermieterin (sepaGlaeubigerName/-Anschrift/-Id),
-  // in den Mandatsformularen vorausgefüllt. sepaZahlungsempfaenger* wird nicht mehr verwendet (frühere Fassung mit
-  // getrenntem Zahlungsempfänger, 13.10.2026) und kann mit einer eigenen Migration entfernt werden.
-  sepaZahlungsempfaenger String?
-  sepaZahlungsempfaengerAnschrift String?
+  // SEPA-Lastschriftmandate (Seite „Lastschrift-Mandate“): Gläubiger ist die Vermieterin, in den Mandatsformularen
+  // vorausgefüllt.
   sepaGlaeubigerName     String?
   sepaGlaeubigerAnschrift String?
   sepaGlaeubigerId       String?
