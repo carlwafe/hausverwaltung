@@ -87,6 +87,17 @@ export function ZahlungForm({
               Forderung auf dem Mietkonto ohne Geldfluss, zählt nicht zu den Mieteinnahmen.
             </p>
           )}
+          {istGebuehr && (
+            <p className="mt-1 text-xs text-neutral-500">
+              <span className="text-neutral-300">Zwei gleichwertige Wege für Mahngebühren:</span>{" "}
+              Entweder hier die Forderung anlegen und die Zahlung darauf als Zahlung auf die Gebühr
+              buchen (die Gebühr bleibt auf dem Mietkonto sichtbar, solange sie offen ist — sinnvoll
+              bei höheren Beträgen und Rücklastschriftgebühren), oder gar keine Forderung anlegen und
+              eine zur Miete mitgezahlte Mahngebühr beim Import als negative Kostenposition
+              „Mahngebühren“ buchen (schneller, für kleine Beträge). Steuerlich gleich: Einnahme im
+              Jahr des Zahlungseingangs, in der Aufstellung unter „Sonstige Einnahmen“.
+            </p>
+          )}
           {istNkVerrechnung && (
             <>
             <p className="mt-1 text-xs text-neutral-500">
