@@ -260,6 +260,7 @@ model Objekt {
   // SEPA-Lastschriftmandate (Seite „Lastschrift-Mandate“): Vermieterin als Zahlungsempfänger, Inhaber der
   // Gläubiger-ID als Gläubiger (zieht ein). Werden in den Mandatsformularen vorausgefüllt.
   sepaZahlungsempfaenger String?
+  sepaZahlungsempfaengerAnschrift String?
   sepaGlaeubigerName     String?
   sepaGlaeubigerAnschrift String?
   sepaGlaeubigerId       String?

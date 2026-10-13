@@ -7,7 +7,8 @@ import { GLAEUBIGER_LEER, mandatsreferenz, type MandatBlattDaten, type MandatGla
 
 const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
 
-const glaeubigerVollstaendig = (g: MandatGlaeubiger) => Object.values(g).every((v) => v.trim() !== "");
+// Die Anschrift der Vermieterin ist optional.
+const glaeubigerVollstaendig = (g: MandatGlaeubiger) => [g.zahlungsempfaenger, g.name, g.anschrift, g.id].every((v) => v.trim() !== "");
 
 function GlaeubigerFelder({ wert, onChange }: { wert: MandatGlaeubiger; onChange: (w: MandatGlaeubiger) => void }) {
   const feld = (key: keyof MandatGlaeubiger, label: string) => (
@@ -30,6 +31,7 @@ function GlaeubigerFelder({ wert, onChange }: { wert: MandatGlaeubiger; onChange
         </p>
       )}
       {feld("zahlungsempfaenger", "Zahlungsempfänger (Vermieterin)")}
+      {feld("zahlungsempfaengerAnschrift", "Anschrift der Vermieterin (optional)")}
       {feld("name", "Gläubiger (zieht ein)")}
       {feld("anschrift", "Anschrift des Gläubigers")}
       {feld("id", "Gläubiger-Identifikationsnummer")}

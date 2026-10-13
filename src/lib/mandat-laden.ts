@@ -40,11 +40,12 @@ export async function ladeMandatZeilen(where: Prisma.MietvertragWhereInput): Pro
 /** Gläubigerangaben des Objekts (Seite „Objekt“) zur Vorbelegung der Mandate; nicht hinterlegte Felder bleiben leer. */
 export async function ladeGlaeubiger(): Promise<MandatGlaeubiger> {
   const o = await prisma.objekt.findFirst({
-    select: { sepaZahlungsempfaenger: true, sepaGlaeubigerName: true, sepaGlaeubigerAnschrift: true, sepaGlaeubigerId: true },
+    select: { sepaZahlungsempfaenger: true, sepaZahlungsempfaengerAnschrift: true, sepaGlaeubigerName: true, sepaGlaeubigerAnschrift: true, sepaGlaeubigerId: true },
   });
   if (!o) return GLAEUBIGER_LEER;
   return {
     zahlungsempfaenger: o.sepaZahlungsempfaenger ?? "",
+    zahlungsempfaengerAnschrift: o.sepaZahlungsempfaengerAnschrift ?? "",
     name: o.sepaGlaeubigerName ?? "",
     anschrift: o.sepaGlaeubigerAnschrift ?? "",
     id: o.sepaGlaeubigerId ?? "",

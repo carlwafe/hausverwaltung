@@ -4,6 +4,7 @@
 /** Gläubigerangaben im Formular; stehen nicht im Quelltext, sondern am Objekt (Seite „Objekt“) und werden dort vorbelegt. */
 export const GLAEUBIGER_LEER = {
   zahlungsempfaenger: "",
+  zahlungsempfaengerAnschrift: "", // optional
   name: "",
   anschrift: "",
   id: "",

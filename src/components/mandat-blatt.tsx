@@ -49,7 +49,15 @@ export function MandatBlatt({ daten, letzte = false }: { daten: MandatBlattDaten
 
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "4mm" }}>
         <tbody>
-          <Zeile label="Zahlungsempfänger (Vermieterin)">{glaeubiger.zahlungsempfaenger}</Zeile>
+          <Zeile label="Zahlungsempfänger (Vermieterin)">
+            {glaeubiger.zahlungsempfaenger}
+            {glaeubiger.zahlungsempfaengerAnschrift.trim() !== "" && (
+              <>
+                <br />
+                {glaeubiger.zahlungsempfaengerAnschrift}
+              </>
+            )}
+          </Zeile>
           <Zeile label="Gläubiger (zieht die Lastschrift ein)">
             {glaeubiger.name}
             <br />

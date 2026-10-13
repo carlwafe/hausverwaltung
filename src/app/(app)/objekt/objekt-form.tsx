@@ -16,6 +16,7 @@ type Objekt = {
   emailVerwaltung: string | null;
   emailMieter: string | null;
   sepaZahlungsempfaenger: string | null;
+  sepaZahlungsempfaengerAnschrift: string | null;
   sepaGlaeubigerName: string | null;
   sepaGlaeubigerAnschrift: string | null;
   sepaGlaeubigerId: string | null;
@@ -162,6 +163,17 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
               id="sepaZahlungsempfaenger"
               name="sepaZahlungsempfaenger"
               defaultValue={initial.sepaZahlungsempfaenger ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="sepaZahlungsempfaengerAnschrift">
+              Anschrift des Zahlungsempfängers (optional)
+            </label>
+            <input
+              id="sepaZahlungsempfaengerAnschrift"
+              name="sepaZahlungsempfaengerAnschrift"
+              defaultValue={initial.sepaZahlungsempfaengerAnschrift ?? ""}
               className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
             />
           </div>
