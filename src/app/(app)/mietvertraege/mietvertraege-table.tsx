@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
@@ -112,13 +113,41 @@ const columns: Column<VertragRow>[] = [
   },
 ];
 
+type StatusFilter = "ALLE" | VertragRow["status"];
+
 export function MietvertraegeTable({ rows }: { rows: VertragRow[] }) {
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALLE");
+  const angezeigteRows = statusFilter === "ALLE" ? rows : rows.filter((r) => r.status === statusFilter);
+
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      emptyMessage="Noch keine Mietverträge angelegt."
-      searchPlaceholder="Mietverträge durchsuchen…"
-    />
+    <div>
+      <div className="mb-3 flex gap-1">
+        {(["ALLE", "AKTIV", "GEPLANT", "BEENDET"] as const).map((f) => {
+          const anzahl = f === "ALLE" ? rows.length : rows.filter((r) => r.status === f).length;
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setStatusFilter(f)}
+              className={`rounded-md border px-3 py-1.5 text-sm ${
+                statusFilter === f
+                  ? "border-neutral-500 bg-neutral-800 text-white"
+                  : "border-neutral-700 text-neutral-400 hover:bg-neutral-900"
+              }`}
+            >
+              {f === "ALLE" ? "Alle" : statusLabel[f]} ({anzahl})
+            </button>
+          );
+        })}
+      </div>
+      <DataTable
+        columns={columns}
+        rows={angezeigteRows}
+        emptyMessage={
+          statusFilter === "ALLE" ? "Noch keine Mietverträge angelegt." : "Keine Mietverträge mit diesem Status."
+        }
+        searchPlaceholder="Mietverträge durchsuchen…"
+      />
+    </div>
   );
 }
