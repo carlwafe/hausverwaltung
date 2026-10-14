@@ -231,6 +231,24 @@ model BuchungKommentar {
   @@map("buchung_kommentare")
 }
 
+// Schuldzinsen von Darlehensraten, die NICHT über das Mietkonto gezahlt wurden (z.B. Raten von einem anderen Konto
+// vor dem Wechsel der Darlehen auf das Mietkonto): Jahreswerte laut Bankbescheinigung, ein Eintrag je Darlehen und
+// Jahr. Bewusst keine Buchungen (kein Kontostand-/Kontenabgleich-Effekt, kein Storno): Die Werte erscheinen nur in
+// der „Aufstellung für die Steuererklärung“ (Schuldzinsen gesamt = Mietkonto + diese Einträge) und lassen sich
+// ändern/löschen.
+model SchuldzinsenJahreswert {
+  id          String   @id @default(cuid())
+  jahr        Int
+  bezeichnung String
+  betrag      Decimal  @db.Decimal(12, 2)
+  bemerkung   String?
+  erstelltVon String?
+  erstelltAm  DateTime @default(now())
+
+  @@index([jahr])
+  @@map("schuldzinsen_jahreswerte")
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique

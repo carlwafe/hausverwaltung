@@ -17,7 +17,7 @@ import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 import {
   KOSTENGRUPPE_LABEL,
-  SCHULDZINSEN_HINWEIS,
+  schuldzinsenHinweis,
   baueAnlageVAufstellung,
   kostengruppeFuer,
   ueberschussBezeichnung,
@@ -77,7 +77,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const jahresanfang = zeitraum.von;
   const jahresende = zeitraum.bisExklusiv;
 
-  const [datumsBasiert, kostenpositionen, mietAufteilung] = await Promise.all([
+  const [datumsBasiert, kostenpositionen, mietAufteilung, schuldzinsenAndereRoh] = await Promise.all([
     // Alle eur-relevanten Buchungen mit echtem Buchungsdatum im Jahr — außer Kostenpositionen,
     // die wegen des Fallbacks ohne Datum eine eigene Abfrage haben (siehe unten). Die
     // Auswahl läuft über das eurRelevant-Flag im Buchungsart-Katalog statt einer von Hand
@@ -109,7 +109,16 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     // Aufteilung der Mietzahlungen in Kaltmiete und NK-Vorauszahlung — nur für die Aufstellung
     // Anlage V im Gesamtjahr (lädt auch frühere Zahlungen derselben Mietmonate).
     quartal === 0 ? ladeMietAufteilung(zeitraum) : Promise.resolve(null),
+    // Schuldzinsen von anderen Konten (Jahreswerte laut Bankbescheinigung) — nur für die Aufstellung im Gesamtjahr.
+    quartal === 0
+      ? prisma.schuldzinsenJahreswert.findMany({ where: { jahr }, orderBy: [{ bezeichnung: "asc" }, { erstelltAm: "asc" }] })
+      : Promise.resolve([]),
   ]);
+  const schuldzinsenAndereEintraege = schuldzinsenAndereRoh.map((e) => ({
+    bezeichnung: e.bezeichnung,
+    betrag: Number(e.betrag),
+    bemerkung: e.bemerkung,
+  }));
 
   let mieteinnahmen = 0;
   // Vorzeichen wie NebenkostenabrechnungPosition.saldo: positiv = ausgezahltes Guthaben (Ausgabe
@@ -205,6 +214,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
     sonderzahlungen,
     sonstigeEurRelevant,
     kosten: [...steuerKosten.values()],
+    schuldzinsenAndere: schuldzinsenAndereEintraege.reduce((s, e) => s + e.betrag, 0),
     abgrenzung: mietAufteilung?.abgrenzung ?? { hinzu: 0, anzahlHinzu: 0, heraus: 0, anzahlHeraus: 0 },
   });
 
@@ -214,6 +224,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
 
   return {
     steuer,
+    schuldzinsenAndereEintraege,
     afaPositionen,
     steuerKosten: [...steuerKosten.values()].sort((a, b) => b.summe - a.summe),
     mieteinnahmen,
@@ -876,7 +887,8 @@ type JahresDaten = Awaited<ReturnType<typeof ladeJahresuebersicht>>;
 
 // Aufstellung für den Steuerberater (Anlage V): dasselbe Ergebnis wie oben, aber Mieten und Nebenkosten
 // getrennt, Instandhaltung separat und die übrigen Kosten nach umlagefähig / nicht umlagefähig.
-// AfA ist nicht im Journal — der Überschuss gilt vor ihr. Schuldzinsen stehen nur, soweit sie über das Mietkonto gebucht sind.
+// AfA ist nicht im Journal — der Überschuss gilt vor ihr. Schuldzinsen: über das Mietkonto gebuchte plus die Jahreswerte
+// von anderen Konten (Seite „Darlehen“, laut Bankbescheinigung).
 function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten }) {
   const st = daten.steuer;
   type Zeile = { text: string; betrag: number; hinweis?: string; fett?: boolean; davon?: boolean };
@@ -911,7 +923,17 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
     { text: "Instandhaltung (Reparaturen)", betrag: st.instandhaltung },
     { text: "Umlagefähige Kosten", betrag: st.umlagefaehig },
     { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
-    ...(st.schuldzinsen !== 0 ? [{ text: "Schuldzinsen (Darlehen)", betrag: st.schuldzinsen, hinweis: SCHULDZINSEN_HINWEIS }] : []),
+    ...(st.schuldzinsenGesamt !== 0
+      ? [
+          { text: "Schuldzinsen (Darlehen)", betrag: st.schuldzinsenGesamt, hinweis: schuldzinsenHinweis(st) },
+          ...(st.schuldzinsenAndere !== 0
+            ? [
+                { text: "davon über das Mietkonto gezahlt", betrag: st.schuldzinsen, davon: true },
+                { text: "davon von anderen Konten (Bankbescheinigung)", betrag: st.schuldzinsenAndere, davon: true },
+              ]
+            : []),
+        ]
+      : []),
     { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
   ];
   const afa = afaEinzelposten(daten.afaPositionen);
@@ -950,7 +972,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         Dasselbe Ergebnis wie oben, gegliedert für die Anlage V: tatsächlich vereinnahmte Mieten und
         Nebenkosten getrennt, Instandhaltung separat, übrige Kosten nach umlagefähig / nicht umlagefähig.
         Ausgezahlte NK-Guthaben mindern die Nebenkosten-Einnahmen (Anlage V, Z. 13). AfA ist hier nicht
-        enthalten, Schuldzinsen nur soweit über das Mietkonto gebucht; Anschaffungs- und Herstellungskosten (Kostenarten mit Einordnung
+        enthalten; Schuldzinsen = über das Mietkonto gezahlte plus die Jahreswerte von anderen Konten (Seite „Darlehen“); Anschaffungs- und Herstellungskosten (Kostenarten mit Einordnung
         „Anschaffung / Herstellung“, ab 2026) stehen gesondert als Grundlage der Abschreibung.
       </p>
       <div className="grid grid-cols-2 gap-6">
@@ -1007,6 +1029,15 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
                   <span className="ml-2 text-xs text-neutral-500">(im Bericht als Ausgabe, hier über die AfA)</span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(st.anschaffung)}</td>
+              </tr>
+            )}
+            {st.schuldzinsenAndere !== 0 && (
+              <tr className="border-b border-neutral-800">
+                <td className="px-4 py-2 text-white">
+                  Abzüglich Schuldzinsen von anderen Konten
+                  <span className="ml-2 text-xs text-neutral-500">(Jahreswerte laut Bankbescheinigung, nicht im Bericht)</span>
+                </td>
+                <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(-st.schuldzinsenAndere)}</td>
               </tr>
             )}
             <tr className="border-b border-neutral-800">
@@ -1071,9 +1102,10 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             Nebenkosten. Ob und wie sie an das Finanzamt abgeführt wird, ist in der App nicht erfasst.
           </p>
           <p>
-            Nicht enthalten: AfA, der Überschuss gilt daher vor ihr. Schuldzinsen der Darlehen stehen nur, soweit
-            sie über das Mietkonto gebucht sind (Zinsen aus der Zeit davor laut Bankbescheinigung des Steuerberaters
-            ergänzen); die Tilgung ist keine Ausgabe und steht nirgends in der Aufstellung. Anschaffungs- und Herstellungskosten (z.B. Einbauküche, Modernisierung, Sanierung)
+            Nicht enthalten: AfA, der Überschuss gilt daher vor ihr. Schuldzinsen der Darlehen = die über das
+            Mietkonto gebuchten Zinsen plus die Jahreswerte von anderen Konten, die unter Darlehen laut
+            Bankbescheinigung erfasst werden (ohne diese Jahreswerte fehlen die Zinsen aus der Zeit vor dem Wechsel
+            der Darlehen auf das Mietkonto, der Steuerberater ergänzt sie dann); die Tilgung ist keine Ausgabe und steht nirgends in der Aufstellung. Anschaffungs- und Herstellungskosten (z.B. Einbauküche, Modernisierung, Sanierung)
             sind nicht sofort abziehbar: Kostenarten mit der Einordnung „Anschaffung / Herstellung“ zählen ab dem
             Berichtsjahr 2026 nicht mehr zu den Kosten, sondern stehen mit ihren Einzelposten gesondert; die
             Abschreibung (Nutzungsdauer, Gebäude oder bewegliches Wirtschaftsgut) bestimmt der Steuerberater. Im

@@ -5,7 +5,8 @@ import { DARLEHEN_BEZUG, DARLEHEN_BUCHUNGSART } from "@/lib/darlehen";
 import { getCurrentUser } from "@/lib/session";
 import { formatEuro } from "@/lib/dokumente-anzeige";
 import { DeleteButton } from "@/components/delete-button";
-import { loescheDarlehensrate } from "./actions";
+import { loescheDarlehensrate, loescheSchuldzinsenJahreswert } from "./actions";
+import { JahreswertForm } from "./jahreswert-form";
 
 type Rate = {
   id: string;
@@ -26,7 +27,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
   const user = await getCurrentUser();
   const kannBearbeiten = !!user && user.role !== "GAST";
 
-  const [tilgungen, zinsen] = await Promise.all([
+  const [tilgungen, zinsen, jahreswerte] = await Promise.all([
     prisma.buchung.findMany({
       where: { buchungsart: { code: DARLEHEN_BUCHUNGSART }, datum: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
@@ -35,6 +36,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
       where: { kostenart: { anlageVZeile: "SCHULDZINSEN" }, buchungsart: { code: "KOSTENPOSITION" }, datum: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true, bezugTyp: true, bezugId: true },
     }),
+    prisma.schuldzinsenJahreswert.findMany({ orderBy: [{ jahr: "desc" }, { erstelltAm: "asc" }] }),
   ]);
 
   const zinsZuTilgung = new Map<string, (typeof zinsen)[number]>();
@@ -67,11 +69,15 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
     })),
   ].sort((a, b) => b.datum.getTime() - a.datum.getTime());
 
-  const jahre = [...new Set(raten.map((r) => r.datum.getUTCFullYear()))].sort((a, b) => b - a);
-  const jahr = Number(jahrParam) || jahre[0] || new Date().getFullYear();
+  const jahre = [
+    ...new Set([...raten.map((r) => r.datum.getUTCFullYear()), ...jahreswerte.map((j) => j.jahr), new Date().getFullYear()]),
+  ].sort((a, b) => b - a);
+  const jahr = Number(jahrParam) || jahre[0];
   const imJahr = raten.filter((r) => r.datum.getUTCFullYear() === jahr);
   const summeZins = imJahr.reduce((s, r) => s + r.zins, 0);
   const summeTilgung = imJahr.reduce((s, r) => s + r.tilgung, 0);
+  const werteImJahr = jahreswerte.filter((j) => j.jahr === jahr);
+  const summeAndere = werteImJahr.reduce((s, j) => s + Number(j.betrag), 0);
 
   return (
     <div>
@@ -169,6 +175,50 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
           </table>
         </div>
       )}
+
+      <section className="mt-10">
+        <h2 className="text-lg font-medium text-white">Zinsen von anderen Konten {jahr} (laut Bankbescheinigung)</h2>
+        <p className="mt-1 max-w-3xl text-sm text-neutral-400">
+          Darlehensraten, die nicht über das Mietkonto gezahlt wurden (z.B. von einem anderen Konto vor dem Wechsel),
+          gehören nicht ins Journal. Hier trägst du nur ihren <span className="text-neutral-200">Zinsanteil</span> als
+          Jahreswert ein, je Darlehen einen Eintrag — die Zinsen erscheinen dann in der „Aufstellung für die
+          Steuererklärung“ (Jahresübersicht), ohne Kontostand oder Kontenabgleich zu berühren. Trage <span className="text-neutral-200">nur
+          die nicht über das Mietkonto gezahlten Zinsen</span> ein: Bescheinigung der Bank minus die Zinsen oben,
+          sonst zählen sie doppelt.
+        </p>
+        {werteImJahr.length > 0 && (
+          <div className="mt-3 max-w-3xl overflow-auto rounded-lg border border-neutral-800">
+            <table className="w-full text-sm">
+              <tbody>
+                {werteImJahr.map((j) => (
+                  <tr key={j.id} className="border-b border-neutral-800 last:border-b-0">
+                    <td className="px-4 py-2 text-white">
+                      {j.bezeichnung}
+                      {j.bemerkung && <span className="ml-2 text-xs text-neutral-500">{j.bemerkung}</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(Number(j.betrag))}</td>
+                    <td className="px-4 py-2 text-right">
+                      {kannBearbeiten && (
+                        <DeleteButton
+                          size="sm"
+                          confirmText="Eintrag löschen?"
+                          action={loescheSchuldzinsenJahreswert.bind(null, j.id) as () => Promise<void>}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {kannBearbeiten && <JahreswertForm jahr={jahr} />}
+        <p className="mt-4 max-w-3xl text-sm text-neutral-400">
+          Kontrolle: Zinsen {jahr} gesamt = {formatEuro(summeZins)} (Mietkonto) + {formatEuro(summeAndere)} (andere
+          Konten) = <span className="font-medium text-white">{formatEuro(summeZins + summeAndere)}</span> — das muss
+          der Summe der Bankbescheinigung für alle Darlehen entsprechen.
+        </p>
+      </section>
     </div>
   );
 }

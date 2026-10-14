@@ -110,13 +110,17 @@ export type AnlageVAufstellung = {
   // Zinsen der Darlehen, die über das Mietkonto laufen (Kostenarten mit Einordnung „Schuldzinsen“); nur
   // soweit im Journal gebucht — Zinsen aus der Zeit, als die Darlehen über ein anderes Konto liefen, fehlen.
   schuldzinsen: number;
+  // Schuldzinsen von Darlehensraten, die nicht über das Mietkonto gezahlt wurden: Jahreswerte laut Bankbescheinigung
+  // (Tabelle SchuldzinsenJahreswert, keine Buchungen). Zählen zu den Kosten, stehen aber nicht im Jahresbericht.
+  schuldzinsenAndere: number;
+  schuldzinsenGesamt: number; // schuldzinsen + schuldzinsenAndere
   summeKosten: number;
   // Anschaffungs-/Herstellungskosten (Kostenarten mit Einordnung „Anschaffung / Herstellung“, ab 2026):
   // nicht in den Kosten und nicht im Überschuss, sondern Grundlage der Abschreibung. Der Jahresbericht
   // zählt sie weiter als Ausgabe (Abfluss).
   anschaffung: number;
   ueberschuss: number; // vor AfA, nach Schuldzinsen (soweit gebucht) und nach 10-Tage-Regel
-  // ueberschuss = ueberschussBericht + anschaffung + abgrenzungHinzu − abgrenzungHeraus (10-Tage-Regel für die Mieteinnahmen)
+  // ueberschuss = ueberschussBericht + anschaffung − schuldzinsenAndere + abgrenzungHinzu − abgrenzungHeraus (10-Tage-Regel für die Mieteinnahmen)
   ueberschussBericht: number; // Ergebnis des Jahresberichts (Zahlungsdatum)
   abgrenzungHinzu: number; // Dezember-Zahlungen des Vorjahres für den Januar des Berichtsjahres
   anzahlHinzu: number;
@@ -143,6 +147,8 @@ export function baueAnlageVAufstellung(eingabe: {
   // Übrige eur-relevante Buchungen ohne eigene Kategorie: positiv = Einnahme, negativ = Ausgabe.
   sonstigeEurRelevant: number;
   kosten: KostenSumme[];
+  // Jahreswerte der Schuldzinsen von anderen Konten (laut Bankbescheinigung); ohne Angabe 0.
+  schuldzinsenAndere?: number;
   abgrenzung: { hinzu: number; anzahlHinzu: number; heraus: number; anzahlHeraus: number };
 }): AnlageVAufstellung {
   let sonstigeEinnahmen = eingabe.sonderzahlungen + eingabe.kautionPauschal + Math.max(eingabe.sonstigeEurRelevant, 0);
@@ -165,7 +171,8 @@ export function baueAnlageVAufstellung(eingabe: {
     eingabe.nkVorauszahlungen + eingabe.nachzahlungenEingezogen + eingabe.kautionMitNk - eingabe.guthabenAusgezahlt;
   const mieten = eingabe.kaltmiete + eingabe.kautionMitMiete;
   const summeEinnahmen = mieten + eingabe.umsatzsteuer + nebenkosten + sonstigeEinnahmen;
-  const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig + schuldzinsen;
+  const schuldzinsenAndere = eingabe.schuldzinsenAndere ?? 0;
+  const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig + schuldzinsen + schuldzinsenAndere;
 
   return {
     mieten: gerundet(mieten),
@@ -185,11 +192,13 @@ export function baueAnlageVAufstellung(eingabe: {
     umlagefaehig: gerundet(umlagefaehig),
     nichtUmlagefaehig: gerundet(nichtUmlagefaehig),
     schuldzinsen: gerundet(schuldzinsen),
+    schuldzinsenAndere: gerundet(schuldzinsenAndere),
+    schuldzinsenGesamt: gerundet(schuldzinsen + schuldzinsenAndere),
     summeKosten: gerundet(summeKosten),
     anschaffung: gerundet(anschaffung),
     ueberschuss: gerundet(summeEinnahmen - summeKosten),
     ueberschussBericht: gerundet(
-      summeEinnahmen - summeKosten - anschaffung - eingabe.abgrenzung.hinzu + eingabe.abgrenzung.heraus,
+      summeEinnahmen - summeKosten - anschaffung + schuldzinsenAndere - eingabe.abgrenzung.hinzu + eingabe.abgrenzung.heraus,
     ),
     abgrenzungHinzu: gerundet(eingabe.abgrenzung.hinzu),
     anzahlHinzu: eingabe.abgrenzung.anzahlHinzu,
@@ -200,11 +209,20 @@ export function baueAnlageVAufstellung(eingabe: {
 
 // Bezeichnung des Überschusses: Solange keine Schuldzinsen gebucht sind (Jahre vor dem Wechsel der Darlehen auf
 // das Mietkonto), gilt er vor Zinsen; sonst nach den gebuchten Zinsen.
-export function ueberschussBezeichnung(st: Pick<AnlageVAufstellung, "schuldzinsen">): string {
-  return st.schuldzinsen !== 0
-    ? "Überschuss vor AfA, nach gebuchten Schuldzinsen (Einnahmen − Kosten)"
-    : "Überschuss vor AfA und Schuldzinsen (Einnahmen − Kosten)";
+export function ueberschussBezeichnung(st: Pick<AnlageVAufstellung, "schuldzinsenGesamt" | "schuldzinsenAndere">): string {
+  if (st.schuldzinsenGesamt === 0) return "Überschuss vor AfA und Schuldzinsen (Einnahmen − Kosten)";
+  return st.schuldzinsenAndere !== 0
+    ? "Überschuss vor AfA, nach Schuldzinsen (Einnahmen − Kosten)"
+    : "Überschuss vor AfA, nach gebuchten Schuldzinsen (Einnahmen − Kosten)";
 }
 
 export const SCHULDZINSEN_HINWEIS =
   "nur soweit über das Mietkonto gebucht (Zinsen aus der Zeit davor laut Bankbescheinigung); die Tilgung ist keine Ausgabe";
+
+// Hinweis an der Zeile „Schuldzinsen“: mit erfassten Jahreswerten (Zinsen von anderen Konten) steht dort die Summe
+// beider Quellen, sonst nur der Mietkonto-Anteil.
+export function schuldzinsenHinweis(st: Pick<AnlageVAufstellung, "schuldzinsenAndere">): string {
+  return st.schuldzinsenAndere !== 0
+    ? "über das Mietkonto gezahlt + von anderen Konten gezahlt (laut Bankbescheinigung); die Tilgung ist keine Ausgabe"
+    : SCHULDZINSEN_HINWEIS;
+}

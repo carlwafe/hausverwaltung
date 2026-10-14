@@ -2,7 +2,7 @@
 // Reine Funktionen ohne Prisma.
 import {
   KOSTENGRUPPE_LABEL,
-  SCHULDZINSEN_HINWEIS,
+  schuldzinsenHinweis,
   ueberschussBezeichnung,
   type AnlageVAufstellung,
   type KostenSumme,
@@ -63,8 +63,16 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
       { text: "Instandhaltung (Reparaturen)", betrag: st.instandhaltung },
       { text: "Umlagefähige Kosten", betrag: st.umlagefaehig },
       { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
-      ...(st.schuldzinsen !== 0
-        ? [{ text: "Schuldzinsen (Darlehen)", betrag: st.schuldzinsen, hinweis: SCHULDZINSEN_HINWEIS }]
+      ...(st.schuldzinsenGesamt !== 0
+        ? [
+            { text: "Schuldzinsen (Darlehen)", betrag: st.schuldzinsenGesamt, hinweis: schuldzinsenHinweis(st) },
+            ...(st.schuldzinsenAndere !== 0
+              ? [
+                  { text: "davon über das Mietkonto gezahlt", betrag: st.schuldzinsen, davon: true },
+                  { text: "davon von anderen Konten gezahlt (laut Bankbescheinigung)", betrag: st.schuldzinsenAndere, davon: true },
+                ]
+              : []),
+          ]
         : []),
       { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
     ],
@@ -144,6 +152,14 @@ export function sonstigeEinnahmenZeilen(st: AnlageVAufstellung, kosten: KostenSu
   return zeilen;
 }
 
+// Schuldzinsen von anderen Konten (Jahreswerte laut Bankbescheinigung, Tabelle SchuldzinsenJahreswert) für die Anlage
+// und die CSV: ein Eintrag je Darlehen, mit Bemerkung.
+export type SchuldzinsenAndereEintrag = { bezeichnung: string; betrag: number; bemerkung: string | null };
+
+export function schuldzinsenAndereZeilen(eintraege: SchuldzinsenAndereEintrag[]): { text: string; betrag: number }[] {
+  return eintraege.map((e) => ({ text: e.bemerkung ? `${e.bezeichnung} (${e.bemerkung})` : e.bezeichnung, betrag: e.betrag }));
+}
+
 // Kostenarten je Gruppe (nach Betrag absteigend), ohne Kostenarten mit Summe 0.
 export function kostenNachGruppe(kosten: KostenSumme[]): { gruppe: Kostengruppe; label: string; summe: number; arten: KostenSumme[] }[] {
   const exportKosten = fuerExport(kosten);
@@ -163,6 +179,7 @@ export function aufstellungAlsCsv(
   jahr: number,
   objekt: string,
   afaPositionen: AfaPosition[] = [],
+  schuldzinsenAndere: SchuldzinsenAndereEintrag[] = [],
 ): string {
   const z = aufstellungZeilen(st, jahr);
   const zeilen: string[][] = [["Abschnitt", "Bezeichnung", "Betrag"]];
@@ -180,7 +197,9 @@ export function aufstellungAlsCsv(
   }
   for (const e of afaEinzelposten(afaPositionen))
     zeilen.push(["Anschaffung (AfA) – Einzelposten", `${e.datum} · ${e.kostenart} · ${e.objekt} (${[e.bezugsbereit || "bezugsbereit ab: nicht angegeben", e.vermietung].filter(Boolean).join("; ")}) · ${e.beschreibung}`, csvZahl(e.betrag)]);
+  for (const e of schuldzinsenAndereZeilen(schuldzinsenAndere))
+    zeilen.push(["Schuldzinsen – von anderen Konten (Bankbescheinigung)", e.text, csvZahl(e.betrag)]);
   for (const e of sonstigeEinnahmenZeilen(st, kosten)) zeilen.push(["Sonstige Einnahmen", e.text, csvZahl(e.betrag)]);
-  zeilen.push(["Hinweis", `Aufstellung ${jahr} ${objekt}: ohne AfA${st.schuldzinsen !== 0 ? "; Schuldzinsen nur soweit über das Mietkonto gebucht" : " und Schuldzinsen"}${st.anschaffung !== 0 ? " (Anschaffungs-/Herstellungskosten gesondert als Grundlage der AfA, nicht in den Kosten)" : ""}; Mietzahlungen nach Zuflussprinzip inkl. 10-Tage-Regel (22.12.–31.12. für Januar); Kosten nach Abbuchungsdatum`, ""]);
+  zeilen.push(["Hinweis", `Aufstellung ${jahr} ${objekt}: ohne AfA${st.schuldzinsenAndere !== 0 ? "; Schuldzinsen = über das Mietkonto gezahlt + von anderen Konten laut Bankbescheinigung" : st.schuldzinsen !== 0 ? "; Schuldzinsen nur soweit über das Mietkonto gebucht" : " und Schuldzinsen"}${st.anschaffung !== 0 ? " (Anschaffungs-/Herstellungskosten gesondert als Grundlage der AfA, nicht in den Kosten)" : ""}; Mietzahlungen nach Zuflussprinzip inkl. 10-Tage-Regel (22.12.–31.12. für Januar); Kosten nach Abbuchungsdatum`, ""]);
   return "﻿" + zeilen.map((r) => r.map(csvText).join(";")).join("\r\n") + "\r\n";
 }

@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ladeJahresuebersicht, bildeZeitraum } from "../bericht-seite";
-import { afaEinzelposten, aufstellungZeilen, kostenNachGruppe, sonstigeEinnahmenZeilen, type ExportZeile } from "@/lib/aufstellung-export";
+import {
+  afaEinzelposten,
+  aufstellungZeilen,
+  kostenNachGruppe,
+  schuldzinsenAndereZeilen,
+  sonstigeEinnahmenZeilen,
+  type ExportZeile,
+} from "@/lib/aufstellung-export";
 import { DruckenKnopf } from "./drucken-knopf";
 
 function formatEuro(value: number) {
@@ -42,6 +49,7 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
   const gruppen = kostenNachGruppe(daten.steuerKosten).filter((g) => g.gruppe !== "ANSCHAFFUNG");
   const sonstige = sonstigeEinnahmenZeilen(daten.steuer, daten.steuerKosten);
   const afa = afaEinzelposten(daten.afaPositionen);
+  const zinsenAndere = schuldzinsenAndereZeilen(daten.schuldzinsenAndereEintraege);
 
   return (
     <div>
@@ -80,7 +88,7 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
               ausgewiesen; ihre Abführung an das Finanzamt ist hier nicht enthalten. Mieten und Nebenkosten: Zahlungen sind je Monat zuerst auf die
               Nebenkosten-Vorauszahlung angerechnet, der Rest ist Kaltmiete. Ausgezahlte Nebenkosten-Guthaben
               mindern die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie. Nicht enthalten: Absetzung für
-              Abnutzung. Schuldzinsen sind nur enthalten, soweit die Darlehensraten über das Mietkonto gebucht wurden; die Tilgung ist keine Ausgabe.
+              Abnutzung. Schuldzinsen sind {daten.steuer.schuldzinsenAndere !== 0 ? "über das Mietkonto gezahlte Zinsen plus die Zinsen von anderen Konten laut Bankbescheinigung" : "nur enthalten, soweit die Darlehensraten über das Mietkonto gebucht wurden"}; die Tilgung ist keine Ausgabe.
               {z.anschaffung.length > 0 &&
                 " Anschaffungs- und Herstellungskosten (z. B. Einbauküchen, Modernisierung) sind nicht in den Kosten enthalten, sondern gesondert ausgewiesen; die Abschreibung bestimmt der Steuerberater."}
             </p>
@@ -104,6 +112,24 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
                 </table>
               </div>
             ))}
+            {zinsenAndere.length > 0 && (
+              <div className="mb-4">
+                <h3 className="mb-1 text-[10pt] font-semibold">
+                  Schuldzinsen von anderen Konten (laut Bankbescheinigung){" "}
+                  <span className="font-normal text-neutral-600">— {formatEuro(daten.steuer.schuldzinsenAndere)}</span>
+                </h3>
+                <table className="w-full border-collapse text-[9pt]">
+                  <tbody>
+                    {zinsenAndere.map((e, i) => (
+                      <tr key={i} className="border-b border-neutral-300">
+                        <td className="py-0.5 pr-2">{e.text}</td>
+                        <td className="whitespace-nowrap py-0.5 text-right">{formatEuro(e.betrag)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {afa.length > 0 && (
               <div className="mb-4">
                 <h3 className="mb-1 text-[10pt] font-semibold">
