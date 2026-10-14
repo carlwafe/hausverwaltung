@@ -21,6 +21,7 @@ import {
   setAbrechnungStatus,
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
+import { VersendetFeld } from "./versendet-feld";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
 import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
 import { mieterName } from "@/lib/mieter-name";
@@ -361,6 +362,12 @@ export default async function NebenkostenabrechnungDetailPage({
           />
         </div>
       </div>
+
+      <VersendetFeld
+        abrechnungId={id}
+        versendetAm={abrechnung.versendetAm ? abrechnung.versendetAm.toISOString().slice(0, 10) : null}
+        heute={new Date().toISOString().slice(0, 10)}
+      />
 
       {nichtBeruecksichtigt.some((n) => n.grund === "kein_verteilerschluessel") && (
         <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">

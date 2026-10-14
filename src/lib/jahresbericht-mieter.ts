@@ -1,4 +1,4 @@
-import { gegenrechnungVorJahr, saldoMitToleranz } from "./nk-saldo";
+import { gegenrechnungBis, saldoMitToleranz } from "./nk-saldo";
 import { berechneSoll, berechneSollKaltmiete, ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "./soll-ist";
 
 export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
@@ -25,8 +25,16 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   // Mietvertrag+Jahr aus dem Nebenkostenausgleich-Archiv (0 = noch nichts erfasst).
   // unbezahlteVorauszahlung = Gegenrechnung bei berechneten Positionen (siehe unbezahlteNkVorauszahlung
   // in nk-saldo.ts): NK-Soll, das schon als Rückstand im Mietsaldo steht, aber in der Abrechnung nicht
-  // als gezahlt zählt. Fehlt sie (manuelle Positionen), gilt 0.
-  nebenkostenPositionen: { jahr: number; saldo: number; zahlungSumme: number; unbezahlteVorauszahlung?: number }[];
+  // als gezahlt zählt. Fehlt sie (manuelle Positionen), gilt 0. versendetAm = Versanddatum der Abrechnung:
+  // berechnete Positionen nicht versendeter Abrechnungen gehören nicht in die Liste (weder Abrechnung noch
+  // Gegenrechnung zählen), die Gegenrechnung gilt ab diesem Datum; manuelle Positionen haben keines.
+  nebenkostenPositionen: {
+    jahr: number;
+    saldo: number;
+    zahlungSumme: number;
+    unbezahlteVorauszahlung?: number;
+    versendetAm?: Date | null;
+  }[];
 };
 
 export type MieterJahresberichtZeile = {
@@ -51,8 +59,9 @@ export type MieterJahresberichtZeile = {
   // Anzeige bewusst nicht von "0" — beides zeigt "–", da ein bestätigter Nullsaldo von "nie
   // erfasst" ohnehin nicht unterscheidbar wäre).
   nebenkostenabrechnungOffen: number | null;
-  // Teil von nebenkostenabrechnungOffen, der die unbezahlte NK-Vorauszahlung des Vorjahres gegenrechnet
-  // (steht schon im Mietrückstand, siehe unbezahlteNkVorauszahlung) — nur zur Anzeige, 0 = keine.
+  // Gutschrift der unbezahlten NK-Vorauszahlung (steht schon im Mietrückstand, siehe unbezahlteNkVorauszahlung)
+  // von Abrechnungen, die im Zeitraum versendet wurden; sie ist schon in saldoNeu enthalten (danach in saldoAlt),
+  // nebenkostenabrechnungOffen enthält sie nicht. 0 = keine.
   nebenkostenGegenrechnung: number;
 };
 
@@ -88,22 +97,28 @@ function istNachZuordnung(
  * Jahresbewegung als Differenz zu zeigen. Bewusst ohne jeden Bezug zur
  * Nebenkostenabrechnung selbst — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
  * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung. Ausnahme: die Gegenrechnung der
- * unbezahlten NK-Vorauszahlung *älterer* Abrechnungen (Abrechnungsjahr < `gegenrechnungVorJahr`, im Bericht
- * für das Jahr J also bis J−2): nach der Abrechnung nicht mehr geschuldet, gehört sie dauerhaft zum Saldo. Die
- * Abrechnung des Vorjahres J−1 kommt als Spalte „Nebenkostenabrechnung offen / Gutschrift“ dazu (Q1/Q2 ohne).
+ * unbezahlten NK-Vorauszahlung versendeter Abrechnungen (Versanddatum ≤ Stichtag): nach dem Versand nicht mehr
+ * geschuldet, gehört sie ab diesem Datum zum Saldo (im Zeitraum des Versands als Spalte „Gutschrift“ sichtbar,
+ * danach in Saldo alt). Nachzahlung/Guthaben der Abrechnung des Vorjahres kommt als Spalte „Nebenkostenabrechnung
+ * offen“ dazu.
  */
-function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, gegenrechnungVorJahrGrenze: number): number {
+function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date): number {
   const buchhaltungAb = v.buchhaltungAb;
   const soll = berechneSoll(v, bis, buchhaltungAb);
   const ist = istNachZuordnung(v.zahlungen, buchhaltungAb ? periodeVon(buchhaltungAb) : -Infinity, periodeVon(bis));
   const sonder = v.sonderbewegungen
     .filter((s) => (!buchhaltungAb || s.datum >= buchhaltungAb) && s.datum <= bis)
     .reduce((sum, s) => sum + s.betrag, 0);
-  const gegenrechnung = gegenrechnungVorJahr(
-    v.nebenkostenPositionen.map((p) => ({ jahr: p.jahr, betrag: p.unbezahlteVorauszahlung ?? 0 })),
-    gegenrechnungVorJahrGrenze,
-  );
-  return ist - soll + v.saldovortrag + sonder + gegenrechnung;
+  return ist - soll + v.saldovortrag + sonder + gegenrechnungBis(gegenrechnungenVon(v), bis);
+}
+
+/** Gegenrechnungen (mit Versanddatum) der berechneten, versendeten Positionen eines Vertrags. */
+function gegenrechnungenVon(v: MietvertragFuerJahresbericht): { betrag: number; datum: Date }[] {
+  const liste: { betrag: number; datum: Date }[] = [];
+  for (const p of v.nebenkostenPositionen) {
+    if (p.versendetAm && p.unbezahlteVorauszahlung) liste.push({ betrag: p.unbezahlteVorauszahlung, datum: p.versendetAm });
+  }
+  return liste;
 }
 
 /**
@@ -114,19 +129,18 @@ function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date, gegenrechnu
  * wird. Ältere, noch offene Jahre fließen hier bewusst nicht mehr mit ein (die vollständige
  * Historie bleibt über /nebenkostenabrechnungen einsehbar).
  */
-function nebenkostenabrechnungOffenBetrag(
-  v: MietvertragFuerJahresbericht,
-  jahr: number,
-): { offen: number; gegenrechnung: number } | null {
+function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr: number, bis: Date): number | null {
   const vorjahresPosition = v.nebenkostenPositionen.find((p) => p.jahr === jahr - 1);
   if (!vorjahresPosition) return null;
-  // Die unbezahlte Vorauszahlung steht schon als Rückstand im Mietsaldo und wird hier gegengerechnet,
-  // sonst zählt sie zusätzlich in der Nachzahlung (Doppelzählung, siehe unbezahlteNkVorauszahlung).
+  // Erst ab dem Versand der Abrechnung (manuelle Positionen haben kein Datum und zählen wie bisher).
+  if (vorjahresPosition.versendetAm && vorjahresPosition.versendetAm > bis) return null;
+  // Die unbezahlte Vorauszahlung steht schon als Rückstand im Mietsaldo; die Gutschrift dafür ist ab dem
+  // Versanddatum Teil des Saldos (saldoZuStichtag). Hier bleibt nur die Abrechnung selbst — mit der
+  // Gegenrechnung gerechnet und wieder herausgenommen, damit die Toleranz von 1 Cent wie bisher greift und
+  // nichts doppelt zählt (siehe unbezahlteNkVorauszahlung).
   const gegenrechnung = vorjahresPosition.unbezahlteVorauszahlung ?? 0;
-  return {
-    offen: saldoMitToleranz(vorjahresPosition.saldo + gegenrechnung - vorjahresPosition.zahlungSumme),
-    gegenrechnung,
-  };
+  const offen = saldoMitToleranz(vorjahresPosition.saldo + gegenrechnung - vorjahresPosition.zahlungSumme);
+  return Math.round((offen - gegenrechnung) * 100) / 100 || 0;
 }
 
 /**
@@ -167,8 +181,9 @@ export function berechneMieterJahresbericht(
  * Wie berechneMieterJahresbericht, aber für einen beliebigen Zeitraum [von, bis] innerhalb von
  * `jahr` (Quartalsübersicht). "Nebenkostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
  * Abrechnung des Vorjahres von `jahr` und fließt voll ein — außer bei `mitNkOffen: false` (Q1/Q2,
- * die Abrechnung liegt dann meist noch nicht vor): dann bleibt die Abrechnung selbst außen vor, nur
- * ihre Gegenrechnung der unbezahlten NK-Vorauszahlung zählt in Saldo neu (wie im Mieterkonto).
+ * die Abrechnung liegt dann meist noch nicht vor): dann bleibt sie außen vor, Saldo neu ist der
+ * reine Mietsaldo. Die Gutschrift der unbezahlten NK-Vorauszahlung zählt dagegen datumsgenau ab dem
+ * Versand der Abrechnung (`versendetAm`), unabhängig vom Quartal.
  */
 export function berechneMieterBericht(
   vertraege: MietvertragFuerJahresbericht[],
@@ -192,7 +207,7 @@ export function berechneMieterBericht(
 
   for (const v of vertraege) {
     // Stichtag je Vertrag (v.buchhaltungAb): die Summen der Tabelle mischen dadurch ggf. unterschiedliche Stichtage.
-    const saldoAlt = saldoZuStichtag(v, saldoAltBis, jahr - 1);
+    const saldoAlt = saldoZuStichtag(v, saldoAltBis);
     const soll = berechneSoll(v, saldoNeuBis, v.buchhaltungAb) - berechneSoll(v, saldoAltBis, v.buchhaltungAb);
     const sollKaltmiete =
       berechneSollKaltmiete(v, saldoNeuBis, v.buchhaltungAb) - berechneSollKaltmiete(v, saldoAltBis, v.buchhaltungAb);
@@ -207,20 +222,20 @@ export function berechneMieterBericht(
         return periode >= vonPeriode && periode <= saldoNeuBisPeriode;
       })
       .reduce((sum, z) => sum + z.betrag, 0);
-    const nkVoll = nebenkostenabrechnungOffenBetrag(v, jahr);
-    const nkOffen = zeitraum.mitNkOffen === false ? null : nkVoll;
-    const nebenkostenabrechnungOffen = nkOffen?.offen ?? null;
-    // Die Gegenrechnung gehört zum Mietsaldo (wie im Mieterkonto) und zählt auch in Q1/Q2, sobald die
-    // Abrechnung des Vorjahres vorliegt; nur die Abrechnung selbst (Nachzahlung/Guthaben) bleibt dort außen.
-    const nkGegenrechnung = nkVoll?.gegenrechnung ?? 0;
+    const nebenkostenabrechnungOffen =
+      zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr, saldoNeuBis);
+    // Gutschrift der unbezahlten NK-Vorauszahlung: gehört zum Mietsaldo (wie im Mieterkonto) ab dem Versand der
+    // Abrechnung, hier die Beträge, die im Zeitraum versendet wurden (schon in saldoNeu enthalten).
+    const nkGegenrechnung =
+      Math.round(
+        (gegenrechnungBis(gegenrechnungenVon(v), saldoNeuBis) - gegenrechnungBis(gegenrechnungenVon(v), saldoAltBis)) * 100,
+      ) /
+        100 || 0;
     // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
     const saldoNeu =
-      Math.round(
-        (saldoZuStichtag(v, saldoNeuBis, jahr - 1) + (nebenkostenabrechnungOffen ?? nkGegenrechnung)) * 100,
-      ) /
-        100 || 0;
+      Math.round((saldoZuStichtag(v, saldoNeuBis) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
 
     if (
       !immerAnzeigen?.has(v.id) &&

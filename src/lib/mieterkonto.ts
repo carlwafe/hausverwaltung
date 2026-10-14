@@ -93,10 +93,10 @@ export function baueMieterkontoJahr(input: {
   ab: Date | null;
   bis: Date;
   nebenkostenabrechnungOffen?: number | null;
-  // Gegenrechnung der unbezahlten (+) bzw. überzahlten (−) NK-Vorauszahlung je Abrechnungsjahr (siehe
-  // gegenrechnungenJeJahr in nk-saldo.ts). Die Abrechnung des Vorjahres steht als Zeile am Jahresanfang, ältere
-  // stecken im Übertrag.
-  gegenrechnungen?: { jahr: number; betrag: number }[];
+  // Gegenrechnung der unbezahlten (+) bzw. überzahlten (−) NK-Vorauszahlung je versendeter Abrechnung (siehe
+  // gegenrechnungenJeJahr in nk-saldo.ts). Sie steht als Zeile am Versanddatum der Abrechnung; was vor dem
+  // Jahresanfang versendet wurde, steckt im Übertrag, was nach `bis` liegt, fehlt noch.
+  gegenrechnungen?: { jahr: number; betrag: number; datum: Date }[];
 }): MieterkontoJahr {
   const { jahr } = input;
   // Zahlungen zählen nach ihrer Mietperiode: von der Periode des Stichtags `ab` bis zur Periode von
@@ -115,29 +115,13 @@ export function baueMieterkontoJahr(input: {
   for (const s of input.sollZeilen) if (s.jahr < jahr) uebertrag -= s.betrag;
   for (const z of zahlungen) if (periodeIndex(z) < monatsIndex(jahr, 1)) uebertrag += z.betrag;
   for (const s of sonder) if (s.datum < jahresanfang) uebertrag += s.istForderung ? -s.betrag : s.betrag;
-  const gegenrechnungen = input.gegenrechnungen ?? [];
-  for (const g of gegenrechnungen) if (g.jahr < jahr - 1) uebertrag += g.betrag;
+  const gegenrechnungen = (input.gegenrechnungen ?? []).filter((g) => g.datum <= input.bis);
+  for (const g of gegenrechnungen) if (g.datum < jahresanfang) uebertrag += g.betrag;
 
   const zeilen: MieterkontoZeile[] = [];
   let saldo = uebertrag;
   const summe = { sollKaltmiete: 0, sollNebenkosten: 0, sollGesamt: 0, betrag: 0, differenz: 0, saldo: 0 };
   let letzteMiete = { kalt: 0, nk: 0 };
-
-  // Abrechnung des Vorjahres: unbezahlte (bzw. überzahlte) NK-Vorauszahlung ist nach der Abrechnung nicht mehr
-  // geschuldet und gleicht den Rückstand im Soll aus.
-  const vorjahr = gegenrechnungen.find((g) => g.jahr === jahr - 1);
-  if (vorjahr && vorjahr.betrag !== 0) {
-    saldo += vorjahr.betrag;
-    zeilen.push({
-      monat: "Abrechnung",
-      sollKaltmiete: null, sollNebenkosten: null, sollGesamt: null,
-      buchungsart: `${vorjahr.betrag > 0 ? "Gutschrift unbezahlte" : "Belastung überzahlte"} NK-Vorauszahlung ${jahr - 1}`,
-      datum: null, betrag: null, differenz: vorjahr.betrag, saldo,
-      bemerkung: "Aus der Nebenkostenabrechnung: nicht gezahlte NK-Vorauszahlung ist nicht mehr geschuldet",
-      sonderbuchung: true,
-    });
-    summe.differenz += vorjahr.betrag;
-  }
 
   const imMonat = <T extends { datum: Date }>(liste: T[], monat: number) =>
     liste.filter((e) => e.datum.getFullYear() === jahr && e.datum.getMonth() + 1 === monat).sort((a, b) => a.datum.getTime() - b.datum.getTime());
@@ -148,7 +132,7 @@ export function baueMieterkontoJahr(input: {
     const soll = input.sollZeilen.find((s) => s.jahr === jahr && s.monat === monat);
     const pays = zahlungenImMonat(monat);
     const sonders = imMonat(sonder, monat);
-    if (!soll && pays.length === 0 && sonders.length === 0) continue;
+    if (!soll && pays.length === 0 && sonders.length === 0 && imMonat(gegenrechnungen, monat).length === 0) continue;
 
     let erste = true;
     const monatLabel = () => {
@@ -168,13 +152,16 @@ export function baueMieterkontoJahr(input: {
 
     // Zahlungen und Sonderbuchungen des Monats in einer gemeinsamen, nach Datum sortierten Reihe
     // (bei gleichem Datum: Zahlung, dann Gebühr, dann Zahlung auf Gebühren).
+    // Dazu die Gegenrechnung der NK-Vorauszahlung am Versanddatum der Abrechnung (zuletzt am Tag).
     type Ereignis =
       | { art: "zahlung"; datum: Date; z: Zahlung }
-      | { art: "sonder"; datum: Date; s: Sonder };
-    const rang = (e: Ereignis) => (e.art === "zahlung" ? 0 : e.s.istForderung ? 1 : 2);
+      | { art: "sonder"; datum: Date; s: Sonder }
+      | { art: "gegenrechnung"; datum: Date; g: { jahr: number; betrag: number } };
+    const rang = (e: Ereignis) => (e.art === "zahlung" ? 0 : e.art === "gegenrechnung" ? 3 : e.s.istForderung ? 1 : 2);
     const ereignisse: Ereignis[] = [
       ...pays.map((z): Ereignis => ({ art: "zahlung", datum: z.datum, z })),
       ...sonders.map((s): Ereignis => ({ art: "sonder", datum: s.datum, s })),
+      ...imMonat(gegenrechnungen, monat).map((g): Ereignis => ({ art: "gegenrechnung", datum: g.datum, g })),
     ].sort((a, b) => a.datum.getTime() - b.datum.getTime() || rang(a) - rang(b));
 
     const sollBetrag = soll?.betrag ?? 0;
@@ -206,6 +193,18 @@ export function baueMieterkontoJahr(input: {
         });
         summe.betrag += z.betrag;
         summe.differenz += differenz;
+      } else if (e.art === "gegenrechnung") {
+        const g = e.g;
+        saldo += g.betrag;
+        zeilen.push({
+          monat: monatLabel(),
+          sollKaltmiete: null, sollNebenkosten: null, sollGesamt: null,
+          buchungsart: `${g.betrag > 0 ? "Gutschrift unbezahlte" : "Belastung überzahlte"} NK-Vorauszahlung ${g.jahr}`,
+          datum: e.datum, betrag: null, differenz: g.betrag, saldo,
+          bemerkung: `Nebenkostenabrechnung ${g.jahr} versendet: nicht gezahlte NK-Vorauszahlung ist nicht mehr geschuldet`,
+          sonderbuchung: true,
+        });
+        summe.differenz += g.betrag;
       } else {
         const s = e.s;
         const differenz = s.istForderung ? -s.betrag : s.betrag;

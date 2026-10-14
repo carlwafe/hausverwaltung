@@ -14,7 +14,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
-import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungVorJahr } from "@/lib/nk-saldo";
+import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungBis } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
@@ -72,7 +72,7 @@ export default async function MietvertragDetailPage({
             vorauszahlungGesamt: true,
             saldo: true,
             details: true,
-            abrechnung: { select: { id: true, jahr: true, status: true } },
+            abrechnung: { select: { id: true, jahr: true, status: true, versendetAm: true } },
           },
         },
       },
@@ -131,9 +131,9 @@ export default async function MietvertragDetailPage({
   const sonderOffenImSaldo = sonderBuchungen
     .filter((b) => b.datum && (!stichtagAb || b.datum >= stichtagAb) && b.datum <= bis)
     .reduce((sum, b) => sum - sonderWirkung(b.buchungsart.code, Number(b.betrag)), 0);
-  // Unbezahlte NK-Vorauszahlung berechneter Abrechnungen (je Abrechnungsjahr): steht als Rückstand im Soll, ist
-  // nach der Abrechnung aber nicht mehr geschuldet. Zählt zum Saldo, sobald der Stichtag in einem späteren
-  // Jahr liegt (siehe gegenrechnungenJeJahr); die Abrechnung selbst (Nachzahlung/Guthaben) steht nicht darin.
+  // Unbezahlte NK-Vorauszahlung berechneter Abrechnungen (je Abrechnung): steht als Rückstand im Soll, ist
+  // nach dem Versand der Abrechnung aber nicht mehr geschuldet. Zählt zum Saldo ab dem Versanddatum (siehe
+  // gegenrechnungenJeJahr); die Abrechnung selbst (Nachzahlung/Guthaben) steht nicht darin.
   const nkGegenrechnungen = gegenrechnungenJeJahr(
     vertragFuerSollIst,
     vertrag.abrechnungspositionen
@@ -143,10 +143,11 @@ export default async function MietvertragDetailPage({
         zeitraumVon: p.zeitraumVon,
         zeitraumBis: p.zeitraumBis,
         vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+        versendetAm: p.abrechnung.versendetAm,
       })),
     stichtagAb,
   );
-  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo + gegenrechnungVorJahr(nkGegenrechnungen, bis.getFullYear());
+  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo + gegenrechnungBis(nkGegenrechnungen, bis);
   const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, stichtagAb);
   // Jahre für das Mieterkonto: ab dem ersten Jahr mit Zahlungen (oder dem Stichtag/Soll-Beginn) bis
   // zum "erfasst bis"-Jahr. Vor dem Buchhaltungs-Stichtag (stichtagAb, des Vertrags) gibt es kein vom System
@@ -277,6 +278,9 @@ export default async function MietvertragDetailPage({
   const nkOffenFuerJahr = (jahr: number): number | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
     if (!position) return null;
+    // Berechnete Abrechnung, die noch nicht versendet ist: weder Abrechnung noch Gutschrift zählen (sonst stünde
+    // die Nachzahlung ohne die zugehörige Gegenrechnung im Saldo).
+    if (Array.isArray(position.details) && !position.abrechnung.versendetAm) return null;
     return saldoMitToleranz(Number(position.saldo) - (nkZahlungNachJahr.get(jahr - 1) ?? 0));
   };
   const letztesJahr = bis.getFullYear();

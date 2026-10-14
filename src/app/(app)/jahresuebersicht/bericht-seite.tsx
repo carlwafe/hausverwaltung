@@ -372,7 +372,7 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
             zeitraumVon: true,
             zeitraumBis: true,
             vorauszahlungGesamt: true,
-            abrechnung: { select: { jahr: true } },
+            abrechnung: { select: { jahr: true, versendetAm: true } },
           },
         },
         mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
@@ -457,8 +457,12 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
     zahlungen: zahlungenNachVertrag.get(v.id) ?? [],
     sonderbewegungen: sonderNachVertrag.get(v.id) ?? [],
-    nebenkostenPositionen: v.abrechnungspositionen.map((p) => ({
+    // Berechnete Positionen nicht versendeter Abrechnungen zählen weder als Abrechnung noch als Gutschrift.
+    nebenkostenPositionen: v.abrechnungspositionen
+      .filter((p) => !berechnetePositionIds.has(p.id) || p.abrechnung.versendetAm)
+      .map((p) => ({
       jahr: p.abrechnung.jahr,
+      versendetAm: p.abrechnung.versendetAm,
       saldo: Number(p.saldo),
       zahlungSumme: zahlungSummenMap.get(`${v.id}|${p.abrechnung.jahr}`) ?? 0,
       unbezahlteVorauszahlung: berechnetePositionIds.has(p.id)
@@ -573,20 +577,21 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
             Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
             in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
-            noch einzuziehende Nachzahlung. Die Spalte &bdquo;Gutschrift unbezahlte NK-Vorauszahlung
-            (Vorjahr)&ldquo; gleicht den unbezahlten Teil der Vorauszahlung aus: Er steht schon als
+            noch einzuziehende Nachzahlung. Die Spalte &bdquo;Gutschrift unbezahlte NK-Vorauszahlung&ldquo;
+            gleicht den unbezahlten Teil der Vorauszahlung aus: Er steht schon als
             Rückstand in Soll/Saldo alt, die Abrechnung vergleicht die Kosten aber nur mit der
-            tatsächlich gezahlten Vorauszahlung. Bei älteren Abrechnungen (bis {jahr - 2}) steckt die Gutschrift schon in Saldo alt. Im Mieterkonto des Mietvertrags steht Saldo neu als
+            tatsächlich gezahlten Vorauszahlung. Sie zählt ab dem Versanddatum der Abrechnung (Nebenkostenabrechnung →
+            &bdquo;Als versendet markieren&ldquo;), im Zeitraum des Versands als Spalte, danach in Saldo alt; eine nicht
+            versendete berechnete Abrechnung zählt weder mit Nachzahlung/Guthaben noch mit Gutschrift. Im Mieterkonto des Mietvertrags steht Saldo neu als
             &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
           </p>
           {!zeitraum.mitNkOffen && (
             <p className="mb-3 text-sm text-neutral-400">
-              In {label} ist die Nebenkostenabrechnung des Vorjahres selbst noch nicht berücksichtigt
-              (sie liegt meist erst im 3. Quartal vor), daher ohne Spalte &bdquo;Nebenkostenabrechnung
-              offen (Vorjahr)&ldquo;. Die Gutschrift der unbezahlten NK-Vorauszahlung zählt dagegen
-              schon mit, sobald die Abrechnung vorliegt (wie im Mieterkonto): Saldo neu = Saldo alt −
-              Soll + Miete (+ Gebühren/Sonderforderungen) + Gutschrift. Gegenüber dem Quartalsbericht
-              des Verwalters weicht Saldo neu dann um diese Gutschrift ab.
+              In {label} ist die Nebenkostenabrechnung des Vorjahres noch nicht berücksichtigt (sie
+              liegt meist erst im 3. Quartal vor): Saldo neu = Saldo alt − Soll + Miete
+              (+ Gebühren/Sonderforderungen), ohne Spalte &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;.
+              Wurde eine Abrechnung schon im Quartal versendet, zählt ihre Gutschrift der unbezahlten
+              NK-Vorauszahlung ab dem Versanddatum mit (eigene Spalte).
             </p>
           )}
           <p className="mb-3 text-sm text-neutral-400">

@@ -24,8 +24,8 @@ export type MieterTabellenZeile = {
   soll: number;
   miete: number;
   nebenkostenabrechnungOffen: number | null;
-  // Teil davon: Gegenrechnung der unbezahlten NK-Vorauszahlung des Vorjahres (steht schon im Rückstand);
-  // wird als eigene Spalte „Gutschrift“ gezeigt, die Abrechnungsspalte enthält den Rest.
+  // Gutschrift der unbezahlten NK-Vorauszahlung (steht schon im Rückstand) von Abrechnungen, die im Zeitraum
+  // versendet wurden; eigene Spalte „Gutschrift“, nicht in nebenkostenabrechnungOffen enthalten.
   nebenkostenGegenrechnung: number;
   saldoNeu: number;
   verifiziert: boolean;
@@ -34,9 +34,9 @@ export type MieterTabellenZeile = {
   eigenerStichtag: string | null;
 };
 
-// Abrechnung ohne Gegenrechnung (die steht in einer eigenen Spalte); beide zusammen = nebenkostenabrechnungOffen.
-const abrechnungOhneGegenrechnung = (z: MieterTabellenZeile) =>
-  Math.round(((z.nebenkostenabrechnungOffen ?? 0) - z.nebenkostenGegenrechnung) * 100) / 100;
+// Die Abrechnung selbst (Nachzahlung/Guthaben); die Gutschrift der unbezahlten NK-Vorauszahlung steht in einer
+// eigenen Spalte und ist nicht darin enthalten.
+const abrechnungOhneGegenrechnung = (z: MieterTabellenZeile) => z.nebenkostenabrechnungOffen ?? 0;
 
 function zahlSpalte(
   key: string,
@@ -66,6 +66,9 @@ export function MieterTabelle({
   label: string;
   mitNkOffen: boolean;
 }) {
+  // Die Gutschrift-Spalte gibt es, wo die Abrechnung des Vorjahres zählt (Q3/Q4/Gesamtjahr) und sonst nur, wenn eine
+  // Abrechnung in diesem Zeitraum versendet wurde.
+  const zeigeGutschrift = mitNkOffen || zeilen.some((z) => z.nebenkostenGegenrechnung !== 0);
   const columns: Column<MieterTabellenZeile>[] = [
     {
       key: "einheit",
@@ -119,9 +122,11 @@ export function MieterTabelle({
     } satisfies Column<MieterTabellenZeile>,
         ]
       : []),
+    ...(zeigeGutschrift
+      ? [
     {
       key: "nkGutschrift",
-      label: "Gutschrift unbezahlte NK-Vorauszahlung (Vorjahr)",
+      label: "Gutschrift unbezahlte NK-Vorauszahlung",
       align: "right",
       sortValue: (z) => z.nebenkostenGegenrechnung,
       render: (z) => (
@@ -133,6 +138,8 @@ export function MieterTabelle({
         </span>
       ),
     } satisfies Column<MieterTabellenZeile>,
+        ]
+      : []),
     {
       key: "saldoNeu",
       label: "Saldo neu",
@@ -188,7 +195,7 @@ export function MieterTabelle({
               <td className={td}>{summe((z) => z.soll)}</td>
               <td className={td}>{summe((z) => z.miete)}</td>
               {mitNkOffen && <td className={td}>{summe(abrechnungOhneGegenrechnung)}</td>}
-              <td className={td}>{summe((z) => z.nebenkostenGegenrechnung)}</td>
+              {zeigeGutschrift && <td className={td}>{summe((z) => z.nebenkostenGegenrechnung)}</td>}
               <td className={td}>{summe((z) => z.saldoNeu)}</td>
               <td colSpan={2} />
             </tr>

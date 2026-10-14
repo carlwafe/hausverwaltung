@@ -776,6 +776,26 @@ export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL
   revalidatePath("/nebenkostenabrechnungen");
 }
 
+// Versanddatum der Abrechnung an die Mieter (unabhängig vom Status Entwurf/Final). Erst ab diesem Datum zählt die
+// Gegenrechnung der unbezahlten NK-Vorauszahlung berechneter Positionen im Mietsaldo (Mieterkonto, Jahresübersicht,
+// Offene Posten, Dashboard). Aktion „zuruecknehmen“ oder leeres Datum = Versand zurücknehmen.
+export const speichereVersendetAm = mitMeldung(async function speichereVersendetAm(id: string, formData: FormData) {
+  await requireEditor();
+  const roh = formData.get("aktion") === "zuruecknehmen" ? "" : String(formData.get("datum") ?? "").trim();
+  let datum: Date | null = null;
+  if (roh !== "") {
+    datum = parseStrengesDatum(roh);
+    if (!datum) throw new AktionsFehler("Ungültiges Datum (z.B. 31.02. gibt es nicht).");
+  }
+  await prisma.nebenkostenabrechnung.update({ where: { id }, data: { versendetAm: datum } });
+  revalidatePath(`/nebenkostenabrechnungen/${id}`);
+  revalidatePath("/nebenkostenabrechnungen");
+  revalidatePath("/jahresuebersicht");
+  revalidatePath("/offene-posten");
+  revalidatePath("/mietvertraege/[id]", "page");
+  revalidatePath("/");
+});
+
 export async function deleteAbrechnung(id: string) {
   await requireEditor();
   await prisma.nebenkostenabrechnung.delete({ where: { id } });

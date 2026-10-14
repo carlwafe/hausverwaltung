@@ -157,7 +157,7 @@ export function MieterkontoAnsicht({
         </table>
       )}
       <div className="mt-2 space-y-0.5 text-xs italic text-neutral-500">
-        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr. Die Zeile &bdquo;Abrechnung&ldquo; (Gutschrift bzw. Belastung der NK-Vorauszahlung) gehört dazu: Eine nicht gezahlte NK-Vorauszahlung steht im Soll als Rückstand, ist nach der Nebenkostenabrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) fließt nur unter &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo; ein (wie in der Jahresübersicht).</p>
+        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr. Die Zeile &bdquo;Gutschrift/Belastung NK-Vorauszahlung&ldquo; gehört dazu und steht am Versanddatum der Nebenkostenabrechnung: Eine nicht gezahlte NK-Vorauszahlung steht im Soll als Rückstand und ist erst nach dem Versand der Abrechnung nicht mehr geschuldet (das Datum wird an der Abrechnung unter &bdquo;Als versendet markieren&ldquo; gepflegt). Die Abrechnung selbst (Nachzahlung/Guthaben) fließt nur unter &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo; ein (wie in der Jahresübersicht).</p>
         <p>Positiver Saldo = Guthaben des Mieters. Negativer Saldo = Mietrückstand.</p>
         <p>
           Orange Zeilen = Sonderbuchungen (z.B. Rücklastschriftgebühr und die Zahlung darauf, im Monat des

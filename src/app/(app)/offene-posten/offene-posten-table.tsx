@@ -18,8 +18,8 @@ export type OffenePostenRow = {
   saldovortrag: number;
   saldo: number;
   sonderforderung: number;
-  // Gutschrift (+) bzw. Belastung (−) aus der unbezahlten bzw. überzahlten NK-Vorauszahlung abgeschlossener
-  // Abrechnungen; steckt im Saldo.
+  // Gutschrift (+) bzw. Belastung (−) aus der unbezahlten bzw. überzahlten NK-Vorauszahlung versendeter
+  // Abrechnungen (ab dem Versanddatum); steckt im Saldo.
   nkGegenrechnung: number;
   // Eigener, vom Objekt abweichender Buchhaltungs-Stichtag des Vertrags (formatiertes Datum), sonst null.
   eigenerStichtag: string | null;
@@ -124,7 +124,7 @@ const columns: Column<OffenePostenRow>[] = [
       ) : (
         <span
           className={z.nkGegenrechnung > 0 ? "text-green-400" : "text-amber-400"}
-          title="Unbezahlte (+) bzw. überzahlte (−) NK-Vorauszahlung einer abgeschlossenen Nebenkostenabrechnung: steht im Mietsaldo, ist aber durch die Abrechnung ausgeglichen."
+          title="Unbezahlte (+) bzw. überzahlte (−) NK-Vorauszahlung einer versendeten Nebenkostenabrechnung: steht im Mietsaldo, ist aber durch die Abrechnung ausgeglichen."
         >
           {formatEuro(z.nkGegenrechnung)}
         </span>

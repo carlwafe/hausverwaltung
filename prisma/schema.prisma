@@ -247,41 +247,41 @@ model User {
 }
 
 model Objekt {
-  id                    String    @id @default(cuid())
-  name                  String
-  strasse               String
-  hausnummer            String
-  plz                   String
-  ort                   String    @default("Eutin")
-  beschreibung          String?
+  id                      String    @id @default(cuid())
+  name                    String
+  strasse                 String
+  hausnummer              String
+  plz                     String
+  ort                     String    @default("Eutin")
+  beschreibung            String?
   // Kontaktdaten des Objekts: Telefon für Mieter, getrennte E-Mail-Adressen für Verwaltungssachen
   // und für Mieter (rein zur Information/für Schreiben, ohne Wirkung auf die Berechnung).
-  telefonMieter         String?
-  emailVerwaltung       String?
-  emailMieter           String?
+  telefonMieter           String?
+  emailVerwaltung         String?
+  emailMieter             String?
   // SEPA-Lastschriftmandate (Seite „Lastschrift-Mandate“): Gläubiger ist die Vermieterin, in den Mandatsformularen
   // vorausgefüllt.
-  sepaGlaeubigerName     String?
+  sepaGlaeubigerName      String?
   sepaGlaeubigerAnschrift String?
-  sepaGlaeubigerId       String?
+  sepaGlaeubigerId        String?
   // Stichtag, ab dem Soll/Ist-Vergleiche gerechnet werden (z.B. weil ältere Kontoauszüge
   // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
   // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.
-  buchhaltungAb         DateTime?
+  buchhaltungAb           DateTime?
   // Gespeicherter Stichtag für die Offene-Posten-Ansicht ("Buchhaltung erfasst bis") — null
   // bedeutet "heute", wird also bei jedem Aufruf automatisch aktuell gehalten. Bewusst
   // persistiert statt nur als URL-Parameter geführt, damit ein einmal gewählter Stichtag auch
   // nach dem Verlassen der Seite erhalten bleibt, bis er explizit gespeichert oder
   // zurückgesetzt wird.
-  buchhaltungBis        DateTime?
+  buchhaltungBis          DateTime?
   // Referenzpunkt für die simulierte Kontostand-Ansicht: der reale, z.B. von einem
   // Kontoauszug abgelesene Kontostand an einem bestimmten Tag. Die Bank-CSV-Exporte führen
   // selbst keine laufende Saldo-Spalte, daher lässt sich der Kontostand nur relativ zu diesem
   // Anker aus der Summe aller erfassten Buchungen (Zahlungen, Kosten, Mietweiterleitungen,
   // Kautionsbuchungen, sonstige Buchungen) rekonstruieren, nicht absolut.
-  kontostandAnkerDatum  DateTime?
-  kontostandAnkerBetrag Decimal?  @db.Decimal(10, 2)
-  createdAt             DateTime  @default(now())
+  kontostandAnkerDatum    DateTime?
+  kontostandAnkerBetrag   Decimal?  @db.Decimal(10, 2)
+  createdAt               DateTime  @default(now())
 
   gebaeude      Gebaeude[]
   haeuser       Haus[]
@@ -424,48 +424,53 @@ model Mieter {
 }
 
 model Mietvertrag {
-  id                       String            @id @default(cuid())
-  einheit                  Einheit           @relation(fields: [einheitId], references: [id], onDelete: Restrict)
-  einheitId                String
-  mieter                   Mieter[]
+  id                          String            @id @default(cuid())
+  einheit                     Einheit           @relation(fields: [einheitId], references: [id], onDelete: Restrict)
+  einheitId                   String
+  mieter                      Mieter[]
   // Optional statt Pflichtfeld: bei manchen längst ausgezogenen Mietern (Vertragsende weit in
   // der Vergangenheit) ist das ursprüngliche Einzugsdatum nicht mehr bekannt und für Soll/Ist
   // oder eine Nebenkostenabrechnung auch nicht mehr relevant — null bedeutet "unbekannt", nicht
   // "vor Beginn der Zeit". Soll-Berechnung und Nebenkostenabrechnung behandeln ein unbekanntes
   // beginn wie einen beliebig weit in der Vergangenheit liegenden Termin (siehe soll-ist.ts,
   // nebenkostenabrechnung.ts).
-  beginn                   DateTime?
-  ende                     DateTime?
-  kaltmiete                Decimal           @db.Decimal(10, 2)
-  nebenkostenVorauszahlung Decimal           @db.Decimal(10, 2)
+  beginn                      DateTime?
+  ende                        DateTime?
+  kaltmiete                   Decimal           @db.Decimal(10, 2)
+  nebenkostenVorauszahlung    Decimal           @db.Decimal(10, 2)
   // Nur bei Garagen/Stellplätzen relevant: diese werden umsatzsteuerpflichtig vermietet
   // (anders als Wohnraum, der nach §4 Nr. 12 UStG umsatzsteuerfrei ist) und haben daher keine
   // Nebenkosten, aber eine Mehrwertsteuer-Vorauszahlung.
-  mehrwertsteuer           Decimal?          @db.Decimal(10, 2)
-  status                   MietvertragStatus @default(AKTIV)
+  mehrwertsteuer              Decimal?          @db.Decimal(10, 2)
+  status                      MietvertragStatus @default(AKTIV)
   // Eigener Buchhaltungs-Stichtag dieses Vertrags (z.B. weil alle Zahlungen schon seit einem früheren
   // Datum vollständig erfasst sind). null = es gilt `Objekt.buchhaltungAb`; wirksam ist immer
   // `buchhaltungAb ?? Objekt.buchhaltungAb` (siehe effektiverStichtag in src/lib/buchhaltung-stichtag.ts).
   // Nur früher als der Stichtag des Objekts zulässig (die Aktion lehnt ein gleiches/späteres Datum ab).
-  buchhaltungAb            DateTime?
+  buchhaltungAb               DateTime?
   // Endsaldo zum effektiven Stichtag dieses Vertrags (`buchhaltungAb ?? Objekt.buchhaltungAb`), also aus
   // der Zeit davor (z.B. aus einem extern — außerhalb dieser App — abgeschlossenen Jahresbericht/einer
   // Nebenkostenabrechnung für ein Jahr, das hier nie erfasst wurde). Fließt als fixer Startwert in die
   // Offene-Posten-Berechnung ein (saldo = ist - soll + saldovortrag), ohne dass das betreffende Altjahr
   // selbst nachgebildet werden muss. Wird der Stichtag des Vertrags verschoben, muss der Saldovortrag
   // zum neuen Datum passen. Negativ = Rückstand, positiv = Guthaben — gleiche Vorzeichenlogik wie der Saldo.
-  saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
+  saldovortrag                Decimal           @default(0) @db.Decimal(10, 2)
   // null = nicht erfasst.
-  zahlungsweg              Zahlungsweg?
+  zahlungsweg                 Zahlungsweg?
+  // Warnung: Die jüngsten Zahlungen im Kontoauszug sprechen für diesen Zahlungsweg statt des erfassten (gesetzt beim
+  // Import, z.B. Mieter zahlt nicht mehr über das Amt). Verschwindet beim Ändern des Zahlungswegs, bei „Übernehmen“
+  // oder wenn die Zahlungen wieder zum erfassten passen. `…Verworfen` = der Vorschlag, den der Nutzer ausgeblendet hat.
+  zahlungswegHinweis          Zahlungsweg?
+  zahlungswegHinweisVerworfen Zahlungsweg?
   // SEPA-Lastschriftmandat des Mieters (alle optional): Referenz, Gläubiger-ID, Unterschriftsdatum, Kontoinhaber, IBAN
   // des Zahlers. Reine Stammdaten zum Nachschlagen — die Einzüge selbst entstehen erst durch den Kontoauszug.
   // Werte für bestehende Mandate stammen aus den Bankzeilen der Lastschrift-Gutschriften (Unterschriftsdatum dort nicht).
-  mandatReferenz           String?
-  mandatGlaeubigerId       String?
-  mandatDatum              DateTime?
-  mandatKontoinhaber       String?
-  mandatIban               String?
-  createdAt                DateTime          @default(now())
+  mandatReferenz              String?
+  mandatGlaeubigerId          String?
+  mandatDatum                 DateTime?
+  mandatKontoinhaber          String?
+  mandatIban                  String?
+  createdAt                   DateTime          @default(now())
 
   kaution                         Kaution?
   buchungen                       Buchung[]
@@ -660,7 +665,7 @@ model Kostenart {
 
   // Zeile der Anlage V (Einkommensteuer), in die diese Kostenart in der Überleitung der
   // Jahresübersicht einfließt. NULL = automatischer Vorschlag (siehe src/lib/anlage-v.ts).
-  anlageVZeile                AnlageVZeile?
+  anlageVZeile AnlageVZeile?
 
   @@map("kostenarten")
 }
@@ -690,23 +695,23 @@ enum DienstleisterTyp {
 // vorgeschlagen; bei mehreren (oder keiner) bleibt die Kostenart offen bzw. der Verlaufs-Vorschlag
 // gilt, sofern er unter den Kostenarten des Dienstleisters liegt. Verträge liegen als Dokument (dienstleisterId) an.
 model Dienstleister {
-  id           String           @id @default(cuid())
-  typ          DienstleisterTyp @default(SONSTIGE)
-  name         String
+  id                     String           @id @default(cuid())
+  typ                    DienstleisterTyp @default(SONSTIGE)
+  name                   String
   // Kurzbeschreibung zum schnellen Finden, z.B. "Elektriker", "Aufzugswartung".
-  beschreibung    String?
-  ansprechpartner String?
-  telefon         String?
-  email           String?
-  adresse         String?
+  beschreibung           String?
+  ansprechpartner        String?
+  telefon                String?
+  email                  String?
+  adresse                String?
   // Ein Suchbegriff pro Zeile (kann leer sein = keine Auto-Zuordnung beim Import), Vergleich ohne
   // Groß-/Kleinschreibung und Umlaut-Unterschiede.
-  suchbegriffe String
-  kostenarten  Kostenart[]
-  iban         String?
-  notiz        String?
-  aktiv        Boolean     @default(true)
-  createdAt    DateTime    @default(now())
+  suchbegriffe           String
+  kostenarten            Kostenart[]
+  iban                   String?
+  notiz                  String?
+  aktiv                  Boolean          @default(true)
+  createdAt              DateTime         @default(now())
   // Verwaltungswechsel: Datum, an dem der Dienstleister über die neue Verwaltung (und das Ende der
   // alten) informiert wurde. null = noch nicht erledigt.
   verwaltungInformiertAm DateTime?
@@ -882,6 +887,10 @@ model Nebenkostenabrechnung {
   jahr              Int              @unique
   status            AbrechnungStatus @default(ENTWURF)
   erstelltAm        DateTime         @default(now())
+  // Datum, an dem die Abrechnung an die Mieter versendet wurde (unabhängig vom Status Entwurf/Final).
+  // Erst ab diesem Datum zählt die Gegenrechnung der unbezahlten NK-Vorauszahlung (berechnete Positionen)
+  // im Mietsaldo; ohne Datum gilt die Abrechnung als noch nicht versendet.
+  versendetAm       DateTime?        @db.Date
   // Manuell geführt: Positionen von Hand, "Neu berechnen" gesperrt (Berechnung nur als Live-Vergleich).
   manuell           Boolean          @default(false)
   // Mit den Gesamtflächen des Verwalters rechnen (NebenkostenQmAbweichung): die eingetragenen

@@ -44,32 +44,43 @@ export function unbezahlteNkVorauszahlung(
   return Math.round((soll - position.vorauszahlungGesamt) * 100) / 100;
 }
 
-export type BerechnetePosition = { jahr: number; zeitraumVon: Date; zeitraumBis: Date; vorauszahlungGesamt: number };
+export type BerechnetePosition = {
+  jahr: number;
+  zeitraumVon: Date;
+  zeitraumBis: Date;
+  vorauszahlungGesamt: number;
+  // Versanddatum der Abrechnung (Nebenkostenabrechnung.versendetAm); null = noch nicht versendet.
+  versendetAm: Date | null;
+};
+
+export type Gegenrechnung = { jahr: number; betrag: number; datum: Date };
 
 /**
- * Gegenrechnung je Abrechnungsjahr (nur Beträge ≠ 0) für die *berechneten* Positionen eines Vertrags.
+ * Gegenrechnung je Abrechnung (nur Beträge ≠ 0) für die *berechneten* Positionen eines Vertrags, jeweils mit
+ * dem Datum, ab dem sie gilt: dem Versanddatum der Abrechnung. Nicht versendete Abrechnungen haben keine.
  *
- * Sie gehört zum Mietsaldo: Die unbezahlte NK-Vorauszahlung steht dort als Rückstand, ist aber nach
- * der Abrechnung nicht mehr geschuldet (die Abrechnung vergleicht die Kosten nur mit der gezahlten
- * Vorauszahlung). Eine Abrechnung für das Jahr Y zählt zum Saldo, sobald der Stichtag in einem späteren
- * Jahr liegt (siehe `gegenrechnungVorJahr`); gespeichert wird nichts, der Wert ändert sich mit
+ * Sie gehört zum Mietsaldo: Die unbezahlte NK-Vorauszahlung steht dort als Rückstand, ist aber erst mit der
+ * Abrechnung nicht mehr geschuldet (die Abrechnung vergleicht die Kosten nur mit der gezahlten
+ * Vorauszahlung) — davor besteht der Rückstand tatsächlich. Deshalb zählt sie ab dem Versanddatum
+ * (`gegenrechnungBis`), nicht schon ab Jahresanfang; gespeichert wird nichts, der Wert ändert sich mit
  * „Neu berechnen“ und den Zahlungen.
  */
 export function gegenrechnungenJeJahr(
   vertrag: Pick<MietvertragFuerSollIst, "kaltmiete" | "nebenkostenVorauszahlung" | "mieterhoehungen">,
   positionen: BerechnetePosition[],
   buchhaltungAb: Date | null,
-): { jahr: number; betrag: number }[] {
-  const liste: { jahr: number; betrag: number }[] = [];
+): Gegenrechnung[] {
+  const liste: Gegenrechnung[] = [];
   for (const p of positionen) {
+    if (!p.versendetAm) continue;
     const betrag = unbezahlteNkVorauszahlung(vertrag, p, buchhaltungAb);
-    if (betrag !== 0) liste.push({ jahr: p.jahr, betrag });
+    if (betrag !== 0) liste.push({ jahr: p.jahr, betrag, datum: p.versendetAm });
   }
-  return liste.sort((a, b) => a.jahr - b.jahr);
+  return liste.sort((a, b) => a.datum.getTime() - b.datum.getTime() || a.jahr - b.jahr);
 }
 
-/** Summe der Gegenrechnungen aller Abrechnungsjahre vor `jahr` (Abrechnungsjahr < jahr), cent-genau. */
-export function gegenrechnungVorJahr(liste: { jahr: number; betrag: number }[], jahr: number): number {
-  const summe = liste.filter((g) => g.jahr < jahr).reduce((s, g) => s + g.betrag, 0);
+/** Summe der Gegenrechnungen, die am Stichtag schon gelten (Versanddatum ≤ Stichtag), cent-genau. */
+export function gegenrechnungBis(liste: { betrag: number; datum: Date }[], stichtag: Date): number {
+  const summe = liste.filter((g) => g.datum <= stichtag).reduce((s, g) => s + g.betrag, 0);
   return Math.round(summe * 100) / 100 || 0;
 }

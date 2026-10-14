@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { ladeNkGegenrechnungen } from "@/lib/nk-gegenrechnung";
-import { gegenrechnungVorJahr } from "@/lib/nk-saldo";
+import { gegenrechnungBis } from "@/lib/nk-saldo";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc } from "@/lib/ticket";
@@ -103,10 +103,10 @@ export default async function DashboardPage() {
     })),
     mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
   });
-  // Wie in den Offenen Posten: unbezahlte NK-Vorauszahlung abgeschlossener Abrechnungen ist kein Rückstand.
+  // Wie in den Offenen Posten: unbezahlte NK-Vorauszahlung versendeter Abrechnungen ist kein Rückstand.
   const gegenrechnungen = await ladeNkGegenrechnungen(
     abrechenbareVertraege.map((v) => ({ id: v.id, vertrag: sollIstDaten(v), buchhaltungAb: effektiverStichtag(v, objekt) })),
-    heute.getFullYear() - 1,
+    heute,
   );
   const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
     const buchhaltungAb = effektiverStichtag(v, objekt);
@@ -122,7 +122,7 @@ export default async function DashboardPage() {
     );
     const saldo =
       ist - soll + Number(v.saldovortrag) - (sonderforderungen.get(v.id)?.offen ?? 0) +
-      gegenrechnungVorJahr(gegenrechnungen.get(v.id) ?? [], heute.getFullYear());
+      gegenrechnungBis(gegenrechnungen.get(v.id) ?? [], heute);
     return sum + Math.min(saldo, 0);
   }, 0);
 

@@ -1,12 +1,13 @@
 import { prisma } from "./prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { gegenrechnungenJeJahr } from "./nk-saldo";
+import { gegenrechnungenJeJahr, type Gegenrechnung } from "./nk-saldo";
 import type { MietvertragFuerSollIst } from "./soll-ist";
 
 /**
  * Gegenrechnungen der unbezahlten NK-Vorauszahlung (siehe `gegenrechnungenJeJahr`) für viele Verträge in
  * einer Abfrage — für Offene Posten und Dashboard. Es werden nur berechnete Positionen (`details` gesetzt)
- * geladen, und `details` selbst bleibt in der Datenbank (nur der Filter läuft dort).
+ * versendeter Abrechnungen (Versanddatum bis zum Stichtag `bis`) geladen, und `details` selbst bleibt in der
+ * Datenbank (nur der Filter läuft dort).
  */
 export async function ladeNkGegenrechnungen(
   vertraege: {
@@ -14,20 +15,20 @@ export async function ladeNkGegenrechnungen(
     vertrag: Pick<MietvertragFuerSollIst, "kaltmiete" | "nebenkostenVorauszahlung" | "mieterhoehungen">;
     buchhaltungAb: Date | null;
   }[],
-  abrechnungsjahrBis: number,
-): Promise<Map<string, { jahr: number; betrag: number }[]>> {
+  bis: Date,
+): Promise<Map<string, Gegenrechnung[]>> {
   const positionen = await prisma.nebenkostenabrechnungPosition.findMany({
     where: {
       mietvertragId: { in: vertraege.map((v) => v.id) },
       NOT: { details: { equals: Prisma.DbNull } },
-      abrechnung: { jahr: { lte: abrechnungsjahrBis } },
+      abrechnung: { versendetAm: { not: null, lte: bis } },
     },
     select: {
       mietvertragId: true,
       zeitraumVon: true,
       zeitraumBis: true,
       vorauszahlungGesamt: true,
-      abrechnung: { select: { jahr: true } },
+      abrechnung: { select: { jahr: true, versendetAm: true } },
     },
   });
   const nachVertrag = new Map<string, typeof positionen>();
@@ -37,7 +38,7 @@ export async function ladeNkGegenrechnungen(
     l.push(p);
     nachVertrag.set(p.mietvertragId, l);
   }
-  const ergebnis = new Map<string, { jahr: number; betrag: number }[]>();
+  const ergebnis = new Map<string, Gegenrechnung[]>();
   for (const v of vertraege) {
     const liste = gegenrechnungenJeJahr(
       v.vertrag,
@@ -46,6 +47,7 @@ export async function ladeNkGegenrechnungen(
         zeitraumVon: p.zeitraumVon,
         zeitraumBis: p.zeitraumBis,
         vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+        versendetAm: p.abrechnung.versendetAm,
       })),
       v.buchhaltungAb,
     );
