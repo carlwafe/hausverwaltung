@@ -1177,3 +1177,34 @@ model TicketKosten {
   @@index([buchungId])
   @@map("ticket_kosten")
 }
+
+// Darlehen der Vermieterin mit nachgerechnetem Tilgungsplan (Seite „Tilgungspläne“). Die Bank zeigt in ihrem Plan ab
+// einem Stichtag nur noch Jahressummen; aus Ausgangsstand, Zinssatz und Rate lässt sich jede Rate auf den Cent
+// nachrechnen (src/lib/tilgungsplan.ts). Reine Auskunft: keine Buchungen, keine Wirkung auf Kostenpositionen.
+model Darlehen {
+  id              String    @id @default(cuid())
+  bezeichnung     String
+  darlehensnummer String?
+  bank            String?
+  darlehensbetrag Decimal   @db.Decimal(14, 2)
+  // Restschuld nach der letzten bekannten Rate und ihr Stichtag („Kapitalstand“ im Plan der Bank oder Saldo laut
+  // Saldenmitteilung); die erste berechnete Rate ist der erste Zahltag danach.
+  startRestschuld Decimal   @db.Decimal(14, 2)
+  startDatum      DateTime  @db.Date
+  rate            Decimal   @db.Decimal(12, 2)
+  zinssatz        Decimal   @db.Decimal(7, 4)
+  zahltag         Int       @default(15)
+  zinsbindungBis  DateTime? @db.Date
+  laufzeitEnde    DateTime? @db.Date
+  // Änderungen von Zinssatz/Rate im Lauf: [{ "ab": "2025-03-01", "zinssatz": 3.89, "rate": 2130.43 }] (rate optional).
+  stufen          Json?
+  // Jahreswerte laut Zins-/Saldenbescheinigung der Bank zur Kontrolle: [{ "jahr": 2025, "zinsen": 900.70, "tilgung": 10687.94, "restschuld": 47491.21 }].
+  bankwerte       Json?
+  bemerkung       String?
+  aktiv           Boolean   @default(true)
+  erstelltVon     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("darlehen")
+}
