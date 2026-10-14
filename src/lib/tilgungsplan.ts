@@ -156,22 +156,6 @@ export function jahressummen(raten: Rate[]): Jahressumme[] {
   return [...map.values()].sort((a, b) => a.jahr - b.jahr);
 }
 
-/** Summe der Raten mit Zahltag von … bis … (beide einschließlich). */
-export function summiereZeitraum(raten: Rate[], von: Date, bis: Date): { rate: number; zins: number; tilgung: number; anzahl: number } {
-  let rate = 0;
-  let zins = 0;
-  let tilgung = 0;
-  let anzahl = 0;
-  for (const r of raten) {
-    if (r.datum.getTime() < von.getTime() || r.datum.getTime() > bis.getTime()) continue;
-    rate += r.rate;
-    zins += r.zins;
-    tilgung += r.tilgung;
-    anzahl++;
-  }
-  return { rate: cent(rate), zins: cent(zins), tilgung: cent(tilgung), anzahl };
-}
-
 /** Restschuld nach der letzten Rate mit Zahltag bis einschließlich `stichtag` (vor der ersten Rate: der Ausgangsstand). */
 export function restschuldAm(e: Pick<TilgungsplanEingabe, "startRestschuld">, raten: Rate[], stichtag: Date): number {
   let rest = e.startRestschuld;

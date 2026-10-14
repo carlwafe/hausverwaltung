@@ -3,12 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { formatEuro } from "@/lib/dokumente-anzeige";
 import { DeleteButton } from "@/components/delete-button";
-import { DateInput } from "@/components/date-input";
 import {
   berechneTilgungsplan,
   jahressummen,
   restschuldAm,
-  summiereZeitraum,
   vergleicheMitBank,
   type Bankwert,
   type TilgungsplanEingabe,
@@ -17,7 +15,7 @@ import {
 import { DarlehenForm, type DarlehenFormWerte } from "./darlehen-form";
 import { loescheDarlehen } from "./actions";
 
-type Suche = { darlehen?: string; jahr?: string; neu?: string; bearbeiten?: string; von?: string; bis?: string };
+type Suche = { darlehen?: string; jahr?: string; neu?: string; bearbeiten?: string };
 
 const datumText = (d: Date) => new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(d);
 const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
@@ -90,14 +88,6 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
   const jahre = [...alleJahre].sort((a, b) => a - b);
   const jahr = jahre.includes(Number(sp.jahr)) ? Number(sp.jahr) : heute.getUTCFullYear();
   const gewaehlt = plaene.find((p) => p.d.id === sp.darlehen);
-
-  // Zeitraumsumme (z.B. Zinsen vor dem Wechsel der Darlehen aufs Mietkonto)
-  const gueltigesDatum = (t: string | undefined) => (t && /^\d{4}-\d{2}-\d{2}$/.test(t) && !Number.isNaN(new Date(`${t}T00:00:00Z`).getTime()) ? t : null);
-  const vonIso = gueltigesDatum(sp.von) ?? `${jahr}-01-01`;
-  const bisIso = gueltigesDatum(sp.bis) ?? (jahr === 2026 ? "2026-10-31" : `${jahr}-12-31`);
-  const von = new Date(`${vonIso}T00:00:00Z`);
-  const bis = new Date(`${bisIso}T00:00:00Z`);
-  const zeitraum = aktive.map((p) => ({ p, s: summiereZeitraum(p.raten, von, bis) }));
 
   const jahrZeilen = aktive.map((p) => {
     const s = p.summen.find((x) => x.jahr === jahr);
@@ -198,52 +188,6 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
             Bank (Steuererklärung nach Zahlungsdatum). Die Spalte „Bank“ vergleicht mit den eingetragenen Jahreswerten
             der Bescheinigung.
           </p>
-
-          <section className="mt-8">
-            <h2 className="text-lg font-medium text-white">Zinsen im Zeitraum</h2>
-            <p className="mt-1 max-w-3xl text-sm text-neutral-400">
-              Summe der Raten mit Zahltag im gewählten Zeitraum, z.B. für die Zinsen, die vor dem Wechsel der Darlehen
-              aufs Mietkonto (seit November 2026) von einem anderen Konto gezahlt wurden: Das ist der Jahreswert für
-              „Zinsen von anderen Konten“ unter Finanzen → Darlehen.
-            </p>
-            <form action="/darlehen/tilgungsplan" method="get" className="mt-3 flex flex-wrap items-end gap-3">
-              <input type="hidden" name="jahr" value={jahr} />
-              {gewaehlt && <input type="hidden" name="darlehen" value={gewaehlt.d.id} />}
-              <DateInput name="von" label="Von" labelClassName="mb-1 block text-xs text-neutral-400" defaultValue={vonIso} />
-              <DateInput name="bis" label="Bis" labelClassName="mb-1 block text-xs text-neutral-400" defaultValue={bisIso} />
-              <button type="submit" className="rounded-md border border-neutral-700 px-4 py-2 text-sm text-white hover:bg-neutral-900">Rechnen</button>
-            </form>
-            <div className="mt-3 max-w-3xl overflow-auto rounded-lg border border-neutral-800">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-neutral-400">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Darlehen</th>
-                    <th className={kopf}>Raten</th>
-                    <th className={kopf}>Zinsen</th>
-                    <th className={kopf}>Tilgung</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {zeitraum.map(({ p, s }) => (
-                    <tr key={p.d.id} className="border-t border-neutral-800">
-                      <td className="px-4 py-2 text-neutral-200">{p.d.bezeichnung}</td>
-                      <td className={zelle}>{s.anzahl}</td>
-                      <td className={zelle}>{formatEuro(s.zins)}</td>
-                      <td className={zelle}>{formatEuro(s.tilgung)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-neutral-700 font-medium">
-                    <td className="px-4 py-2 text-white">Summe {datumText(von)} – {datumText(bis)}</td>
-                    <td />
-                    <td className={zelle}>{formatEuro(Math.round(zeitraum.reduce((s, z) => s + z.s.zins, 0) * 100) / 100)}</td>
-                    <td className={zelle}>{formatEuro(Math.round(zeitraum.reduce((s, z) => s + z.s.tilgung, 0) * 100) / 100)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </section>
 
           {gewaehlt ? <Einzelplan p={gewaehlt} stufen={gewaehlt.e.stufen} jahr={jahr} kannBearbeiten={kannBearbeiten} /> : <p className="mt-8 text-sm text-neutral-400">Darlehen in der Tabelle anklicken, um alle Raten zu sehen.</p>}
 
