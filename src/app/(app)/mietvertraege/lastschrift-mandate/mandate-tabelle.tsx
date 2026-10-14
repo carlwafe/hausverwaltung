@@ -62,6 +62,18 @@ const columns: Column<MandatZeile>[] = [
     ),
   },
   {
+    key: "zahler",
+    label: "Zahlt die Miete",
+    title: "Aus dem Zahlernamen der Mietzahlungen der letzten 12 Monate (nur bei Verträgen ohne erfasstes Mandat)",
+    render: (z) =>
+      z.zahlerText ? (
+        <span className={z.zahler === "AMT" ? "text-amber-300" : "text-neutral-300"}>{z.zahlerText}</span>
+      ) : (
+        leer
+      ),
+    sortValue: (z) => z.zahlerText ?? "",
+  },
+  {
     key: "zahlungsweg",
     label: "Zahlungsweg",
     render: (z) => (wegText(z.zahlungsweg) ? <span className="text-neutral-300">{wegText(z.zahlungsweg)}</span> : <span className="text-xs text-neutral-500">nicht erfasst</span>),
@@ -90,19 +102,21 @@ const selectKlasse =
   "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
 
 type Ansicht = "alle" | "LASTSCHRIFT" | "UEBERWEISUNG" | "offen";
-type MandatAnsicht = "ohne" | "mit" | "alle";
+type MandatAnsicht = "ohne-selbst" | "ohne-amt" | "mit" | "alle";
 
 export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
   const [ansicht, setAnsicht] = useState<Ansicht>("alle");
-  // Standard: nur Verträge ohne erfasstes Mandat — nur für diese kommt ein neues Mandat überhaupt in Frage.
-  const [mandatAnsicht, setMandatAnsicht] = useState<MandatAnsicht>("ohne");
+  // Standard: nur Verträge ohne erfasstes Mandat, deren Miete der Mieter selbst zahlt — nur für diese kommt ein neues
+  // Mandat in Frage. Verträge, die Jobcenter/Kreis zahlen, stehen im eigenen Filter.
+  const [mandatAnsicht, setMandatAnsicht] = useState<MandatAnsicht>("ohne-selbst");
   const [auswahl, setAuswahl] = useState<MandatZeile[]>([]);
 
   const rows = useMemo(
     () =>
       alle.filter((z) => {
-        if (mandatAnsicht === "ohne" && z.mandatReferenz) return false;
         if (mandatAnsicht === "mit" && !z.mandatReferenz) return false;
+        if (mandatAnsicht === "ohne-selbst" && (z.mandatReferenz || z.zahler === "AMT")) return false;
+        if (mandatAnsicht === "ohne-amt" && (z.mandatReferenz || z.zahler !== "AMT")) return false;
         if (ansicht === "alle") return true;
         if (ansicht === "offen") return z.zahlungsweg === null;
         return z.zahlungsweg === ansicht;
@@ -120,7 +134,8 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
         <label className="flex items-center gap-2">
           Mandat
           <select value={mandatAnsicht} onChange={(e) => setMandatAnsicht(e.target.value as MandatAnsicht)} className={selectKlasse}>
-            <option value="ohne">ohne erfasstes Mandat</option>
+            <option value="ohne-selbst">ohne Mandat – Mieter zahlt selbst</option>
+            <option value="ohne-amt">ohne Mandat – Jobcenter / Kreis zahlt</option>
             <option value="mit">mit erfasstem Mandat</option>
             <option value="alle">alle</option>
           </select>
@@ -161,7 +176,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
         rows={rows}
         selectable
         onSelectionChange={setAuswahl}
-        emptyMessage={mandatAnsicht === "ohne" ? "Keine Verträge ohne erfasstes Mandat." : "Keine Mietverträge."}
+        emptyMessage="Keine Mietverträge in dieser Auswahl."
         defaultSort={{ key: "einheit" }}
       />
     </>

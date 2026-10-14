@@ -2,7 +2,7 @@ import { ladeMandatZeilen } from "@/lib/mandat-laden";
 import { MandateTabelle } from "./mandate-tabelle";
 
 export default async function LastschriftMandatePage() {
-  const zeilen = await ladeMandatZeilen({ status: { in: ["AKTIV", "GEPLANT"] } });
+  const zeilen = await ladeMandatZeilen({ status: { in: ["AKTIV", "GEPLANT"] } }, true);
 
   return (
     <div>
@@ -22,7 +22,9 @@ export default async function LastschriftMandatePage() {
             deshalb gültig — dafür ist <strong>kein neues Mandat</strong> nötig. Referenz, Gläubiger-ID und IBAN stehen
             am Mietvertrag (Abschnitt „Vertragsdaten“). Ein neues Mandat brauchen nur Mieter ohne Mandat
             (Überweiser, die auf Lastschrift umstellen, neue Verträge) oder bei geänderter Gläubigerin bzw. geänderter
-            Gläubiger-Kontoverbindung. Standardmäßig zeigt die Liste deshalb nur Verträge ohne erfasstes Mandat.
+            Gläubiger-Kontoverbindung. Standardmäßig zeigt die Liste deshalb nur Verträge ohne erfasstes Mandat, bei
+            denen der Mieter die Miete selbst zahlt; Verträge, die Jobcenter oder Kreis Ostholstein bezahlt (Zahler aus den
+            Mietzahlungen der letzten 12 Monate), stehen in einem eigenen Filter.
           </p>
         </div>
       </div>
