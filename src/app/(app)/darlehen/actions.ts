@@ -30,16 +30,40 @@ function parseBetrag(text: string): number {
 export const speichereSchuldzinsenJahreswert = mitMeldung(async function speichereSchuldzinsenJahreswert(formData: FormData) {
   const user = await requireEditor();
   const jahr = Number(formData.get("jahr"));
-  const bezeichnung = String(formData.get("bezeichnung") ?? "").trim();
+  const darlehenId = String(formData.get("darlehenId") ?? "");
   const betrag = parseBetrag(String(formData.get("betrag") ?? ""));
   const bemerkung = String(formData.get("bemerkung") ?? "").trim();
+  const monat = (name: string) => {
+    const roh = String(formData.get(name) ?? "");
+    return roh === "" ? null : Number(roh);
+  };
+  const vonMonat = monat("vonMonat");
+  const bisMonat = monat("bisMonat");
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) throw new AktionsFehler("Ungültiges Jahr.");
-  if (!bezeichnung) throw new AktionsFehler("Bitte eine Bezeichnung angeben (z.B. das Darlehen).");
-  if (bezeichnung.length > 100) throw new AktionsFehler("Die Bezeichnung ist zu lang (höchstens 100 Zeichen).");
+  if (!darlehenId) throw new AktionsFehler("Bitte ein Darlehen wählen.");
   if (!Number.isFinite(betrag) || betrag <= 0) throw new AktionsFehler("Der Betrag muss größer als 0 sein.");
   if (bemerkung.length > 200) throw new AktionsFehler("Die Bemerkung ist zu lang (höchstens 200 Zeichen).");
-  await prisma.schuldzinsenJahreswert.create({
-    data: { jahr, bezeichnung, betrag: Math.round(betrag * 100) / 100, bemerkung: bemerkung || null, erstelltVon: benutzerLabel(user) },
+  if ((vonMonat === null) !== (bisMonat === null)) throw new AktionsFehler("Zeitraum: bitte „von“ und „bis“ angeben oder beides leer lassen.");
+  if (vonMonat !== null && bisMonat !== null) {
+    const ok = [vonMonat, bisMonat].every((m) => Number.isInteger(m) && m >= 1 && m <= 12) && vonMonat <= bisMonat;
+    if (!ok) throw new AktionsFehler("Zeitraum: „von“ darf nicht nach „bis“ liegen.");
+  }
+  const darlehen = await prisma.darlehen.findUnique({ where: { id: darlehenId }, select: { id: true, bezeichnung: true } });
+  if (!darlehen) throw new AktionsFehler("Das Darlehen gibt es nicht mehr.");
+
+  const daten = {
+    bezeichnung: darlehen.bezeichnung,
+    betrag: Math.round(betrag * 100) / 100,
+    vonMonat,
+    bisMonat,
+    bemerkung: bemerkung || null,
+    erstelltVon: benutzerLabel(user),
+  };
+  // Höchstens ein Eintrag je Darlehen und Jahr: ein weiterer Eintrag für dasselbe Darlehen ersetzt den vorhandenen.
+  await prisma.schuldzinsenJahreswert.upsert({
+    where: { darlehenId_jahr: { darlehenId, jahr } },
+    create: { jahr, darlehenId, ...daten },
+    update: daten,
   });
   revalidatePath("/darlehen");
   revalidatePath("/jahresuebersicht");

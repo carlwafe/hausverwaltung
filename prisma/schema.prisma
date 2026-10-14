@@ -239,12 +239,21 @@ model BuchungKommentar {
 model SchuldzinsenJahreswert {
   id          String   @id @default(cuid())
   jahr        Int
+  // Das Darlehen (Seite „Darlehen & Tilgungspläne“); höchstens ein Eintrag je Darlehen und Jahr. Ohne Darlehen
+  // (Altbestand, gelöschtes Darlehen) bleibt nur die Bezeichnung (bezeichnung = Name des Darlehens
+  // zum Zeitpunkt des Speicherns).
+  darlehen    Darlehen? @relation(fields: [darlehenId], references: [id], onDelete: SetNull)
+  darlehenId  String?
   bezeichnung String
   betrag      Decimal  @db.Decimal(12, 2)
+  // Zeitraum der Raten (Monate 1–12), deren Zinsen der Betrag umfasst — aus dem Tilgungsplan vorgeschlagen, nur zur Anzeige.
+  vonMonat    Int?
+  bisMonat    Int?
   bemerkung   String?
   erstelltVon String?
   erstelltAm  DateTime @default(now())
 
+  @@unique([darlehenId, jahr])
   @@index([jahr])
   @@map("schuldzinsen_jahreswerte")
 }
@@ -1205,6 +1214,8 @@ model Darlehen {
   erstelltVon     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  schuldzinsenJahreswerte SchuldzinsenJahreswert[]
 
   @@map("darlehen")
 }

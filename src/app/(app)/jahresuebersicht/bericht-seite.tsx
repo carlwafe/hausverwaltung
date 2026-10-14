@@ -26,6 +26,7 @@ import {
 import { ladeAfaPositionen } from "@/lib/afa-positionen";
 import { afaEinzelposten } from "@/lib/aufstellung-export";
 import { teileMietzahlungen } from "@/lib/miete-aufteilung";
+import { zeitraumText } from "@/lib/darlehen-zinsen";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 
 function formatEuro(value: number) {
@@ -117,7 +118,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   const schuldzinsenAndereEintraege = schuldzinsenAndereRoh.map((e) => ({
     bezeichnung: e.bezeichnung,
     betrag: Number(e.betrag),
-    bemerkung: e.bemerkung,
+    bemerkung: [zeitraumText(e.vonMonat, e.bisMonat), e.bemerkung].filter(Boolean).join(" · ") || null,
   }));
 
   let mieteinnahmen = 0;

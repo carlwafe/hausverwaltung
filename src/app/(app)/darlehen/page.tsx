@@ -6,7 +6,9 @@ import { getCurrentUser } from "@/lib/session";
 import { formatEuro } from "@/lib/dokumente-anzeige";
 import { DeleteButton } from "@/components/delete-button";
 import { loescheDarlehensrate, loescheSchuldzinsenJahreswert } from "./actions";
-import { JahreswertForm } from "./jahreswert-form";
+import { JahreswertForm, type JahreswertDarlehen } from "./jahreswert-form";
+import { zeitraumText, zinsenJeMonat } from "@/lib/darlehen-zinsen";
+import type { Bankwert, Zinsstufe } from "@/lib/tilgungsplan";
 
 type Rate = {
   id: string;
@@ -27,7 +29,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
   const user = await getCurrentUser();
   const kannBearbeiten = !!user && user.role !== "GAST";
 
-  const [tilgungen, zinsen, jahreswerte] = await Promise.all([
+  const [tilgungen, zinsen, jahreswerte, darlehenListe] = await Promise.all([
     prisma.buchung.findMany({
       where: { buchungsart: { code: DARLEHEN_BUCHUNGSART }, datum: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
@@ -37,6 +39,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true, bezugTyp: true, bezugId: true },
     }),
     prisma.schuldzinsenJahreswert.findMany({ orderBy: [{ jahr: "desc" }, { erstelltAm: "asc" }] }),
+    prisma.darlehen.findMany({ where: { aktiv: true }, orderBy: { bezeichnung: "asc" } }),
   ]);
 
   const zinsZuTilgung = new Map<string, (typeof zinsen)[number]>();
@@ -79,6 +82,39 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
   const werteImJahr = jahreswerte.filter((j) => j.jahr === jahr);
   const summeAndere = werteImJahr.reduce((s, j) => s + Number(j.betrag), 0);
 
+  // Darlehen der Stammdaten für das Formular: Zinsen je Monat laut Tilgungsplan, Bankwert des Jahres, vorhandener Eintrag.
+  const formDarlehen: JahreswertDarlehen[] = darlehenListe.map((d) => {
+    const bank = ((d.bankwerte as Bankwert[] | null) ?? []).find((b) => b.jahr === jahr)?.zinsen ?? null;
+    const vorhanden = werteImJahr.find((j) => j.darlehenId === d.id);
+    return {
+      id: d.id,
+      label: [d.bezeichnung, d.bank, d.darlehensnummer].filter(Boolean).join(" · "),
+      monate: zinsenJeMonat(
+        {
+          startRestschuld: Number(d.startRestschuld),
+          startDatum: d.startDatum,
+          rate: Number(d.rate),
+          zinssatz: Number(d.zinssatz),
+          zahltag: d.zahltag,
+          laufzeitEnde: d.laufzeitEnde,
+          zinsbindungBis: d.zinsbindungBis,
+          stufen: (d.stufen as Zinsstufe[] | null) ?? [],
+        },
+        jahr,
+      ),
+      bankZinsen: bank,
+      vorhanden: vorhanden ? { betrag: Number(vorhanden.betrag), vonMonat: vorhanden.vonMonat, bisMonat: vorhanden.bisMonat } : null,
+    };
+  });
+  // Vorgeschlagenes Ende des Zeitraums: der Monat vor der ersten Rate über das Mietkonto in diesem Jahr (ohne Rate: Dezember).
+  const ersteMietkontoRate = imJahr.length > 0 ? Math.min(...imJahr.map((r) => r.datum.getUTCMonth() + 1)) : null;
+  const standardBis = ersteMietkontoRate ? Math.max(ersteMietkontoRate - 1, 1) : 12;
+  // Kontrolle gegen die Zinsbescheinigungen der Stammdaten (nur wenn für alle aktiven Darlehen ein Wert des Jahres erfasst ist).
+  const bankWerte = formDarlehen.map((d) => d.bankZinsen).filter((z): z is number => z !== null);
+  const bankSumme = bankWerte.reduce((a, b) => a + b, 0);
+  const bankVollstaendig = formDarlehen.length > 0 && bankWerte.length === formDarlehen.length;
+  const gesamtZinsen = Math.round((summeZins + summeAndere) * 100) / 100;
+  const bankDifferenz = Math.round((gesamtZinsen - bankSumme) * 100) / 100;
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -180,11 +216,11 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
         <h2 className="text-lg font-medium text-white">Zinsen von anderen Konten {jahr} (laut Bankbescheinigung)</h2>
         <p className="mt-1 max-w-3xl text-sm text-neutral-400">
           Darlehensraten, die nicht über das Mietkonto gezahlt wurden (z.B. von einem anderen Konto vor dem Wechsel),
-          gehören nicht ins Journal. Hier trägst du nur ihren <span className="text-neutral-200">Zinsanteil</span> als
-          Jahreswert ein, je Darlehen einen Eintrag — die Zinsen erscheinen dann in der „Aufstellung für die
-          Steuererklärung“ (Jahresübersicht), ohne Kontostand oder Kontenabgleich zu berühren. Trage <span className="text-neutral-200">nur
-          die nicht über das Mietkonto gezahlten Zinsen</span> ein: Bescheinigung der Bank minus die Zinsen oben,
-          sonst zählen sie doppelt.
+          gehören nicht ins Journal. Hier wählst du das Darlehen und den Zeitraum der Raten — der Zinsbetrag wird aus dem
+          Tilgungsplan der Stammdaten vorgeschlagen und lässt sich überschreiben. Je Darlehen und Jahr gibt es einen
+          Eintrag; die Zinsen erscheinen in der „Aufstellung für die Steuererklärung“ (Jahresübersicht), ohne Kontostand
+          oder Kontenabgleich zu berühren. Nur Zinsen eintragen, die <span className="text-neutral-200">nicht über das
+          Mietkonto</span> gezahlt wurden, sonst zählen sie doppelt.
         </p>
         {werteImJahr.length > 0 && (
           <div className="mt-3 max-w-3xl overflow-auto rounded-lg border border-neutral-800">
@@ -194,7 +230,11 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
                   <tr key={j.id} className="border-b border-neutral-800 last:border-b-0">
                     <td className="px-4 py-2 text-white">
                       {j.bezeichnung}
-                      {j.bemerkung && <span className="ml-2 text-xs text-neutral-500">{j.bemerkung}</span>}
+                      {[zeitraumText(j.vonMonat, j.bisMonat), j.bemerkung].filter(Boolean).length > 0 && (
+                        <span className="ml-2 text-xs text-neutral-500">
+                          {[zeitraumText(j.vonMonat, j.bisMonat), j.bemerkung].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(Number(j.betrag))}</td>
                     <td className="px-4 py-2 text-right">
@@ -212,12 +252,27 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
             </table>
           </div>
         )}
-        {kannBearbeiten && <JahreswertForm jahr={jahr} />}
+        {kannBearbeiten && <JahreswertForm key={jahr} jahr={jahr} darlehen={formDarlehen} standardBis={standardBis} />}
         <p className="mt-4 max-w-3xl text-sm text-neutral-400">
           Kontrolle: Zinsen {jahr} gesamt = {formatEuro(summeZins)} (Mietkonto) + {formatEuro(summeAndere)} (andere
-          Konten) = <span className="font-medium text-white">{formatEuro(summeZins + summeAndere)}</span> — das muss
+          Konten) = <span className="font-medium text-white">{formatEuro(gesamtZinsen)}</span> — das muss
           der Summe der Bankbescheinigung für alle Darlehen entsprechen.
         </p>
+        {bankVollstaendig ? (
+          <p className={`mt-1 max-w-3xl text-sm ${Math.abs(bankDifferenz) < 0.05 ? "text-green-400" : "text-amber-400"}`}>
+            Laut Bankbescheinigung (Stammdaten): {formatEuro(bankSumme)} —{" "}
+            {Math.abs(bankDifferenz) < 0.05
+              ? "stimmt überein."
+              : `Differenz ${formatEuro(bankDifferenz)} (${bankDifferenz > 0 ? "zu viel erfasst" : "noch nicht erfasst"}).`}
+          </p>
+        ) : (
+          formDarlehen.length > 0 && (
+            <p className="mt-1 max-w-3xl text-sm text-neutral-500">
+              Zinsen {jahr} laut Bescheinigung sind in den Stammdaten für {bankWerte.length} von {formDarlehen.length} Darlehen
+              erfasst — mit allen erfassten Werten vergleicht die Seite automatisch.
+            </p>
+          )
+        )}
       </section>
     </div>
   );
