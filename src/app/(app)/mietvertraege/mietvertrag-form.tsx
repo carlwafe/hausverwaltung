@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
+import { ZAHLUNGSWEG_LABEL, type ZahlungswegArt } from "@/lib/zahlungsweg-anzeige";
 
 type Option = { id: string; label: string };
 type EinheitOption = Option & { typ: "WOHNUNG" | "GARAGE" };
@@ -43,6 +44,7 @@ export function MietvertragForm({
   initial,
   objektStichtag = "",
   mieterMitWohnung = [],
+  zahlungswegVorschlag = "",
   action,
 }: {
   einheiten: EinheitOption[];
@@ -52,6 +54,8 @@ export function MietvertragForm({
   objektStichtag?: string;
   // IDs der Mieter mit laufendem/geplantem Wohnungsvertrag (für den MwSt-Hinweis bei Garagen).
   mieterMitWohnung?: string[];
+  // Zahlungsweg, den die Ableitung aus den Kontoauszugs-Zeilen vorschlägt ("" = nicht eindeutig).
+  zahlungswegVorschlag?: string;
   action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -289,12 +293,22 @@ export function MietvertragForm({
           <option value="">– nicht erfasst –</option>
           <option value="LASTSCHRIFT">SEPA-Lastschrift</option>
           <option value="UEBERWEISUNG">Überweisung / Dauerauftrag</option>
+          <option value="BEHOERDE">Amt zahlt (Jobcenter, Kreis)</option>
         </select>
         <p className="mt-1 text-xs text-neutral-400">
-          Aus dem Kontoauszug ableiten: Lastschrift nur, wenn die letzten Mieten durchgängig
-          eingezogen wurden. Bei gemischten Zahlungen (Einzug, Rücklastschrift, dann
-          Dauerauftrag) „Überweisung“ wählen oder offen lassen und von Hand entscheiden.
+          Beim Kontoauszug-Import trägt die App den Zahlungsweg selbst ein, wenn noch keiner erfasst ist und
+          die letzten Zahlungen eindeutig sind (Lastschrift, Überweisung oder Zahlung durch Jobcenter/Kreis).
+          Bei gemischten Zahlungen (Einzug, Rücklastschrift, dann Dauerauftrag; Amt zahlt nur einen Teil) bleibt das
+          Feld offen und wird von Hand entschieden.
         </p>
+        {zahlungswegVorschlag && zahlungswegVorschlag !== zahlungsweg && (
+          <p className="mt-1 text-xs text-amber-400">
+            Vorschlag aus den letzten Zahlungen im Kontoauszug: {ZAHLUNGSWEG_LABEL[zahlungswegVorschlag as ZahlungswegArt] ?? zahlungswegVorschlag}.{" "}
+            <button type="button" onClick={() => setZahlungsweg(zahlungswegVorschlag)} className="underline hover:text-amber-300">
+              Übernehmen
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="rounded-md border border-neutral-800 p-4">

@@ -38,7 +38,7 @@ const mietvertragSchema = z
     kautionEinzahlungUnbekannt: z.coerce.boolean().optional(),
     saldovortrag: z.coerce.number().optional().default(0),
     buchhaltungAb: optionalesDatum(),
-    zahlungsweg: z.enum(["LASTSCHRIFT", "UEBERWEISUNG"]).optional(),
+    zahlungsweg: z.enum(["LASTSCHRIFT", "UEBERWEISUNG", "BEHOERDE"]).optional(),
     mandatReferenz: z.string().trim().max(35, "Mandatsreferenz: höchstens 35 Zeichen").optional(),
     mandatGlaeubigerId: z.string().optional(),
     mandatDatum: optionalesDatum(),

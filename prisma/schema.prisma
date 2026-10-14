@@ -70,6 +70,8 @@ enum Anrede {
 enum Zahlungsweg {
   LASTSCHRIFT
   UEBERWEISUNG
+  // Ein Amt zahlt die Miete (Jobcenter/Bundesagentur, Kreis Ostholstein): Überweisung durch die Behörde.
+  BEHOERDE
 }
 
 enum AbrechnungStatus {

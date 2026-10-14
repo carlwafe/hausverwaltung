@@ -9,6 +9,7 @@ const STATUS_LABEL: Record<string, string> = {
 const ZAHLUNGSWEG_LABEL: Record<string, string> = {
   LASTSCHRIFT: "SEPA-Lastschrift",
   UEBERWEISUNG: "Überweisung / Dauerauftrag",
+  BEHOERDE: "Amt zahlt (Jobcenter, Kreis)",
 };
 
 const ANLAGEFORM_LABEL: Record<string, string> = {

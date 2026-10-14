@@ -125,7 +125,7 @@ export default async function MieteMonatPage({
       einheit: v.einheit.bezeichnung,
       einheitRang: einheitRang.get(v.id) ?? 0,
       mieter: v.mieter.map((m) => mieterName(m)).join(" & "),
-      zahlungsweg: v.zahlungsweg === "LASTSCHRIFT" ? "Lastschrift" : v.zahlungsweg === "UEBERWEISUNG" ? "Überweisung" : "",
+      zahlungsweg: v.zahlungsweg === "LASTSCHRIFT" ? "Lastschrift" : v.zahlungsweg === "UEBERWEISUNG" ? "Überweisung" : v.zahlungsweg === "BEHOERDE" ? "Amt" : "",
       faelligAm: formatDatum(faelligAm),
       soll: sollZeile.betrag,
       ist,

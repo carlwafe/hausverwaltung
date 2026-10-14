@@ -8,7 +8,7 @@ import type { MandatZeile } from "@/lib/mandat-laden";
 
 const leer = <span className="text-neutral-600">–</span>;
 const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(new Date(iso));
-const wegText = (w: MandatZeile["zahlungsweg"]) => (w === "LASTSCHRIFT" ? "Lastschrift" : w === "UEBERWEISUNG" ? "Überweisung" : null);
+const wegText = (w: MandatZeile["zahlungsweg"]) => (w === "LASTSCHRIFT" ? "Lastschrift" : w === "UEBERWEISUNG" ? "Überweisung" : w === "BEHOERDE" ? "Amt zahlt" : null);
 
 const columns: Column<MandatZeile>[] = [
   {
@@ -101,7 +101,7 @@ const columns: Column<MandatZeile>[] = [
 const selectKlasse =
   "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
 
-type Ansicht = "alle" | "LASTSCHRIFT" | "UEBERWEISUNG" | "offen";
+type Ansicht = "alle" | "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | "offen";
 type MandatAnsicht = "ohne-selbst" | "ohne-amt" | "mit" | "alle";
 
 export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
@@ -146,6 +146,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
             <option value="alle">alle</option>
             <option value="LASTSCHRIFT">Lastschrift</option>
             <option value="UEBERWEISUNG">Überweisung</option>
+            <option value="BEHOERDE">Amt zahlt</option>
             <option value="offen">nicht erfasst</option>
           </select>
         </label>

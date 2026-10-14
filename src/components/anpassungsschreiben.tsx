@@ -46,7 +46,7 @@ export type AnpassungsschreibenProps = {
   erhoehungen: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number; indexMonat?: string | null }[];
   mehrwertsteuer: number;
   jobcenter: boolean;
-  zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
+  zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | null;
   // Mandatsreferenz/Gläubiger-ID aus der Bankzeile der letzten Lastschrift (null = keine gefunden).
   mandat: MandatDaten | null;
   kopien: SchreibenKopie[];
@@ -109,7 +109,7 @@ export function Anpassungsschreiben({
   const [briefdatumIso, setBriefdatumIso] = useState(() => isoDatum(new Date()));
   const [absender, setAbsender] = useState("");
   const [anrede, setAnrede] = useState(() => briefAnrede(mieter));
-  const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG">(zahlungswegVertrag ?? "LASTSCHRIFT");
+  const [zahlungsweg, setZahlungsweg] = useState<"LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE">(zahlungswegVertrag ?? "LASTSCHRIFT");
   const [gespeichert, setGespeichert] = useState(false);
 
   useEffect(() => {
@@ -440,9 +440,10 @@ export function Anpassungsschreiben({
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="an-zahlweg">
               Zahlungsweg des Mieters{!zahlungswegVertrag && " (im Vertrag nicht erfasst)"}
             </label>
-            <select id="an-zahlweg" value={zahlungsweg} onChange={(e) => setZahlungsweg(e.target.value as "LASTSCHRIFT" | "UEBERWEISUNG")} className={eingabeKlasse}>
+            <select id="an-zahlweg" value={zahlungsweg} onChange={(e) => setZahlungsweg(e.target.value as "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE")} className={eingabeKlasse}>
               <option value="LASTSCHRIFT">SEPA-Lastschrift</option>
               <option value="UEBERWEISUNG">Überweisung / Dauerauftrag</option>
+              <option value="BEHOERDE">Amt zahlt (Jobcenter, Kreis)</option>
             </select>
             {zahlungsweg === "LASTSCHRIFT" && (
               <p className="mt-1 text-xs text-neutral-500">
@@ -642,10 +643,12 @@ export function Anpassungsschreiben({
                       <MandatKlammer mandat={mandat} /> von Ihrem Konto ein; Sie brauchen nichts weiter zu veranlassen. Dieses Schreiben gilt
                       zugleich als Vorabankündigung (Pre-Notification) des geänderten Lastschriftbetrags.
                     </>
+                  ) : zahlungsweg === "BEHOERDE" ? (
+                    `Ab dem ${gueltigAbText} beträgt die zu zahlende Gesamtmiete ${formatEuro(gesamt)}. Da Ihre Miete vom Amt gezahlt wird, leiten Sie dieses Schreiben bitte dorthin weiter, damit die Zahlung angepasst wird.`
                   ) : (
                     `Bitte zahlen Sie ab dem ${gueltigAbText} die neue Gesamtmiete von ${formatEuro(gesamt)} und passen Sie einen bestehenden Dauerauftrag entsprechend an.`
                   )}
-                  {jobcenter && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
+                  {jobcenter && zahlungsweg !== "BEHOERDE" && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
                 </p>
               </>
             )}

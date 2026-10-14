@@ -38,7 +38,7 @@ export async function ladeAnpassungsschreiben(
 
   // Mandatsreferenz und Gläubiger-ID für die Vorabankündigung stehen in der Bankzeile der letzten Lastschrift.
   // Überweiser brauchen sie nicht (Bankzeile nur für Lastschrift-/unbekannten Zahlungsweg laden).
-  const mandat = vertrag.zahlungsweg === "UEBERWEISUNG" ? null : await ladeLastschriftMandat(vertrag.id);
+  const mandat = vertrag.zahlungsweg === "UEBERWEISUNG" || vertrag.zahlungsweg === "BEHOERDE" ? null : await ladeLastschriftMandat(vertrag.id);
 
   const erhoehungen = vertrag.mieterhoehungen.map((e) => ({
     gueltigAb: e.gueltigAb,

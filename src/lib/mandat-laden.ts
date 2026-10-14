@@ -8,7 +8,7 @@ import { GLAEUBIGER_LEER, type MandatGlaeubiger, type MandatVertrag } from "@/li
 
 export type MandatZeile = MandatVertrag & {
   einheitRang: number;
-  zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | null;
+  zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | null;
   geplant: boolean;
   /** Am Vertrag erfasstes, bereits bestehendes Mandat (null = keines erfasst). */
   mandatReferenz: string | null;
