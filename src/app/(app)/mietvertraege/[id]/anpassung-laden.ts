@@ -101,7 +101,7 @@ export async function ladeAnpassungsschreiben(
       basisNk: Number(vertrag.nebenkostenVorauszahlung),
       erhoehungen,
       mehrwertsteuer: vertrag.mehrwertsteuer ? Number(vertrag.mehrwertsteuer) : 0,
-      jobcenter: vertrag.mieter.some((m) => m.buergergeldEmpfaenger),
+      jobcenter: vertrag.zahlungsweg === "BEHOERDE",
       zahlungsweg: vertrag.zahlungsweg,
       mandat,
       kopien: vertrag.dokumente.map((d) => ({

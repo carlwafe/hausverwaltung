@@ -12,7 +12,8 @@ export type MieterRow = {
   email: string | null;
   handynummer: string | null;
   festnetznummer: string | null;
-  buergergeldEmpfaenger: boolean;
+  // Zahlungsweg „Amt zahlt“ bei einem laufenden/geplanten Mietvertrag.
+  amtZahlt: boolean;
   einheiten: string[];
   // Aktiv = mindestens ein laufender Mietvertrag; Geplant = nur künftige; sonst Inaktiv.
   status: "AKTIV" | "GEPLANT" | "INAKTIV";
@@ -132,7 +133,7 @@ export function MieterTable({
         rows={angezeigteRows}
         emptyMessage="Noch keine Mieter angelegt."
         searchPlaceholder="Mieter durchsuchen…"
-        rowClassName={(m) => (m.buergergeldEmpfaenger ? "bg-blue-500/10" : "")}
+        rowClassName={(m) => (m.amtZahlt ? "bg-blue-500/10" : "")}
       />
     </div>
   );

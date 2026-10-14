@@ -27,11 +27,11 @@ async function ladeEinheiten(): Promise<EinheitRow[]> {
       wohnflaecheQm: Number(e.wohnflaecheQm),
       mietvertraege: e.mietvertraege.map((v) => ({
         id: v.id,
+        amtZahlt: v.zahlungsweg === "BEHOERDE",
         mieter: v.mieter.map((m) => ({
           id: m.id,
           vorname: m.vorname,
           nachname: m.nachname,
-          buergergeldEmpfaenger: m.buergergeldEmpfaenger,
         })),
       })),
     };

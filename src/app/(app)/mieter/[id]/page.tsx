@@ -5,6 +5,7 @@ import { MieterForm } from "../mieter-form";
 import { updateMieter, deleteMieter } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
 import { mieterName } from "@/lib/mieter-name";
+import { istAmtZahler } from "@/lib/amt-zahlt";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -50,7 +51,7 @@ export default async function MieterDetailPage({
         </h1>
         <DeleteButton action={deleteMieter.bind(null, id)} />
       </div>
-      <MieterForm initial={mieter} action={updateMieter.bind(null, id)} />
+      <MieterForm initial={mieter} action={updateMieter.bind(null, id)} amtZahlt={istAmtZahler(mietvertraege)} />
 
       <div className="mt-8">
         <h2 className="mb-4 text-lg font-medium text-white">

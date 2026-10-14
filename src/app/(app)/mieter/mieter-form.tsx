@@ -10,16 +10,18 @@ type Mieter = {
   email: string | null;
   handynummer: string | null;
   festnetznummer: string | null;
-  buergergeldEmpfaenger: boolean;
   notizen: string | null;
 };
 
 export function MieterForm({
   initial,
   action,
+  amtZahlt,
 }: {
   initial?: Mieter;
   action: FormAktion;
+  // Aus dem Zahlungsweg der Mietverträge abgeleitet (nur Anzeige, nicht änderbar).
+  amtZahlt?: boolean;
 }) {
   const [error, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(action, formData),
@@ -108,16 +110,16 @@ export function MieterForm({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          id="buergergeldEmpfaenger"
-          name="buergergeldEmpfaenger"
-          type="checkbox"
-          defaultChecked={initial?.buergergeldEmpfaenger ?? false}
-          className="h-4 w-4 rounded border-neutral-700 bg-transparent"
-        />
-        Bürgergeld-Empfänger
-      </label>
+      {initial && (
+        <p className="text-sm">
+          <span className="font-medium">Miete zahlt das Amt (Jobcenter/Kreis):</span>{" "}
+          <span className={amtZahlt ? "text-blue-400" : "text-neutral-400"}>{amtZahlt ? "ja" : "nein"}</span>
+          <span className="block text-xs text-neutral-500">
+            Ergibt sich aus dem Zahlungsweg „Amt zahlt“ eines laufenden oder geplanten Mietvertrags und wird dort
+            gepflegt.
+          </span>
+        </p>
+      )}
 
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="notizen">

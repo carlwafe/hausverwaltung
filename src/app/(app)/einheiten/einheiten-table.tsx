@@ -21,12 +21,14 @@ export type EinheitRow = {
   wohnflaecheQm: number;
   mietvertraege: {
     id: string;
-    mieter: { id: string; vorname: string; nachname: string; buergergeldEmpfaenger: boolean }[];
+    // Zahlungsweg „Amt zahlt“ am laufenden Vertrag.
+    amtZahlt: boolean;
+    mieter: { id: string; vorname: string; nachname: string }[];
   }[];
 };
 
-function hatBuergergeldEmpfaenger(e: EinheitRow): boolean {
-  return e.mietvertraege.some((v) => v.mieter.some((m) => m.buergergeldEmpfaenger));
+function amtZahlt(e: EinheitRow): boolean {
+  return e.mietvertraege.some((v) => v.amtZahlt);
 }
 
 function mieterText(e: EinheitRow): string {
@@ -111,7 +113,7 @@ export function EinheitenTable({ rows }: { rows: EinheitRow[] }) {
       rows={rows}
       emptyMessage="Noch keine Einheiten angelegt."
       searchPlaceholder="Einheiten durchsuchen…"
-      rowClassName={(e) => (hatBuergergeldEmpfaenger(e) ? "bg-blue-500/10" : "")}
+      rowClassName={(e) => (amtZahlt(e) ? "bg-blue-500/10" : "")}
     />
   );
 }

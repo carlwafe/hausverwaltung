@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { findeDuplikate } from "@/lib/mieter-duplikate";
+import { istAmtZahler } from "@/lib/amt-zahlt";
 import { MieterTable, type MieterRow } from "./mieter-table";
 
 async function ladeMieter(): Promise<MieterRow[]> {
@@ -27,7 +28,7 @@ async function ladeMieter(): Promise<MieterRow[]> {
     email: m.email,
     handynummer: m.handynummer,
     festnetznummer: m.festnetznummer,
-    buergergeldEmpfaenger: m.buergergeldEmpfaenger,
+    amtZahlt: istAmtZahler(m.mietvertraege),
     einheiten: aktive.map((v) => v.einheit.bezeichnung),
     status,
   };
@@ -46,7 +47,8 @@ export default async function MieterPage() {
           <p className="text-sm text-neutral-400">{mieter.length} Mieter insgesamt, {mieter.filter((m) => m.status === "AKTIV").length} aktiv</p>
           <p className="text-xs text-neutral-500">
             Status: Aktiv = mindestens ein laufender Mietvertrag, Geplant = nur ein künftiger
-            Vertrag, Inaktiv = kein laufender oder geplanter Vertrag mehr.
+            Vertrag, Inaktiv = kein laufender oder geplanter Vertrag mehr. Blau hinterlegt = die Miete zahlt das
+            Amt (Zahlungsweg „Amt zahlt“ am Mietvertrag).
           </p>
         </div>
         <div className="flex gap-2">
