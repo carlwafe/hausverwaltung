@@ -117,6 +117,8 @@ export function MieterTabelle({
         return <span className={w < 0 ? "text-red-400" : "text-neutral-300"}>{w ? formatEuro(w) : "–"}</span>;
       },
     } satisfies Column<MieterTabellenZeile>,
+        ]
+      : []),
     {
       key: "nkGutschrift",
       label: "Gutschrift unbezahlte NK-Vorauszahlung (Vorjahr)",
@@ -131,8 +133,6 @@ export function MieterTabelle({
         </span>
       ),
     } satisfies Column<MieterTabellenZeile>,
-        ]
-      : []),
     {
       key: "saldoNeu",
       label: "Saldo neu",
@@ -188,7 +188,7 @@ export function MieterTabelle({
               <td className={td}>{summe((z) => z.soll)}</td>
               <td className={td}>{summe((z) => z.miete)}</td>
               {mitNkOffen && <td className={td}>{summe(abrechnungOhneGegenrechnung)}</td>}
-              {mitNkOffen && <td className={td}>{summe((z) => z.nebenkostenGegenrechnung)}</td>}
+              <td className={td}>{summe((z) => z.nebenkostenGegenrechnung)}</td>
               <td className={td}>{summe((z) => z.saldoNeu)}</td>
               <td colSpan={2} />
             </tr>

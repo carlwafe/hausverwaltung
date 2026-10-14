@@ -581,9 +581,12 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           </p>
           {!zeitraum.mitNkOffen && (
             <p className="mb-3 text-sm text-neutral-400">
-              In {label} ist die Nebenkostenabrechnung des Vorjahres noch nicht berücksichtigt (sie
-              liegt meist erst im 3. Quartal vor): Saldo neu = Saldo alt − Soll + Miete
-              (+ Gebühren/Sonderforderungen), ohne Spalte &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;.
+              In {label} ist die Nebenkostenabrechnung des Vorjahres selbst noch nicht berücksichtigt
+              (sie liegt meist erst im 3. Quartal vor), daher ohne Spalte &bdquo;Nebenkostenabrechnung
+              offen (Vorjahr)&ldquo;. Die Gutschrift der unbezahlten NK-Vorauszahlung zählt dagegen
+              schon mit, sobald die Abrechnung vorliegt (wie im Mieterkonto): Saldo neu = Saldo alt −
+              Soll + Miete (+ Gebühren/Sonderforderungen) + Gutschrift. Gegenüber dem Quartalsbericht
+              des Verwalters weicht Saldo neu dann um diese Gutschrift ab.
             </p>
           )}
           <p className="mb-3 text-sm text-neutral-400">

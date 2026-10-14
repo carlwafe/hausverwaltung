@@ -167,8 +167,8 @@ export function berechneMieterJahresbericht(
  * Wie berechneMieterJahresbericht, aber für einen beliebigen Zeitraum [von, bis] innerhalb von
  * `jahr` (Quartalsübersicht). "Nebenkostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
  * Abrechnung des Vorjahres von `jahr` und fließt voll ein — außer bei `mitNkOffen: false` (Q1/Q2,
- * die Abrechnung liegt dann meist noch nicht vor): dann bleibt sie außen vor, Saldo neu ist der
- * reine Mietsaldo.
+ * die Abrechnung liegt dann meist noch nicht vor): dann bleibt die Abrechnung selbst außen vor, nur
+ * ihre Gegenrechnung der unbezahlten NK-Vorauszahlung zählt in Saldo neu (wie im Mieterkonto).
  */
 export function berechneMieterBericht(
   vertraege: MietvertragFuerJahresbericht[],
@@ -207,13 +207,20 @@ export function berechneMieterBericht(
         return periode >= vonPeriode && periode <= saldoNeuBisPeriode;
       })
       .reduce((sum, z) => sum + z.betrag, 0);
-    const nkOffen = zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr);
+    const nkVoll = nebenkostenabrechnungOffenBetrag(v, jahr);
+    const nkOffen = zeitraum.mitNkOffen === false ? null : nkVoll;
     const nebenkostenabrechnungOffen = nkOffen?.offen ?? null;
+    // Die Gegenrechnung gehört zum Mietsaldo (wie im Mieterkonto) und zählt auch in Q1/Q2, sobald die
+    // Abrechnung des Vorjahres vorliegt; nur die Abrechnung selbst (Nachzahlung/Guthaben) bleibt dort außen.
+    const nkGegenrechnung = nkVoll?.gegenrechnung ?? 0;
     // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
     // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
     // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
     const saldoNeu =
-      Math.round((saldoZuStichtag(v, saldoNeuBis, jahr - 1) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;
+      Math.round(
+        (saldoZuStichtag(v, saldoNeuBis, jahr - 1) + (nebenkostenabrechnungOffen ?? nkGegenrechnung)) * 100,
+      ) /
+        100 || 0;
 
     if (
       !immerAnzeigen?.has(v.id) &&
@@ -221,7 +228,8 @@ export function berechneMieterBericht(
       soll === 0 &&
       miete === 0 &&
       saldoNeu === 0 &&
-      !nebenkostenabrechnungOffen
+      !nebenkostenabrechnungOffen &&
+      !nkGegenrechnung
     ) {
       continue;
     }
@@ -241,7 +249,7 @@ export function berechneMieterBericht(
       saldoNeu,
       nebenkostenabrechnungOffen,
       // Auch bei Summe 0 geliefert: Abrechnung (offen ./. Gegenrechnung) und Gutschrift stehen getrennt.
-      nebenkostenGegenrechnung: nkOffen?.gegenrechnung ?? 0,
+      nebenkostenGegenrechnung: nkGegenrechnung,
     });
   }
 
