@@ -62,18 +62,6 @@ const columns: Column<MandatZeile>[] = [
     ),
   },
   {
-    key: "zahler",
-    label: "Zahlt die Miete",
-    title: "Aus dem Zahlernamen der Mietzahlungen der letzten 12 Monate (nur bei Verträgen ohne erfasstes Mandat)",
-    render: (z) =>
-      z.zahlerText ? (
-        <span className={z.zahler === "AMT" ? "text-amber-300" : "text-neutral-300"}>{z.zahlerText}</span>
-      ) : (
-        leer
-      ),
-    sortValue: (z) => z.zahlerText ?? "",
-  },
-  {
     key: "zahlungsweg",
     label: "Zahlungsweg",
     render: (z) => (wegText(z.zahlungsweg) ? <span className="text-neutral-300">{wegText(z.zahlungsweg)}</span> : <span className="text-xs text-neutral-500">nicht erfasst</span>),
@@ -115,8 +103,8 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
     () =>
       alle.filter((z) => {
         if (mandatAnsicht === "mit" && !z.mandatReferenz) return false;
-        if (mandatAnsicht === "ohne-selbst" && (z.mandatReferenz || z.zahler === "AMT")) return false;
-        if (mandatAnsicht === "ohne-amt" && (z.mandatReferenz || z.zahler !== "AMT")) return false;
+        if (mandatAnsicht === "ohne-selbst" && (z.mandatReferenz || z.zahlungsweg === "BEHOERDE")) return false;
+        if (mandatAnsicht === "ohne-amt" && (z.mandatReferenz || z.zahlungsweg !== "BEHOERDE")) return false;
         if (ansicht === "alle") return true;
         if (ansicht === "offen") return z.zahlungsweg === null;
         return z.zahlungsweg === ansicht;
@@ -135,7 +123,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
           Mandat
           <select value={mandatAnsicht} onChange={(e) => setMandatAnsicht(e.target.value as MandatAnsicht)} className={selectKlasse}>
             <option value="ohne-selbst">ohne Mandat – Mieter zahlt selbst</option>
-            <option value="ohne-amt">ohne Mandat – Jobcenter / Kreis zahlt</option>
+            <option value="ohne-amt">ohne Mandat – Amt zahlt (Jobcenter / Kreis)</option>
             <option value="mit">mit erfasstem Mandat</option>
             <option value="alle">alle</option>
           </select>

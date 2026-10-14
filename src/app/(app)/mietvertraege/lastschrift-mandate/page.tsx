@@ -2,7 +2,7 @@ import { ladeMandatZeilen } from "@/lib/mandat-laden";
 import { MandateTabelle } from "./mandate-tabelle";
 
 export default async function LastschriftMandatePage() {
-  const zeilen = await ladeMandatZeilen({ status: { in: ["AKTIV", "GEPLANT"] } }, true);
+  const zeilen = await ladeMandatZeilen({ status: { in: ["AKTIV", "GEPLANT"] } });
 
   return (
     <div>
@@ -23,8 +23,8 @@ export default async function LastschriftMandatePage() {
             am Mietvertrag (Abschnitt „Vertragsdaten“). Ein neues Mandat brauchen nur Mieter ohne Mandat
             (Überweiser, die auf Lastschrift umstellen, neue Verträge) oder bei geänderter Gläubigerin bzw. geänderter
             Gläubiger-Kontoverbindung. Standardmäßig zeigt die Liste deshalb nur Verträge ohne erfasstes Mandat, bei
-            denen der Mieter die Miete selbst zahlt; Verträge, die Jobcenter oder Kreis Ostholstein bezahlt (Zahler aus den
-            Mietzahlungen der letzten 12 Monate), stehen in einem eigenen Filter.
+            denen der Mieter die Miete selbst zahlt; Verträge mit Zahlungsweg „Amt zahlt“ (Jobcenter, Kreis Ostholstein)
+            stehen in einem eigenen Filter.
           </p>
         </div>
       </div>
