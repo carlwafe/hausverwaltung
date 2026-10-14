@@ -205,6 +205,7 @@ model Buchung {
   kautionEinbehalt KautionEinbehalt?
   ticketKosten     TicketKosten[]
   kommentar        BuchungKommentar?
+  darlehenZuordnung DarlehenZuordnung?
 
   @@index([mietvertragId, datum])
   @@index([buchungsartId])
@@ -229,6 +230,23 @@ model BuchungKommentar {
   aktualisiertAm DateTime @updatedAt
 
   @@map("buchung_kommentare")
+}
+
+// Zuordnung einer Darlehensrate zu einem Darlehen der Stammdaten (Seite „Darlehen“, Kontoauszug-Import). Eigene
+// Tabelle, weil Buchungen unveränderlich sind (siehe BuchungKommentar). Eine Rate besteht aus der Tilgung
+// (DARLEHEN_TILGUNG) und dem Zins (Kostenposition mit bezugTyp „Darlehensrate“); die Zuordnung hängt an der Tilgung,
+// bei einer reinen Zinsbuchung (ohne Tilgungsanteil) an der Zinsbuchung. Auswertung: Zinsen je Darlehen und Jahr.
+model DarlehenZuordnung {
+  id          String   @id @default(cuid())
+  buchung     Buchung  @relation(fields: [buchungId], references: [id], onDelete: Cascade)
+  buchungId   String   @unique
+  darlehen    Darlehen @relation(fields: [darlehenId], references: [id], onDelete: Cascade)
+  darlehenId  String
+  erstelltVon String?
+  erstelltAm  DateTime @default(now())
+
+  @@index([darlehenId])
+  @@map("darlehen_zuordnungen")
 }
 
 // Schuldzinsen von Darlehensraten, die NICHT über das Mietkonto gezahlt wurden (z.B. Raten von einem anderen Konto
@@ -1216,6 +1234,7 @@ model Darlehen {
   updatedAt       DateTime  @updatedAt
 
   schuldzinsenJahreswerte SchuldzinsenJahreswert[]
+  zuordnungen             DarlehenZuordnung[]
 
   @@map("darlehen")
 }

@@ -7,6 +7,7 @@ import { formatEuro } from "@/lib/dokumente-anzeige";
 import { DeleteButton } from "@/components/delete-button";
 import { loescheDarlehensrate, loescheSchuldzinsenJahreswert } from "./actions";
 import { JahreswertForm, type JahreswertDarlehen } from "./jahreswert-form";
+import { RateDarlehenSelect } from "./rate-darlehen-select";
 import { zeitraumText, zinsenJeMonat } from "@/lib/darlehen-zinsen";
 import type { Bankwert, Zinsstufe } from "@/lib/tilgungsplan";
 
@@ -18,6 +19,7 @@ type Rate = {
   text: string;
   zins: number;
   tilgung: number;
+  darlehenId: string; // "" = noch keinem Darlehen zugeordnet
 };
 
 const datumText = (d: Date) => new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(d);
@@ -29,7 +31,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
   const user = await getCurrentUser();
   const kannBearbeiten = !!user && user.role !== "GAST";
 
-  const [tilgungen, zinsen, jahreswerte, darlehenListe] = await Promise.all([
+  const [tilgungen, zinsen, jahreswerte, darlehenListe, zuordnungen] = await Promise.all([
     prisma.buchung.findMany({
       where: { buchungsart: { code: DARLEHEN_BUCHUNGSART }, datum: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
       select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
@@ -40,7 +42,9 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
     }),
     prisma.schuldzinsenJahreswert.findMany({ orderBy: [{ jahr: "desc" }, { erstelltAm: "asc" }] }),
     prisma.darlehen.findMany({ where: { aktiv: true }, orderBy: { bezeichnung: "asc" } }),
+    prisma.darlehenZuordnung.findMany({ select: { buchungId: true, darlehenId: true } }),
   ]);
+  const darlehenJeRate = new Map(zuordnungen.map((z) => [z.buchungId, z.darlehenId]));
 
   const zinsZuTilgung = new Map<string, (typeof zinsen)[number]>();
   const zinsOhneTilgung: (typeof zinsen)[number][] = [];
@@ -59,6 +63,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
         text: t.verwendungszweck || t.empfaenger || "Darlehensrate",
         zins: z ? Number(z.betrag) : 0,
         tilgung: -Number(t.betrag), // Bankvorzeichen negativ → positive Tilgung
+        darlehenId: darlehenJeRate.get(t.id) ?? "",
       };
     }),
     ...zinsOhneTilgung.map((z) => ({
@@ -69,6 +74,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
       text: z.verwendungszweck || z.empfaenger || "Darlehenszinsen",
       zins: Number(z.betrag),
       tilgung: 0,
+      darlehenId: darlehenJeRate.get(z.id) ?? "",
     })),
   ].sort((a, b) => b.datum.getTime() - a.datum.getTime());
 
@@ -80,6 +86,11 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
   const summeZins = imJahr.reduce((s, r) => s + r.zins, 0);
   const summeTilgung = imJahr.reduce((s, r) => s + r.tilgung, 0);
   const werteImJahr = jahreswerte.filter((j) => j.jahr === jahr);
+  const darlehenOptionen = darlehenListe.map((d) => ({ id: d.id, label: [d.bezeichnung, d.bank, d.darlehensnummer].filter(Boolean).join(" · ") }));
+  // Raten, die zu keinem (aktiven) Darlehen gehören, und die Zinsen über das Mietkonto je Darlehen.
+  const ohneDarlehen = imJahr.filter((r) => !darlehenListe.some((d) => d.id === r.darlehenId));
+  const mietkontoZinsenJeDarlehen = new Map<string, number>();
+  for (const r of imJahr) mietkontoZinsenJeDarlehen.set(r.darlehenId, Math.round(((mietkontoZinsenJeDarlehen.get(r.darlehenId) ?? 0) + r.zins) * 100) / 100);
   const summeAndere = werteImJahr.reduce((s, j) => s + Number(j.betrag), 0);
 
   // Darlehen der Stammdaten für das Formular: Zinsen je Monat laut Tilgungsplan, Bankwert des Jahres, vorhandener Eintrag.
@@ -103,6 +114,8 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
         jahr,
       ),
       bankZinsen: bank,
+      mietkontoZinsen: mietkontoZinsenJeDarlehen.get(d.id) ?? 0,
+      alleRatenZugeordnet: ohneDarlehen.length === 0,
       vorhanden: vorhanden ? { betrag: Number(vorhanden.betrag), vonMonat: vorhanden.vonMonat, bisMonat: vorhanden.bisMonat } : null,
     };
   });
@@ -165,6 +178,12 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
+      {ohneDarlehen.length > 0 && darlehenListe.length > 0 && (
+        <p className="mb-3 max-w-3xl text-sm text-amber-400">
+          {ohneDarlehen.length} {ohneDarlehen.length === 1 ? "Rate ist" : "Raten sind"} noch keinem Darlehen zugeordnet — in der Spalte
+          „Darlehen“ wählen. Erst dann lassen sich die Zinsen je Darlehen mit der Bankbescheinigung vergleichen.
+        </p>
+      )}
       {imJahr.length === 0 ? (
         <p className="text-sm text-neutral-400">Noch keine Darlehensrate für {jahr} erfasst.</p>
       ) : (
@@ -174,6 +193,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
               <tr>
                 <th className="px-4 py-2">Datum</th>
                 <th className="px-4 py-2">Verwendungszweck</th>
+                <th className="px-4 py-2">Darlehen</th>
                 <th className="px-4 py-2 text-right">Rate</th>
                 <th className="px-4 py-2 text-right">Zinsen</th>
                 <th className="px-4 py-2 text-right">Tilgung</th>
@@ -185,6 +205,9 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
                 <tr key={r.id} className="border-t border-neutral-800">
                   <td className="whitespace-nowrap px-4 py-2 text-white">{datumText(r.datum)}</td>
                   <td className="max-w-md px-4 py-2 text-neutral-300">{r.text}</td>
+                  <td className="px-4 py-2">
+                    <RateDarlehenSelect ankerId={r.id} darlehenId={r.darlehenId} darlehen={darlehenOptionen} gesperrt={!kannBearbeiten} />
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(r.zins + r.tilgung)}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                     {r.kostenId ? (
@@ -197,11 +220,15 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(r.tilgung)}</td>
                   <td className="px-4 py-2 text-right">
-                    {kannBearbeiten && r.tilgungId && (
+                    {kannBearbeiten && (
                       <DeleteButton
                         size="sm"
-                        confirmText="Rate löschen? Der Zinsanteil wird mit gelöscht (storniert)."
-                        action={loescheDarlehensrate.bind(null, r.tilgungId) as () => Promise<void>}
+                        confirmText={
+                          r.tilgungId
+                            ? "Rate löschen? Der Zinsanteil wird mit gelöscht (storniert)."
+                            : "Diese Zinsbuchung löschen (stornieren)? Die Bankzeile lässt sich danach im Import neu erfassen."
+                        }
+                        action={loescheDarlehensrate.bind(null, r.id) as () => Promise<void>}
                       />
                     )}
                   </td>

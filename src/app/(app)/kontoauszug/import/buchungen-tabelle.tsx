@@ -21,6 +21,7 @@ import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
 import { kiPruefeZeilen } from "./ki-actions";
 import { findePlanRate, type DarlehenPlanRate } from "@/lib/darlehen-plan-match";
+import { erkenneDarlehen } from "@/lib/darlehen-erkennung";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -138,6 +139,8 @@ type BuchungEditRow = VereinheitlichteZeile & {
   bezugsbereitAb: string;
   // Nur Darlehensrate: Zinsanteil in Euro laut Tilgungsplan (Text, deutsches Komma erlaubt), der Rest ist Tilgung.
   zinsanteil: string;
+  // Nur Darlehensrate: das Darlehen der Stammdaten, zu dem die Rate gehört (Pflicht, sofern es aktive Darlehen gibt).
+  darlehenId: string;
   ausgewaehlt: boolean;
   // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung) — nur Vorschlag + Begründung.
   ki?: { kommentar: string; konfidenz: "hoch" | "mittel" | "niedrig" };
@@ -151,12 +154,14 @@ function zinsanteilZahl(text: string): number {
 
 function pflichtfeldErfuellt(
   gruppe: BuchungsartGruppe | null,
-  r: { mietvertragId: string; kostenartId: string; zinsanteil?: string; betrag?: number | null },
+  r: { mietvertragId: string; kostenartId: string; zinsanteil?: string; betrag?: number | null; darlehenId?: string },
+  darlehenPflicht = false,
 ): boolean {
   if (!gruppe) return false;
   if (gruppe === "MIETE" || gruppe === "SONDERZAHLUNG") return Boolean(r.mietvertragId);
   if (gruppe === "KOSTEN") return Boolean(r.kostenartId);
   if (gruppe === "DARLEHEN") {
+    if (darlehenPflicht && !r.darlehenId) return false;
     const zins = zinsanteilZahl(r.zinsanteil ?? "");
     if (!Number.isFinite(zins) || zins < 0) return false;
     if (zins === 0) return true;
@@ -256,6 +261,7 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
         : String(ermittleKostenjahrVorschlag(r.verwendungszweck, r.datum) ?? jahr),
     bezugsbereitAb: "",
     zinsanteil: "",
+    darlehenId: "",
     ausgewaehlt: false,
   };
   row.ausgewaehlt =
@@ -269,6 +275,7 @@ export function BuchungenTabelle({
   mietvertragKandidaten,
   kostenarten,
   darlehenRaten,
+  darlehenListe,
   gebaeude,
   einheiten,
   bestehendeSets: bestehendeImportSets,
@@ -281,6 +288,7 @@ export function BuchungenTabelle({
   mietvertragKandidaten: { id: string; label: string }[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean; anschaffung?: boolean; schuldzinsen?: boolean }[];
   darlehenRaten: DarlehenPlanRate[];
+  darlehenListe: { id: string; label: string; darlehensnummer: string | null }[];
   gebaeude: {
     id: string;
     label: string;
@@ -374,7 +382,7 @@ export function BuchungenTabelle({
     updateRow(r.rowNumber, {
       buchungsartCode: code,
       ausgewaehlt:
-        r.errors.length === 0 && pflichtfeldErfuellt(gruppe, r) && !istBereitsImportiert(gruppe, r, bestehendeSets),
+        r.errors.length === 0 && pflichtfeldErfuellt(gruppe, r, darlehenListe.length > 0) && !istBereitsImportiert(gruppe, r, bestehendeSets),
     });
   }
 
@@ -408,9 +416,15 @@ export function BuchungenTabelle({
       const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
       // Passt die Abbuchung zu einer Rate der Tilgungspläne, ist der Zinsanteil vorbelegt.
       const plan = findePlanRate(darlehenRaten, r.datum, r.betrag);
+      // Das Darlehen: aus der passenden Plan-Rate, sonst über die Darlehensnummer im Verwendungszweck bzw. die Kontonummer
+      // des Empfängers; ohne eindeutigen Treffer wählt man es von Hand.
+      const erkannt =
+        plan?.darlehenId ?? erkenneDarlehen(darlehenListe, `${r.verwendungszweck} ${r.name}`, r.rohdaten["Kontonummer/IBAN"] ?? null);
       updateRow(r.rowNumber, {
         kostenartId: zinsArten.length === 1 ? zinsArten[0].id : "",
         zinsanteil: plan ? String(plan.zins).replace(".", ",") : "",
+        darlehenId: erkannt ?? "",
+        ausgewaehlt: r.errors.length === 0 && Boolean(erkannt || darlehenListe.length === 0) && !istBereitsImportiert("DARLEHEN", r, bestehendeSets),
       });
     }
   }
@@ -464,7 +478,11 @@ export function BuchungenTabelle({
 
   function kannAuswaehlen(r: BuchungEditRow): boolean {
     const gruppe = ermittleBuchungsartGruppe(r.buchungsartCode);
-    return r.errors.length === 0 && pflichtfeldErfuellt(gruppe, r) && (!brauchtBezugsbereit(r) || Boolean(r.bezugsbereitAb));
+    return (
+      r.errors.length === 0 &&
+      pflichtfeldErfuellt(gruppe, r, darlehenListe.length > 0) &&
+      (!brauchtBezugsbereit(r) || Boolean(r.bezugsbereitAb))
+    );
   }
 
   // Der Alle-auswählen-Haken betrifft nur Zeilen, die sich tatsächlich auswählen lassen: bereits
@@ -507,7 +525,7 @@ export function BuchungenTabelle({
       jahr: gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH" ? (r.jahrEingabe ? Number(r.jahrEingabe) : null) : undefined,
       bezugsbereitAb: gruppe === "KOSTEN" && brauchtBezugsbereit(r) ? r.bezugsbereitAb || null : undefined,
       ...(gruppe === "DARLEHEN"
-        ? { kostenartId: r.kostenartId || null, zinsanteil: zinsanteilZahl(r.zinsanteil) }
+        ? { kostenartId: r.kostenartId || null, zinsanteil: zinsanteilZahl(r.zinsanteil), darlehenId: r.darlehenId || null }
         : {}),
     };
   });
@@ -846,6 +864,31 @@ export function BuchungenTabelle({
                         const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
                         return (
                           <div className="flex flex-col gap-1">
+                            {darlehenListe.length > 0 ? (
+                              <select
+                                value={r.darlehenId}
+                                onChange={(e) =>
+                                  updateRow(r.rowNumber, {
+                                    darlehenId: e.target.value,
+                                    ausgewaehlt: r.errors.length === 0 && Boolean(e.target.value) && !bereitsImportiert,
+                                  })
+                                }
+                                className={`w-full rounded-md border bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400 ${
+                                  r.darlehenId ? "border-neutral-700" : "border-amber-500"
+                                }`}
+                              >
+                                <option value="">– Darlehen wählen –</option>
+                                {darlehenListe.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="text-[11px] text-amber-400">
+                                Noch kein Darlehen in den Stammdaten (Darlehen &amp; Tilgungspläne) — die Rate wird ohne Darlehen gebucht.
+                              </p>
+                            )}
                             <input
                               type="text"
                               inputMode="decimal"

@@ -40,14 +40,19 @@ export type DarlehensrateEingabe = {
   rohdaten: Prisma.InputJsonValue | undefined;
   importBatchId: string | null;
   erstelltVon: string | null;
+  // Darlehen der Stammdaten, zu dem die Rate gehört (siehe DarlehenZuordnung).
+  darlehenId?: string | null;
 };
 
-/** Legt Tilgung und Zins einer Rate an (in der Transaktion des Aufrufers). Gibt die Anzahl neuer Buchungen zurück. */
+/**
+ * Legt Tilgung und Zins einer Rate an (in der Transaktion des Aufrufers). Gibt die Anzahl neuer Buchungen und die
+ * Buchung zurück, an der die Zuordnung zum Darlehen hängt (Tilgung, ohne Tilgungsanteil die Zinsbuchung).
+ */
 export async function legeDarlehensrateAn(
   tx: Prisma.TransactionClient,
   e: DarlehensrateEingabe,
   buchungsartIds: { tilgung: string; kosten: string },
-): Promise<number> {
+): Promise<{ anzahl: number; ankerId: string | null }> {
   const { zins, tilgung } = teileDarlehensrate(e.bankBetrag, e.zinsanteil);
   if (zins > 0 && !e.kostenartId) throw new AktionsFehler("Für den Zinsanteil fehlt die Kostenart (Schuldzinsen).");
 
@@ -61,6 +66,7 @@ export async function legeDarlehensrateAn(
   };
   let anzahl = 0;
   let tilgungId: string | null = null;
+  let zinsId: string | null = null;
   if (tilgung !== 0) {
     const t = await tx.buchung.create({
       data: { ...gemeinsam, buchungsartId: buchungsartIds.tilgung, betrag: tilgung },
@@ -69,7 +75,7 @@ export async function legeDarlehensrateAn(
     anzahl++;
   }
   if (zins > 0) {
-    await tx.buchung.create({
+    const z = await tx.buchung.create({
       data: {
         ...gemeinsam,
         buchungsartId: buchungsartIds.kosten,
@@ -80,7 +86,28 @@ export async function legeDarlehensrateAn(
         bezugId: tilgungId ?? undefined,
       },
     });
+    zinsId = z.id;
     anzahl++;
   }
-  return anzahl;
+  const ankerId = tilgungId ?? zinsId;
+  if (e.darlehenId && ankerId) await ordneDarlehenZu(tx, ankerId, e.darlehenId, e.erstelltVon);
+  return { anzahl, ankerId };
+}
+
+/** Ordnet eine Rate (Anker-Buchung) einem Darlehen zu; ersetzt eine vorhandene Zuordnung, ohne Darlehen wird sie entfernt. */
+export async function ordneDarlehenZu(
+  tx: Pick<Prisma.TransactionClient, "darlehenZuordnung">,
+  ankerId: string,
+  darlehenId: string | null,
+  erstelltVon: string | null,
+): Promise<void> {
+  if (!darlehenId) {
+    await tx.darlehenZuordnung.deleteMany({ where: { buchungId: ankerId } });
+    return;
+  }
+  await tx.darlehenZuordnung.upsert({
+    where: { buchungId: ankerId },
+    create: { buchungId: ankerId, darlehenId, erstelltVon },
+    update: { darlehenId, erstelltVon },
+  });
 }

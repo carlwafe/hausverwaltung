@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEditor, benutzerLabel } from "@/lib/session";
 import { storniereBuchung } from "@/lib/buchung-storno";
+import { DARLEHEN_BUCHUNGSART, ordneDarlehenZu } from "@/lib/darlehen";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 
 // Löscht eine Darlehensrate: storniert die Tilgung; der verknüpfte Zinsanteil (Kostenposition) wird von
@@ -74,4 +75,22 @@ export const loescheSchuldzinsenJahreswert = mitMeldung(async function loescheSc
   await prisma.schuldzinsenJahreswert.deleteMany({ where: { id } });
   revalidatePath("/darlehen");
   revalidatePath("/jahresuebersicht");
+});
+
+// Ordnet eine bereits gebuchte Darlehensrate nachträglich einem Darlehen der Stammdaten zu (oder hebt die Zuordnung
+// auf). Anker ist die Tilgung der Rate, bei einer reinen Zinsbuchung die Zinsbuchung (siehe DarlehenZuordnung).
+export const ordneDarlehensrateZu = mitMeldung(async function ordneDarlehensrateZu(ankerId: string, darlehenId: string) {
+  const user = await requireEditor();
+  const anker = await prisma.buchung.findUnique({
+    where: { id: ankerId },
+    select: { buchungsart: { select: { code: true } }, kostenart: { select: { anlageVZeile: true } } },
+  });
+  const istRate = anker && (anker.buchungsart.code === DARLEHEN_BUCHUNGSART || anker.kostenart?.anlageVZeile === "SCHULDZINSEN");
+  if (!istRate) throw new AktionsFehler("Das ist keine Darlehensrate.");
+  if (darlehenId) {
+    const d = await prisma.darlehen.findUnique({ where: { id: darlehenId }, select: { id: true } });
+    if (!d) throw new AktionsFehler("Das Darlehen gibt es nicht mehr.");
+  }
+  await ordneDarlehenZu(prisma, ankerId, darlehenId || null, benutzerLabel(user));
+  revalidatePath("/darlehen");
 });

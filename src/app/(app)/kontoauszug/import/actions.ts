@@ -84,6 +84,8 @@ export type PreviewResult =
       kostenarten: KostenartKandidat[];
       // Raten der Tilgungspläne (Seite „Darlehen & Tilgungspläne“): schlägt bei Darlehensraten den Zinsanteil vor.
       darlehenRaten: DarlehenPlanRate[];
+      // Aktive Darlehen der Stammdaten für das Dropdown der Darlehensrate (Zuordnung der Rate zum Darlehen).
+      darlehenListe: { id: string; label: string; darlehensnummer: string | null }[];
       gebaeude: GebaeudeKandidat[];
       einheiten: EinheitMitAdresse[];
       buchungsarten: BuchungsartKandidat[];
@@ -650,6 +652,11 @@ export async function previewImport(
       mietvertragKandidaten: mietvertragKandidaten.map((k) => ({ id: k.id, label: k.label })),
       kostenarten,
       darlehenRaten: await ladeDarlehenPlanRaten(),
+      darlehenListe: (await prisma.darlehen.findMany({ where: { aktiv: true }, orderBy: { bezeichnung: "asc" } })).map((d) => ({
+        id: d.id,
+        label: [d.bezeichnung, d.bank, d.darlehensnummer].filter(Boolean).join(" · "),
+        darlehensnummer: d.darlehensnummer,
+      })),
       gebaeude,
       einheiten,
       buchungsarten: buchungsartenRaw,
@@ -691,6 +698,8 @@ export type BuchungCommitRow = {
   // Nur bei "DARLEHEN": Zinsanteil der Rate in Euro (positiv, laut Tilgungsplan); der Rest ist Tilgung.
   // kostenartId ist dann die Kostenart mit Einordnung „Schuldzinsen“.
   zinsanteil?: number | null;
+  // Nur bei "DARLEHEN": das Darlehen der Stammdaten, zu dem die Rate gehört.
+  darlehenId?: string | null;
 };
 
 // Ersetzt commitZahlungen/commitKosten/commitMietweiterleitungen/commitKautionsbuchungen/
@@ -739,7 +748,13 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
   const zinsKostenartIds = new Set(
     (await prisma.kostenart.findMany({ where: { anlageVZeile: "SCHULDZINSEN" }, select: { id: true } })).map((k) => k.id),
   );
+  // Gibt es aktive Darlehen in den Stammdaten, gehört jede Rate zu einem davon (Pflicht); sonst bleibt die Zuordnung leer.
+  const aktiveDarlehen = await prisma.darlehen.findMany({ where: { aktiv: true }, select: { id: true } });
+  const aktiveDarlehenIds = new Set(aktiveDarlehen.map((d) => d.id));
   for (const r of darlehenZeilen) {
+    if (aktiveDarlehenIds.size > 0 && (!r.darlehenId || !aktiveDarlehenIds.has(r.darlehenId))) {
+      return `Darlehensrate ${r.datum}: Bitte das Darlehen wählen, zu dem die Rate gehört.`;
+    }
     const zins = r.zinsanteil ?? 0;
     if (zins > 0 && (!r.kostenartId || !zinsKostenartIds.has(r.kostenartId))) {
       return 'Bei einer Darlehensrate mit Zinsanteil muss eine Kostenart mit der Einordnung „Schuldzinsen“ gewählt sein (Kostenarten → Steuerliche Einordnung).';
@@ -923,6 +938,7 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
           rohdaten: r.rohdaten,
           importBatchId: typeof importBatchId === "string" ? importBatchId : null,
           erstelltVon: benutzerLabel(user),
+          darlehenId: r.darlehenId || null,
         },
         { tilgung: arten.get(DARLEHEN_BUCHUNGSART)!, kosten: arten.get("KOSTENPOSITION")! },
       ),

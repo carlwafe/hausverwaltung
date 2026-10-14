@@ -14,9 +14,20 @@ export type JahreswertDarlehen = {
   monate: (number | null)[];
   /** Zinsen des Jahres laut Zinsbescheinigung (Stammdaten „Bankwerte“), sofern erfasst. */
   bankZinsen: number | null;
+  /** Zinsen des Jahres aus den diesem Darlehen zugeordneten Raten über das Mietkonto. */
+  mietkontoZinsen: number;
+  /** Alle Raten des Jahres über das Mietkonto sind einem Darlehen zugeordnet (sonst fehlt Zins in der Rechnung). */
+  alleRatenZugeordnet: boolean;
   /** Schon vorhandener Eintrag für dieses Jahr (wird beim Speichern ersetzt). */
   vorhanden: { betrag: number; vonMonat: number | null; bisMonat: number | null } | null;
 };
+
+// Zinsen „anderer Konten“ laut Bankbescheinigung: Jahreszinsen der Bank minus die Zinsen der über das Mietkonto gezahlten
+// Raten dieses Darlehens (nur wenn alle Raten des Jahres einem Darlehen zugeordnet sind).
+function bankRest(d: JahreswertDarlehen | null): number | null {
+  if (!d || d.bankZinsen === null || !d.alleRatenZugeordnet) return null;
+  return Math.round((d.bankZinsen - d.mietkontoZinsen) * 100) / 100;
+}
 
 const euro = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 const eingabeText = (n: number) => n.toFixed(2).replace(".", ",");
@@ -42,10 +53,18 @@ export function JahreswertForm({ jahr, darlehen, standardBis }: { jahr: number; 
   );
   const gewaehlt = darlehen.find((d) => d.id === darlehenId) ?? null;
   const plan = gewaehlt && von <= bis ? summiereMonate(gewaehlt.monate, von, bis) : null;
+  const rest = bankRest(gewaehlt);
 
   // Der Betrag folgt dem Tilgungsplan, solange er nicht von Hand geändert wurde.
+  // Vorrang hat die Bankbescheinigung (Jahreszinsen − Mietkonto), sonst die Summe des Tilgungsplans für den Zeitraum.
   function vorschlagUebernehmen(d: JahreswertDarlehen | null, v: number, b: number) {
-    if (!d || v > b) return;
+    if (!d) return;
+    const rest = bankRest(d);
+    if (rest !== null) {
+      setBetrag(rest > 0 ? eingabeText(rest) : "");
+      return;
+    }
+    if (v > b) return;
     const s = summiereMonate(d.monate, v, b);
     setBetrag(s.anzahl > 0 ? eingabeText(s.summe) : "");
   }
@@ -133,6 +152,18 @@ export function JahreswertForm({ jahr, darlehen, standardBis }: { jahr: number; 
 
       {gewaehlt && (
         <div className="space-y-1 text-xs text-neutral-400">
+          {rest !== null && gewaehlt && gewaehlt.bankZinsen !== null && (
+            <p>
+              Laut Bankbescheinigung {euro(gewaehlt.bankZinsen)} − über das Mietkonto gezahlt {euro(gewaehlt.mietkontoZinsen)} ={" "}
+              <span className={rest >= 0 ? "text-neutral-200" : "text-amber-400"}>{euro(rest)}</span> von anderen Konten.
+              {rest < 0 && " Über das Mietkonto sind mehr Zinsen gebucht als die Bank bescheinigt — Raten und Zinsanteile prüfen."}
+            </p>
+          )}
+          {gewaehlt && gewaehlt.bankZinsen !== null && !gewaehlt.alleRatenZugeordnet && (
+            <p className="text-amber-400">
+              Es gibt Raten über das Mietkonto ohne Darlehen — erst in der Liste oben zuordnen, dann rechnet die Seite „Bescheinigung − Mietkonto“.
+            </p>
+          )}
           {von > bis ? (
             <p className="text-amber-400">„Raten von“ liegt nach „bis“.</p>
           ) : plan && plan.anzahl > 0 ? (
@@ -153,7 +184,7 @@ export function JahreswertForm({ jahr, darlehen, standardBis }: { jahr: number; 
               Ohne Rate im Plan: {plan.ohnePlan.map((m) => MONATE_KURZ[m - 1]).join(", ")} — fehlen in der Summe.
             </p>
           )}
-          {gewaehlt.bankZinsen !== null && (
+          {gewaehlt.bankZinsen !== null && rest === null && (
             <p>
               Zinsen {jahr} laut Bankbescheinigung (Stammdaten): <span className="text-neutral-200">{euro(gewaehlt.bankZinsen)}</span> für das ganze Jahr, also
               Mietkonto + andere Konten.
