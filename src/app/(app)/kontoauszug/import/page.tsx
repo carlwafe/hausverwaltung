@@ -118,6 +118,7 @@ export default function KontoauszugImportPage() {
             buchungsarten={preview.buchungsarten}
             mietvertragKandidaten={preview.mietvertragKandidaten}
             kostenarten={preview.kostenarten}
+            darlehenRaten={preview.darlehenRaten}
             gebaeude={preview.gebaeude}
             einheiten={preview.einheiten}
             bestehendeSets={bestehendeSets}

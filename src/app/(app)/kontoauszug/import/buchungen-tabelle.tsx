@@ -20,6 +20,7 @@ import { DateInput } from "@/components/date-input";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
 import { kiPruefeZeilen } from "./ki-actions";
+import { findePlanRate, type DarlehenPlanRate } from "@/lib/darlehen-plan-match";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -267,6 +268,7 @@ export function BuchungenTabelle({
   buchungsarten,
   mietvertragKandidaten,
   kostenarten,
+  darlehenRaten,
   gebaeude,
   einheiten,
   bestehendeSets: bestehendeImportSets,
@@ -278,6 +280,7 @@ export function BuchungenTabelle({
   buchungsarten: BuchungsartKandidat[];
   mietvertragKandidaten: { id: string; label: string }[];
   kostenarten: { id: string; name: string; umlagefaehig: boolean; anschaffung?: boolean; schuldzinsen?: boolean }[];
+  darlehenRaten: DarlehenPlanRate[];
   gebaeude: {
     id: string;
     label: string;
@@ -403,7 +406,12 @@ export function BuchungenTabelle({
     // Darlehensrate: die Kostenart des Zinsanteils ist nur eine Schuldzinsen-Kostenart (bei genau einer vorbelegt).
     if (familie === "DARLEHEN") {
       const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
-      updateRow(r.rowNumber, { kostenartId: zinsArten.length === 1 ? zinsArten[0].id : "", zinsanteil: "" });
+      // Passt die Abbuchung zu einer Rate der Tilgungspläne, ist der Zinsanteil vorbelegt.
+      const plan = findePlanRate(darlehenRaten, r.datum, r.betrag);
+      updateRow(r.rowNumber, {
+        kostenartId: zinsArten.length === 1 ? zinsArten[0].id : "",
+        zinsanteil: plan ? String(plan.zins).replace(".", ",") : "",
+      });
     }
   }
 
@@ -865,6 +873,34 @@ export function BuchungenTabelle({
                                 Noch keine Kostenart mit Einordnung „Schuldzinsen“ — unter Kostenarten anlegen.
                               </p>
                             )}
+                            {(() => {
+                              const plan = findePlanRate(darlehenRaten, r.datum, r.betrag);
+                              if (!plan) {
+                                return (
+                                  <p className="text-[11px] text-neutral-500">
+                                    Keine Rate eines Tilgungsplans mit diesem Betrag und Datum — Zinsanteil von Hand eintragen (z.B. nach
+                                    Sondertilgung oder Zinsänderung; Tilgungspläne unter Stammdaten → Darlehen &amp; Tilgungspläne).
+                                  </p>
+                                );
+                              }
+                              const gleich = zinsGueltig && Math.abs(zins - plan.zins) < 0.005;
+                              return (
+                                <p className="text-[11px] text-neutral-400">
+                                  Tilgungsplan {plan.bezeichnung} ({plan.datum.split("-").reverse().join(".")}): Zinsen {formatEuro(plan.zins)}
+                                  {gleich ? (
+                                    " ✓"
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => updateRow(r.rowNumber, { zinsanteil: String(plan.zins).replace(".", ",") })}
+                                      className="ml-2 underline hover:text-white"
+                                    >
+                                      übernehmen
+                                    </button>
+                                  )}
+                                </p>
+                              );
+                            })()}
                             <p className="text-[11px] text-neutral-500">
                               {!zinsGueltig
                                 ? "Zinsanteil ungültig."

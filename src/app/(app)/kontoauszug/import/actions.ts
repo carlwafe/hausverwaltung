@@ -8,6 +8,8 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
 import { requireUser, requireEditor, benutzerLabel } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
+import { ladeDarlehenPlanRaten } from "@/lib/darlehen-plan";
+import type { DarlehenPlanRate } from "@/lib/darlehen-plan-match";
 import { DARLEHEN_BEZUG, DARLEHEN_BUCHUNGSART, legeDarlehensrateAn, teileDarlehensrate } from "@/lib/darlehen";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
@@ -80,6 +82,8 @@ export type PreviewResult =
       zeilen: VereinheitlichteZeile[];
       mietvertragKandidaten: { id: string; label: string }[];
       kostenarten: KostenartKandidat[];
+      // Raten der Tilgungspläne (Seite „Darlehen & Tilgungspläne“): schlägt bei Darlehensraten den Zinsanteil vor.
+      darlehenRaten: DarlehenPlanRate[];
       gebaeude: GebaeudeKandidat[];
       einheiten: EinheitMitAdresse[];
       buchungsarten: BuchungsartKandidat[];
@@ -645,6 +649,7 @@ export async function previewImport(
       zeilen,
       mietvertragKandidaten: mietvertragKandidaten.map((k) => ({ id: k.id, label: k.label })),
       kostenarten,
+      darlehenRaten: await ladeDarlehenPlanRaten(),
       gebaeude,
       einheiten,
       buchungsarten: buchungsartenRaw,
