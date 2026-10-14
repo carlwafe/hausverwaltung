@@ -680,6 +680,8 @@ enum AnlageVZeile {
   SONSTIGES
   SONSTIGE_EINNAHMEN
   ANSCHAFFUNG
+  // Darlehenszinsen (Schuldzinsen, Anlage V): eigene Zeile in der Aufstellung für die Steuererklärung.
+  SCHULDZINSEN
 }
 
 // Handwerker (Elektriker, Sanitär, Tischler ...) getrennt von allen übrigen Dienstleistern und

@@ -39,6 +39,7 @@ const FAMILIE_LABELS: Record<BuchungsartGruppe, string> = {
   KAUTION: "Kaution",
   NEBENKOSTENAUSGLEICH: "Nebenkostenausgleich",
   SONDERZAHLUNG: "Gebühren-Zahlung (Mieter)",
+  DARLEHEN: "Darlehensrate (Zins + Tilgung)",
   SONSTIGE: "Weitere Buchungsart…",
 };
 const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] = [
@@ -49,6 +50,7 @@ const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] =
   { value: "KAUTION", label: FAMILIE_LABELS.KAUTION },
   { value: "NEBENKOSTENAUSGLEICH", label: FAMILIE_LABELS.NEBENKOSTENAUSGLEICH },
   { value: "SONDERZAHLUNG", label: FAMILIE_LABELS.SONDERZAHLUNG },
+  { value: "DARLEHEN", label: FAMILIE_LABELS.DARLEHEN },
   { value: "SONSTIGE", label: FAMILIE_LABELS.SONSTIGE },
 ];
 
@@ -133,15 +135,32 @@ type BuchungEditRow = VereinheitlichteZeile & {
   jahrEingabe: string;
   // yyyy-mm-dd, nur bei Kostenart „Anschaffung / Herstellung“ (Pflicht): ab wann die Wohnung bezugsbereit war.
   bezugsbereitAb: string;
+  // Nur Darlehensrate: Zinsanteil in Euro laut Tilgungsplan (Text, deutsches Komma erlaubt), der Rest ist Tilgung.
+  zinsanteil: string;
   ausgewaehlt: boolean;
   // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung) — nur Vorschlag + Begründung.
   ki?: { kommentar: string; konfidenz: "hoch" | "mittel" | "niedrig" };
 };
 
-function pflichtfeldErfuellt(gruppe: BuchungsartGruppe | null, r: { mietvertragId: string; kostenartId: string }): boolean {
+// Zinsanteil einer Darlehensrate als Zahl (Komma oder Punkt); leer = 0 = die ganze Rate ist Tilgung, NaN = ungültig.
+function zinsanteilZahl(text: string): number {
+  const t = text.trim().replace(",", ".");
+  return t === "" ? 0 : Number(t);
+}
+
+function pflichtfeldErfuellt(
+  gruppe: BuchungsartGruppe | null,
+  r: { mietvertragId: string; kostenartId: string; zinsanteil?: string; betrag?: number | null },
+): boolean {
   if (!gruppe) return false;
   if (gruppe === "MIETE" || gruppe === "SONDERZAHLUNG") return Boolean(r.mietvertragId);
   if (gruppe === "KOSTEN") return Boolean(r.kostenartId);
+  if (gruppe === "DARLEHEN") {
+    const zins = zinsanteilZahl(r.zinsanteil ?? "");
+    if (!Number.isFinite(zins) || zins < 0) return false;
+    if (zins === 0) return true;
+    return Boolean(r.kostenartId) && (r.betrag ?? 0) < 0 && zins <= Math.abs(r.betrag ?? 0) + 0.005;
+  }
   return true;
 }
 
@@ -235,6 +254,7 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
         ? ermittleJahrVorschlag(r.verwendungszweck, r.datum)
         : String(ermittleKostenjahrVorschlag(r.verwendungszweck, r.datum) ?? jahr),
     bezugsbereitAb: "",
+    zinsanteil: "",
     ausgewaehlt: false,
   };
   row.ausgewaehlt =
@@ -257,7 +277,7 @@ export function BuchungenTabelle({
   zeilen: VereinheitlichteZeile[];
   buchungsarten: BuchungsartKandidat[];
   mietvertragKandidaten: { id: string; label: string }[];
-  kostenarten: { id: string; name: string; umlagefaehig: boolean; anschaffung?: boolean }[];
+  kostenarten: { id: string; name: string; umlagefaehig: boolean; anschaffung?: boolean; schuldzinsen?: boolean }[];
   gebaeude: {
     id: string;
     label: string;
@@ -371,6 +391,7 @@ export function BuchungenTabelle({
     else if (familie === "MIETWEITERLEITUNG") code = "MIETWEITERLEITUNG";
     else if (familie === "NEBENKOSTENAUSGLEICH") code = "NEBENKOSTENAUSGLEICH";
     else if (familie === "SONDERZAHLUNG") code = "SONDERZAHLUNG";
+    else if (familie === "DARLEHEN") code = "DARLEHEN_TILGUNG";
     else if (familie === "SONSTIGE") code = sonstigeArten[0]?.code ?? "";
     else if (familie === "KAUTION") {
       code =
@@ -379,6 +400,11 @@ export function BuchungenTabelle({
         "";
     }
     handleBuchungsartChange(r, code);
+    // Darlehensrate: die Kostenart des Zinsanteils ist nur eine Schuldzinsen-Kostenart (bei genau einer vorbelegt).
+    if (familie === "DARLEHEN") {
+      const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
+      updateRow(r.rowNumber, { kostenartId: zinsArten.length === 1 ? zinsArten[0].id : "", zinsanteil: "" });
+    }
   }
 
   const gefilterteRows = editRows.filter((r) => {
@@ -472,6 +498,9 @@ export function BuchungenTabelle({
       gebaeudeAuswahl: gruppe === "KOSTEN" ? r.gebaeudeAuswahl : undefined,
       jahr: gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH" ? (r.jahrEingabe ? Number(r.jahrEingabe) : null) : undefined,
       bezugsbereitAb: gruppe === "KOSTEN" && brauchtBezugsbereit(r) ? r.bezugsbereitAb || null : undefined,
+      ...(gruppe === "DARLEHEN"
+        ? { kostenartId: r.kostenartId || null, zinsanteil: zinsanteilZahl(r.zinsanteil) }
+        : {}),
     };
   });
 
@@ -622,6 +651,7 @@ export function BuchungenTabelle({
                           <option value="KAUTION">{FAMILIE_LABELS.KAUTION}</option>
                           <option value="NEBENKOSTENAUSGLEICH">{FAMILIE_LABELS.NEBENKOSTENAUSGLEICH}</option>
                           <option value="SONDERZAHLUNG">{FAMILIE_LABELS.SONDERZAHLUNG}</option>
+                          <option value="DARLEHEN">{FAMILIE_LABELS.DARLEHEN}</option>
                           {sonstigeArten.length > 0 && <option value="SONSTIGE">{FAMILIE_LABELS.SONSTIGE}</option>}
                         </select>
                         {gruppe === "SONSTIGE" && (
@@ -800,6 +830,53 @@ export function BuchungenTabelle({
                           </p>
                         </div>
                       )}
+                      {gruppe === "DARLEHEN" && (() => {
+                        const zins = zinsanteilZahl(r.zinsanteil);
+                        const zinsGueltig = Number.isFinite(zins) && zins >= 0;
+                        const rate = Math.abs(r.betrag ?? 0);
+                        const tilgung = Math.round((rate - (zinsGueltig ? zins : 0)) * 100) / 100;
+                        const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={r.zinsanteil}
+                              onChange={(e) => updateRow(r.rowNumber, { zinsanteil: e.target.value })}
+                              placeholder="Davon Zinsen (€, laut Tilgungsplan)"
+                              className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+                            />
+                            {zins > 0 && (
+                              <select
+                                value={r.kostenartId}
+                                onChange={(e) => updateRow(r.rowNumber, { kostenartId: e.target.value })}
+                                className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+                              >
+                                <option value="">– Kostenart der Zinsen wählen –</option>
+                                {zinsArten.map((k) => (
+                                  <option key={k.id} value={k.id}>
+                                    {k.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {zins > 0 && zinsArten.length === 0 && (
+                              <p className="text-[11px] text-amber-400">
+                                Noch keine Kostenart mit Einordnung „Schuldzinsen“ — unter Kostenarten anlegen.
+                              </p>
+                            )}
+                            <p className="text-[11px] text-neutral-500">
+                              {!zinsGueltig
+                                ? "Zinsanteil ungültig."
+                                : zins > rate + 0.005
+                                  ? "Zinsanteil ist höher als die Rate."
+                                  : zins > 0
+                                    ? `Zinsen ${formatEuro(zins)} (Kosten) + Tilgung ${formatEuro(tilgung)} (keine Kosten)`
+                                    : "Ganze Rate als Tilgung (keine Kosten) — Zinsanteil eintragen, falls enthalten."}
+                            </p>
+                          </div>
+                        );
+                      })()}
                       {gruppe === "MIETWEITERLEITUNG" && <span className="text-xs text-neutral-500">–</span>}
                       {!gruppe && <span className="text-xs text-neutral-500">Buchungsart wählen</span>}
                     </td>

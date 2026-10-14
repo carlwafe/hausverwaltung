@@ -4,7 +4,7 @@
 // die Bezeichnungen nutzen.
 
 // Werte des Prisma-Enums `AnlageVZeile` (Kostenart.anlageVZeile). Angeboten werden im Formular nur
-// ERHALTUNGSAUFWAND, ANSCHAFFUNG und SONSTIGE_EINNAHMEN; die übrigen stammen aus der ersten Fassung
+// ERHALTUNGSAUFWAND, ANSCHAFFUNG, SCHULDZINSEN und SONSTIGE_EINNAHMEN; die übrigen stammen aus der ersten Fassung
 // (Zeilen 47/48/50) und gelten wie „automatisch“.
 export const ANLAGE_V_ZEILEN = [
   "ERHALTUNGSAUFWAND",
@@ -13,10 +13,11 @@ export const ANLAGE_V_ZEILEN = [
   "SONSTIGES",
   "SONSTIGE_EINNAHMEN",
   "ANSCHAFFUNG",
+  "SCHULDZINSEN",
 ] as const;
 export type AnlageVZeile = (typeof ANLAGE_V_ZEILEN)[number];
 
-export const WAHL_IM_FORMULAR = ["ERHALTUNGSAUFWAND", "ANSCHAFFUNG", "SONSTIGE_EINNAHMEN"] as const;
+export const WAHL_IM_FORMULAR = ["ERHALTUNGSAUFWAND", "ANSCHAFFUNG", "SCHULDZINSEN", "SONSTIGE_EINNAHMEN"] as const;
 
 // Anschaffungs-/Herstellungskosten (Einbauküche, Modernisierung, Sanierung) sind nicht sofort abziehbar,
 // sondern nur über die Abschreibung (AfA). Entscheidung 12.10.2026: Die Einordnung gilt erst für
@@ -30,13 +31,20 @@ export function verlangtBezugsbereit(anlageVZeile: AnlageVZeile | null | undefin
   return anlageVZeile === "ANSCHAFFUNG" && (jahr === null || jahr >= AFA_AB_JAHR);
 }
 
-export type Kostengruppe = "INSTANDHALTUNG" | "UMLAGEFAEHIG" | "NICHT_UMLAGEFAEHIG" | "ANSCHAFFUNG" | "EINNAHME";
+export type Kostengruppe =
+  | "INSTANDHALTUNG"
+  | "UMLAGEFAEHIG"
+  | "NICHT_UMLAGEFAEHIG"
+  | "ANSCHAFFUNG"
+  | "SCHULDZINSEN"
+  | "EINNAHME";
 
 export const KOSTENGRUPPE_LABEL: Record<Kostengruppe, string> = {
   INSTANDHALTUNG: "Instandhaltung",
   UMLAGEFAEHIG: "Umlagefähig",
   NICHT_UMLAGEFAEHIG: "Nicht umlagefähig",
   ANSCHAFFUNG: "Anschaffung / Herstellung (AfA)",
+  SCHULDZINSEN: "Schuldzinsen (Darlehen)",
   EINNAHME: "Sonstige Einnahme",
 };
 
@@ -65,6 +73,7 @@ export function kostengruppeFuer(
 ): { gruppe: Kostengruppe; automatisch: boolean } {
   if (k.anlageVZeile === "ANSCHAFFUNG" && (jahr === undefined || jahr >= AFA_AB_JAHR))
     return { gruppe: "ANSCHAFFUNG", automatisch: false };
+  if (k.anlageVZeile === "SCHULDZINSEN") return { gruppe: "SCHULDZINSEN", automatisch: false };
   if (k.anlageVZeile === "ERHALTUNGSAUFWAND") return { gruppe: "INSTANDHALTUNG", automatisch: false };
   if (k.anlageVZeile === "SONSTIGE_EINNAHMEN") return { gruppe: "EINNAHME", automatisch: false };
   return { gruppe: vorschlagKostengruppe(k), automatisch: true };
@@ -98,12 +107,15 @@ export type AnlageVAufstellung = {
   instandhaltung: number;
   umlagefaehig: number;
   nichtUmlagefaehig: number;
+  // Zinsen der Darlehen, die über das Mietkonto laufen (Kostenarten mit Einordnung „Schuldzinsen“); nur
+  // soweit im Journal gebucht — Zinsen aus der Zeit, als die Darlehen über ein anderes Konto liefen, fehlen.
+  schuldzinsen: number;
   summeKosten: number;
   // Anschaffungs-/Herstellungskosten (Kostenarten mit Einordnung „Anschaffung / Herstellung“, ab 2026):
   // nicht in den Kosten und nicht im Überschuss, sondern Grundlage der Abschreibung. Der Jahresbericht
   // zählt sie weiter als Ausgabe (Abfluss).
   anschaffung: number;
-  ueberschuss: number; // vor AfA und Schuldzinsen, nach 10-Tage-Regel
+  ueberschuss: number; // vor AfA, nach Schuldzinsen (soweit gebucht) und nach 10-Tage-Regel
   // ueberschuss = ueberschussBericht + anschaffung + abgrenzungHinzu − abgrenzungHeraus (10-Tage-Regel für die Mieteinnahmen)
   ueberschussBericht: number; // Ergebnis des Jahresberichts (Zahlungsdatum)
   abgrenzungHinzu: number; // Dezember-Zahlungen des Vorjahres für den Januar des Berichtsjahres
@@ -138,12 +150,14 @@ export function baueAnlageVAufstellung(eingabe: {
   let umlagefaehig = 0;
   let nichtUmlagefaehig = Math.max(-eingabe.sonstigeEurRelevant, 0);
   let anschaffung = 0;
+  let schuldzinsen = 0;
   for (const k of eingabe.kosten) {
     // Kostenposition: positiv = Ausgabe, negativ = Gutschrift/Einnahme.
     if (k.gruppe === "EINNAHME") sonstigeEinnahmen += -k.summe;
     else if (k.gruppe === "INSTANDHALTUNG") instandhaltung += k.summe;
     else if (k.gruppe === "UMLAGEFAEHIG") umlagefaehig += k.summe;
     else if (k.gruppe === "ANSCHAFFUNG") anschaffung += k.summe;
+    else if (k.gruppe === "SCHULDZINSEN") schuldzinsen += k.summe;
     else nichtUmlagefaehig += k.summe;
   }
 
@@ -151,7 +165,7 @@ export function baueAnlageVAufstellung(eingabe: {
     eingabe.nkVorauszahlungen + eingabe.nachzahlungenEingezogen + eingabe.kautionMitNk - eingabe.guthabenAusgezahlt;
   const mieten = eingabe.kaltmiete + eingabe.kautionMitMiete;
   const summeEinnahmen = mieten + eingabe.umsatzsteuer + nebenkosten + sonstigeEinnahmen;
-  const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig;
+  const summeKosten = instandhaltung + umlagefaehig + nichtUmlagefaehig + schuldzinsen;
 
   return {
     mieten: gerundet(mieten),
@@ -170,6 +184,7 @@ export function baueAnlageVAufstellung(eingabe: {
     instandhaltung: gerundet(instandhaltung),
     umlagefaehig: gerundet(umlagefaehig),
     nichtUmlagefaehig: gerundet(nichtUmlagefaehig),
+    schuldzinsen: gerundet(schuldzinsen),
     summeKosten: gerundet(summeKosten),
     anschaffung: gerundet(anschaffung),
     ueberschuss: gerundet(summeEinnahmen - summeKosten),
@@ -182,3 +197,14 @@ export function baueAnlageVAufstellung(eingabe: {
     anzahlHeraus: eingabe.abgrenzung.anzahlHeraus,
   };
 }
+
+// Bezeichnung des Überschusses: Solange keine Schuldzinsen gebucht sind (Jahre vor dem Wechsel der Darlehen auf
+// das Mietkonto), gilt er vor Zinsen; sonst nach den gebuchten Zinsen.
+export function ueberschussBezeichnung(st: Pick<AnlageVAufstellung, "schuldzinsen">): string {
+  return st.schuldzinsen !== 0
+    ? "Überschuss vor AfA, nach gebuchten Schuldzinsen (Einnahmen − Kosten)"
+    : "Überschuss vor AfA und Schuldzinsen (Einnahmen − Kosten)";
+}
+
+export const SCHULDZINSEN_HINWEIS =
+  "nur soweit über das Mietkonto gebucht (Zinsen aus der Zeit davor laut Bankbescheinigung); die Tilgung ist keine Ausgabe";

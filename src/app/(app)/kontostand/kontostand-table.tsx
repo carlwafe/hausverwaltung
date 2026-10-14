@@ -15,6 +15,7 @@ const KATEGORIE_LABEL: Record<KontostandKategorie, string> = {
   zahlung: "Zahlung",
   kosten: "Kosten",
   mietweiterleitung: "Mietweiterleitung/Einlage",
+  darlehen: "Darlehenstilgung",
   kaution: "Kaution",
   sonstige: "Sonstige",
   nicht_kategorisiert: "Nicht kategorisiert",

@@ -135,7 +135,15 @@ export function ermittleBuchungsartKandidaten(
   return zahlungZuerst ? [zahlungKandidat, kostenKandidat] : [kostenKandidat, zahlungKandidat];
 }
 
-export type BuchungsartGruppe = "MIETE" | "KOSTEN" | "MIETWEITERLEITUNG" | "KAUTION" | "NEBENKOSTENAUSGLEICH" | "SONDERZAHLUNG" | "SONSTIGE";
+export type BuchungsartGruppe =
+  | "MIETE"
+  | "KOSTEN"
+  | "MIETWEITERLEITUNG"
+  | "KAUTION"
+  | "NEBENKOSTENAUSGLEICH"
+  | "SONDERZAHLUNG"
+  | "DARLEHEN"
+  | "SONSTIGE";
 
 // Ordnet einen Buchungsart-Katalog-Code seiner Familie zu — entscheidet serverseitig (commitBuchungen)
 // über Pflichtfeld-Prüfung/Dedup-Formel und clientseitig (buchungen-tabelle.tsx) über die
@@ -147,6 +155,8 @@ export function ermittleBuchungsartGruppe(code: string): BuchungsartGruppe | nul
   if (code === "MIETWEITERLEITUNG") return "MIETWEITERLEITUNG";
   if (code === "NEBENKOSTENAUSGLEICH") return "NEBENKOSTENAUSGLEICH";
   if (code === "SONDERZAHLUNG") return "SONDERZAHLUNG";
+  // Darlehensrate: Bankzeile wird in Zinsen (Kostenposition) und Tilgung geteilt, siehe src/lib/darlehen.ts.
+  if (code === "DARLEHEN_TILGUNG") return "DARLEHEN";
   if (code.startsWith("KAUTION_")) return "KAUTION";
   // Jede weitere, vom Nutzer unter /buchungsarten angelegte Art: generische Familie (Mietvertrag
   // optional, sonst keine Sonderfelder) — die Flags im Katalog steuern Kontostand/Jahresübersicht.

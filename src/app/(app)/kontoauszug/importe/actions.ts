@@ -42,12 +42,12 @@ export async function pruefeImportVollstaendigkeit(
       prisma.buchung.findMany({ where: { buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
       prisma.buchung.findMany({ where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
       prisma.buchung.findMany({ where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: { in: ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG", "MAHNGEBUEHR"] } }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
+      prisma.buchung.findMany({ where: { buchungsart: { code: { in: ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG", "MAHNGEBUEHR", "DARLEHEN_TILGUNG"] } }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
       prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
       // Nur nicht stornierte Teile einer Aufteilung (das stornierte Original zählt nicht mehr mit).
       prisma.buchung.findMany({
         where: {
-          OR: [{ aufteilungGruppeId: { not: null } }, { bezugTyp: "Umbuchung" }],
+          OR: [{ aufteilungGruppeId: { not: null } }, { bezugTyp: "Umbuchung" }, { bezugTyp: "Darlehensrate" }],
           ...AKTIVE_BUCHUNG_FILTER,
         },
         select: { rohdaten: true },

@@ -80,7 +80,7 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
               ausgewiesen; ihre Abführung an das Finanzamt ist hier nicht enthalten. Mieten und Nebenkosten: Zahlungen sind je Monat zuerst auf die
               Nebenkosten-Vorauszahlung angerechnet, der Rest ist Kaltmiete. Ausgezahlte Nebenkosten-Guthaben
               mindern die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie. Nicht enthalten: Absetzung für
-              Abnutzung und Schuldzinsen.
+              Abnutzung. Schuldzinsen sind nur enthalten, soweit die Darlehensraten über das Mietkonto gebucht wurden; die Tilgung ist keine Ausgabe.
               {z.anschaffung.length > 0 &&
                 " Anschaffungs- und Herstellungskosten (z. B. Einbauküchen, Modernisierung) sind nicht in den Kosten enthalten, sondern gesondert ausgewiesen; die Abschreibung bestimmt der Steuerberater."}
             </p>

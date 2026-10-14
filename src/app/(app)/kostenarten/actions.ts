@@ -34,6 +34,10 @@ const kostenartSchema = z
       path: ["vertraglicheGrundlage"],
     },
   )
+  .refine((data) => !(data.umlagefaehig && data.anlageVZeile === "SCHULDZINSEN"), {
+    message: "Schuldzinsen sind nicht umlagefähig (keine Betriebskosten) — Häkchen „umlagefähig“ entfernen",
+    path: ["anlageVZeile"],
+  })
   .refine((data) => !(data.betrKvNummer && data.istSonstigeBetriebskosten), {
     message: "Eine Kostenart ist entweder einer der Nr. 1–16 zugeordnet oder \"sonstige\" (Nr. 17), nicht beides",
     path: ["betrKvNummer"],

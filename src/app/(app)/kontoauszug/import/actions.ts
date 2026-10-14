@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
 import { requireUser, requireEditor, benutzerLabel } from "@/lib/session";
-import { mitMeldung } from "@/lib/aktion";
+import { AktionsFehler, mitMeldung } from "@/lib/aktion";
+import { DARLEHEN_BEZUG, DARLEHEN_BUCHUNGSART, legeDarlehensrateAn, teileDarlehensrate } from "@/lib/darlehen";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { speichereDatei } from "@/lib/storage";
@@ -557,6 +558,7 @@ export async function previewImport(
       name: k.name,
       umlagefaehig: k.umlagefaehig,
       anschaffung: k.anlageVZeile === "ANSCHAFFUNG",
+      schuldzinsen: k.anlageVZeile === "SCHULDZINSEN",
     }));
     const gebaeude: GebaeudeKandidat[] = gebaeudeRaw.map((g) => ({
       id: g.id,
@@ -681,6 +683,9 @@ export type BuchungCommitRow = {
   jahr?: number | null;
   // Nur bei "KOSTEN" mit Kostenart „Anschaffung / Herstellung“: ab wann die Wohnung bezugsbereit war (yyyy-mm-dd).
   bezugsbereitAb?: string | null;
+  // Nur bei "DARLEHEN": Zinsanteil der Rate in Euro (positiv, laut Tilgungsplan); der Rest ist Tilgung.
+  // kostenartId ist dann die Kostenart mit Einordnung „Schuldzinsen“.
+  zinsanteil?: number | null;
 };
 
 // Ersetzt commitZahlungen/commitKosten/commitMietweiterleitungen/commitKautionsbuchungen/
@@ -722,6 +727,24 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
   const fehlendeKostenart = gruppen.filter((g) => g.gruppe === "KOSTEN" && !g.row.kostenartId);
   if (fehlendeKostenart.length > 0) {
     return `${fehlendeKostenart.length} Zeile(n) mit Buchungsart "Kosten" haben noch keine Kostenart ausgewählt.`;
+  }
+
+  // Darlehensrate: Zinsanteil nur mit Kostenart „Schuldzinsen“, höchstens so hoch wie die Rate.
+  const darlehenZeilen = gruppen.filter((g) => g.gruppe === "DARLEHEN").map((g) => g.row);
+  const zinsKostenartIds = new Set(
+    (await prisma.kostenart.findMany({ where: { anlageVZeile: "SCHULDZINSEN" }, select: { id: true } })).map((k) => k.id),
+  );
+  for (const r of darlehenZeilen) {
+    const zins = r.zinsanteil ?? 0;
+    if (zins > 0 && (!r.kostenartId || !zinsKostenartIds.has(r.kostenartId))) {
+      return 'Bei einer Darlehensrate mit Zinsanteil muss eine Kostenart mit der Einordnung „Schuldzinsen“ gewählt sein (Kostenarten → Steuerliche Einordnung).';
+    }
+    try {
+      teileDarlehensrate(r.betrag, zins);
+    } catch (e) {
+      if (e instanceof AktionsFehler) return `Darlehensrate ${r.datum}: ${e.message}`;
+      throw e;
+    }
   }
 
   // Anschaffung / Herstellung (AfA): „bezugsbereit ab“ ist Pflicht (Beginn der Abschreibung).
@@ -846,6 +869,22 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
     }
   }
 
+  // Darlehensrate: Der Betrag der Tilgung ist nur der Rest der Bankzeile, deshalb zählen Datum und
+  // Verwendungszweck (Darlehensnummer) — eine bereits geteilte Rate derselben Zeile wird übersprungen.
+  if (familien.has("DARLEHEN")) {
+    const bestehend = await prisma.buchung.findMany({
+      where: { AND: [{ OR: [{ buchungsart: { code: DARLEHEN_BUCHUNGSART } }, { bezugTyp: DARLEHEN_BEZUG }] }, dedup] },
+      select: { datum: true, verwendungszweck: true },
+    });
+    const bestehendSet = new Set(
+      bestehend.filter((b) => b.datum).map((b) => `${b.datum!.toISOString().slice(0, 10)}|${(b.verwendungszweck ?? "").trim().toLowerCase()}`),
+    );
+    for (const r of darlehenZeilen) {
+      if (bestehendSet.has(`${r.datum}|${r.verwendungszweck.trim().toLowerCase()}`)) uebersprungenGesamt++;
+      else neu.push({ ...r, gruppe: "DARLEHEN" });
+    }
+  }
+
   if (familien.has("SONSTIGE")) {
     for (const code of sonstigeCodes) {
       const zeilen = gruppen.filter((g) => g.gruppe === "SONSTIGE" && g.row.buchungsartCode === code).map((g) => g.row);
@@ -864,9 +903,31 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
     }
   }
 
-  if (neu.length > 0) {
+  const neuDarlehen = neu.filter((r) => r.gruppe === "DARLEHEN");
+  for (const r of neuDarlehen) {
+    await prisma.$transaction((tx) =>
+      legeDarlehensrateAn(
+        tx,
+        {
+          datum: new Date(r.datum),
+          bankBetrag: r.betrag,
+          zinsanteil: r.zinsanteil ?? 0,
+          kostenartId: r.kostenartId ?? null,
+          empfaenger: r.empfaenger || null,
+          verwendungszweck: r.verwendungszweck || null,
+          rohdaten: r.rohdaten,
+          importBatchId: typeof importBatchId === "string" ? importBatchId : null,
+          erstelltVon: benutzerLabel(user),
+        },
+        { tilgung: arten.get(DARLEHEN_BUCHUNGSART)!, kosten: arten.get("KOSTENPOSITION")! },
+      ),
+    );
+  }
+
+  const neuJournal = neu.filter((r) => r.gruppe !== "DARLEHEN");
+  if (neuJournal.length > 0) {
     await prisma.buchung.createMany({
-      data: neu.map((r) => {
+      data: neuJournal.map((r) => {
         const { gebaeudeId, hausId, kostengruppeId, einheitId } =
           r.gruppe === "KOSTEN" ? parseGebaeudeAuswahlWert(r.gebaeudeAuswahl ?? "") : {
             gebaeudeId: null,
@@ -929,6 +990,7 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
   revalidatePath("/");
   revalidatePath("/kosten");
   revalidatePath("/mietweiterleitungen");
+  if (neuDarlehen.length > 0) revalidatePath("/darlehen");
   revalidatePath("/kautionen");
   revalidatePath("/nebenkostenabrechnungen");
   revalidatePath("/nebenkostenausgleich");

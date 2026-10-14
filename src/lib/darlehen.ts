@@ -1,0 +1,86 @@
+// Darlehensraten, die über das Mietkonto laufen (Entscheidung 14.10.2026): Eine Abbuchung besteht aus
+// Zinsen (Werbungskosten, Schuldzinsen der Anlage V) und Tilgung (kein Aufwand, mindert nur die Restschuld).
+// Im Journal sind das zwei Buchungen mit denselben Rohdaten der Bankzeile:
+//  * Tilgung = Buchungsart DARLEHEN_TILGUNG (Bankvorzeichen, bewegt den Kontostand, nicht eur-relevant),
+//  * Zins    = KOSTENPOSITION einer Kostenart mit Einordnung SCHULDZINSEN (positiv = Ausgabe).
+// Der Zins verweist per bezugTyp/bezugId auf die Tilgung, damit Löschen (Storno) beide trifft und der
+// Vollständigkeits-Check die Bankzeile nicht als doppelt erfasst meldet.
+import type { Prisma } from "@/generated/prisma/client";
+import { AktionsFehler } from "@/lib/aktion";
+
+export const DARLEHEN_BUCHUNGSART = "DARLEHEN_TILGUNG";
+export const DARLEHEN_BEZUG = "Darlehensrate";
+
+const cent = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Teilt den Bankbetrag einer Rate (Bankvorzeichen, Abbuchung negativ) in Zins und Tilgung.
+ * `zinsanteil` ist der positive Zinsbetrag laut Tilgungsplan; ohne Zinsanteil ist alles Tilgung
+ * (z.B. Sondertilgung). Rückgabe: Zins als positive Ausgabe, Tilgung mit Bankvorzeichen.
+ */
+export function teileDarlehensrate(bankBetrag: number, zinsanteil: number): { zins: number; tilgung: number } {
+  const zins = cent(zinsanteil);
+  if (!Number.isFinite(zins) || zins < 0) throw new AktionsFehler("Der Zinsanteil darf nicht negativ sein.");
+  if (zins === 0) return { zins: 0, tilgung: cent(bankBetrag) };
+  if (bankBetrag >= 0) throw new AktionsFehler("Einen Zinsanteil gibt es nur bei einer Abbuchung (negativer Betrag).");
+  if (zins > cent(-bankBetrag)) {
+    throw new AktionsFehler("Der Zinsanteil ist höher als die gesamte Rate.");
+  }
+  return { zins, tilgung: cent(bankBetrag + zins) };
+}
+
+export type DarlehensrateEingabe = {
+  datum: Date;
+  bankBetrag: number;
+  zinsanteil: number;
+  // Pflicht, sobald ein Zinsanteil gebucht wird: Kostenart mit Einordnung „Schuldzinsen“.
+  kostenartId: string | null;
+  empfaenger: string | null;
+  verwendungszweck: string | null;
+  rohdaten: Prisma.InputJsonValue | undefined;
+  importBatchId: string | null;
+  erstelltVon: string | null;
+};
+
+/** Legt Tilgung und Zins einer Rate an (in der Transaktion des Aufrufers). Gibt die Anzahl neuer Buchungen zurück. */
+export async function legeDarlehensrateAn(
+  tx: Prisma.TransactionClient,
+  e: DarlehensrateEingabe,
+  buchungsartIds: { tilgung: string; kosten: string },
+): Promise<number> {
+  const { zins, tilgung } = teileDarlehensrate(e.bankBetrag, e.zinsanteil);
+  if (zins > 0 && !e.kostenartId) throw new AktionsFehler("Für den Zinsanteil fehlt die Kostenart (Schuldzinsen).");
+
+  const gemeinsam = {
+    datum: e.datum,
+    empfaenger: e.empfaenger,
+    verwendungszweck: e.verwendungszweck,
+    rohdaten: e.rohdaten,
+    importBatchId: e.importBatchId ?? undefined,
+    erstelltVon: e.erstelltVon,
+  };
+  let anzahl = 0;
+  let tilgungId: string | null = null;
+  if (tilgung !== 0) {
+    const t = await tx.buchung.create({
+      data: { ...gemeinsam, buchungsartId: buchungsartIds.tilgung, betrag: tilgung },
+    });
+    tilgungId = t.id;
+    anzahl++;
+  }
+  if (zins > 0) {
+    await tx.buchung.create({
+      data: {
+        ...gemeinsam,
+        buchungsartId: buchungsartIds.kosten,
+        kostenartId: e.kostenartId,
+        betrag: zins,
+        jahr: e.datum.getUTCFullYear(),
+        bezugTyp: tilgungId ? DARLEHEN_BEZUG : undefined,
+        bezugId: tilgungId ?? undefined,
+      },
+    });
+    anzahl++;
+  }
+  return anzahl;
+}

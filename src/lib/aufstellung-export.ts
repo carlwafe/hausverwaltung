@@ -1,6 +1,13 @@
 // Aufbereitung der Aufstellung für die Steuererklärung für den Export (Druckseite und CSV).
 // Reine Funktionen ohne Prisma.
-import { KOSTENGRUPPE_LABEL, type AnlageVAufstellung, type KostenSumme, type Kostengruppe } from "./anlage-v";
+import {
+  KOSTENGRUPPE_LABEL,
+  SCHULDZINSEN_HINWEIS,
+  ueberschussBezeichnung,
+  type AnlageVAufstellung,
+  type KostenSumme,
+  type Kostengruppe,
+} from "./anlage-v";
 import type { AfaPosition } from "./afa-positionen";
 
 const euroText = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -56,6 +63,9 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
       { text: "Instandhaltung (Reparaturen)", betrag: st.instandhaltung },
       { text: "Umlagefähige Kosten", betrag: st.umlagefaehig },
       { text: "Nicht umlagefähige Kosten", betrag: st.nichtUmlagefaehig },
+      ...(st.schuldzinsen !== 0
+        ? [{ text: "Schuldzinsen (Darlehen)", betrag: st.schuldzinsen, hinweis: SCHULDZINSEN_HINWEIS }]
+        : []),
       { text: "Summe der Kosten", betrag: st.summeKosten, fett: true },
     ],
     anschaffung:
@@ -68,7 +78,7 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
             },
           ]
         : [],
-    ueberschuss: [{ text: "Überschuss vor AfA und Schuldzinsen (Einnahmen − Kosten)", betrag: st.ueberschuss, fett: true }],
+    ueberschuss: [{ text: ueberschussBezeichnung(st), betrag: st.ueberschuss, fett: true }],
     zehnTage,
   };
 }
@@ -91,7 +101,7 @@ function fuerExport(kosten: KostenSumme[]): KostenSumme[] {
   return [...nachName.values()];
 }
 
-const GRUPPEN_REIHENFOLGE: Kostengruppe[] = ["INSTANDHALTUNG", "UMLAGEFAEHIG", "NICHT_UMLAGEFAEHIG", "ANSCHAFFUNG"];
+const GRUPPEN_REIHENFOLGE: Kostengruppe[] = ["INSTANDHALTUNG", "UMLAGEFAEHIG", "NICHT_UMLAGEFAEHIG", "SCHULDZINSEN", "ANSCHAFFUNG"];
 
 const datumText = (d: Date | null, jahr: number | null) =>
   d ? new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d) : jahr ? `Kostenjahr ${jahr}` : "";
@@ -171,6 +181,6 @@ export function aufstellungAlsCsv(
   for (const e of afaEinzelposten(afaPositionen))
     zeilen.push(["Anschaffung (AfA) – Einzelposten", `${e.datum} · ${e.kostenart} · ${e.objekt} (${[e.bezugsbereit || "bezugsbereit ab: nicht angegeben", e.vermietung].filter(Boolean).join("; ")}) · ${e.beschreibung}`, csvZahl(e.betrag)]);
   for (const e of sonstigeEinnahmenZeilen(st, kosten)) zeilen.push(["Sonstige Einnahmen", e.text, csvZahl(e.betrag)]);
-  zeilen.push(["Hinweis", `Aufstellung ${jahr} ${objekt}: ohne AfA und Schuldzinsen${st.anschaffung !== 0 ? " (Anschaffungs-/Herstellungskosten gesondert als Grundlage der AfA, nicht in den Kosten)" : ""}; Mietzahlungen nach Zuflussprinzip inkl. 10-Tage-Regel (22.12.–31.12. für Januar); Kosten nach Abbuchungsdatum`, ""]);
+  zeilen.push(["Hinweis", `Aufstellung ${jahr} ${objekt}: ohne AfA${st.schuldzinsen !== 0 ? "; Schuldzinsen nur soweit über das Mietkonto gebucht" : " und Schuldzinsen"}${st.anschaffung !== 0 ? " (Anschaffungs-/Herstellungskosten gesondert als Grundlage der AfA, nicht in den Kosten)" : ""}; Mietzahlungen nach Zuflussprinzip inkl. 10-Tage-Regel (22.12.–31.12. für Januar); Kosten nach Abbuchungsdatum`, ""]);
   return "﻿" + zeilen.map((r) => r.map(csvText).join(";")).join("\r\n") + "\r\n";
 }

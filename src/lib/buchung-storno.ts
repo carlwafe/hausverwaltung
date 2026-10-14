@@ -71,5 +71,14 @@ export async function storniereBuchung(
     });
     for (const g of gegenbuchungen) await storniereBuchung(tx, g.id, erstelltVon);
   }
+  // Tilgung einer Darlehensrate: der Zinsanteil (Kostenposition mit bezugTyp „Darlehensrate“) gehört zur
+  // selben Abbuchung und fällt mit weg — sonst bliebe ein Zins ohne Rate stehen.
+  if (original.buchungsart.code === "DARLEHEN_TILGUNG") {
+    const zinsen = await tx.buchung.findMany({
+      where: { bezugTyp: "Darlehensrate", bezugId: buchungId, ...AKTIVE_BUCHUNG_FILTER },
+      select: { id: true },
+    });
+    for (const z of zinsen) await storniereBuchung(tx, z.id, erstelltVon);
+  }
   return storno;
 }

@@ -30,6 +30,7 @@ const FINANZEN: NavLink[] = [
   { href: "/kosten", label: "Kosten" },
   { href: "/kautionen", label: "Kautionen" },
   { href: "/mietweiterleitungen", label: "Mietweiterleitungen" },
+  { href: "/darlehen", label: "Darlehen" },
   { href: "/nebenkostenausgleich", label: "Nebenkostenausgleich" },
   { href: "/kontostand", label: "Kontostand" },
 ];

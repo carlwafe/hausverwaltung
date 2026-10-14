@@ -56,9 +56,11 @@ export async function ladeKontostandEintraege(): Promise<KontostandEintrag[]> {
             ? ("kosten" as const)
             : b.buchungsart.code === "MIETWEITERLEITUNG"
               ? ("mietweiterleitung" as const)
-              : b.buchungsart.kontokreis === "KAUTIONSKONTO"
-                ? ("kaution" as const)
-                : ("sonstige" as const);
+              : b.buchungsart.code === "DARLEHEN_TILGUNG"
+                ? ("darlehen" as const)
+                : b.buchungsart.kontokreis === "KAUTIONSKONTO"
+                  ? ("kaution" as const)
+                  : ("sonstige" as const);
       return {
         id: b.id,
         datum: b.datum!,

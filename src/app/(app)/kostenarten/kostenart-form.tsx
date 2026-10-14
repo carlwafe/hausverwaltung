@@ -62,6 +62,7 @@ export function KostenartForm({
   const [anlageVZeile, setAnlageVZeile] = useState<string>(
     initial?.anlageVZeile === "ERHALTUNGSAUFWAND" ||
       initial?.anlageVZeile === "ANSCHAFFUNG" ||
+      initial?.anlageVZeile === "SCHULDZINSEN" ||
       initial?.anlageVZeile === "SONSTIGE_EINNAHMEN"
       ? initial.anlageVZeile
       : "",
@@ -202,6 +203,7 @@ export function KostenartForm({
           <option value="">– automatisch: {KOSTENGRUPPE_LABEL[vorschlag]} –</option>
           <option value="ERHALTUNGSAUFWAND">Instandhaltung / Erhaltungsaufwand (separat ausgewiesen)</option>
           <option value="ANSCHAFFUNG">Anschaffung / Herstellung (Abschreibung statt Sofortabzug, ab 2026)</option>
+          <option value="SCHULDZINSEN">Schuldzinsen (Zinsanteil von Darlehensraten, nicht umlagefähig)</option>
           <option value="SONSTIGE_EINNAHMEN">Sonstige Einnahme (z.B. Waschgeld, Gebühren)</option>
         </select>
         <p className="mt-1 text-xs text-neutral-500">
@@ -209,7 +211,9 @@ export function KostenartForm({
           umlagefähig. Ohne Auswahl gilt ein Vorschlag (Reparaturen = Instandhaltung, sonst nach der
           Umlagefähigkeit). Anschaffung / Herstellung (z.B. Einbauküche, Modernisierung, Sanierung) zählt ab
           dem Berichtsjahr 2026 nicht zu den Kosten, sondern steht gesondert als Grundlage der Abschreibung
-          (AfA); frühere Jahre bleiben unverändert.
+          (AfA); frühere Jahre bleiben unverändert. Schuldzinsen sind der Zinsanteil einer Darlehensrate: eigene
+          Zeile in der Aufstellung, nie umlagefähig; die Tilgung wird dagegen nicht als Kostenart, sondern als
+          Buchungsart „Darlehenstilgung“ erfasst (siehe Kontoauszug-Import).
         </p>
       </div>
 
