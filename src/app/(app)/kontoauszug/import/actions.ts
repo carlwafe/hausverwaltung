@@ -1,7 +1,7 @@
 "use server";
 
 import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
-import { ergaenzeLeereZahlungswege } from "@/lib/zahlungsweg-ableiten";
+import { aktualisiereZahlungswege } from "@/lib/zahlungsweg-ableiten";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
@@ -912,8 +912,8 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
     await stelleNkPositionSicher(prisma, mietvertragId, Number(jahr));
   }
 
-  // Zahlungsweg der betroffenen Verträge aus den neuen Bankzeilen ergänzen (nur wo noch keiner erfasst ist).
-  await ergaenzeLeereZahlungswege(
+  // Zahlungsweg der betroffenen Verträge: leere aus den neuen Bankzeilen ergänzen, bei erfassten ggf. Warnung setzen.
+  await aktualisiereZahlungswege(
     neu.filter((r) => r.gruppe === "MIETE" && r.mietvertragId).map((r) => r.mietvertragId!),
   );
 

@@ -336,6 +336,7 @@ export default async function MietvertragDetailPage({
         saldovortragText={formatEuro(saldovortrag)}
         eigenerStichtagText={eigenerStichtag && stichtagAb ? formatDate(stichtagAb) : null}
         zahlungsweg={vertrag.zahlungsweg}
+        zahlungswegHinweis={vertrag.status === "BEENDET" ? null : vertrag.zahlungswegHinweis}
         mandat={
           vertrag.mandatReferenz || vertrag.mandatGlaeubigerId || vertrag.mandatDatum || vertrag.mandatIban || vertrag.mandatKontoinhaber
             ? {

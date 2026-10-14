@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZahlungswegHinweisAktionen } from "./zahlungsweg-hinweis-aktionen";
 
 const STATUS_LABEL: Record<string, string> = {
   AKTIV: "Aktiv",
@@ -47,6 +48,7 @@ export function EckdatenSektion({
   saldovortragText,
   eigenerStichtagText,
   zahlungsweg,
+  zahlungswegHinweis = null,
   mandat = null,
   kaution,
   letzteErhoehungText,
@@ -65,6 +67,8 @@ export function EckdatenSektion({
   // Eigener Buchhaltungs-Stichtag des Vertrags (formatiert), nur wenn er vom Objekt abweicht.
   eigenerStichtagText: string | null;
   zahlungsweg: string | null;
+  // Vorgeschlagener Zahlungsweg laut jüngsten Zahlungen, wenn er vom erfassten abweicht (Warnung), sonst null.
+  zahlungswegHinweis?: string | null;
   // SEPA-Mandat des Vertrags (alle Werte bereits formatiert); null = nichts erfasst.
   mandat?: { referenz: string | null; glaeubigerId: string | null; datumText: string | null; kontoinhaber: string | null; iban: string | null } | null;
   kaution: { betragText: string; anlageform: string; einzahlungUnbekannt: boolean } | null;
@@ -109,6 +113,14 @@ export function EckdatenSektion({
             </>
           )}
         </div>
+        {zahlungswegHinweis && (
+          <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            <span>
+              Zahlungsweg prüfen: Die jüngsten Zahlungen sprechen für „{ZAHLUNGSWEG_LABEL[zahlungswegHinweis] ?? zahlungswegHinweis}“.
+            </span>
+            <ZahlungswegHinweisAktionen id={mietvertragId} />
+          </p>
+        )}
         {(mandat || zahlungsweg === "LASTSCHRIFT") && (
           <div className="mt-4 border-t border-neutral-800 pt-3">
             <p className="mb-2 text-xs font-medium text-neutral-300">SEPA-Lastschriftmandat</p>

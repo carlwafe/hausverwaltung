@@ -121,7 +121,7 @@ export default async function MietvertragBearbeitenPage({
         }}
         objektStichtag={toDateInputValue(objekt?.buchhaltungAb)}
         mieterMitWohnung={mieterMitWohnung}
-        zahlungswegVorschlag={zahlungswegVorschlag ?? ""}
+        zahlungswegVorschlag={vertrag.zahlungswegHinweis ?? zahlungswegVorschlag ?? ""}
         action={updateMietvertrag.bind(null, id)}
       />
 

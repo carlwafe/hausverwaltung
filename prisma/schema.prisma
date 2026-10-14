@@ -457,6 +457,11 @@ model Mietvertrag {
   saldovortrag             Decimal           @default(0) @db.Decimal(10, 2)
   // null = nicht erfasst.
   zahlungsweg              Zahlungsweg?
+  // Warnung: Die jüngsten Zahlungen im Kontoauszug sprechen für diesen Zahlungsweg statt des erfassten (gesetzt beim
+  // Import, z.B. Mieter zahlt nicht mehr über das Amt). Verschwindet beim Ändern des Zahlungswegs, bei „Übernehmen“
+  // oder wenn die Zahlungen wieder zum erfassten passen. `…Verworfen` = der Vorschlag, den der Nutzer ausgeblendet hat.
+  zahlungswegHinweis          Zahlungsweg?
+  zahlungswegHinweisVerworfen Zahlungsweg?
   // SEPA-Lastschriftmandat des Mieters (alle optional): Referenz, Gläubiger-ID, Unterschriftsdatum, Kontoinhaber, IBAN
   // des Zahlers. Reine Stammdaten zum Nachschlagen — die Einzüge selbst entstehen erst durch den Kontoauszug.
   // Werte für bestehende Mandate stammen aus den Bankzeilen der Lastschrift-Gutschriften (Unterschriftsdatum dort nicht).

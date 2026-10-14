@@ -50,8 +50,8 @@ export function leiteZahlungswegAb(rohdatenNeuesteZuerst: unknown[]): Zahlungswe
   return arten.every((a) => a === arten[0]) ? arten[0] : null;
 }
 
-/** Vorschlag für einen Vertrag aus dem Journal (null = nicht eindeutig oder zu wenige Zahlungen mit Bankzeile). */
-export async function ermittleZahlungsweg(mietvertragId: string): Promise<ZahlungswegArt | null> {
+/** Bankzeilen der jüngsten Mietzahlungen eines Vertrags, neueste zuerst. */
+async function ladeBankzeilen(mietvertragId: string): Promise<unknown[]> {
   const zeilen = await prisma.buchung.findMany({
     where: {
       mietvertragId,
@@ -65,30 +65,74 @@ export async function ermittleZahlungsweg(mietvertragId: string): Promise<Zahlun
     take: FENSTER + 8,
     select: { rohdaten: true },
   });
-  return leiteZahlungswegAb(zeilen.map((z) => z.rohdaten));
+  return zeilen.map((z) => z.rohdaten);
+}
+
+/** Vorschlag für einen Vertrag aus dem Journal (null = nicht eindeutig oder zu wenige Zahlungen mit Bankzeile). */
+export async function ermittleZahlungsweg(mietvertragId: string): Promise<ZahlungswegArt | null> {
+  return leiteZahlungswegAb(await ladeBankzeilen(mietvertragId));
+}
+
+const WARN_ZAHLUNGEN = 2;
+
+/**
+ * Warnung, wenn der erfasste Zahlungsweg nicht mehr stimmt: die jüngsten 2 Zahlungen sind beide von einer anderen Art
+ * (z.B. zahlt der Mieter nach einem neuen Job wieder selbst statt über das Amt). Bewusst früher als beim Ausfüllen leerer
+ * Felder (dort 3 von 4), weil es nur ein Hinweis ist; abwechselnde Zahlungen (Amt + Eigenanteil) lösen nichts aus.
+ * Liefert den vorgeschlagenen Zahlungsweg oder null.
+ */
+export function leiteAbweichungAb(rohdatenNeuesteZuerst: unknown[], erfasst: ZahlungswegArt): ZahlungswegArt | null {
+  const arten: ZahlungswegArt[] = [];
+  for (const r of rohdatenNeuesteZuerst) {
+    const art = zahlungswegAusBankzeile(r);
+    if (art) arten.push(art);
+    if (arten.length === WARN_ZAHLUNGEN) break;
+  }
+  if (arten.length < WARN_ZAHLUNGEN) return null;
+  return arten.every((a) => a === arten[0]) && arten[0] !== erfasst ? arten[0] : null;
+}
+
+/** Neue Werte für Hinweis und verworfenen Hinweis (rein, gut testbar). */
+export function bestimmeHinweis(
+  abweichung: ZahlungswegArt | null,
+  bisher: { hinweis: ZahlungswegArt | null; verworfen: ZahlungswegArt | null },
+): { hinweis: ZahlungswegArt | null; verworfen: ZahlungswegArt | null } {
+  // Passen die Zahlungen wieder zum erfassten Weg, ist auch ein früher verworfener Vorschlag erledigt.
+  if (!abweichung) return { hinweis: null, verworfen: null };
+  // Derselbe Vorschlag wie der verworfene bleibt ausgeblendet.
+  if (abweichung === bisher.verworfen) return { hinweis: null, verworfen: bisher.verworfen };
+  return { hinweis: abweichung, verworfen: bisher.verworfen };
 }
 
 /**
- * Nach einem Import: bei den betroffenen Verträgen den Zahlungsweg eintragen, **nur wenn noch keiner erfasst ist**.
- * Eigene Einträge bleiben unangetastet (eine Abweichung zeigt das Formular „Mietvertrag bearbeiten“ als Vorschlag).
- * Fehler dürfen den Import nicht stören.
+ * Nach einem Import, bei den betroffenen Verträgen: Ist noch kein Zahlungsweg erfasst, wird er aus den Zahlungen
+ * eingetragen (wenn eindeutig). Ist einer erfasst, wird er **nie überschrieben** — weichen die jüngsten Zahlungen davon
+ * ab, merkt sich die App den Vorschlag als Warnung (`zahlungswegHinweis`; Mietverträge-Seite, Vertragsseite). Beendete
+ * Verträge bekommen keine Warnung. Fehler dürfen den Import nicht stören.
  */
-export async function ergaenzeLeereZahlungswege(mietvertragIds: string[]): Promise<number> {
+export async function aktualisiereZahlungswege(mietvertragIds: string[]): Promise<void> {
   try {
-    const leer = await prisma.mietvertrag.findMany({
-      where: { id: { in: [...new Set(mietvertragIds)] }, zahlungsweg: null },
-      select: { id: true },
+    const vertraege = await prisma.mietvertrag.findMany({
+      where: { id: { in: [...new Set(mietvertragIds)] } },
+      select: { id: true, status: true, zahlungsweg: true, zahlungswegHinweis: true, zahlungswegHinweisVerworfen: true },
     });
-    let gesetzt = 0;
-    for (const v of leer) {
-      const art = await ermittleZahlungsweg(v.id);
-      if (!art) continue;
-      const r = await prisma.mietvertrag.updateMany({ where: { id: v.id, zahlungsweg: null }, data: { zahlungsweg: art } });
-      gesetzt += r.count;
+    for (const v of vertraege) {
+      const bankzeilen = await ladeBankzeilen(v.id);
+      if (v.zahlungsweg === null) {
+        const art = leiteZahlungswegAb(bankzeilen);
+        if (art) await prisma.mietvertrag.updateMany({ where: { id: v.id, zahlungsweg: null }, data: { zahlungsweg: art } });
+        continue;
+      }
+      const abweichung = v.status === "BEENDET" ? null : leiteAbweichungAb(bankzeilen, v.zahlungsweg);
+      const neu = bestimmeHinweis(abweichung, { hinweis: v.zahlungswegHinweis, verworfen: v.zahlungswegHinweisVerworfen });
+      if (neu.hinweis !== v.zahlungswegHinweis || neu.verworfen !== v.zahlungswegHinweisVerworfen) {
+        await prisma.mietvertrag.update({
+          where: { id: v.id },
+          data: { zahlungswegHinweis: neu.hinweis, zahlungswegHinweisVerworfen: neu.verworfen },
+        });
+      }
     }
-    return gesetzt;
   } catch (e) {
-    console.error("Zahlungsweg konnte nicht ergänzt werden", e);
-    return 0;
+    console.error("Zahlungswege konnten nicht aktualisiert werden", e);
   }
 }

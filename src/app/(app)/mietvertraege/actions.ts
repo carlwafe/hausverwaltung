@@ -178,9 +178,13 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
   const data = await parseForm(formData);
 
   await prisma.$transaction(async (tx) => {
+    // Ändert der Nutzer den Zahlungsweg, ist die Warnung dazu erledigt (auch ein früher verworfener Vorschlag).
+    const bisher = await tx.mietvertrag.findUnique({ where: { id }, select: { zahlungsweg: true } });
+    const wegGeaendert = bisher !== null && bisher.zahlungsweg !== (data.zahlungsweg ?? null);
     await tx.mietvertrag.update({
       where: { id },
       data: {
+        ...(wegGeaendert ? { zahlungswegHinweis: null, zahlungswegHinweisVerworfen: null } : {}),
         einheit: { connect: { id: data.einheitId } },
         mieter: { set: mieterIds(data).map((mid) => ({ id: mid })) },
         beginn: data.beginnUnbekannt ? null : data.beginn,
@@ -531,3 +535,35 @@ export async function loescheMieterhoehung(id: string) {
 // erfasst (siehe createZahlung in zahlungen/actions.ts, Zahlungsart "Gebühr") statt hier separat —
 // die frühere erfasseSonderforderung/storniereSonderforderungBuchung sind entfallen, Stornieren
 // läuft jetzt über deleteZahlung auf der Zahlungs-Detailseite.
+
+function revalidiereZahlungsweg(id: string) {
+  revalidatePath("/mietvertraege");
+  revalidatePath(`/mietvertraege/${id}`);
+  revalidatePath("/miete-monat");
+}
+
+/** Warnung „Zahlungsweg prüfen“: den vorgeschlagenen Zahlungsweg übernehmen. */
+export const uebernehmeZahlungswegHinweis = mitMeldung(async function uebernehmeZahlungswegHinweis(id: string): Promise<string | null> {
+  await requireEditor();
+  const v = await prisma.mietvertrag.findUnique({ where: { id }, select: { zahlungswegHinweis: true } });
+  if (!v?.zahlungswegHinweis) return null;
+  await prisma.mietvertrag.update({
+    where: { id },
+    data: { zahlungsweg: v.zahlungswegHinweis, zahlungswegHinweis: null, zahlungswegHinweisVerworfen: null },
+  });
+  revalidiereZahlungsweg(id);
+  return null;
+});
+
+/** Warnung „Zahlungsweg prüfen“ ausblenden; derselbe Vorschlag kommt nicht wieder, ein anderer schon. */
+export const verwerfeZahlungswegHinweis = mitMeldung(async function verwerfeZahlungswegHinweis(id: string): Promise<string | null> {
+  await requireEditor();
+  const v = await prisma.mietvertrag.findUnique({ where: { id }, select: { zahlungswegHinweis: true } });
+  if (!v?.zahlungswegHinweis) return null;
+  await prisma.mietvertrag.update({
+    where: { id },
+    data: { zahlungswegHinweisVerworfen: v.zahlungswegHinweis, zahlungswegHinweis: null },
+  });
+  revalidiereZahlungsweg(id);
+  return null;
+});

@@ -37,6 +37,9 @@ export type VertragRow = {
   kaltmiete: number;
   nebenkostenVorauszahlung: number;
   status: "AKTIV" | "GEPLANT" | "BEENDET";
+  zahlungsweg: string | null;
+  // Vorgeschlagener Zahlungsweg, wenn die jüngsten Zahlungen nicht zum erfassten passen (sonst null).
+  zahlungswegHinweis: string | null;
 };
 
 const columns: Column<VertragRow>[] = [
@@ -74,7 +77,20 @@ const columns: Column<VertragRow>[] = [
     sortValue: (v) => v.mieterNamen,
     searchValue: (v) => v.mieterNamen,
     className: "max-w-[160px] truncate",
-    render: (v) => v.mieterNamen,
+    render: (v) => (
+      <>
+        {v.mieterNamen}
+        {v.zahlungswegHinweis && (
+          <Link
+            href={`/mietvertraege/${v.id}`}
+            title="Die jüngsten Zahlungen passen nicht zum erfassten Zahlungsweg"
+            className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400 hover:bg-amber-500/20"
+          >
+            ⚠ Zahlungsweg
+          </Link>
+        )}
+      </>
+    ),
   },
   {
     key: "beginn",
