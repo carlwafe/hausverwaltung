@@ -29,15 +29,15 @@ export function MonatForm({ ankerId, jahr, monat }: { ankerId: string; jahr: num
   const geaendert = m !== monat || j !== jahr;
   return (
     <div>
-      <div className="flex items-center gap-2">
-        <select value={m} onChange={(e) => setM(Number(e.target.value))} className={feld}>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={m} onChange={(e) => setM(Number(e.target.value))} className={`${feld} w-28 shrink-0`} aria-label="Monat">
           {MONATE.map((x, i) => (
             <option key={x} value={i + 1}>
               {x}
             </option>
           ))}
         </select>
-        <input type="number" value={j} onChange={(e) => setJ(Number(e.target.value))} className={`${feld} w-20`} />
+        <input type="number" value={j} onChange={(e) => setJ(Number(e.target.value))} className={`${feld} w-24 shrink-0`} aria-label="Jahr" />
         <button
           type="button"
           disabled={pending || !geaendert}
@@ -115,17 +115,17 @@ export function AufteilenFormular({
         je Monat neu gebucht (gleiche Bankdaten, Kontostand unverändert).
       </p>
       {zeilen.map((z, i) => (
-        <div key={i} className="mb-2 grid grid-cols-[auto_auto_1fr_1fr_auto] items-center gap-2">
-          <select value={z.monat} onChange={(e) => monatGeaendert(i, z.jahr, Number(e.target.value))} className={feld}>
+        <div key={i} className="mb-3 flex flex-wrap items-center gap-2">
+          <select value={z.monat} onChange={(e) => monatGeaendert(i, z.jahr, Number(e.target.value))} className={`${feld} w-28 shrink-0`} aria-label="Monat">
             {MONATE.map((x, k) => (
               <option key={x} value={k + 1}>
                 {x}
               </option>
             ))}
           </select>
-          <input type="number" value={z.jahr} onChange={(e) => monatGeaendert(i, Number(e.target.value), z.monat)} className={`${feld} w-20`} />
-          <input value={z.rate} inputMode="decimal" placeholder="Rate (€)" onChange={(e) => aendere(i, { rate: e.target.value })} className={`${feld} w-full`} />
-          <input value={z.zins} inputMode="decimal" placeholder="davon Zinsen (€)" onChange={(e) => aendere(i, { zins: e.target.value })} className={`${feld} w-full`} />
+          <input type="number" value={z.jahr} onChange={(e) => monatGeaendert(i, Number(e.target.value), z.monat)} className={`${feld} w-24 shrink-0`} aria-label="Jahr" />
+          <input value={z.rate} inputMode="decimal" placeholder="Rate (€)" onChange={(e) => aendere(i, { rate: e.target.value })} className={`${feld} min-w-[7rem] flex-1`} />
+          <input value={z.zins} inputMode="decimal" placeholder="davon Zinsen (€)" onChange={(e) => aendere(i, { zins: e.target.value })} className={`${feld} min-w-[7rem] flex-1`} />
           <button type="button" disabled={zeilen.length <= 2} onClick={() => setZeilen((l) => l.filter((_, j) => j !== i))} className={knopfRand} aria-label="Monat entfernen">
             ×
           </button>
