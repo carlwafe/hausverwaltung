@@ -242,6 +242,13 @@ model DarlehenZuordnung {
   buchungId   String   @unique
   darlehen    Darlehen @relation(fields: [darlehenId], references: [id], onDelete: Cascade)
   darlehenId  String
+  // Monat, für den die Rate gezahlt wurde (Soll/Ist-Abgleich im Darlehenskonto); ohne Angabe gilt der Monat des
+  // Buchungsdatums.
+  periodeJahr  Int?
+  periodeMonat Int?
+  // Sonderbuchung (z.B. Verzugszinsen, Gebühren): gehört zum Darlehen, ist aber keine Rate des Tilgungsplans und wird
+  // im Darlehenskonto nicht mit dem Soll verglichen.
+  sonder      Boolean  @default(false)
   erstelltVon String?
   erstelltAm  DateTime @default(now())
 

@@ -141,6 +141,8 @@ type BuchungEditRow = VereinheitlichteZeile & {
   zinsanteil: string;
   // Nur Darlehensrate: das Darlehen der Stammdaten, zu dem die Rate gehört (Pflicht, sofern es aktive Darlehen gibt).
   darlehenId: string;
+  // Nur Darlehen: Sonderbuchung (z.B. Verzugszinsen) statt Rate — der ganze Betrag ist Zins, kein Tilgungsanteil, kein Monat.
+  darlehenSonder: boolean;
   ausgewaehlt: boolean;
   // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung) — nur Vorschlag + Begründung.
   ki?: { kommentar: string; konfidenz: "hoch" | "mittel" | "niedrig" };
@@ -154,7 +156,7 @@ function zinsanteilZahl(text: string): number {
 
 function pflichtfeldErfuellt(
   gruppe: BuchungsartGruppe | null,
-  r: { mietvertragId: string; kostenartId: string; zinsanteil?: string; betrag?: number | null; darlehenId?: string },
+  r: { mietvertragId: string; kostenartId: string; zinsanteil?: string; betrag?: number | null; darlehenId?: string; darlehenSonder?: boolean },
   darlehenPflicht = false,
 ): boolean {
   if (!gruppe) return false;
@@ -162,6 +164,8 @@ function pflichtfeldErfuellt(
   if (gruppe === "KOSTEN") return Boolean(r.kostenartId);
   if (gruppe === "DARLEHEN") {
     if (darlehenPflicht && !r.darlehenId) return false;
+    // Sonderbuchung: der ganze Betrag ist Zins (nur Abbuchung) und braucht die Kostenart „Schuldzinsen“.
+    if (r.darlehenSonder) return Boolean(r.kostenartId) && (r.betrag ?? 0) < 0;
     const zins = zinsanteilZahl(r.zinsanteil ?? "");
     if (!Number.isFinite(zins) || zins < 0) return false;
     if (zins === 0) return true;
@@ -262,6 +266,7 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
     bezugsbereitAb: "",
     zinsanteil: "",
     darlehenId: "",
+    darlehenSonder: false,
     ausgewaehlt: false,
   };
   row.ausgewaehlt =
@@ -424,6 +429,13 @@ export function BuchungenTabelle({
         kostenartId: zinsArten.length === 1 ? zinsArten[0].id : "",
         zinsanteil: plan ? String(plan.zins).replace(".", ",") : "",
         darlehenId: erkannt ?? "",
+        darlehenSonder: false,
+        // Monat der Rate: der des Tilgungsplans (die Abbuchung kann vor/nach dem 15. liegen), sonst der des Buchungsdatums.
+        ...(plan
+          ? { periodeJahr: Number(plan.datum.slice(0, 4)), periodeMonat: Number(plan.datum.slice(5, 7)) }
+          : r.datum
+            ? { periodeJahr: Number(r.datum.slice(0, 4)), periodeMonat: Number(r.datum.slice(5, 7)) }
+            : {}),
         ausgewaehlt: r.errors.length === 0 && Boolean(erkannt || darlehenListe.length === 0) && !istBereitsImportiert("DARLEHEN", r, bestehendeSets),
       });
     }
@@ -518,14 +530,14 @@ export function BuchungenTabelle({
       verwendungszweck: r.verwendungszweck,
       rohdaten: r.rohdaten,
       mietvertragId: gruppe === "MIETE" || gruppe === "KAUTION" || gruppe === "NEBENKOSTENAUSGLEICH" || gruppe === "SONDERZAHLUNG" || gruppe === "SONSTIGE" ? r.mietvertragId || null : undefined,
-      periodeMonat: gruppe === "MIETE" ? r.periodeMonat : undefined,
-      periodeJahr: gruppe === "MIETE" ? r.periodeJahr : undefined,
+      periodeMonat: gruppe === "MIETE" || (gruppe === "DARLEHEN" && !r.darlehenSonder) ? r.periodeMonat : undefined,
+      periodeJahr: gruppe === "MIETE" || (gruppe === "DARLEHEN" && !r.darlehenSonder) ? r.periodeJahr : undefined,
       kostenartId: gruppe === "KOSTEN" ? r.kostenartId : undefined,
       gebaeudeAuswahl: gruppe === "KOSTEN" ? r.gebaeudeAuswahl : undefined,
       jahr: gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH" ? (r.jahrEingabe ? Number(r.jahrEingabe) : null) : undefined,
       bezugsbereitAb: gruppe === "KOSTEN" && brauchtBezugsbereit(r) ? r.bezugsbereitAb || null : undefined,
       ...(gruppe === "DARLEHEN"
-        ? { kostenartId: r.kostenartId || null, zinsanteil: zinsanteilZahl(r.zinsanteil), darlehenId: r.darlehenId || null }
+        ? { kostenartId: r.kostenartId || null, zinsanteil: r.darlehenSonder ? undefined : zinsanteilZahl(r.zinsanteil), darlehenId: r.darlehenId || null, darlehenSonder: r.darlehenSonder }
         : {}),
     };
   });
@@ -857,9 +869,10 @@ export function BuchungenTabelle({
                         </div>
                       )}
                       {gruppe === "DARLEHEN" && (() => {
-                        const zins = zinsanteilZahl(r.zinsanteil);
-                        const zinsGueltig = Number.isFinite(zins) && zins >= 0;
+                        const sonder = r.darlehenSonder;
                         const rate = Math.abs(r.betrag ?? 0);
+                        const zins = sonder ? rate : zinsanteilZahl(r.zinsanteil);
+                        const zinsGueltig = Number.isFinite(zins) && zins >= 0;
                         const tilgung = Math.round((rate - (zinsGueltig ? zins : 0)) * 100) / 100;
                         const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
                         return (
@@ -889,14 +902,54 @@ export function BuchungenTabelle({
                                 Noch kein Darlehen in den Stammdaten (Darlehen &amp; Tilgungspläne) — die Rate wird ohne Darlehen gebucht.
                               </p>
                             )}
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={r.zinsanteil}
-                              onChange={(e) => updateRow(r.rowNumber, { zinsanteil: e.target.value })}
-                              placeholder="Davon Zinsen (€, laut Tilgungsplan)"
+                            <select
+                              value={sonder ? "sonder" : "rate"}
+                              onChange={(e) => {
+                                const neuSonder = e.target.value === "sonder";
+                                const zinsArten = kostenarten.filter((k) => k.schuldzinsen);
+                                updateRow(r.rowNumber, {
+                                  darlehenSonder: neuSonder,
+                                  zinsanteil: "",
+                                  ...(neuSonder && !r.kostenartId && zinsArten.length === 1 ? { kostenartId: zinsArten[0].id } : {}),
+                                });
+                              }}
                               className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
-                            />
+                            >
+                              <option value="rate">Rate (Zins + Tilgung)</option>
+                              <option value="sonder">Sonderbuchung (z.B. Verzugszinsen)</option>
+                            </select>
+                            {!sonder && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[11px] text-neutral-500">Rate für</span>
+                                <select
+                                  value={r.periodeMonat}
+                                  onChange={(e) => updateRow(r.rowNumber, { periodeMonat: Number(e.target.value) })}
+                                  className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                                >
+                                  {MONATE.map((m, idx) => (
+                                    <option key={m} value={idx + 1}>
+                                      {m}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="number"
+                                  value={r.periodeJahr}
+                                  onChange={(e) => updateRow(r.rowNumber, { periodeJahr: Number(e.target.value) })}
+                                  className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                                />
+                              </div>
+                            )}
+                            {!sonder && (
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={r.zinsanteil}
+                                onChange={(e) => updateRow(r.rowNumber, { zinsanteil: e.target.value })}
+                                placeholder="Davon Zinsen (€, laut Tilgungsplan)"
+                                className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-neutral-400"
+                              />
+                            )}
                             {zins > 0 && (
                               <select
                                 value={r.kostenartId}
@@ -916,7 +969,7 @@ export function BuchungenTabelle({
                                 Noch keine Kostenart mit Einordnung „Schuldzinsen“ — unter Kostenarten anlegen.
                               </p>
                             )}
-                            {(() => {
+                            {!sonder && (() => {
                               const plan = findePlanRate(darlehenRaten, r.datum, r.betrag);
                               if (!plan) {
                                 return (
@@ -945,7 +998,11 @@ export function BuchungenTabelle({
                               );
                             })()}
                             <p className="text-[11px] text-neutral-500">
-                              {!zinsGueltig
+                              {sonder
+                                ? (r.betrag ?? 0) < 0
+                                  ? `Sonderbuchung: ${formatEuro(rate)} Zinsen/Kosten (Schuldzinsen), keine Tilgung, keine Rate des Tilgungsplans.`
+                                  : "Sonderbuchung nur bei einer Abbuchung (negativer Betrag)."
+                                : !zinsGueltig
                                 ? "Zinsanteil ungültig."
                                 : zins > rate + 0.005
                                   ? "Zinsanteil ist höher als die Rate."

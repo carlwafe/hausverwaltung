@@ -42,6 +42,13 @@ export type DarlehensrateEingabe = {
   erstelltVon: string | null;
   // Darlehen der Stammdaten, zu dem die Rate gehört (siehe DarlehenZuordnung).
   darlehenId?: string | null;
+  // Monat, für den die Rate gezahlt wurde (Soll/Ist im Darlehenskonto), und Kennzeichen „Sonderbuchung“ (z.B.
+  // Verzugszinsen: keine Rate des Plans, wird nicht mit dem Soll verglichen).
+  periodeJahr?: number | null;
+  periodeMonat?: number | null;
+  sonder?: boolean;
+  // Gemeinsame Gruppe der Teile einer auf mehrere Monate aufgeteilten Zahlung (Buchung.aufteilungGruppeId).
+  aufteilungGruppeId?: string | null;
 };
 
 /**
@@ -63,6 +70,7 @@ export async function legeDarlehensrateAn(
     rohdaten: e.rohdaten,
     importBatchId: e.importBatchId ?? undefined,
     erstelltVon: e.erstelltVon,
+    aufteilungGruppeId: e.aufteilungGruppeId ?? undefined,
   };
   let anzahl = 0;
   let tilgungId: string | null = null;
@@ -90,7 +98,13 @@ export async function legeDarlehensrateAn(
     anzahl++;
   }
   const ankerId = tilgungId ?? zinsId;
-  if (e.darlehenId && ankerId) await ordneDarlehenZu(tx, ankerId, e.darlehenId, e.erstelltVon);
+  if (e.darlehenId && ankerId) {
+    await ordneDarlehenZu(tx, ankerId, e.darlehenId, e.erstelltVon, {
+      periodeJahr: e.sonder ? null : e.periodeJahr ?? null,
+      periodeMonat: e.sonder ? null : e.periodeMonat ?? null,
+      sonder: !!e.sonder,
+    });
+  }
   return { anzahl, ankerId };
 }
 
@@ -100,6 +114,8 @@ export async function ordneDarlehenZu(
   ankerId: string,
   darlehenId: string | null,
   erstelltVon: string | null,
+  // Monat/Sonderbuchung nur angeben, wenn sie gesetzt werden sollen; ohne Angabe bleiben bestehende Werte unverändert.
+  extra?: { periodeJahr?: number | null; periodeMonat?: number | null; sonder?: boolean },
 ): Promise<void> {
   if (!darlehenId) {
     await tx.darlehenZuordnung.deleteMany({ where: { buchungId: ankerId } });
@@ -107,7 +123,7 @@ export async function ordneDarlehenZu(
   }
   await tx.darlehenZuordnung.upsert({
     where: { buchungId: ankerId },
-    create: { buchungId: ankerId, darlehenId, erstelltVon },
-    update: { darlehenId, erstelltVon },
+    create: { buchungId: ankerId, darlehenId, erstelltVon, ...extra },
+    update: { darlehenId, erstelltVon, ...extra },
   });
 }

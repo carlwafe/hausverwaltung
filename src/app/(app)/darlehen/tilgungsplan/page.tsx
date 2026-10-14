@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { formatEuro } from "@/lib/dokumente-anzeige";
 import { DeleteButton } from "@/components/delete-button";
+import { baueDarlehenskonto, zaehleOffeneMonate, type Darlehenskonto } from "@/lib/darlehenskonto";
+import { ladeDarlehenIst } from "@/lib/darlehenskonto-laden";
 import {
   berechneTilgungsplan,
   jahressummen,
@@ -12,6 +14,7 @@ import {
   type TilgungsplanEingabe,
   type Zinsstufe,
 } from "@/lib/tilgungsplan";
+import { MIETKONTO_AB } from "@/lib/darlehenskonto";
 import { DarlehenForm, type DarlehenFormWerte } from "./darlehen-form";
 import { loescheDarlehen } from "./actions";
 
@@ -82,6 +85,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
     return { d, e, raten, summen, vergleich: vergleicheMitBank(summen, (d.bankwerte as Bankwert[] | null) ?? []) };
   });
   const aktive = plaene.filter((p) => p.d.aktiv);
+  const istJeDarlehen = await ladeDarlehenIst();
 
   const alleJahre = new Set<number>([heute.getUTCFullYear()]);
   for (const p of plaene) for (const s of p.summen) alleJahre.add(s.jahr);
@@ -141,6 +145,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
                   <th className={kopf}>Restschuld 31.12.{jahr}</th>
                   <th className={kopf}>Restschuld heute</th>
                   <th className={kopf}>Bank</th>
+                  <th className={kopf}>Konto</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,6 +170,14 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
                       <td className="whitespace-nowrap px-4 py-2 text-right text-xs">
                         {!vgl ? <span className="text-neutral-500">–</span> : vgl.stimmt ? <span className="text-green-400">stimmt ✓</span> : <span className="text-amber-400">Abweichung</span>}
                       </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right text-xs">
+                        {(() => {
+                          const ist = istJeDarlehen.get(p.d.id) ?? [];
+                          const offen = zaehleOffeneMonate(p.raten, ist, heute);
+                          if (offen > 0) return <span className="text-red-400">{offen} Monat{offen === 1 ? "" : "e"} offen</span>;
+                          return ist.length ? <span className="text-green-400">gebucht ✓</span> : <span className="text-neutral-500">–</span>;
+                        })()}
+                      </td>
                     </tr>
                   );
                 })}
@@ -179,6 +192,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
                   <td className={zelle}>{formatEuro(summe((z) => z.rest))}</td>
                   <td className={zelle}>{formatEuro(Math.round(aktive.reduce((s, p) => s + restschuldAm(p.e, p.raten, heute), 0) * 100) / 100)}</td>
                   <td />
+                  <td />
                 </tr>
               </tfoot>
             </table>
@@ -189,7 +203,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
             der Bescheinigung.
           </p>
 
-          {gewaehlt ? <Einzelplan p={gewaehlt} stufen={gewaehlt.e.stufen} jahr={jahr} kannBearbeiten={kannBearbeiten} /> : <p className="mt-8 text-sm text-neutral-400">Darlehen in der Tabelle anklicken, um alle Raten zu sehen.</p>}
+          {gewaehlt ? <Einzelplan p={gewaehlt} stufen={gewaehlt.e.stufen} jahr={jahr} kannBearbeiten={kannBearbeiten} konto={baueDarlehenskonto(gewaehlt.raten, istJeDarlehen.get(gewaehlt.d.id) ?? [], Number(gewaehlt.d.startRestschuld), jahr, heute)} /> : <p className="mt-8 text-sm text-neutral-400">Darlehen in der Tabelle anklicken, um alle Raten zu sehen.</p>}
 
           {plaene.some((p) => !p.d.aktiv) && (
             <p className="mt-8 text-sm text-neutral-500">
@@ -204,7 +218,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
   );
 }
 
-function Einzelplan({ p, stufen, jahr, kannBearbeiten }: { p: { d: { id: string; bezeichnung: string; darlehensnummer: string | null; bank: string | null; darlehensbetrag: unknown; startRestschuld: unknown; startDatum: Date; zinssatz: unknown; zinsbindungBis: Date | null; laufzeitEnde: Date | null; bemerkung: string | null; zahltag: number }; raten: ReturnType<typeof berechneTilgungsplan>; summen: ReturnType<typeof jahressummen>; vergleich: ReturnType<typeof vergleicheMitBank> }; stufen: Zinsstufe[]; jahr: number; kannBearbeiten: boolean }) {
+function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: string; bezeichnung: string; darlehensnummer: string | null; bank: string | null; darlehensbetrag: unknown; startRestschuld: unknown; startDatum: Date; zinssatz: unknown; zinsbindungBis: Date | null; laufzeitEnde: Date | null; bemerkung: string | null; zahltag: number }; raten: ReturnType<typeof berechneTilgungsplan>; summen: ReturnType<typeof jahressummen>; vergleich: ReturnType<typeof vergleicheMitBank> }; stufen: Zinsstufe[]; jahr: number; kannBearbeiten: boolean; konto: Darlehenskonto }) {
   const { d } = p;
   const imJahr = p.raten.filter((r) => r.jahr === jahr);
   return (
@@ -242,48 +256,119 @@ function Einzelplan({ p, stufen, jahr, kannBearbeiten }: { p: { d: { id: string;
       )}
       {d.bemerkung && <p className="mt-2 max-w-3xl text-sm text-neutral-400">{d.bemerkung}</p>}
 
-      <h3 className="mt-6 text-sm font-medium text-white">Raten {jahr}</h3>
-      {imJahr.length === 0 ? (
+      <h3 className="mt-6 text-sm font-medium text-white">Darlehenskonto {jahr}: Soll (Plan) und Ist (gebucht)</h3>
+      <p className="mt-1 max-w-3xl text-xs text-neutral-500">
+        Soll = Rate laut Tilgungsplan. Ist = die über das Mietkonto gebuchte Rate, dem Monat zugeordnet, für den sie gezahlt
+        wurde (beim Import wählbar, auf der Seite der Zahlung änderbar oder auf mehrere Monate aufteilbar). Gebucht wird erst
+        ab {String(MIETKONTO_AB.monat).padStart(2, "0")}/{MIETKONTO_AB.jahr}; davor liefen die Darlehen über ein anderes Konto.
+      </p>
+      {konto.zeilen.length === 0 ? (
         <p className="mt-2 text-sm text-neutral-400">Für {jahr} gibt es keine Raten (vor dem Ausgangsstand oder nach Laufzeitende).</p>
       ) : (
-        <div className="mt-2 max-w-4xl overflow-auto rounded-lg border border-neutral-800">
+        <div className="mt-2 overflow-auto rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
             <thead className="text-xs text-neutral-400">
               <tr>
-                <th className="px-4 py-2 text-left">Datum</th>
+                <th className="px-3 py-2 text-left">Monat</th>
                 <th className={kopf}>Zinssatz</th>
-                <th className={kopf}>Rate</th>
-                <th className={kopf}>Zinsen</th>
-                <th className={kopf}>Tilgung</th>
-                <th className={kopf}>Restschuld</th>
+                <th className={kopf}>Soll Rate</th>
+                <th className={kopf}>Soll Zinsen</th>
+                <th className={kopf}>Soll Tilgung</th>
+                <th className={kopf}>Ist Rate</th>
+                <th className={kopf}>Ist Zinsen</th>
+                <th className={kopf}>Ist Tilgung</th>
+                <th className={kopf}>Restschuld Plan</th>
+                <th className={kopf}>Restschuld Ist</th>
+                <th className="px-3 py-2 text-left">Status</th>
               </tr>
             </thead>
             <tbody>
-              {imJahr.map((r) => (
-                <tr key={r.datum.toISOString()} className="border-t border-neutral-800">
-                  <td className="whitespace-nowrap px-4 py-2 text-white">
-                    {datumText(r.datum)}
-                    {r.teilrate && <span className="ml-2 text-xs text-neutral-500">halbe Schlussrate</span>}
-                  </td>
-                  <td className={zelle}>{prozent(r.zinssatz)}{r.nachZinsbindung && <span title="Zinssatz nach Ende der Zinsbindung nur angenommen" className="text-amber-400"> *</span>}</td>
-                  <td className={zelle}>{formatEuro(r.rate)}</td>
-                  <td className={zelle}>{formatEuro(r.zins)}</td>
-                  <td className={zelle}>{formatEuro(r.tilgung)}</td>
-                  <td className={zelle}>{formatEuro(r.restschuld)}</td>
-                </tr>
-              ))}
+              {konto.zeilen.map((z) => {
+                const diff = z.ist && z.soll ? Math.round((z.ist.rate - z.soll.rate) * 100) / 100 : null;
+                const diffZins = z.ist && z.soll ? Math.round((z.ist.zins - z.soll.zins) * 100) / 100 : null;
+                return (
+                  <tr key={z.monat} className="border-t border-neutral-800">
+                    <td className="whitespace-nowrap px-3 py-2 text-white">
+                      {String(z.monat).padStart(2, "0")}/{z.jahr}
+                      {z.planDatum && <span className="ml-2 text-xs text-neutral-500">{datumText(z.planDatum)}</span>}
+                    </td>
+                    <td className={zelle}>{z.zinssatz !== null ? prozent(z.zinssatz) : "–"}{z.nachZinsbindung && <span title="Zinssatz nach Ende der Zinsbindung nur angenommen" className="text-amber-400"> *</span>}</td>
+                    <td className={`${zelle} text-neutral-300`}>{z.soll ? formatEuro(z.soll.rate) : "–"}</td>
+                    <td className={`${zelle} text-neutral-300`}>{z.soll ? formatEuro(z.soll.zins) : "–"}</td>
+                    <td className={`${zelle} text-neutral-300`}>{z.soll ? formatEuro(z.soll.tilgung) : "–"}</td>
+                    <td className={zelle}>
+                      {z.ist ? (
+                        <>
+                          <Link prefetch={false} href={`/darlehen/rate/${z.ist.ankerIds[0]}`} className="underline hover:text-neutral-300">
+                            {formatEuro(z.ist.rate)}
+                          </Link>
+                          {z.ist.ankerIds.length > 1 && <span className="ml-1 text-xs text-neutral-500">({z.ist.ankerIds.length} Zahlungen)</span>}
+                        </>
+                      ) : (
+                        "–"
+                      )}
+                    </td>
+                    <td className={zelle}>{z.ist ? formatEuro(z.ist.zins) : "–"}</td>
+                    <td className={zelle}>{z.ist ? formatEuro(z.ist.tilgung) : "–"}</td>
+                    <td className={`${zelle} text-neutral-300`}>{z.restschuldPlan !== null ? formatEuro(z.restschuldPlan) : "–"}</td>
+                    <td className={zelle}>{z.restschuldIst !== null ? formatEuro(z.restschuldIst) : "–"}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs">
+                      {z.status === "ok" && <span className="text-green-400">gebucht ✓</span>}
+                      {z.status === "abweichung" && (
+                        <span className="text-amber-400">
+                          Abweichung
+                          {diff !== null && Math.abs(diff) >= 0.005 ? ` Rate ${diff > 0 ? "+" : ""}${formatEuro(diff)}` : ""}
+                          {diffZins !== null && Math.abs(diffZins) >= 0.005 ? ` · Zinsen ${diffZins > 0 ? "+" : ""}${formatEuro(diffZins)}` : ""}
+                          {!z.soll ? " (keine Rate im Plan)" : ""}
+                        </span>
+                      )}
+                      {z.status === "offen" && <span className="text-red-400">offen – nicht gebucht</span>}
+                      {z.status === "bevorstehend" && <span className="text-neutral-500">steht aus</span>}
+                      {z.status === "nicht-im-journal" && <span className="text-neutral-600">anderes Konto</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t border-neutral-700 font-medium">
-                <td className="px-4 py-2 text-white">Summe {jahr}</td>
+                <td className="px-3 py-2 text-white">Summe ab {String(MIETKONTO_AB.monat).padStart(2, "0")}/{MIETKONTO_AB.jahr}</td>
                 <td />
-                <td className={zelle}>{formatEuro(Math.round(imJahr.reduce((s, r) => s + r.rate, 0) * 100) / 100)}</td>
-                <td className={zelle}>{formatEuro(Math.round(imJahr.reduce((s, r) => s + r.zins, 0) * 100) / 100)}</td>
-                <td className={zelle}>{formatEuro(Math.round(imJahr.reduce((s, r) => s + r.tilgung, 0) * 100) / 100)}</td>
+                <td className={zelle}>{formatEuro(konto.summeSoll.rate)}</td>
+                <td className={zelle}>{formatEuro(konto.summeSoll.zins)}</td>
+                <td className={zelle}>{formatEuro(konto.summeSoll.tilgung)}</td>
+                <td className={zelle}>{formatEuro(konto.summeIst.rate)}</td>
+                <td className={zelle}>{formatEuro(konto.summeIst.zins)}</td>
+                <td className={zelle}>{formatEuro(konto.summeIst.tilgung)}</td>
+                <td colSpan={3} />
+              </tr>
+              <tr className="border-t border-neutral-800 text-neutral-400">
+                <td className="px-3 py-2">Plan {jahr} gesamt</td>
                 <td />
+                <td className={zelle}>{formatEuro(konto.sollJahr.rate)}</td>
+                <td className={zelle}>{formatEuro(konto.sollJahr.zins)}</td>
+                <td className={zelle}>{formatEuro(konto.sollJahr.tilgung)}</td>
+                <td colSpan={5} />
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+      {konto.sonder.length > 0 && (
+        <div className="mt-3 max-w-3xl">
+          <h4 className="text-xs font-medium text-neutral-300">Sonderbuchungen {jahr} (z.B. Verzugszinsen, nicht im Soll)</h4>
+          <ul className="mt-1 text-sm">
+            {konto.sonder.map((i) => (
+              <li key={i.ankerId} className="flex justify-between gap-4 border-b border-neutral-800 py-1 text-neutral-300">
+                <span>
+                  {datumText(i.datum)} · {i.text}
+                </span>
+                <Link prefetch={false} href={`/darlehen/rate/${i.ankerId}`} className="whitespace-nowrap text-white underline hover:text-neutral-300">
+                  {formatEuro(i.zins + i.tilgung)}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {imJahr.some((r) => r.nachZinsbindung) && (

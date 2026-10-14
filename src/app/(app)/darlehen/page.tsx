@@ -203,7 +203,11 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
             <tbody>
               {imJahr.map((r) => (
                 <tr key={r.id} className="border-t border-neutral-800">
-                  <td className="whitespace-nowrap px-4 py-2 text-white">{datumText(r.datum)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-white">
+                    <Link prefetch={false} href={`/darlehen/rate/${r.id}`} className="underline hover:text-neutral-300">
+                      {datumText(r.datum)}
+                    </Link>
+                  </td>
                   <td className="max-w-md px-4 py-2 text-neutral-300">{r.text}</td>
                   <td className="px-4 py-2">
                     <RateDarlehenSelect ankerId={r.id} darlehenId={r.darlehenId} darlehen={darlehenOptionen} gesperrt={!kannBearbeiten} />

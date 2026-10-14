@@ -674,6 +674,12 @@ export async function previewImport(
   }
 }
 
+// Zinsanteil einer Darlehenszeile: bei einer Sonderbuchung (z.B. Verzugszinsen) der ganze Betrag, sonst der eingetragene
+// Zinsanteil der Rate.
+function darlehenZins(r: { darlehenSonder?: boolean; betrag: number; zinsanteil?: number | null }): number {
+  return r.darlehenSonder ? Math.round(-r.betrag * 100) / 100 : (r.zinsanteil ?? 0);
+}
+
 export type BuchungCommitRow = {
   // Vom Nutzer im Buchungsart-Dropdown gewählter Katalog-Code (Standard: der erste Kandidat aus
   // ermittleBuchungsartKandidaten, aber änderbar).
@@ -700,6 +706,9 @@ export type BuchungCommitRow = {
   zinsanteil?: number | null;
   // Nur bei "DARLEHEN": das Darlehen der Stammdaten, zu dem die Rate gehört.
   darlehenId?: string | null;
+  // Nur bei "DARLEHEN": Sonderbuchung (z.B. Verzugszinsen) — der ganze Betrag ist Zins (Kostenart „Schuldzinsen“), keine
+  // Rate des Tilgungsplans. Der Monat der Rate steht sonst in periodeMonat/periodeJahr (siehe oben).
+  darlehenSonder?: boolean;
 };
 
 // Ersetzt commitZahlungen/commitKosten/commitMietweiterleitungen/commitKautionsbuchungen/
@@ -755,7 +764,17 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
     if (aktiveDarlehenIds.size > 0 && (!r.darlehenId || !aktiveDarlehenIds.has(r.darlehenId))) {
       return `Darlehensrate ${r.datum}: Bitte das Darlehen wählen, zu dem die Rate gehört.`;
     }
-    const zins = r.zinsanteil ?? 0;
+    if (r.darlehenSonder && r.betrag >= 0) {
+      return `Darlehen-Sonderbuchung ${r.datum}: Nur Abbuchungen (negativer Betrag) lassen sich als Sonderbuchung erfassen.`;
+    }
+    if (!r.darlehenSonder && r.darlehenId) {
+      const m = r.periodeMonat;
+      const j = r.periodeJahr;
+      if (!m || !j || !Number.isInteger(m) || !Number.isInteger(j) || m < 1 || m > 12 || j < 2000 || j > 2100) {
+        return `Darlehensrate ${r.datum}: Bitte den Monat wählen, für den die Rate gezahlt wurde.`;
+      }
+    }
+    const zins = darlehenZins(r);
     if (zins > 0 && (!r.kostenartId || !zinsKostenartIds.has(r.kostenartId))) {
       return 'Bei einer Darlehensrate mit Zinsanteil muss eine Kostenart mit der Einordnung „Schuldzinsen“ gewählt sein (Kostenarten → Steuerliche Einordnung).';
     }
@@ -931,7 +950,7 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
         {
           datum: new Date(r.datum),
           bankBetrag: r.betrag,
-          zinsanteil: r.zinsanteil ?? 0,
+          zinsanteil: darlehenZins(r),
           kostenartId: r.kostenartId ?? null,
           empfaenger: r.empfaenger || null,
           verwendungszweck: r.verwendungszweck || null,
@@ -939,6 +958,9 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
           importBatchId: typeof importBatchId === "string" ? importBatchId : null,
           erstelltVon: benutzerLabel(user),
           darlehenId: r.darlehenId || null,
+          periodeJahr: r.periodeJahr ?? null,
+          periodeMonat: r.periodeMonat ?? null,
+          sonder: !!r.darlehenSonder,
         },
         { tilgung: arten.get(DARLEHEN_BUCHUNGSART)!, kosten: arten.get("KOSTENPOSITION")! },
       ),
