@@ -374,49 +374,6 @@ function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: 
       {imJahr.some((r) => r.nachZinsbindung) && (
         <p className="mt-2 text-xs text-amber-400">* Die Zinsbindung ist zu diesem Zeitpunkt abgelaufen: Der Zinssatz ist nur angenommen (der der Bank gilt bis zur nächsten Anpassung). Neuen Satz unter „Bearbeiten“ als Änderung eintragen.</p>
       )}
-
-      <h3 className="mt-6 text-sm font-medium text-white">Alle Jahre</h3>
-      <div className="mt-2 max-w-4xl overflow-auto rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="text-xs text-neutral-400">
-            <tr>
-              <th className="px-4 py-2 text-left">Jahr</th>
-              <th className={kopf}>Raten</th>
-              <th className={kopf}>Zinsen</th>
-              <th className={kopf}>Tilgung</th>
-              <th className={kopf}>Restschuld 31.12.</th>
-              <th className={kopf}>Bank (Zinsen / Tilgung / Restschuld)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {p.summen.map((s) => {
-              const v = p.vergleich.find((x) => x.jahr === s.jahr);
-              return (
-                <tr key={s.jahr} className="border-t border-neutral-800">
-                  <td className="px-4 py-2">
-                    <Link prefetch={false} href={`/darlehen/tilgungsplan?jahr=${s.jahr}&darlehen=${d.id}`} className={`underline hover:text-neutral-300 ${s.jahr === jahr ? "font-medium text-white" : "text-neutral-200"}`}>{s.jahr}</Link>
-                  </td>
-                  <td className={zelle}>{formatEuro(s.rate)}</td>
-                  <td className={zelle}>{formatEuro(s.zins)}</td>
-                  <td className={zelle}>{formatEuro(s.tilgung)}</td>
-                  <td className={zelle}>{formatEuro(s.restschuld)}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right text-xs">
-                    {!v ? (
-                      <span className="text-neutral-500">–</span>
-                    ) : v.stimmt ? (
-                      <span className="text-green-400">stimmt ✓</span>
-                    ) : (
-                      <span className="text-amber-400">
-                        Bank: {[v.zinsenBank, v.tilgungBank, v.restschuldBank].map((x) => (x === undefined ? "–" : formatEuro(x))).join(" / ")}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }
