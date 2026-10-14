@@ -59,7 +59,7 @@ export function MonatForm({ ankerId, jahr, monat }: { ankerId: string; jahr: num
   );
 }
 
-type Zeile = { jahr: number; monat: number; rate: string; zins: string };
+type Zeile = { jahr: number; monat: number; rate: string; zins: string; sonder: boolean };
 
 /** Eine Zahlung, die für mehrere Monate galt, auf diese Monate aufteilen. */
 export function AufteilenFormular({
@@ -86,7 +86,7 @@ export function AufteilenFormular({
   const folgemonat = (j: number, m: number) => (m === 12 ? { jahr: j + 1, monat: 1 } : { jahr: j, monat: m + 1 });
   const neueZeile = (j: number, m: number): Zeile => {
     const p = planFuer(j, m);
-    return { jahr: j, monat: m, rate: p ? komma(p.rate) : "", zins: p ? komma(p.zins) : "" };
+    return { jahr: j, monat: m, rate: p ? komma(p.rate) : "", zins: p ? komma(p.zins) : "", sonder: false };
   };
   // Typischer Fall: die Zahlung deckt den Vormonat (nicht gezahlt) und den laufenden Monat; weitere Monate lassen sich hinzufügen.
   const [zeilen, setZeilen] = useState<Zeile[]>(() => {
@@ -99,7 +99,7 @@ export function AufteilenFormular({
 
   const summe = Math.round(zeilen.reduce((s, z) => s + (Number.isFinite(alsZahl(z.rate)) ? alsZahl(z.rate) : 0), 0) * 100) / 100;
   const diff = Math.round((gesamt - summe) * 100) / 100;
-  const mitZins = zeilen.some((z) => alsZahl(z.zins) > 0);
+  const mitZins = zeilen.some((z) => z.sonder || alsZahl(z.zins) > 0);
 
   const aendere = (i: number, teil: Partial<Zeile>) => setZeilen((l) => l.map((z, j) => (j === i ? { ...z, ...teil } : z)));
   const monatGeaendert = (i: number, j: number, m: number) => {
@@ -110,23 +110,39 @@ export function AufteilenFormular({
   return (
     <div className="max-w-2xl">
       <p className="mb-3 text-sm text-neutral-400">
-        Die Zahlung ({formatEuro(gesamt)}) galt für mehrere Monate. Je Monat die Rate und den Zinsanteil laut Tilgungsplan eintragen
-        (aus dem Plan vorbelegt); die Summe der Raten muss genau der Zahlung entsprechen. Die Zahlung wird storniert und als eine Rate
+        Die Zahlung ({formatEuro(gesamt)}) galt für mehrere Monate und/oder enthält Verzugszinsen o.ä. Je Monat die Rate und den
+        Zinsanteil laut Tilgungsplan eintragen (aus dem Plan vorbelegt); Verzugszinsen, Gebühren u.ä. als „Sonderbuchung“ (der ganze
+        Betrag ist Zins, kein Monat, nicht im Soll). Die Summe aller Teile muss genau der Zahlung entsprechen. Die Zahlung wird storniert und als eine Rate
         je Monat neu gebucht (gleiche Bankdaten, Kontostand unverändert).
       </p>
       {zeilen.map((z, i) => (
         <div key={i} className="mb-3 flex flex-wrap items-center gap-2">
-          <select value={z.monat} onChange={(e) => monatGeaendert(i, z.jahr, Number(e.target.value))} className={`${feld} w-28 shrink-0`} aria-label="Monat">
-            {MONATE.map((x, k) => (
-              <option key={x} value={k + 1}>
-                {x}
-              </option>
-            ))}
+          <select
+            value={z.sonder ? "sonder" : "rate"}
+            onChange={(e) => aendere(i, { sonder: e.target.value === "sonder", ...(e.target.value === "sonder" ? { zins: "" } : {}) })}
+            className={`${feld} shrink-0`}
+            aria-label="Art"
+          >
+            <option value="rate">Rate für Monat</option>
+            <option value="sonder">Sonderbuchung</option>
           </select>
-          <input type="number" value={z.jahr} onChange={(e) => monatGeaendert(i, Number(e.target.value), z.monat)} className={`${feld} w-24 shrink-0`} aria-label="Jahr" />
-          <input value={z.rate} inputMode="decimal" placeholder="Rate (€)" onChange={(e) => aendere(i, { rate: e.target.value })} className={`${feld} min-w-[7rem] flex-1`} />
-          <input value={z.zins} inputMode="decimal" placeholder="davon Zinsen (€)" onChange={(e) => aendere(i, { zins: e.target.value })} className={`${feld} min-w-[7rem] flex-1`} />
-          <button type="button" disabled={zeilen.length <= 2} onClick={() => setZeilen((l) => l.filter((_, j) => j !== i))} className={knopfRand} aria-label="Monat entfernen">
+          {!z.sonder && (
+            <>
+              <select value={z.monat} onChange={(e) => monatGeaendert(i, z.jahr, Number(e.target.value))} className={`${feld} w-28 shrink-0`} aria-label="Monat">
+                {MONATE.map((x, k) => (
+                  <option key={x} value={k + 1}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input type="number" value={z.jahr} onChange={(e) => monatGeaendert(i, Number(e.target.value), z.monat)} className={`${feld} w-24 shrink-0`} aria-label="Jahr" />
+            </>
+          )}
+          <input value={z.rate} inputMode="decimal" placeholder={z.sonder ? "Betrag (€), z.B. Verzugszinsen" : "Rate (€)"} onChange={(e) => aendere(i, { rate: e.target.value })} className={`${feld} min-w-[7rem] flex-1`} />
+          {!z.sonder && (
+            <input value={z.zins} inputMode="decimal" placeholder="davon Zinsen (€)" onChange={(e) => aendere(i, { zins: e.target.value })} className={`${feld} min-w-[7rem] flex-1`} />
+          )}
+          <button type="button" disabled={zeilen.length <= 2} onClick={() => setZeilen((l) => l.filter((_, j) => j !== i))} className={knopfRand} aria-label="Teil entfernen">
             ×
           </button>
         </div>
@@ -142,6 +158,9 @@ export function AufteilenFormular({
           className="text-sm text-neutral-300 underline hover:text-white"
         >
           + Monat hinzufügen
+        </button>
+        <button type="button" onClick={() => setZeilen((l) => [...l, { jahr, monat, rate: "", zins: "", sonder: true }])} className="text-sm text-neutral-300 underline hover:text-white">
+          + Sonderbuchung hinzufügen
         </button>
         <span className={`text-sm ${Math.abs(diff) < 0.005 ? "text-green-400" : "text-amber-400"}`}>
           Summe {formatEuro(summe)} von {formatEuro(gesamt)}
@@ -168,7 +187,7 @@ export function AufteilenFormular({
             setFehler(null);
             const meldung = await teileRateAufMonate(
               ankerId,
-              zeilen.map((z) => ({ jahr: z.jahr, monat: z.monat, rate: alsZahl(z.rate), zins: Number.isFinite(alsZahl(z.zins)) ? alsZahl(z.zins) : 0 })),
+              zeilen.map((z) => ({ jahr: z.jahr, monat: z.monat, rate: alsZahl(z.rate), zins: Number.isFinite(alsZahl(z.zins)) ? alsZahl(z.zins) : 0, sonder: z.sonder })),
               kostenartId || null,
             );
             if (typeof meldung === "string") setFehler(meldung);
@@ -176,7 +195,7 @@ export function AufteilenFormular({
           })
         }
       >
-        {pending ? "Teile…" : `In ${zeilen.length} Monate aufteilen`}
+        {pending ? "Teile…" : `In ${zeilen.length} Teile aufteilen`}
       </button>
     </div>
   );

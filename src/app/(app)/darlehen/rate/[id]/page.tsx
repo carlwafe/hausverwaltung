@@ -38,7 +38,7 @@ export default async function DarlehensrateDetailPage({ params }: { params: Prom
   const geschwister = anker.aufteilungGruppeId
     ? await prisma.buchung.findMany({
         where: { aufteilungGruppeId: anker.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER, darlehenZuordnung: { isNot: null } },
-        include: { darlehenZuordnung: true },
+        include: { darlehenZuordnung: true, buchungsart: { select: { code: true } } },
         orderBy: { erstelltAm: "asc" },
       })
     : [];
@@ -140,16 +140,19 @@ export default async function DarlehensrateDetailPage({ params }: { params: Prom
           <h2 className="text-lg font-medium text-white">Aufgeteilte Zahlung</h2>
           <p className="mb-3 mt-1 text-sm text-neutral-400">Diese Zahlung wurde auf mehrere Monate aufgeteilt:</p>
           <ul className="max-w-md text-sm">
-            {geschwister
-              .filter((g) => g.buchungsartId === anker.buchungsartId || !istTilgung)
-              .map((g) => (
+            {geschwister.map((g) => {
+              const tilg = g.buchungsart.code === DARLEHEN_BUCHUNGSART;
+              return (
                 <li key={g.id} className="flex justify-between border-b border-neutral-800 py-1.5">
                   <Link prefetch={false} href={`/darlehen/rate/${g.id}`} className={`underline hover:text-neutral-300 ${g.id === id ? "font-medium text-white" : "text-neutral-300"}`}>
-                    {g.darlehenZuordnung?.periodeMonat ? `${MONATSNAMEN[g.darlehenZuordnung.periodeMonat - 1]} ${g.darlehenZuordnung.periodeJahr}` : "Rate"}
+                    {g.darlehenZuordnung?.sonder ? "Sonderbuchung" : g.darlehenZuordnung?.periodeMonat ? `${MONATSNAMEN[g.darlehenZuordnung.periodeMonat - 1]} ${g.darlehenZuordnung.periodeJahr}` : "Rate"}
                   </Link>
-                  <span className="text-neutral-400">{formatEuro(istTilgung ? -Number(g.betrag) : Number(g.betrag))} {istTilgung ? "Tilgung" : "Zinsen"}</span>
+                  <span className="text-neutral-400">
+                    {formatEuro(tilg ? -Number(g.betrag) : Number(g.betrag))} {tilg ? "Tilgung" : "Zinsen"}
+                  </span>
                 </li>
-              ))}
+              );
+            })}
           </ul>
           {kannBearbeiten && (
             <div className="mt-4">

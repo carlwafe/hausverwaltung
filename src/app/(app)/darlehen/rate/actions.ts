@@ -37,7 +37,9 @@ export const aendereRateMonat = mitMeldung(async function aendereRateMonat(anker
   revalidiere();
 });
 
-export type RateTeil = { jahr: number; monat: number; rate: number; zins: number };
+// Ein Teil der Zahlung: eine Rate für einen Monat oder eine Sonderbuchung (z.B. Verzugszinsen; dann ist der ganze Betrag
+// Zins, Jahr/Monat gelten nicht).
+export type RateTeil = { jahr: number; monat: number; rate: number; zins: number; sonder?: boolean };
 
 type Anker = Awaited<ReturnType<typeof ladeAnker>>;
 
@@ -67,7 +69,7 @@ async function legeTeileAn(tx: Prisma.TransactionClient, a: Anker, teile: RateTe
       {
         datum: a.anker.datum,
         bankBetrag: -cent(t.rate),
-        zinsanteil: cent(t.zins),
+        zinsanteil: t.sonder ? cent(t.rate) : cent(t.zins),
         kostenartId: a.kostenartId,
         empfaenger: a.anker.empfaenger,
         verwendungszweck: a.anker.verwendungszweck,
@@ -75,8 +77,9 @@ async function legeTeileAn(tx: Prisma.TransactionClient, a: Anker, teile: RateTe
         importBatchId: a.anker.importBatchId,
         erstelltVon,
         darlehenId: z?.darlehenId ?? null,
-        periodeJahr: t.jahr,
-        periodeMonat: t.monat,
+        periodeJahr: t.sonder ? null : t.jahr,
+        periodeMonat: t.sonder ? null : t.monat,
+        sonder: !!t.sonder,
         aufteilungGruppeId: gruppeId,
       },
       arten,
@@ -102,12 +105,13 @@ export const teileRateAufMonate = mitMeldung(async function teileRateAufMonate(a
   if (teile.length > 24) throw new AktionsFehler("Höchstens 24 Monate.");
   const monate = new Set<number>();
   for (const t of teile) {
+    if (!(t.rate > 0)) throw new AktionsFehler("Jeder Teil braucht einen Betrag größer als 0.");
+    if (t.sonder) continue;
     pruefeMonat(t.jahr, t.monat);
-    if (!(t.rate > 0)) throw new AktionsFehler("Jeder Teil braucht eine Rate größer als 0.");
     if (!(t.zins >= 0) || t.zins > t.rate + 0.005) throw new AktionsFehler("Der Zinsanteil muss zwischen 0 und der Rate liegen.");
     monate.add(t.jahr * 12 + t.monat);
   }
-  if (monate.size !== teile.length) throw new AktionsFehler("Jeder Monat darf nur einmal vorkommen.");
+  if (monate.size !== teile.filter((t) => !t.sonder).length) throw new AktionsFehler("Jeder Monat darf nur einmal vorkommen.");
 
   await prisma.$transaction(async (tx) => {
     const a = await ladeAnker(tx, ankerId);
@@ -119,7 +123,7 @@ export const teileRateAufMonate = mitMeldung(async function teileRateAufMonate(a
     if (Math.abs(summe - a.rate) >= 0.005) {
       throw new AktionsFehler(`Die Teile ergeben ${summe.toFixed(2).replace(".", ",")} €, die Zahlung beträgt ${a.rate.toFixed(2).replace(".", ",")} €.`);
     }
-    const mitZins = teile.some((t) => t.zins > 0);
+    const mitZins = teile.some((t) => t.sonder || t.zins > 0);
     const kostenart = a.kostenartId ?? kostenartId ?? null;
     if (mitZins && !kostenart) throw new AktionsFehler("Für den Zinsanteil fehlt die Kostenart (Schuldzinsen).");
     if (mitZins && !a.kostenartId) {
@@ -129,7 +133,7 @@ export const teileRateAufMonate = mitMeldung(async function teileRateAufMonate(a
     const erstelltVon = benutzerLabel(user);
     const arten = await ladeArten(tx);
     await storniereBuchung(tx, ankerId, erstelltVon);
-    await legeTeileAn(tx, { ...a, kostenartId: kostenart }, [...teile].sort((x, y) => x.jahr * 12 + x.monat - (y.jahr * 12 + y.monat)), randomUUID(), erstelltVon, arten);
+    await legeTeileAn(tx, { ...a, kostenartId: kostenart }, [...teile].sort((x, y) => (x.sonder ? Infinity : x.jahr * 12 + x.monat) - (y.sonder ? Infinity : y.jahr * 12 + y.monat) || 0), randomUUID(), erstelltVon, arten);
   });
   revalidiere();
 });
@@ -149,7 +153,10 @@ export const fasseRatenZusammen = mitMeldung(async function fasseRatenZusammen(a
     // Nur die Anker (Tilgungen bzw. Zinsbuchungen ohne Tilgung) zählen; die Zinsbuchung einer Tilgung hängt an ihr.
     const ankerListe = anker.filter((x) => x.anker.darlehenZuordnung);
     if (ankerListe.length === 0) throw new AktionsFehler("Die Teile der Aufteilung wurden nicht gefunden.");
-    const sortiert = [...ankerListe].sort((x, y) => (x.anker.darlehenZuordnung!.periodeJahr ?? 0) * 12 + (x.anker.darlehenZuordnung!.periodeMonat ?? 0) - ((y.anker.darlehenZuordnung!.periodeJahr ?? 0) * 12 + (y.anker.darlehenZuordnung!.periodeMonat ?? 0)));
+    // Erster Monat zuerst; Sonderbuchungen (ohne Monat) ans Ende, damit der erste Monat die Periode der neuen Rate liefert.
+    const schluessel = (x: (typeof ankerListe)[number]) =>
+      x.anker.darlehenZuordnung!.sonder ? Infinity : (x.anker.darlehenZuordnung!.periodeJahr ?? 0) * 12 + (x.anker.darlehenZuordnung!.periodeMonat ?? 0);
+    const sortiert = [...ankerListe].sort((x, y) => (schluessel(x) === schluessel(y) ? 0 : schluessel(x) < schluessel(y) ? -1 : 1));
     const erster = sortiert[0];
     const summeRate = cent(ankerListe.reduce((s, x) => s + x.rate, 0));
     const summeZins = cent(ankerListe.reduce((s, x) => s + x.zins, 0));
