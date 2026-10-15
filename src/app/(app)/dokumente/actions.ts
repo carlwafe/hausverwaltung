@@ -705,15 +705,47 @@ export const uebernehmeSichereVorschlaege = mitMeldung(async function uebernehme
 
 // ---- Aufteilen eines PDFs mit mehreren Dokumenten ----
 
+// Wert, den alle Teile gemeinsam haben (alle gesetzt und gleich), sonst undefined — bei abweichenden Teilen bleibt das Feld leer.
+function gemeinsamerWert<T extends string | number>(teile: ErkennungTeil[], feld: (t: ErkennungTeil) => T | null | undefined): T | undefined {
+  const werte = teile.map(feld);
+  const erster = werte[0];
+  return erster != null && werte.every((w) => w === erster) ? erster : undefined;
+}
+
 // Lehnt den Aufteilungsvorschlag ab: Das PDF gilt als ein Dokument. Die erkannten Teile bleiben im Rohergebnis (der Abgleich nutzt
-// ihre Salden und Abschläge), nur der Aufteilen-Block verschwindet. „Neu erkennen“ setzt die Entscheidung zurück.
+// ihre Salden und Abschläge); die noch leeren Felder werden aus den Teilen gefüllt: Betrag als Summe aller Teile, die übrigen
+// Angaben nur, wenn alle Teile denselben Wert haben (z.B. verschiedene Aussteller oder Kostenarten bleiben leer). Vorhandene Eingaben
+// werden nie überschrieben. „Neu erkennen“ setzt die Entscheidung zurück.
 export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(id: string): Promise<string | null> {
   await requireEditor();
-  const dokument = await prisma.dokument.findUnique({ where: { id }, select: { erkennung: true } });
-  if (!dokument) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
-  const e = (dokument.erkennung ?? {}) as Record<string, unknown>;
-  await prisma.dokument.update({ where: { id }, data: { erkennung: { ...e, teileVerworfen: true } as unknown as Prisma.InputJsonValue } });
+  const d = await prisma.dokument.findUnique({ where: { id } });
+  if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  const e = (d.erkennung ?? {}) as Record<string, unknown> & { teile?: ErkennungTeil[] };
+  const teile = Array.isArray(e.teile) ? e.teile : [];
+  const betraege = teile.map((t) => t.betrag);
+  const summe = teile.length > 0 && betraege.every((b): b is number => typeof b === "number") ? Math.round(betraege.reduce((a, b) => a + b, 0) * 100) / 100 : undefined;
+  const felder =
+    teile.length > 1
+      ? {
+          belegDatum: d.belegDatum ?? datumOderNull(gemeinsamerWert(teile, (t) => t.rechnungsdatum)) ?? undefined,
+          aussteller: d.aussteller ?? gemeinsamerWert(teile, (t) => t.aussteller),
+          rechnungsnummer: d.rechnungsnummer ?? gemeinsamerWert(teile, (t) => t.rechnungsnummer),
+          betrag: d.betrag ?? summe,
+          leistungVon: d.leistungVon ?? datumOderNull(gemeinsamerWert(teile, (t) => t.leistungVon)) ?? undefined,
+          leistungBis: d.leistungBis ?? datumOderNull(gemeinsamerWert(teile, (t) => t.leistungBis)) ?? undefined,
+          kostenjahr: d.kostenjahr ?? gemeinsamerWert(teile, (t) => t.kostenjahr),
+          iban: d.iban ?? gemeinsamerWert(teile, (t) => t.iban),
+          kostenartId: d.kostenartId ?? gemeinsamerWert(teile, (t) => t.kostenartId),
+          adressat: d.adressat ?? gemeinsamerWert(teile, (t) => t.adressat),
+          objektHinweis: d.objektHinweis ?? gemeinsamerWert(teile, (t) => t.objekt),
+        }
+      : {};
+  await prisma.dokument.update({
+    where: { id },
+    data: { ...felder, erkennung: { ...e, teileVerworfen: true } as unknown as Prisma.InputJsonValue },
+  });
   revalidatePath(`/dokumente/${id}`);
+  revalidatePath("/dokumente");
   return null;
 });
 
