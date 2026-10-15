@@ -5,7 +5,7 @@ import { aktualisiereZahlungswege } from "@/lib/zahlungsweg-ableiten";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
+import { weitereZeilenSchluesselAusRohdaten, zeilenSchluesselAusRohdaten } from "@/lib/import/vollstaendigkeit";
 import { requireUser, requireEditor, benutzerLabel } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { ladeDarlehenPlanRaten } from "@/lib/darlehen-plan";
@@ -13,6 +13,7 @@ import type { DarlehenPlanRate } from "@/lib/darlehen-plan-match";
 import { DARLEHEN_BEZUG, DARLEHEN_BUCHUNGSART, legeDarlehensrateAn, teileDarlehensrate } from "@/lib/darlehen";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
+import { parseCamtDateien, zeilenAlsCsv, type CamtPruefung } from "@/lib/import/camt";
 import { speichereDatei } from "@/lib/storage";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
 import { parseSuchbegriffe, type DienstleisterKandidat } from "@/lib/import/dienstleister";
@@ -99,6 +100,8 @@ export type PreviewResult =
       bestehendeRohdaten: string[];
       fileName: string;
       importBatchId: string;
+      // Nur bei CAMT-Import (XML): Ergebnis der Saldoprüfung.
+      camtPruefung: CamtPruefung | null;
     }
   | { error: string };
 
@@ -269,7 +272,7 @@ function berechneBestehendeImportSets({
     bestehendeRohdaten: [
       ...new Set(
         buchungenRohdaten
-          .map((b) => zeilenSchluesselAusRohdaten(b.rohdaten))
+          .flatMap((b) => [zeilenSchluesselAusRohdaten(b.rohdaten), ...weitereZeilenSchluesselAusRohdaten(b.rohdaten)])
           .filter((s): s is string => s !== null),
       ),
     ],
@@ -376,27 +379,57 @@ export async function previewImport(
   const user = await requireUser();
   const dedup = await ladeDedupFilter();
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
+  const dateien = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (dateien.length === 0) {
     return { error: "Bitte eine Datei auswählen." };
   }
 
-  const name = file.name.toLowerCase();
-  if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xls")) {
-    return { error: "Nur .csv, .xlsx oder .xls Dateien werden unterstützt." };
+  const istXml = (f: File) => f.name.toLowerCase().endsWith(".xml");
+  const xmlDateien = dateien.filter(istXml);
+  if (xmlDateien.length > 0 && xmlDateien.length < dateien.length) {
+    return { error: "Bitte entweder nur CAMT-Dateien (.xml) oder eine CSV-/Excel-Datei wählen, nicht gemischt." };
+  }
+  if (xmlDateien.length === 0) {
+    if (dateien.length > 1) return { error: "Bitte eine CSV- oder Excel-Datei wählen (mehrere Dateien gehen nur bei CAMT-XML)." };
+    const name = dateien[0].name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+      return { error: "Nur .csv, .xlsx, .xls oder CAMT-.xml-Dateien werden unterstützt." };
+    }
   }
 
   try {
-    const { headers, rows } = await parseSpreadsheetFile(file);
+    let headers: string[];
+    let rows: Record<string, string>[];
+    let dateiname: string;
+    let speicherInhalt: Buffer;
+    let camtPruefung: CamtPruefung | null = null;
+
+    if (xmlDateien.length > 0) {
+      // CAMT (ISO 20022): jede Buchung wird zu einer Zeile mit den Spalten der Sparkasse-CSV, gespeichert
+      // wird diese zusammengeführte CSV (Vollständigkeits-Check, Download und Aufräumen arbeiten mit ihr).
+      const camt = parseCamtDateien(
+        await Promise.all(xmlDateien.map(async (f) => ({ name: f.name, text: new TextDecoder("utf-8").decode(await f.arrayBuffer()) }))),
+      );
+      headers = camt.headers;
+      rows = camt.rows;
+      camtPruefung = camt.pruefung;
+      dateiname = `Kontoauszug CAMT ${camt.pruefung.von ?? ""} bis ${camt.pruefung.bis ?? ""}.csv`.replace(/\s+/g, " ");
+      speicherInhalt = Buffer.from(zeilenAlsCsv(camt.headers, camt.rows), "utf-8");
+    } else {
+      const file = dateien[0];
+      ({ headers, rows } = await parseSpreadsheetFile(file));
+      dateiname = file.name;
+      speicherInhalt = Buffer.from(await file.arrayBuffer());
+    }
     if (rows.length === 0) {
       return { error: "Keine Datenzeilen in der Datei gefunden." };
     }
 
-    const speicherpfad = await speichereDatei(Buffer.from(await file.arrayBuffer()), file.name);
+    const speicherpfad = await speichereDatei(speicherInhalt, dateiname);
     const importBatch = await prisma.importBatch.create({
       data: {
         typ: "KONTOAUSZUG",
-        dateiname: file.name,
+        dateiname,
         speicherpfad,
         anzahlZeilen: rows.length,
         user: { connect: { id: user.id } },
@@ -644,6 +677,7 @@ export async function previewImport(
     const zeilen = vereinheitlicht.map((z) => ({
       ...z,
       rohdatenSchluessel: zeilenSchluesselAusRohdaten(z.rohdaten),
+      rohdatenSchluesselWeitere: weitereZeilenSchluesselAusRohdaten(z.rohdaten),
       doppelzahlungHinweis: doppelzahlungen.get(z.rowNumber) ?? null,
     }));
 
@@ -660,8 +694,9 @@ export async function previewImport(
       gebaeude,
       einheiten,
       buchungsarten: buchungsartenRaw,
-      fileName: file.name,
+      fileName: dateiname,
       importBatchId: importBatch.id,
+      camtPruefung,
       ...bestehendeSets,
     };
   } catch (err) {

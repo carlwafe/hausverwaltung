@@ -64,12 +64,22 @@ type Spalten = ReturnType<typeof findeKontoauszugSpalten>;
 // gelesene (weiterhin fehlerhafte) Zeile beim Abgleich trotzdem denselben Schlüssel ergeben wie
 // die korrigierten Rohdaten — sonst würde eine tatsächlich schon importierte Zeile hier
 // fälschlich als "ungeklärt" gemeldet.
-function zeilenSchluessel(row: Record<string, string>, spalten: Spalten): string | null {
-  const datum = spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null;
+function faltUmlaute(s: string): string {
+  return s
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+    .replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue")
+    .replace(/ß/g, "ss");
+}
+
+// Umlaute werden im Schlüssel zu ae/oe/ue/ss gefaltet: Die Bank-CSV enthält im Verwendungszweck teils
+// echte Umlaute ("für", "Straße"), die CAMT-XML derselben Buchung dagegen "fuer"/"Strasse" — dieselbe
+// Buchung muss in beiden Formaten denselben Schlüssel ergeben.
+function zeilenSchluessel(row: Record<string, string>, spalten: Spalten, datumRoh?: string): string | null {
+  const datum = parseGermanDate(datumRoh ?? (spalten.datumCol ? row[spalten.datumCol] : undefined));
   const betrag = leseBetrag(row, spalten);
   if (!datum || betrag === null) return null;
-  const zweck = spalten.zweckCol ? repariereMojibake((row[spalten.zweckCol] ?? "").trim()) : "";
-  const name = spalten.nameCol ? repariereMojibake((row[spalten.nameCol] ?? "").trim()) : "";
+  const zweck = spalten.zweckCol ? faltUmlaute(repariereMojibake((row[spalten.zweckCol] ?? "").trim())) : "";
+  const name = spalten.nameCol ? faltUmlaute(repariereMojibake((row[spalten.nameCol] ?? "").trim())) : "";
   return `${datum}|${betrag.toFixed(2)}|${zweck}|${name}`;
 }
 
@@ -79,6 +89,28 @@ export function zeilenSchluesselAusRohdaten(rohdaten: unknown): string | null {
   const row = rohdaten as Record<string, string>;
   const spalten = findeKontoauszugSpalten(Object.keys(row));
   return zeilenSchluessel(row, spalten);
+}
+
+/**
+ * Weitere Schlüssel derselben Bankzeile, mit denen sie als "bereits importiert" erkannt wird:
+ * - derselbe Schlüssel mit dem Valutadatum statt des Buchungstags (die Bank führt manche Einzüge
+ *   in der CSV mit dem Tag der Vormerkung, in der CAMT-Datei mit dem Tag der Wertstellung),
+ * - "id|<Bank-Referenz>" (eindeutige Umsatz-ID der Bank, nur in CAMT-Importen vorhanden).
+ */
+export function weitereZeilenSchluesselAusRohdaten(rohdaten: unknown): string[] {
+  if (!rohdaten || typeof rohdaten !== "object") return [];
+  const row = rohdaten as Record<string, string>;
+  const header = Object.keys(row);
+  const spalten = findeKontoauszugSpalten(header);
+  const ergebnis: string[] = [];
+  const valutaCol = header.find((h) => h.trim().toLowerCase() === "valutadatum");
+  if (valutaCol && spalten.datumCol && row[valutaCol] && row[valutaCol] !== row[spalten.datumCol]) {
+    const k = zeilenSchluessel(row, spalten, row[valutaCol]);
+    if (k) ergebnis.push(k);
+  }
+  const ref = (row["Bank-Referenz"] ?? "").trim();
+  if (ref) ergebnis.push(`id|${ref}`);
+  return ergebnis;
 }
 
 export async function pruefeVollstaendigkeit(

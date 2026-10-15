@@ -205,13 +205,14 @@ function zuBestehendeSets(sets: BestehendeImportSets, gemerkt: string[]): Besteh
 
 function istBereitsImportiert(
   gruppe: BuchungsartGruppe | null,
-  r: Pick<BuchungEditRow, "datum" | "betrag" | "name" | "verwendungszweck" | "mietvertragId" | "rohdatenSchluessel">,
+  r: Pick<BuchungEditRow, "datum" | "betrag" | "name" | "verwendungszweck" | "mietvertragId" | "rohdatenSchluessel" | "rohdatenSchluesselWeitere">,
   sets: BestehendeSets,
 ): boolean {
   if (!r.datum || r.betrag === null) return false;
   // Artunabhängig: hängt die Bankzeile schon an irgendeiner aktiven Buchung (auch unter anderer
   // Buchungsart, z.B. nach einer Umbuchung), gilt sie als importiert.
   if (r.rohdatenSchluessel && sets.bestehendeRohdaten.has(r.rohdatenSchluessel)) return true;
+  if (r.rohdatenSchluesselWeitere?.some((k) => sets.bestehendeRohdaten.has(k))) return true;
   if (sets.gemerkt.has(datumBetragSchluessel(new Date(r.datum), r.betrag))) return true;
   if (!gruppe) return false;
   const datum = r.datum;
