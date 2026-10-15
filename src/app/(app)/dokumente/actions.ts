@@ -11,6 +11,7 @@ import { AUTOMATISCH_NICHT_LESEN, istGueltigeArt } from "@/lib/dokumente-anzeige
 import { erkenneDokumentInhalt, gueltigeSeitenbereiche, istErkennbar, istGueltigeIban, type Erkennung, type ErkennungErgebnis, type ErkennungTeil } from "@/lib/dokument-erkennung";
 import { PDFDocument } from "pdf-lib";
 import { leseTextProSeite } from "@/lib/dokument-pdf-text";
+import { sichereKostenart } from "@/lib/dokument-kostenart";
 import { erkenneDokumentPerRegeln, type RegelKontext } from "@/lib/dokument-regeln";
 import { EINGANG_OFFEN_WHERE } from "@/lib/dokument-eingang-offen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
@@ -120,7 +121,7 @@ async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string):
   ]);
   const kontext = { kostenarten, dienstleister: dienstleister.map((d) => ({ name: d.name, kostenartIds: d.kostenarten.map((k) => k.id) })) };
   const e = await erkenneDokumentInhalt(inhalt, mimeType, kontext, await seitenzahlVon(inhalt, mimeType));
-  await uebernehmeErkennung(id, { ...e, quelle: "ki" });
+  await uebernehmeErkennung(id, await sichereKostenart({ ...e, quelle: "ki" }));
 }
 
 async function ladeRegelKontext(): Promise<RegelKontext> {
@@ -151,7 +152,7 @@ async function fuehreRegelErkennungAus(id: string, inhalt: Buffer, mimeType: str
   }
   const r = erkenneDokumentPerRegeln(seiten, kontext);
   if (r.status === "erkannt") {
-    await uebernehmeErkennung(id, { ...r.erkennung, quelle: "regeln", seiten: seiten.length });
+    await uebernehmeErkennung(id, await sichereKostenart({ ...r.erkennung, quelle: "regeln", seiten: seiten.length }));
     return { status: "erkannt", grund: null };
   }
   await prisma.dokument.update({
