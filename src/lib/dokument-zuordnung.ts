@@ -25,6 +25,8 @@ export type DokumentLabels = {
   kundennummer?: string | null;
   /** Salden einer Abrechnung mit verrechneten Abschlägen (Nachzahlung +, Guthaben −) — der Versorger bucht nur den Saldo ab. */
   salden?: number[];
+  /** Neue monatliche Abschläge laut Abrechnung: Der Versorger bucht den Saldo zusammen mit dem ersten neuen Abschlag ab. */
+  abschlaege?: number[];
   /** Dokumenttyp; bei einem Angebot zählen Objekt und Zeitraum statt Betrag und Rechnungsnummer. */
   art?: string | null;
 };
@@ -42,8 +44,8 @@ export type BuchungFuerBewertung = {
 };
 
 /** Zusatzangaben der Erkennung (Kundennummer, Salden), die nicht als eigene Spalte am Dokument stehen, sondern im Rohergebnis. */
-export function zusatzLabelsAusErkennung(erkennung: unknown): Pick<DokumentLabels, "kundennummer" | "salden"> {
-  type Roh = { kundennummer?: unknown; salden?: unknown; teile?: Roh[] };
+export function zusatzLabelsAusErkennung(erkennung: unknown): Pick<DokumentLabels, "kundennummer" | "salden" | "abschlaege"> {
+  type Roh = { kundennummer?: unknown; salden?: unknown; abschlag?: unknown; teile?: Roh[] };
   const e = (erkennung ?? {}) as Roh;
   // Ein noch nicht aufgeteiltes Sammel-PDF (z.B. Wasser-Rechnung + Abwasser-Bescheid) trägt die Salden aller Teile.
   const alle = [e, ...(Array.isArray(e.teile) ? e.teile : [])];
@@ -52,8 +54,16 @@ export function zusatzLabelsAusErkennung(erkennung: unknown): Pick<DokumentLabel
     if (!Array.isArray(t.salden)) continue;
     for (const x of t.salden) if (typeof x === "number" && Number.isFinite(x)) salden.add(Math.round(x * 100) / 100);
   }
+  // Bei einem noch nicht aufgeteilten PDF nennt jeder Teil seinen Abschlag (Wasser, Abwasser); die Abbuchung enthält alle zusammen.
+  const einzelne = alle.map((t) => t.abschlag).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0);
+  const abschlaege = new Set(einzelne);
+  const teileAbschlaege = (Array.isArray(e.teile) ? e.teile : []).map((t) => t.abschlag).filter((x): x is number => typeof x === "number" && x > 0);
+  if (teileAbschlaege.length > 1) abschlaege.add(Math.round(teileAbschlaege.reduce((a, b) => a + b, 0) * 100) / 100);
+  // Die Abbuchung kann den Saldo mehrerer Teile zusammen enthalten (Wasser + Abwasser auf einer Buchung).
+  const teilSalden = (Array.isArray(e.teile) ? e.teile : []).flatMap((t) => (Array.isArray(t.salden) ? t.salden : [])).filter((x): x is number => typeof x === "number" && Number.isFinite(x));
+  if (teilSalden.length > 1) salden.add(Math.round(teilSalden.reduce((a, b) => a + b, 0) * 100) / 100);
   const kundennummer = alle.map((t) => t.kundennummer).find((k): k is string => typeof k === "string" && k !== "") ?? null;
-  return { kundennummer, salden: [...salden] };
+  return { kundennummer, salden: [...salden], abschlaege: [...abschlaege] };
 }
 
 /** Steht die Kundennummer als eigenständige Zahl/Zeichenfolge im Text (nicht als Teil einer längeren)? */
@@ -182,11 +192,14 @@ export function bewerteBuchung(d: DokumentLabels, b: BuchungFuerBewertung): Bewe
   }
 
   // Erst nach dem Namenstreffer: Der Saldo allein (z.B. 50,00 €) ist zu unspezifisch, Kundennummer oder Aussteller müssen dazukommen.
-  const saldoGleich = !betragGleich && (d.salden ?? []).some((s) => cent(s) === cent(b.betrag));
+  // Abgebucht wird der Saldo allein (aufgeteilte Buchung) oder zusammen mit dem ersten neuen Abschlag (eine Abbuchung).
+  const saldoAllein = (d.salden ?? []).some((s) => cent(s) === cent(b.betrag));
+  const saldoMitAbschlag = !saldoAllein && (d.salden ?? []).some((s) => (d.abschlaege ?? []).some((a) => cent(s + a) === cent(b.betrag)));
+  const saldoGleich = !betragGleich && (saldoAllein || saldoMitAbschlag);
   const saldoHart = saldoGleich && (kundenTreffer || nameTreffer);
   if (saldoHart) {
     punkte += 50;
-    gruende.push("Saldo der Abrechnung (Guthaben/Nachzahlung) stimmt");
+    gruende.push(saldoMitAbschlag ? "Saldo der Abrechnung + erster neuer Abschlag stimmt" : "Saldo der Abrechnung (Guthaben/Nachzahlung) stimmt");
   }
 
   // Angebot: es hat keine eigene Zahlung — die Rechnung zum Auftrag trägt eine andere Nummer und oft einen anderen Betrag

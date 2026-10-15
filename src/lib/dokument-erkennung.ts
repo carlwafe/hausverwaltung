@@ -35,6 +35,11 @@ export type Erkennung = {
    * Der Versorger bucht nur diesen Saldo ab, nicht die Gesamtkosten. Fehlt bei älteren Ergebnissen.
    */
   salden?: number[];
+  /**
+   * Neuer monatlicher Abschlag/Teilbetrag laut Abrechnung (Summe aller Sparten, z.B. Wasser 63 + Abwasser 126 = 189): Der Versorger
+   * bucht den Saldo zusammen mit dem ersten neuen Abschlag ab. Fehlt bei älteren Ergebnissen.
+   */
+  abschlag?: number | null;
   kostenjahr: number | null;
   kostenartId: string | null;
   adressat: string | null;
@@ -90,6 +95,7 @@ Regeln für jeden Teil:
 - betrag: nur bei Rechnung, Bescheid, Abrechnung, Angebot: Gesamtbetrag brutto (bei einem Angebot die angebotene Gesamtsumme; fehlt sie auf den gelieferten Seiten, null), den der Empfänger zahlen muss (Dezimalpunkt, zwei Nachkommastellen, kein Tausenderpunkt). Gutschrift/Erstattung negativ. Bei Abschlags- oder Teilrechnungen der Betrag dieser Rechnung. Nicht Netto, nicht Zwischensummen. Sonst null.
 - kundennummer: Kundennummer (auch Vertragskonto-/Debitorennummer) des Empfängers beim Aussteller, genau wie gedruckt, ohne Leerzeichen; nicht die Rechnungsnummer; sonst null.
 - salden: nur bei Jahres-/Verbrauchsabrechnungen, die bereits geleistete Abschläge oder Vorauszahlungen abziehen (z.B. Wasser, Abwasser, Strom, Gas): das Ergebnis je Rechnung bzw. Bescheid im Dokument = Gesamtbetrag minus geleistete Zahlungen, brutto, als Zahl mit Dezimalpunkt (Nachzahlung positiv, Guthaben negativ; Wasser −10.03 und Abwasser −29.75 sind zwei Einträge). Enthält das Dokument mehrere solcher Abrechnungen, zusätzlich als letzten Eintrag deren Summe. Ohne Verrechnung von Abschlägen eine leere Liste.
+- abschlag: nur bei solchen Abrechnungen, wenn sie neue Teilbeträge bzw. Abschläge für das nächste Abrechnungsjahr nennen: der monatliche Gesamtbetrag aller Sparten (z.B. Wasser 63 + Abwasser 126 = 189.00), sonst null.
 - iban: IBAN des Rechnungsstellers (Zahlungsempfänger), ohne Leerzeichen; null, wenn keine genannt ist.
 - kostenjahr: Jahr der erbrachten Leistung bzw. des Abrechnungszeitraums, nur wenn eindeutig; sonst null.
 - kostenartId: nur bei Kostenbelegen und nur aus der gelieferten Liste (ID), wenn die Zuordnung klar ist; sonst null.
@@ -153,6 +159,7 @@ function bereinige(roh: Record<string, unknown>, kontext: ErkennungKontext): Erk
     salden: Array.isArray(roh.salden)
       ? roh.salden.filter((x): x is number => typeof x === "number" && Number.isFinite(x) && Math.abs(x) < 1e7).map((x) => Math.round(x * 100) / 100).slice(0, 10)
       : [],
+    abschlag: typeof roh.abschlag === "number" && Number.isFinite(roh.abschlag) && roh.abschlag > 0 && roh.abschlag < 1e6 ? Math.round(roh.abschlag * 100) / 100 : null,
     kostenjahr: jahr,
     kostenartId: typeof roh.kostenartId === "string" && kostenarten.has(roh.kostenartId) ? roh.kostenartId : null,
     adressat: text(roh.adressat),
@@ -176,6 +183,7 @@ const TEIL_FELDER = {
   iban: { type: ["string", "null"] },
   kundennummer: { type: ["string", "null"] },
   salden: { type: "array", items: { type: "number" } },
+  abschlag: { type: ["number", "null"] },
   kostenjahr: { type: ["integer", "null"] },
   kostenartId: { type: ["string", "null"] },
   adressat: { type: ["string", "null"] },
