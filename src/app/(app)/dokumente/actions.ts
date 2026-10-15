@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { prisma } from "@/lib/prisma";
 import { benutzerLabel, requireEditor } from "@/lib/session";
@@ -12,6 +13,7 @@ import { PDFDocument } from "pdf-lib";
 import { leseTextProSeite } from "@/lib/dokument-pdf-text";
 import { erkenneDokumentPerRegeln, type RegelKontext } from "@/lib/dokument-regeln";
 import { EINGANG_OFFEN_WHERE } from "@/lib/dokument-eingang-offen";
+import { naechstesEingangsDokument, pruefZiel } from "@/lib/dokument-eingang";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
@@ -113,8 +115,12 @@ async function uebernehmeErkennung(id: string, e: ErkennungErgebnis): Promise<vo
 
 // KI-Prüfung: Claude liest das PDF bzw. Bild (das Dokument wird an Anthropic übertragen).
 async function fuehreErkennungAus(id: string, inhalt: Buffer, mimeType: string): Promise<void> {
-  const kostenarten = await prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
-  const e = await erkenneDokumentInhalt(inhalt, mimeType, { kostenarten }, await seitenzahlVon(inhalt, mimeType));
+  const [kostenarten, dienstleister] = await Promise.all([
+    prisma.kostenart.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.dienstleister.findMany({ select: { name: true, kostenarten: { select: { id: true } } } }),
+  ]);
+  const kontext = { kostenarten, dienstleister: dienstleister.map((d) => ({ name: d.name, kostenartIds: d.kostenarten.map((k) => k.id) })) };
+  const e = await erkenneDokumentInhalt(inhalt, mimeType, kontext, await seitenzahlVon(inhalt, mimeType));
   await uebernehmeErkennung(id, { ...e, quelle: "ki" });
 }
 
@@ -169,11 +175,17 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   _prev: string | null,
   formData: FormData,
 ): Promise<string | null> {
+  return (await legeDokumenteAn(ziel, formData)).fehler;
+});
+
+// Legt die hochgeladenen Dateien an und liefert neben einer Meldung die IDs der neuen Dokumente (in Upload-Reihenfolge),
+// damit der zentrale Upload zur Prüfung des ersten springen kann.
+async function legeDokumenteAn(ziel: UploadZiel, formData: FormData): Promise<{ fehler: string | null; ids: string[] }> {
   const user = await requireEditor();
 
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) {
-    return "Bitte eine Datei auswählen.";
+    return { fehler: "Bitte eine Datei auswählen.", ids: [] };
   }
 
   // Optionales Belegdatum (Datum des Belegs selbst), gilt für alle Dateien dieses Uploads.
@@ -194,6 +206,7 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   const perKi = formData.get("ki") === "1" && !nichtLesen;
   const erkennen = formData.get("erkennen") === "1" && !nichtLesen && !perKi;
 
+  const ids: string[] = [];
   const angelegt: { id: string; inhalt: Buffer; mimeType: string }[] = [];
   const fuerKi: { id: string; inhalt: Buffer; mimeType: string }[] = [];
   for (const file of files) {
@@ -219,6 +232,7 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
         belegDatum,
       },
     });
+    ids.push(dokument.id);
     if (erkennen && file.type === "application/pdf") angelegt.push({ id: dokument.id, inhalt, mimeType: file.type });
     if (perKi && istErkennbar(file.type)) fuerKi.push({ id: dokument.id, inhalt, mimeType: file.type });
   }
@@ -248,10 +262,13 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
 
   revalidatePath(ziel.revalidatePath);
   revalidatePath("/dokumente");
-  return erkennungsFehler
-    ? `Hochgeladen, aber die ${perKi ? "KI-Prüfung" : "Erkennung"} ist fehlgeschlagen (${erkennungsFehler}). Auf der Detailseite lässt sie sich erneut starten.`
-    : null;
-});
+  return {
+    fehler: erkennungsFehler
+      ? `Hochgeladen, aber die ${perKi ? "KI-Prüfung" : "Erkennung"} ist fehlgeschlagen (${erkennungsFehler}). Auf der Detailseite lässt sie sich erneut starten.`
+      : null,
+    ids,
+  };
+}
 
 export async function deleteDokument(id: string, revalidatePathValue: string): Promise<void> {
   await requireEditor();
@@ -334,10 +351,13 @@ export const uploadDokumentZentral = mitMeldung(async function uploadDokumentZen
     bezugPfad = ZIEL_PFAD[z](bezugId);
   }
 
-  const fehler = await uploadDokument(ziel, null, formData);
+  const { fehler, ids } = await legeDokumenteAn(ziel, formData);
   // Die Detailseite des Bezugs zeigt das Dokument ebenfalls.
   if (bezugPfad) revalidatePath(bezugPfad);
   if (fehler) throw new AktionsFehler(fehler);
+  // Im Eingang gelandete Dokumente müssen geprüft werden: gleich zur Prüfung des ersten (dort stehen Vorschläge, Bezüge und
+  // der Hinweis, wie viele noch im Eingang liegen). Bei einer Fehlermeldung oben bleibt die Seite stehen, damit sie zu lesen ist.
+  if ("eingang" in ziel && ids.length > 0) redirect(`/dokumente/${ids[0]}`);
   return null;
 });
 
@@ -577,6 +597,14 @@ function revalidiereDokument(id: string, d: DokumentMitBezug) {
   }
 }
 
+// Nach dem Ablegen eines Dokuments aus dem Eingang (Bezug gewählt oder ohne Bezug abgelegt) geht es gleich zum nächsten
+// Dokument im Eingang bzw. zur Übersicht, wenn nichts mehr zu prüfen ist. `abgelegtId` zeigt dort den Link zurück
+// (ein weiterer Bezug ist so noch möglich).
+async function weiterNachPruefung(warImEingang: boolean, abgelegtId: string): Promise<void> {
+  if (!warImEingang) return;
+  redirect(pruefZiel(await naechstesEingangsDokument(abgelegtId), abgelegtId));
+}
+
 // Fügt einen Bezug hinzu (ein Dokument darf mehrere haben, je Art aber nur einen). Damit gilt es als abgelegt
 // und verlässt den Eingang. Eine Kostenposition ist ein fester Nachweis und lässt sich später nicht ersetzen.
 export const ordneDokumentZu = mitMeldung(async function ordneDokumentZu(
@@ -601,6 +629,7 @@ export const ordneDokumentZu = mitMeldung(async function ordneDokumentZu(
   await pruefeZiel(ziel, zielId);
   const neu = await prisma.dokument.update({ where: { id }, data: { [feld]: zielId, eingang: false } });
   revalidiereDokument(id, neu);
+  await weiterNachPruefung(dokument.eingang, id);
   return null;
 });
 
@@ -629,6 +658,7 @@ export const ersetzeBezug = mitMeldung(async function ersetzeBezug(id: string, z
   const neu = await prisma.dokument.update({ where: { id }, data: { [BEZUG_FELD[ziel]]: zielId, eingang: false } });
   revalidiereDokument(id, alt);
   revalidiereDokument(id, neu);
+  await weiterNachPruefung(alt.eingang, id);
   return null;
 });
 
@@ -641,6 +671,7 @@ export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: strin
   if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
   await prisma.dokument.update({ where: { id }, data: { eingang: false, ...(hatBezug(d) ? {} : { ordner: name || null }) } });
   revalidiereDokument(id, d);
+  await weiterNachPruefung(d.eingang, id);
   return null;
 });
 
@@ -713,7 +744,7 @@ function gemeinsamerWert<T extends string | number>(teile: ErkennungTeil[], feld
 }
 
 // Lehnt den Aufteilungsvorschlag ab: Das PDF gilt als ein Dokument. Die erkannten Teile bleiben im Rohergebnis (der Abgleich nutzt
-// ihre Salden und Abschläge); die noch leeren Felder werden aus den Teilen gefüllt: Betrag als Summe aller Teile (nur bei verschiedenen Rechnungsnummern), die übrigen
+// ihre Salden und Abschläge); die noch leeren Felder werden aus den Teilen gefüllt: Betrag als Summe aller Teile (nur bei verschiedenen Rechnungsnummern oder wenn der Betrag je Teil der eigene Saldo ist), die übrigen
 // Angaben nur, wenn alle Teile denselben Wert haben; Aussteller und Kostenart gelten bei einer Abrechnung (gleiche Rechnungsnummer) auch bei abweichenden Teilen nach dem des ersten Teils, bei eigenständigen Dokumenten bleiben sie dann leer. Vorhandene Eingaben
 // werden nie überschrieben. Der automatische Titel „Sammel-PDF mit N Dokumenten“ wird durch die Titel der Teile ersetzt. „Neu erkennen“ setzt die Entscheidung zurück.
 export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(id: string): Promise<string | null> {
@@ -722,18 +753,21 @@ export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(i
   if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
   const e = (d.erkennung ?? {}) as Record<string, unknown> & { teile?: ErkennungTeil[] };
   const teile = Array.isArray(e.teile) ? e.teile : [];
-  // Die Summe der Teilbeträge stimmt nur bei eigenständigen Dokumenten. Teile mit derselben Rechnungsnummer gehören zu einer
-  // Abrechnung mit gemeinsamem Deckblatt (Rechnung Wasser + Bescheid Abwasser): Die KI weist dann je nach Lauf die Gesamtwerte des
-  // Deckblatts oder nur die eigenen Seiten aus, die Summe würde Beträge doppelt zählen — der Betrag bleibt dann leer.
+  // Die Summe der Teilbeträge stimmt bei eigenständigen Dokumenten (verschiedene Rechnungsnummern) und bei Teilen einer Abrechnung,
+  // deren Betrag je Teil der eigene Saldo ist (Guthaben/Nachzahlung der Sparte). Teile mit gleicher Rechnungsnummer teilen sich oft ein
+  // Deckblatt: Weist ein Teil dessen Gesamtwerte aus, würde die Summe Beträge doppelt zählen — der Betrag bleibt dann leer.
   const betraege = teile.map((t) => t.betrag);
   const nummern = new Set(teile.map((t) => t.rechnungsnummer ?? ""));
+  const cent = (x: number) => Math.round(x * 100);
+  const betragIstSaldo = teile.every((t) => typeof t.betrag === "number" && t.salden?.length === 1 && cent(t.salden[0]) === cent(t.betrag));
+  const eigenstaendig = nummern.size === teile.length && !nummern.has("");
+  const summe =
+    teile.length > 0 && (eigenstaendig || betragIstSaldo) && betraege.every((b): b is number => typeof b === "number")
+      ? Math.round(betraege.reduce((a, b) => a + b, 0) * 100) / 100
+      : undefined;
   // Gleiche Rechnungsnummer = eine Abrechnung mit Deckblatt im ersten Teil: Aussteller und Kostenart gelten dann auch bei abweichenden
   // Angaben der Teile nach dem ersten (die KI ordnet z.B. den Abwasser-Bescheid mal einer anderen Kostenart zu).
   const eineAbrechnung = teile.length > 1 && nummern.size === 1 && !nummern.has("");
-  const summe =
-    teile.length > 0 && nummern.size === teile.length && !nummern.has("") && betraege.every((b): b is number => typeof b === "number")
-      ? Math.round(betraege.reduce((a, b) => a + b, 0) * 100) / 100
-      : undefined;
   // Den automatischen Titel „Sammel-PDF mit N Dokumenten“ ersetzen die Titel der Teile; ein selbst vergebener Titel bleibt.
   const teilTitel = teile.map((t) => t.titel).filter((t): t is string => !!t);
   const titel = !d.titel || /^Sammel-PDF mit \d+ Dokumenten$/.test(d.titel) ? [...new Set(teilTitel)].join(" + ").slice(0, 200) || undefined : undefined;
@@ -839,5 +873,8 @@ export const teileDokumentAuf = mitMeldung(async function teileDokumentAuf(id: s
   }
   revalidatePath("/dokumente");
   revalidatePath(`/dokumente/${id}`);
+  // Die Teile liegen im Eingang und wollen geprüft werden: gleich zum ersten.
+  const ersterTeil = await prisma.dokument.findFirst({ where: { herkunftId: id }, select: { id: true }, orderBy: [{ createdAt: "asc" }, { dateiname: "asc" }] });
+  if (ersterTeil) redirect(`/dokumente/${ersterTeil.id}`);
   return null;
 });
