@@ -713,8 +713,8 @@ function gemeinsamerWert<T extends string | number>(teile: ErkennungTeil[], feld
 }
 
 // Lehnt den Aufteilungsvorschlag ab: Das PDF gilt als ein Dokument. Die erkannten Teile bleiben im Rohergebnis (der Abgleich nutzt
-// ihre Salden und Abschläge); die noch leeren Felder werden aus den Teilen gefüllt: Betrag als Summe aller Teile, die übrigen
-// Angaben nur, wenn alle Teile denselben Wert haben (z.B. verschiedene Aussteller oder Kostenarten bleiben leer). Vorhandene Eingaben
+// ihre Salden und Abschläge); die noch leeren Felder werden aus den Teilen gefüllt: Betrag als Summe aller Teile (nur bei verschiedenen Rechnungsnummern), die übrigen
+// Angaben nur, wenn alle Teile denselben Wert haben; Aussteller und Kostenart gelten bei einer Abrechnung (gleiche Rechnungsnummer) auch bei abweichenden Teilen nach dem des ersten Teils, bei eigenständigen Dokumenten bleiben sie dann leer. Vorhandene Eingaben
 // werden nie überschrieben. Der automatische Titel „Sammel-PDF mit N Dokumenten“ wird durch die Titel der Teile ersetzt. „Neu erkennen“ setzt die Entscheidung zurück.
 export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(id: string): Promise<string | null> {
   await requireEditor();
@@ -722,8 +722,18 @@ export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(i
   if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
   const e = (d.erkennung ?? {}) as Record<string, unknown> & { teile?: ErkennungTeil[] };
   const teile = Array.isArray(e.teile) ? e.teile : [];
+  // Die Summe der Teilbeträge stimmt nur bei eigenständigen Dokumenten. Teile mit derselben Rechnungsnummer gehören zu einer
+  // Abrechnung mit gemeinsamem Deckblatt (Rechnung Wasser + Bescheid Abwasser): Die KI weist dann je nach Lauf die Gesamtwerte des
+  // Deckblatts oder nur die eigenen Seiten aus, die Summe würde Beträge doppelt zählen — der Betrag bleibt dann leer.
   const betraege = teile.map((t) => t.betrag);
-  const summe = teile.length > 0 && betraege.every((b): b is number => typeof b === "number") ? Math.round(betraege.reduce((a, b) => a + b, 0) * 100) / 100 : undefined;
+  const nummern = new Set(teile.map((t) => t.rechnungsnummer ?? ""));
+  // Gleiche Rechnungsnummer = eine Abrechnung mit Deckblatt im ersten Teil: Aussteller und Kostenart gelten dann auch bei abweichenden
+  // Angaben der Teile nach dem ersten (die KI ordnet z.B. den Abwasser-Bescheid mal einer anderen Kostenart zu).
+  const eineAbrechnung = teile.length > 1 && nummern.size === 1 && !nummern.has("");
+  const summe =
+    teile.length > 0 && nummern.size === teile.length && !nummern.has("") && betraege.every((b): b is number => typeof b === "number")
+      ? Math.round(betraege.reduce((a, b) => a + b, 0) * 100) / 100
+      : undefined;
   // Den automatischen Titel „Sammel-PDF mit N Dokumenten“ ersetzen die Titel der Teile; ein selbst vergebener Titel bleibt.
   const teilTitel = teile.map((t) => t.titel).filter((t): t is string => !!t);
   const titel = !d.titel || /^Sammel-PDF mit \d+ Dokumenten$/.test(d.titel) ? [...new Set(teilTitel)].join(" + ").slice(0, 200) || undefined : undefined;
@@ -732,14 +742,14 @@ export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(i
       ? {
           titel,
           belegDatum: d.belegDatum ?? datumOderNull(gemeinsamerWert(teile, (t) => t.rechnungsdatum)) ?? undefined,
-          aussteller: d.aussteller ?? gemeinsamerWert(teile, (t) => t.aussteller),
+          aussteller: d.aussteller ?? gemeinsamerWert(teile, (t) => t.aussteller) ?? (eineAbrechnung ? teile[0].aussteller ?? undefined : undefined),
           rechnungsnummer: d.rechnungsnummer ?? gemeinsamerWert(teile, (t) => t.rechnungsnummer),
           betrag: d.betrag ?? summe,
           leistungVon: d.leistungVon ?? datumOderNull(gemeinsamerWert(teile, (t) => t.leistungVon)) ?? undefined,
           leistungBis: d.leistungBis ?? datumOderNull(gemeinsamerWert(teile, (t) => t.leistungBis)) ?? undefined,
           kostenjahr: d.kostenjahr ?? gemeinsamerWert(teile, (t) => t.kostenjahr),
           iban: d.iban ?? gemeinsamerWert(teile, (t) => t.iban),
-          kostenartId: d.kostenartId ?? gemeinsamerWert(teile, (t) => t.kostenartId),
+          kostenartId: d.kostenartId ?? gemeinsamerWert(teile, (t) => t.kostenartId) ?? (eineAbrechnung ? teile[0].kostenartId ?? undefined : undefined),
           adressat: d.adressat ?? gemeinsamerWert(teile, (t) => t.adressat),
           objektHinweis: d.objektHinweis ?? gemeinsamerWert(teile, (t) => t.objekt),
         }
