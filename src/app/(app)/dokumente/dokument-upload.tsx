@@ -50,8 +50,10 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
   // sofort abgelegt, ohne Bezug landet es wie bisher im Eingang.
   const [art, setArt] = useState("");
   const [erkennen, setErkennen] = useState(true);
+  // „Direkt per KI prüfen“ ersetzt die lokalen Regeln: Claude liest jedes PDF/Bild gleich beim Hochladen.
+  const [perKi, setPerKi] = useState(false);
   const typ = DIREKT_ZUORDNEN[art] ?? null;
-  const direktTyp = typ && (typ.immer || !erkennen) ? typ : null;
+  const direktTyp = typ && (typ.immer || !(erkennen || perKi)) ? typ : null;
   const mitAuswahl = direktTyp !== null && direktTyp.bereich !== "allgemein";
   const [auswahlIds, setAuswahlIds] = useState<Record<string, string>>(vorgabe ? { [vorgabe.bereich]: vorgabe.bezugId } : {});
   const auswahlId = direktTyp ? (auswahlIds[direktTyp.bereich] ?? "") : "";
@@ -163,18 +165,28 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
             ))}
           </select>
         </div>
-        <label className="flex h-[38px] items-center gap-2 text-sm text-neutral-300">
-          <input type="checkbox" name="erkennen" value="1" checked={erkennen} onChange={(e) => setErkennen(e.target.checked)} className="h-4 w-4" />
+        <label className={`flex h-[38px] items-center gap-2 text-sm ${perKi ? "text-neutral-500" : "text-neutral-300"}`}>
+          <input type="checkbox" name="erkennen" value="1" checked={erkennen && !perKi} disabled={perKi} onChange={(e) => setErkennen(e.target.checked)} className="h-4 w-4" />
           Inhalt automatisch erkennen (PDF, lokal)
+        </label>
+        <label className="flex h-[38px] items-center gap-2 text-sm text-neutral-300">
+          <input type="checkbox" name="ki" value="1" checked={perKi} onChange={(e) => setPerKi(e.target.checked)} className="h-4 w-4" />
+          Direkt per KI prüfen (PDF und Bilder)
         </label>
         <button
           type="submit"
           disabled={pending || groessenFehler !== null}
           className="h-[38px] rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
         >
-          {pending ? "Lädt hoch und liest…" : "Hochladen"}
+          {pending ? (perKi ? "Lädt hoch und prüft per KI…" : "Lädt hoch und liest…") : "Hochladen"}
         </button>
       </div>
+      {perKi && (
+        <p className="mt-2 text-xs text-amber-400">
+          KI-Prüfung beim Hochladen: Jedes PDF und Bild wird sofort an Claude (Anthropic) übertragen und gelesen — statt der lokalen Regeln. Das
+          dauert einige Sekunden je Datei. Verträge, Schreiben, Protokolle und Fotos werden auch so nicht gelesen, wenn du sie vorab als Typ wählst.
+        </p>
+      )}
       {direktTyp && (
         <div className="mt-4 rounded-md border border-neutral-800 p-3">
           <p className="mb-3 text-xs text-neutral-500">
@@ -227,7 +239,8 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
       <p className="mt-2 text-xs text-neutral-500">
         Bis zu {MAX_DATEIEN} Dateien auf einmal, je höchstens {maxMb} MB (zusammen 4 MB). Beim Erkennen liest die App den Text von PDFs auf dem Server (Regeln, ohne KI, ohne Datenversand) und füllt Typ,
         Aussteller, Betrag, Rechnungsnummer usw. vor. Was sie nicht sicher erkennt (Scans, Fotos, unklare Beträge, Sammel-PDFs), bleibt im Eingang
-        „nicht erkannt“ — dort startest du die KI-Prüfung (Claude, das Dokument geht dann an Anthropic) auf Knopfdruck. Verträge, Schreiben,
+        „nicht erkannt“ — dort startest du die KI-Prüfung (Claude, das Dokument geht dann an Anthropic) auf Knopfdruck, oder du setzt hier gleich das
+        Häkchen „Direkt per KI prüfen“ (ohne Regeln, jedes PDF und Bild geht beim Hochladen an Anthropic). Verträge, Schreiben,
         Protokolle und Fotos liest die App beim Hochladen nie automatisch, wenn du sie hier als Typ wählst. Wählst du vorab Vertrag, Schreiben, Protokoll oder Foto (immer) bzw. Versicherung, Prüfbericht oder Steuer / Behörde (ohne Häkchen), kannst du Mietvertrag, Einheit, Gebäude oder Ordner, Datum und Titel gleich angeben — das Dokument wird dann sofort abgelegt. Rechnungen laufen über den Eingang, damit sie später mit der Zahlung abgeglichen werden. Kostenbelege lassen sich auch direkt an der Kostenposition hochladen.
       </p>
       <GroessenFehler text={groessenFehler} />

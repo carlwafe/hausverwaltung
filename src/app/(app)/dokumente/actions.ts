@@ -188,9 +188,14 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   // erkennen, bleibt „nicht erkannt“ und lässt sich per KI-Prüfung nachholen. Mieterunterlagen (Vertrag, Schreiben,
   // Protokoll) und Fotos werden beim Hochladen nie automatisch gelesen (siehe AUTOMATISCH_NICHT_LESEN). Schlägt die
   // Erkennung fehl, bleibt das Dokument trotzdem gespeichert.
-  const erkennen = formData.get("erkennen") === "1" && !(art !== null && AUTOMATISCH_NICHT_LESEN.includes(art));
+  // Mit Häkchen „direkt per KI prüfen“ (nur Upload von /dokumente) überspringt der Upload die Regeln und lässt Claude jedes
+  // PDF und Bild gleich lesen (das Dokument geht dann an Anthropic); dieselben Ausnahmen für Mieterunterlagen und Fotos.
+  const nichtLesen = art !== null && AUTOMATISCH_NICHT_LESEN.includes(art);
+  const perKi = formData.get("ki") === "1" && !nichtLesen;
+  const erkennen = formData.get("erkennen") === "1" && !nichtLesen && !perKi;
 
   const angelegt: { id: string; inhalt: Buffer; mimeType: string }[] = [];
+  const fuerKi: { id: string; inhalt: Buffer; mimeType: string }[] = [];
   for (const file of files) {
     const inhalt = Buffer.from(await file.arrayBuffer());
     const speicherpfad = await speichereDatei(inhalt, file.name);
@@ -215,10 +220,22 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
       },
     });
     if (erkennen && file.type === "application/pdf") angelegt.push({ id: dokument.id, inhalt, mimeType: file.type });
+    if (perKi && istErkennbar(file.type)) fuerKi.push({ id: dokument.id, inhalt, mimeType: file.type });
   }
 
-  // Regel-Erkennung der (höchstens ein paar) PDFs: lokal und schnell, daher nacheinander.
   let erkennungsFehler: string | null = null;
+  if (fuerKi.length > 0) {
+    // KI-Prüfung: je Datei einige Sekunden, daher parallel (höchstens 4 Dateien, Limit der Seite 60 s). Ein Fehler bei einer
+    // Datei stoppt die anderen nicht; alle Dokumente bleiben gespeichert.
+    const ergebnisse = await Promise.allSettled(fuerKi.map((d) => fuehreErkennungAus(d.id, d.inhalt, d.mimeType)));
+    const fehler = ergebnisse.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+    if (fehler.length > 0) {
+      console.error("KI-Prüfung beim Upload fehlgeschlagen", fehler);
+      erkennungsFehler = erkennungsMeldung(fehler[0]);
+      if (fuerKi.length > 1) erkennungsFehler = `bei ${fehler.length} von ${fuerKi.length} Dateien: ${erkennungsFehler}`;
+    }
+  }
+  // Regel-Erkennung der (höchstens ein paar) PDFs: lokal und schnell, daher nacheinander.
   if (angelegt.length > 0) {
     try {
       const kontext = await ladeRegelKontext();
@@ -232,7 +249,7 @@ export const uploadDokument = mitMeldung(async function uploadDokument(
   revalidatePath(ziel.revalidatePath);
   revalidatePath("/dokumente");
   return erkennungsFehler
-    ? `Hochgeladen, aber die Erkennung ist fehlgeschlagen (${erkennungsFehler}). Auf der Detailseite lässt sie sich erneut starten.`
+    ? `Hochgeladen, aber die ${perKi ? "KI-Prüfung" : "Erkennung"} ist fehlgeschlagen (${erkennungsFehler}). Auf der Detailseite lässt sie sich erneut starten.`
     : null;
 });
 
