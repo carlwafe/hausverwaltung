@@ -13,7 +13,6 @@ import { PDFDocument } from "pdf-lib";
 import { leseTextProSeite } from "@/lib/dokument-pdf-text";
 import { erkenneDokumentPerRegeln, type RegelKontext } from "@/lib/dokument-regeln";
 import { EINGANG_OFFEN_WHERE } from "@/lib/dokument-eingang-offen";
-import { naechstesEingangsDokument, pruefZiel } from "@/lib/dokument-eingang";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
@@ -597,13 +596,6 @@ function revalidiereDokument(id: string, d: DokumentMitBezug) {
   }
 }
 
-// Nach dem Ablegen eines Dokuments aus dem Eingang (Bezug gewählt oder ohne Bezug abgelegt) geht es gleich zum nächsten
-// Dokument im Eingang bzw. zur Übersicht, wenn nichts mehr zu prüfen ist. `abgelegtId` zeigt dort den Link zurück
-// (ein weiterer Bezug ist so noch möglich).
-async function weiterNachPruefung(warImEingang: boolean, abgelegtId: string): Promise<void> {
-  if (!warImEingang) return;
-  redirect(pruefZiel(await naechstesEingangsDokument(abgelegtId), abgelegtId));
-}
 
 // Fügt einen Bezug hinzu (ein Dokument darf mehrere haben, je Art aber nur einen). Damit gilt es als abgelegt
 // und verlässt den Eingang. Eine Kostenposition ist ein fester Nachweis und lässt sich später nicht ersetzen.
@@ -629,7 +621,6 @@ export const ordneDokumentZu = mitMeldung(async function ordneDokumentZu(
   await pruefeZiel(ziel, zielId);
   const neu = await prisma.dokument.update({ where: { id }, data: { [feld]: zielId, eingang: false } });
   revalidiereDokument(id, neu);
-  await weiterNachPruefung(dokument.eingang, id);
   return null;
 });
 
@@ -658,7 +649,6 @@ export const ersetzeBezug = mitMeldung(async function ersetzeBezug(id: string, z
   const neu = await prisma.dokument.update({ where: { id }, data: { [BEZUG_FELD[ziel]]: zielId, eingang: false } });
   revalidiereDokument(id, alt);
   revalidiereDokument(id, neu);
-  await weiterNachPruefung(alt.eingang, id);
   return null;
 });
 
@@ -671,7 +661,6 @@ export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: strin
   if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
   await prisma.dokument.update({ where: { id }, data: { eingang: false, ...(hatBezug(d) ? {} : { ordner: name || null }) } });
   revalidiereDokument(id, d);
-  await weiterNachPruefung(d.eingang, id);
   return null;
 });
 

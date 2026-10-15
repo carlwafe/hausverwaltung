@@ -79,7 +79,7 @@ export const maxDuration = 60;
 export default async function DokumentePage({
   searchParams,
 }: {
-  searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string; art?: string; gruppe?: string }>;
+  searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string; art?: string; gruppe?: string; }>;
 }) {
   const { bereich: bereichParam, ordner: ordnerParam, ansicht, status: statusParam, art: artParam, gruppe: gruppeParam } = await searchParams;
   const [user, index] = await Promise.all([getCurrentUser(), ladeDokumentIndex()]);

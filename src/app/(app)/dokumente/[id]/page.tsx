@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { eingangFortschritt } from "@/lib/dokument-eingang";
 import { BEREICHE, artLabel, formatBytes, formatDate, formatEuro } from "@/lib/dokumente-anzeige";
 import { allgemeineOrdnerNamen, ladeDokumentIndex, ladeDokumentZeile, type BezugTyp } from "@/lib/dokumente-uebersicht";
 import {
@@ -54,6 +55,11 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   // Ein aufgeteiltes Original ist nur noch Archiv (die Angaben und Bezüge stehen an den Teilen).
   const nurAnsicht = dokument.teile.length > 0;
   const kannBearbeiten = editierbar && !nurAnsicht;
+
+  // Prüfung im Eingang: wie viele Dokumente liegen noch dort, und welches kommt als nächstes? Der Link steht auch auf
+  // bereits abgelegten Dokumenten, damit man ein Dokument nach dem Ablegen noch einmal ansehen und dann bewusst weitergehen kann.
+  const imEingang = kannBearbeiten && dokument.eingang && !dokument.ausgeblendetAm;
+  const fortschritt = editierbar ? await eingangFortschritt(id) : null;
 
   const basisLabels: DokumentLabels = {
     aussteller: dokument.aussteller,
@@ -143,6 +149,18 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
 
   return (
     <div>
+      {fortschritt && fortschritt.naechsteId && (
+        <p className="mb-3 rounded-lg border border-neutral-800 p-3 text-sm text-neutral-300">
+          {imEingang ? "Prüfung im Eingang: " : "Noch im Eingang: "}
+          {fortschritt.gesamt - (imEingang ? 1 : 0)} weitere{fortschritt.gesamt - (imEingang ? 1 : 0) === 1 ? "s Dokument" : " Dokumente"} ·{" "}
+          <Link href={`/dokumente/${fortschritt.naechsteId}`} prefetch={false} className="text-white underline">
+            {imEingang ? "Überspringen →" : "Nächstes prüfen →"}
+          </Link>{" "}
+          <Link href="/dokumente?bereich=eingang" className="text-neutral-400 underline hover:text-white">
+            Zum Eingang
+          </Link>
+        </p>
+      )}
       <div className="mb-4 text-sm text-neutral-500">
         <Link href="/dokumente" className="hover:text-white hover:underline">
           Dokumente
