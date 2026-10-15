@@ -398,6 +398,8 @@ export type Vorschlag = {
   details: string;
   gruende: string[];
   sicher?: boolean;
+  /** Anzahl der Belege, die an der Kostenposition schon hängen (Warnung gegen doppeltes Anhängen). */
+  belege?: number;
 };
 
 export type AktuellerBezug = { ziel: ZuordnungsZiel; label: string; href: string; entfernbar: boolean };
@@ -569,6 +571,11 @@ export function BezuegePanel({
                     </span>
                     {v.titel}
                     {v.sicher && <span className="ml-2 rounded-full bg-green-950 px-2 py-0.5 text-[10px] uppercase text-green-400">sicher</span>}
+                    {!!v.belege && (
+                      <span className="ml-2 rounded-full border border-amber-500/60 bg-amber-950/30 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-400">
+                        ⚠ hat schon {v.belege} Beleg{v.belege === 1 ? "" : "e"}
+                      </span>
+                    )}
                   </div>
                   {v.details && <div className="text-xs text-neutral-500 [overflow-wrap:anywhere]">{v.details}</div>}
                   {v.gruende.length > 0 && <div className="text-xs text-neutral-400">{v.gruende.join(" · ")}</div>}
@@ -579,7 +586,9 @@ export function BezuegePanel({
                   onClick={() =>
                     fuehreAus(
                       () => ordneDokumentZu(id, v.ziel, v.zielId),
-                      v.ziel === "buchung" ? `Als Beleg an diese Kostenposition hängen? Das lässt sich nicht mehr rückgängig machen.` : undefined,
+                      v.ziel === "buchung"
+                        ? `${v.belege ? `Achtung: An dieser Kostenposition hängt schon ${v.belege} Beleg${v.belege === 1 ? "" : "e"}. ` : ""}Als Beleg an diese Kostenposition hängen? Das lässt sich nicht mehr rückgängig machen.`
+                        : undefined,
                     )
                   }
                   className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
