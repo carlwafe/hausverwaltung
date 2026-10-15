@@ -715,7 +715,7 @@ function gemeinsamerWert<T extends string | number>(teile: ErkennungTeil[], feld
 // Lehnt den Aufteilungsvorschlag ab: Das PDF gilt als ein Dokument. Die erkannten Teile bleiben im Rohergebnis (der Abgleich nutzt
 // ihre Salden und Abschläge); die noch leeren Felder werden aus den Teilen gefüllt: Betrag als Summe aller Teile, die übrigen
 // Angaben nur, wenn alle Teile denselben Wert haben (z.B. verschiedene Aussteller oder Kostenarten bleiben leer). Vorhandene Eingaben
-// werden nie überschrieben. „Neu erkennen“ setzt die Entscheidung zurück.
+// werden nie überschrieben. Der automatische Titel „Sammel-PDF mit N Dokumenten“ wird durch die Titel der Teile ersetzt. „Neu erkennen“ setzt die Entscheidung zurück.
 export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(id: string): Promise<string | null> {
   await requireEditor();
   const d = await prisma.dokument.findUnique({ where: { id } });
@@ -724,9 +724,13 @@ export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(i
   const teile = Array.isArray(e.teile) ? e.teile : [];
   const betraege = teile.map((t) => t.betrag);
   const summe = teile.length > 0 && betraege.every((b): b is number => typeof b === "number") ? Math.round(betraege.reduce((a, b) => a + b, 0) * 100) / 100 : undefined;
+  // Den automatischen Titel „Sammel-PDF mit N Dokumenten“ ersetzen die Titel der Teile; ein selbst vergebener Titel bleibt.
+  const teilTitel = teile.map((t) => t.titel).filter((t): t is string => !!t);
+  const titel = !d.titel || /^Sammel-PDF mit \d+ Dokumenten$/.test(d.titel) ? [...new Set(teilTitel)].join(" + ").slice(0, 200) || undefined : undefined;
   const felder =
     teile.length > 1
       ? {
+          titel,
           belegDatum: d.belegDatum ?? datumOderNull(gemeinsamerWert(teile, (t) => t.rechnungsdatum)) ?? undefined,
           aussteller: d.aussteller ?? gemeinsamerWert(teile, (t) => t.aussteller),
           rechnungsnummer: d.rechnungsnummer ?? gemeinsamerWert(teile, (t) => t.rechnungsnummer),
