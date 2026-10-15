@@ -66,6 +66,39 @@ export function zusatzLabelsAusErkennung(erkennung: unknown): Pick<DokumentLabel
   return { kundennummer, salden: [...salden], abschlaege: [...abschlaege] };
 }
 
+/**
+ * Labels fürs Zuordnen. Ein Sammel-PDF (mehrere erkannte Teile) behält am Dokument selbst nur Typ und Titel; Aussteller, Datum,
+ * Kostenjahr, Objekt und Rechnungsnummer stehen nur im Rohergebnis der Teile. Fehlende Angaben werden daraus ergänzt (Betrag nicht:
+ * der Betrag eines Teils ist nur dessen Saldo, der Abgleich nutzt dafür die Salden), dazu Kundennummer, Salden und Abschläge.
+ */
+export function labelsMitErkennung(basis: DokumentLabels, erkennung: unknown): DokumentLabels {
+  type Teil = { aussteller?: string | null; rechnungsnummer?: string | null; rechnungsdatum?: string | null; kostenjahr?: number | null; adressat?: string | null; objekt?: string | null; teile?: Teil[] };
+  const e = (erkennung ?? {}) as Teil;
+  const teile: Teil[] = Array.isArray(e.teile) && e.teile.length > 1 ? e.teile : [];
+  const erster = <T,>(wert: (t: Teil) => T | null | undefined): T | null => {
+    for (const t of teile) {
+      const w = wert(t);
+      if (w !== null && w !== undefined && w !== "") return w;
+    }
+    return null;
+  };
+  const nummern = new Set(teile.map((t) => t.rechnungsnummer).filter((n): n is string => !!n));
+  const datumIso = erster((t) => t.rechnungsdatum);
+  const zusatz = zusatzLabelsAusErkennung(erkennung);
+  return {
+    ...basis,
+    aussteller: basis.aussteller ?? erster((t) => t.aussteller),
+    rechnungsnummer: basis.rechnungsnummer ?? (nummern.size === 1 ? [...nummern][0] : null),
+    belegDatum: basis.belegDatum ?? (datumIso && /^\d{4}-\d{2}-\d{2}$/.test(datumIso) ? new Date(`${datumIso}T00:00:00.000Z`) : null),
+    kostenjahr: basis.kostenjahr ?? erster((t) => t.kostenjahr),
+    adressat: basis.adressat ?? erster((t) => t.adressat),
+    objektHinweis: basis.objektHinweis ?? erster((t) => t.objekt),
+    kundennummer: zusatz.kundennummer,
+    salden: zusatz.salden,
+    abschlaege: zusatz.abschlaege,
+  };
+}
+
 /** Steht die Kundennummer als eigenständige Zahl/Zeichenfolge im Text (nicht als Teil einer längeren)? */
 export function kundennummerImText(nummer: string | null | undefined, text: string | null): boolean {
   if (!nummer || !text) return false;

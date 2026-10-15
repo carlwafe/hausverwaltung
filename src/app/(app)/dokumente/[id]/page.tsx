@@ -12,7 +12,7 @@ import {
   ladeHausVorschlaege,
   ladeMietvertragVorschlaege,
   type DokumentLabels,
-  zusatzLabelsAusErkennung,
+  labelsMitErkennung,
 } from "@/lib/dokument-zuordnung";
 import { istErkennbar, type ErkennungErgebnis } from "@/lib/dokument-erkennung";
 import type { ZuordnungsZiel } from "../actions";
@@ -55,7 +55,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   const nurAnsicht = dokument.teile.length > 0;
   const kannBearbeiten = editierbar && !nurAnsicht;
 
-  const labels: DokumentLabels = {
+  const basisLabels: DokumentLabels = {
     aussteller: dokument.aussteller,
     rechnungsnummer: dokument.rechnungsnummer,
     betrag: dokument.betrag === null ? null : Number(dokument.betrag),
@@ -65,8 +65,8 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     adressat: dokument.adressat,
     objektHinweis: dokument.objektHinweis,
     art: dokument.art,
-    ...zusatzLabelsAusErkennung(dokument.erkennung),
   };
+  const labels = labelsMitErkennung(basisLabels, dokument.erkennung);
 
   const bezuege: AktuellerBezug[] = zeile.bezuege.map((b) => ({
     ziel: ZIEL_VON_TYP[b.typ],
@@ -81,7 +81,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   let vorschlaege: Vorschlag[] = [];
   if (kannBearbeiten) {
     // Ein Angebot findet seine Kostenposition über Objekt und Aussteller, nicht über Betrag oder Nummer.
-    const hatAnhalt = labels.betrag !== null || !!labels.rechnungsnummer || !!labels.aussteller || (labels.art === "ANGEBOT" && !!labels.objektHinweis);
+    const hatAnhalt = labels.betrag !== null || !!labels.rechnungsnummer || !!labels.aussteller || (labels.salden?.length ?? 0) > 0 || (labels.art === "ANGEBOT" && !!labels.objektHinweis);
     const [buchungen, vertraege, einheiten, haeuser, gebaeudeRoh, dienstleister] = await Promise.all([
       !hat("buchung") && hatAnhalt ? ladeBuchungVorschlaege(labels) : Promise.resolve([]),
       !hat("mietvertrag") ? ladeMietvertragVorschlaege(labels) : Promise.resolve([]),

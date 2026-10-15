@@ -16,7 +16,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
 import { ladeBezugOptionen } from "@/lib/dokumente-uebersicht";
-import { ladeBuchungAuswahl, ladeBuchungVorschlaege, zusatzLabelsAusErkennung, type DokumentLabels } from "@/lib/dokument-zuordnung";
+import { ladeBuchungAuswahl, ladeBuchungVorschlaege, labelsMitErkennung, type DokumentLabels } from "@/lib/dokument-zuordnung";
 
 type UploadZiel =
   | { buchungId: string; revalidatePath: string }
@@ -670,11 +670,10 @@ export const uebernehmeSichereVorschlaege = mitMeldung(async function uebernehme
   let anzahl = 0;
   for (const d of eingang) {
     if (d.betrag === null) continue;
-    const vorschlaege = await ladeBuchungVorschlaege({
+    const vorschlaege = await ladeBuchungVorschlaege(labelsMitErkennung({
       aussteller: d.aussteller, rechnungsnummer: d.rechnungsnummer, betrag: Number(d.betrag), belegDatum: d.belegDatum,
       kostenjahr: d.kostenjahr, iban: d.iban, adressat: d.adressat, objektHinweis: d.objektHinweis,
-      ...zusatzLabelsAusErkennung(d.erkennung),
-    });
+    }, d.erkennung));
     const sichere = vorschlaege.filter((v) => v.bewertung.sicher && v.belege === 0 && !vergeben.has(v.buchungId));
     // Nur bei genau einem sicheren Treffer — sonst bleibt die Entscheidung beim Nutzer.
     if (sichere.length !== 1) continue;
