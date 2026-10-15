@@ -21,6 +21,10 @@ export type DokumentLabels = {
   iban: string | null;
   adressat: string | null;
   objektHinweis: string | null;
+  /** Kundennummer beim Aussteller (Versorger buchen sie in den Verwendungszweck). */
+  kundennummer?: string | null;
+  /** Salden einer Abrechnung mit verrechneten Abschlägen (Nachzahlung +, Guthaben −) — der Versorger bucht nur den Saldo ab. */
+  salden?: number[];
   /** Dokumenttyp; bei einem Angebot zählen Objekt und Zeitraum statt Betrag und Rechnungsnummer. */
   art?: string | null;
 };
@@ -36,6 +40,30 @@ export type BuchungFuerBewertung = {
   einheit?: string | null;
   hausnummer?: string | null;
 };
+
+/** Zusatzangaben der Erkennung (Kundennummer, Salden), die nicht als eigene Spalte am Dokument stehen, sondern im Rohergebnis. */
+export function zusatzLabelsAusErkennung(erkennung: unknown): Pick<DokumentLabels, "kundennummer" | "salden"> {
+  type Roh = { kundennummer?: unknown; salden?: unknown; teile?: Roh[] };
+  const e = (erkennung ?? {}) as Roh;
+  // Ein noch nicht aufgeteiltes Sammel-PDF (z.B. Wasser-Rechnung + Abwasser-Bescheid) trägt die Salden aller Teile.
+  const alle = [e, ...(Array.isArray(e.teile) ? e.teile : [])];
+  const salden = new Set<number>();
+  for (const t of alle) {
+    if (!Array.isArray(t.salden)) continue;
+    for (const x of t.salden) if (typeof x === "number" && Number.isFinite(x)) salden.add(Math.round(x * 100) / 100);
+  }
+  const kundennummer = alle.map((t) => t.kundennummer).find((k): k is string => typeof k === "string" && k !== "") ?? null;
+  return { kundennummer, salden: [...salden] };
+}
+
+/** Steht die Kundennummer als eigenständige Zahl/Zeichenfolge im Text (nicht als Teil einer längeren)? */
+export function kundennummerImText(nummer: string | null | undefined, text: string | null): boolean {
+  if (!nummer || !text) return false;
+  const kern = alnum(nummer);
+  if (kern.length < 5) return false;
+  const esc = kern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![A-Z0-9])${esc}(?![A-Z0-9])`).test(text.toUpperCase());
+}
 
 /** hart = Betrag, Rechnungsnummer oder IBAN stimmen — Name, Datum und Jahr allein reichen nicht für einen Vorschlag. */
 export type Bewertung = { punkte: number; gruende: string[]; sicher: boolean; hart: boolean };
@@ -139,11 +167,26 @@ export function bewerteBuchung(d: DokumentLabels, b: BuchungFuerBewertung): Bewe
     gruende.push("IBAN stimmt");
   }
 
+  // Versorger-Saldo: Die Abbuchung enthält nur Guthaben bzw. Nachzahlung der Abrechnung, nicht die Gesamtkosten.
+  const kundenTreffer = kundennummerImText(d.kundennummer, b.verwendungszweck);
+  if (kundenTreffer) {
+    punkte += 25;
+    gruende.push("Kundennummer im Verwendungszweck");
+  }
+
   const text = normalizeText(`${b.empfaenger ?? ""} ${b.verwendungszweck ?? ""}`);
   const nameTreffer = namenstoken(d.aussteller).some((t) => text.includes(t));
   if (nameTreffer) {
     punkte += 20;
     gruende.push("Aussteller passt zum Empfänger");
+  }
+
+  // Erst nach dem Namenstreffer: Der Saldo allein (z.B. 50,00 €) ist zu unspezifisch, Kundennummer oder Aussteller müssen dazukommen.
+  const saldoGleich = !betragGleich && (d.salden ?? []).some((s) => cent(s) === cent(b.betrag));
+  const saldoHart = saldoGleich && (kundenTreffer || nameTreffer);
+  if (saldoHart) {
+    punkte += 50;
+    gruende.push("Saldo der Abrechnung (Guthaben/Nachzahlung) stimmt");
   }
 
   // Angebot: es hat keine eigene Zahlung — die Rechnung zum Auftrag trägt eine andere Nummer und oft einen anderen Betrag
@@ -186,9 +229,9 @@ export function bewerteBuchung(d: DokumentLabels, b: BuchungFuerBewertung): Bewe
     gruende.push("Kostenjahr stimmt");
   }
 
-  const sicher = betragGleich && (nummerTreffer || ((ibanTreffer || nameTreffer) && datumPassend));
+  const sicher = (betragGleich && (nummerTreffer || ((ibanTreffer || nameTreffer) && datumPassend))) || (saldoHart && kundenTreffer && datumPassend);
   // Ein Angebot braucht neben dem Objekt auch einen passenden Aussteller, sonst stünde jede Kostenposition der Einheit zur Wahl.
-  return { punkte, gruende, sicher, hart: betragGleich || nummerTreffer || ibanTreffer || (angebot && objektStark && nameTreffer) };
+  return { punkte, gruende, sicher, hart: betragGleich || saldoHart || nummerTreffer || ibanTreffer || (angebot && objektStark && nameTreffer) };
 }
 
 export type BuchungVorschlag = {

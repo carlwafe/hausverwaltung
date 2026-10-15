@@ -12,6 +12,7 @@ import {
   ladeHausVorschlaege,
   ladeMietvertragVorschlaege,
   type DokumentLabels,
+  zusatzLabelsAusErkennung,
 } from "@/lib/dokument-zuordnung";
 import { istErkennbar, type ErkennungErgebnis } from "@/lib/dokument-erkennung";
 import type { ZuordnungsZiel } from "../actions";
@@ -64,6 +65,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     adressat: dokument.adressat,
     objektHinweis: dokument.objektHinweis,
     art: dokument.art,
+    ...zusatzLabelsAusErkennung(dokument.erkennung),
   };
 
   const bezuege: AktuellerBezug[] = zeile.bezuege.map((b) => ({
