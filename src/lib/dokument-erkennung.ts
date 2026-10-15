@@ -61,6 +61,8 @@ export type ErkennungErgebnis = Erkennung & {
   seiten?: number;
   /** Womit erkannt wurde: Regeln (lokal, dokument-regeln.ts) oder KI (Claude). Fehlt bei älteren Ergebnissen = KI. */
   quelle?: "regeln" | "ki";
+  /** Der Nutzer hat das Aufteilen abgelehnt: `teile` bleibt für den Abgleich (Salden, Abschläge), das Dokument wird als Ganzes behandelt. */
+  teileVerworfen?: boolean;
 };
 
 export type ErkennungKontext = { kostenarten: { id: string; name: string }[] };

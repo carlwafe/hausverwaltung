@@ -689,6 +689,18 @@ export const uebernehmeSichereVorschlaege = mitMeldung(async function uebernehme
 
 // ---- Aufteilen eines PDFs mit mehreren Dokumenten ----
 
+// Lehnt den Aufteilungsvorschlag ab: Das PDF gilt als ein Dokument. Die erkannten Teile bleiben im Rohergebnis (der Abgleich nutzt
+// ihre Salden und Abschläge), nur der Aufteilen-Block verschwindet. „Neu erkennen“ setzt die Entscheidung zurück.
+export const verwerfeAufteilung = mitMeldung(async function verwerfeAufteilung(id: string): Promise<string | null> {
+  await requireEditor();
+  const dokument = await prisma.dokument.findUnique({ where: { id }, select: { erkennung: true } });
+  if (!dokument) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  const e = (dokument.erkennung ?? {}) as Record<string, unknown>;
+  await prisma.dokument.update({ where: { id }, data: { erkennung: { ...e, teileVerworfen: true } as unknown as Prisma.InputJsonValue } });
+  revalidatePath(`/dokumente/${id}`);
+  return null;
+});
+
 export type AufteilTeil = { quelleIndex: number; seiteVon: number; seiteBis: number };
 
 // Teilt ein erkanntes Sammel-PDF in einzelne Dokumente auf. Die Seitenbereiche kommen (ggf. vom Nutzer korrigiert) vom

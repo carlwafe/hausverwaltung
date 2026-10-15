@@ -15,6 +15,7 @@ import {
   ordneDokumentZu,
   speichereDokumentLabels,
   teileDokumentAuf,
+  verwerfeAufteilung,
   type ZuordnungsZiel,
 } from "../actions";
 
@@ -369,6 +370,21 @@ export function AufteilenPanel({ id, seiten, teile }: { id: string; seiten: numb
         className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
       >
         {pending ? "Teilt auf…" : `In ${zeilen.length} Dokumente aufteilen`}
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        title="Das PDF als ein Dokument behandeln — es wird nicht geteilt und lässt sich als Ganzes einer Kostenposition zuordnen"
+        onClick={() => {
+          setFehler(null);
+          startTransition(async () => {
+            const f = await verwerfeAufteilung(id);
+            if (typeof f === "string") setFehler(f);
+          });
+        }}
+        className="ml-2 rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-900 disabled:opacity-50"
+      >
+        Nicht aufteilen (als ganzes Dokument)
       </button>
       {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}
     </div>

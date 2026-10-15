@@ -135,7 +135,7 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
   const regelGrund = (dokument.erkennung as { offen?: boolean; grund?: string } | null)?.offen ? ((dokument.erkennung as { grund?: string }).grund ?? null) : null;
   // Sammel-PDF: nur anbieten, solange es nicht aufgeteilt ist und noch keine Bezüge hat.
   const aufteilbar =
-    editierbar && !dokument.ausgeblendetAm && bezuege.length === 0 && dokument.mimeType === "application/pdf" && (erkennung?.teile?.length ?? 0) > 1
+    editierbar && !dokument.ausgeblendetAm && bezuege.length === 0 && dokument.mimeType === "application/pdf" && (erkennung?.teile?.length ?? 0) > 1 && !erkennung?.teileVerworfen
       ? { seiten: erkennung?.seiten ?? 0, teile: erkennung!.teile!.map((t, i) => ({ quelleIndex: i, titel: t.titel, aussteller: t.aussteller, rechnungsnummer: t.rechnungsnummer, betrag: t.betrag, seiteVon: t.seiteVon, seiteBis: t.seiteBis })) }
       : null;
   const bereichLabel = BEREICHE.find((b) => b.key === zeile.bereich)?.label ?? zeile.bereich;
