@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { ladeJahresjournal } from "@/lib/jahresjournal";
 import { erzeugeJahresjournalPdf } from "@/lib/jahresjournal-pdf";
 import { erzeugeGruppenPdf } from "@/lib/jahresjournal-gruppen-pdf";
+import { bildeZeitraum, ladeMieterZeilen } from "@/app/(app)/jahresuebersicht/bericht-seite";
 
 // Jahresbericht Kontoführung als PDF (nur lesend, auch für Gäste), zwei Ansichten derselben Buchungen:
 // nach Monaten (Journal mit Kontostand, Standard) oder `ansicht=gruppen` (nach Kosten-/Einnahmegruppen).
@@ -24,7 +25,9 @@ export async function GET(req: Request) {
       { status: 409 },
     );
   }
-  const pdf = gruppen ? await erzeugeGruppenPdf(daten) : await erzeugeJahresjournalPdf(daten);
+  const pdf = gruppen
+    ? await erzeugeGruppenPdf(daten, await ladeMieterZeilen(bildeZeitraum(jahr, 0)))
+    : await erzeugeJahresjournalPdf(daten);
   return new NextResponse(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",

@@ -7,7 +7,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { MieterTabelle } from "./mieter-tabelle";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { berechneMieterBericht, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
+import { berechneMieterBericht, berechneMieterSonderbewegungen, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
+import { hausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
 import { kontostandAmStichtag } from "@/lib/kontostand";
@@ -376,7 +377,7 @@ async function ladeKontenabgleich(zeitraum: Zeitraum) {
   };
 }
 
-async function ladeMieterZeilen(zeitraum: Zeitraum) {
+export async function ladeMieterZeilen(zeitraum: Zeitraum) {
   const [objekt, vertraegeRaw] = await Promise.all([
     prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
     prisma.mietvertrag.findMany({
@@ -526,9 +527,23 @@ async function ladeMieterZeilen(zeitraum: Zeitraum) {
     vertraegeRaw.filter((v) => hatEigenenStichtag(v, objekt)).map((v) => [v.id, formatDatum(v.buchhaltungAb!)]),
   );
 
+  // Gebühren (Sonderbewegungen) getrennt und das Haus je Vertrag — nur für den PDF-Bericht „nach Gruppen“.
+  const sonder = berechneMieterSonderbewegungen(vertraege, zeitraum, objekt?.buchhaltungBis ?? null);
+  const hausJeVertrag = new Map(
+    vertraegeRaw.map((v) => [
+      v.id,
+      v.einheit.gebaeude.haus
+        ? hausLabel(v.einheit.gebaeude.haus.gebaeude)
+        : `${v.einheit.gebaeude.strasse} ${v.einheit.gebaeude.hausnummer}`,
+    ]),
+  );
+
   return berechneMieterBericht(vertraege, zeitraum, objekt?.buchhaltungBis ?? null, mitKommentar)
     .map((z) => ({
       ...z,
+      sonderGefordert: sonder.get(z.mietvertragId)?.gefordert ?? 0,
+      sonderGezahlt: sonder.get(z.mietvertragId)?.gezahlt ?? 0,
+      hausLabel: hausJeVertrag.get(z.mietvertragId) ?? "",
       einheitRang: einheitRang.get(z.mietvertragId) ?? 0,
       eigenerStichtag: abweichenderStichtag.get(z.mietvertragId) ?? null,
     }))

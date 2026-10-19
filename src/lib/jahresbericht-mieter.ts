@@ -65,6 +65,36 @@ export type MieterJahresberichtZeile = {
   nebenkostenGegenrechnung: number;
 };
 
+/**
+ * Sonderbewegungen (Gebühren-Forderungen, Zahlungen darauf, Verrechnungen mit Kaution/NK) je Vertrag im
+ * Zeitraum, getrennt nach Forderung (`gefordert`, positiv = der Mieter schuldet das) und Gutschrift
+ * (`gezahlt`, Zahlung oder Verrechnung). Gleiche Abgrenzung wie `saldoZuStichtag`/`berechneMieterBericht`
+ * (Stichtag je Vertrag, Ende gekappt auf `buchhaltungBisGlobal`), damit
+ * Saldo neu = Saldo alt − Soll + Miete − gefordert + gezahlt + Gutschrift NK-Vorauszahlung + NK offen aufgeht.
+ * Eigene Funktion statt Feld in `MieterJahresberichtZeile`, damit sich deren JSON-Ausgabe nicht ändert.
+ */
+export function berechneMieterSonderbewegungen(
+  vertraege: MietvertragFuerJahresbericht[],
+  zeitraum: { von: Date; bis: Date },
+  buchhaltungBisGlobal: Date | null,
+): Map<string, { gefordert: number; gezahlt: number }> {
+  const altBis = new Date(zeitraum.von.getTime() - 1);
+  const neuBis = buchhaltungBisGlobal && buchhaltungBisGlobal < zeitraum.bis ? buchhaltungBisGlobal : zeitraum.bis;
+  const ergebnis = new Map<string, { gefordert: number; gezahlt: number }>();
+  for (const v of vertraege) {
+    let gefordert = 0;
+    let gezahlt = 0;
+    for (const s of v.sonderbewegungen) {
+      if (v.buchhaltungAb && s.datum < v.buchhaltungAb) continue;
+      if (s.datum <= altBis || s.datum > neuBis) continue;
+      if (s.betrag < 0) gefordert -= s.betrag;
+      else gezahlt += s.betrag;
+    }
+    ergebnis.set(v.id, { gefordert: Math.round(gefordert * 100) / 100, gezahlt: Math.round(gezahlt * 100) / 100 });
+  }
+  return ergebnis;
+}
+
 /** Jahr+Monat als einzelne, vergleichbare Zahl (z.B. 2025-03 -> 2025*12+3). */
 function periodeVon(datum: Date): number {
   return datum.getFullYear() * 12 + (datum.getMonth() + 1);
