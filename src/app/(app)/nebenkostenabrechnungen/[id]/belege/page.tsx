@@ -113,7 +113,7 @@ export default async function BelegPruefungPage({ params }: { params: Promise<{ 
                     {r.beschreibung || "–"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right text-neutral-200">{formatEuro(r.betrag)}</td>
-                  <td className="px-3 py-2">
+                  <td className="whitespace-nowrap px-3 py-2">
                     <BelegBadge status={r.status} />
                   </td>
                 </tr>
