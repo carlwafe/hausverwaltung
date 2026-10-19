@@ -160,10 +160,6 @@ const csvSpalten: CsvSpalte<KostenpositionRow>[] = [
 export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionRow[]>([]);
   const [pending, startTransition] = useTransition();
-  const [nurOhneBeleg, setNurOhneBeleg] = useState(false);
-  const fehlend = rows.filter((r) => r.belegStatus === "FEHLT").length;
-  const sichtbar = nurOhneBeleg ? rows.filter((r) => r.belegStatus === "FEHLT") : rows;
-
   const kostenartOptionen = [...new Set(rows.map((r) => r.kostenartName))]
     .sort((a, b) => a.localeCompare(b, "de"))
     .map((name) => ({ value: name, label: name }));
@@ -211,15 +207,9 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
           </div>
         </div>
       )}
-      {fehlend > 0 && (
-        <label className="mb-3 flex w-fit items-center gap-2 text-sm text-neutral-300">
-          <input type="checkbox" checked={nurOhneBeleg} onChange={(e) => setNurOhneBeleg(e.target.checked)} />
-          Nur umlagefähige Positionen ohne Beleg zeigen ({fehlend})
-        </label>
-      )}
       <DataTable
         columns={columns}
-        rows={sichtbar}
+        rows={rows}
         emptyMessage="Noch keine Kostenpositionen erfasst."
         searchPlaceholder="Kosten durchsuchen…"
         selectable
@@ -230,6 +220,20 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
           value: (k) => k.kostenartName,
           options: kostenartOptionen,
           placeholder: "Alle Kostenarten",
+        }}
+        selectFilter2={{
+          label: "Umlage / Beleg",
+          placeholder: "Alle Positionen",
+          matches: (k, wert) =>
+            k.umlagefaehig &&
+            (wert === "umlagefaehig" ||
+              (wert === "ohne-beleg" && k.belegStatus === "FEHLT") ||
+              (wert === "mit-beleg" && (k.belegStatus === "BELEGT" || k.belegStatus === "AUSNAHME"))),
+          options: [
+            { value: "umlagefaehig", label: "Alle umlagefähigen anzeigen" },
+            { value: "ohne-beleg", label: "Umlagefähig – Beleg fehlt" },
+            { value: "mit-beleg", label: "Umlagefähig – Beleg vorhanden" },
+          ],
         }}
         renderExpanded={(k, colSpan) =>
           k.hatRohdaten ? (

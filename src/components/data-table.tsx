@@ -41,6 +41,7 @@ export function DataTable<T extends { id: string }>({
   renderBelow,
   dateValue,
   selectFilter,
+  selectFilter2,
   defaultSort,
   renderFooter,
 }: {
@@ -84,6 +85,15 @@ export function DataTable<T extends { id: string }>({
     options: { value: string; label: string }[];
     placeholder?: string;
   };
+  /** Zweites Dropdown neben dem ersten, für Eingrenzungen, bei denen eine Zeile zu mehreren Optionen passen kann
+   * (z.B. „alle umlagefähigen“ und „umlagefähig ohne Beleg“) — deshalb ein Prädikat statt eines Vergleichswerts.
+   * "" (Platzhalter-Option) bedeutet "kein Filter". */
+  selectFilter2?: {
+    label: string;
+    matches: (row: T, value: string) => boolean;
+    options: { value: string; label: string }[];
+    placeholder?: string;
+  };
   /** Anfangssortierung (Spalten-key); der Nutzer kann sie durch Klick auf eine Spaltenüberschrift ändern. */
   defaultSort?: { key: string; dir?: "asc" | "desc" };
   /** Zusätzliche Fußzeile (<tr>, z.B. Summen) über die aktuell gefilterten/sortierten Zeilen;
@@ -95,6 +105,7 @@ export function DataTable<T extends { id: string }>({
   const [bis, setBis] = useState("");
   const [datumResetZaehler, setDatumResetZaehler] = useState(0);
   const [selectFilterValue, setSelectFilterValue] = useState("");
+  const [selectFilter2Value, setSelectFilter2Value] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(defaultSort?.key ?? null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">(defaultSort?.dir ?? "asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -122,8 +133,11 @@ export function DataTable<T extends { id: string }>({
     if (selectFilter && selectFilterValue) {
       ergebnis = ergebnis.filter((r) => selectFilter.value(r) === selectFilterValue);
     }
+    if (selectFilter2 && selectFilter2Value) {
+      ergebnis = ergebnis.filter((r) => selectFilter2.matches(r, selectFilter2Value));
+    }
     return ergebnis;
-  }, [rows, query, columns, hatSuche, dateValue, von, bis, selectFilter, selectFilterValue]);
+  }, [rows, query, columns, hatSuche, dateValue, von, bis, selectFilter, selectFilterValue, selectFilter2, selectFilter2Value]);
 
   const sortiert = useMemo(() => {
     if (!sortKey) return gefiltert;
@@ -175,7 +189,7 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div>
-      {(hatSuche || dateValue || selectFilter) && (
+      {(hatSuche || dateValue || selectFilter || selectFilter2) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {hatSuche && (
             <input
@@ -187,36 +201,20 @@ export function DataTable<T extends { id: string }>({
             />
           )}
           {selectFilter && (
-            // Eigener Pfeil statt der nativen Browser-Chevron: die native Darstellung von
-            // <select> weicht je nach Browser/Betriebssystem in ihrem intrinsischen Mindestmaß
-            // von einem <input> ab (v.a. bei langen <option>-Texten) und ließ sich mit
-            // Breiten-Klassen allein nicht zuverlässig exakt an das Suchfeld angleichen —
-            // appearance-none entfernt die native Darstellung komplett, wodurch das Feld exakt
-            // wie das Suchfeld daneben aus denselben Box-Maßen (Breite, Höhe, Padding) besteht.
-            <div className="relative w-full max-w-xs sm:w-72">
-              <select
-                value={selectFilterValue}
-                onChange={(e) => setSelectFilterValue(e.target.value)}
-                className="w-full appearance-none rounded-md border border-neutral-700 bg-neutral-950 py-2 pl-3 pr-8 text-sm text-white outline-none focus:border-neutral-400"
-              >
-                <option value="">{selectFilter.placeholder ?? `Alle (${selectFilter.label})`}</option>
-                {selectFilter.options.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400"
-              >
-                <path d="M5.5 7.5L10 12l4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
+            <FilterSelect
+              value={selectFilterValue}
+              onChange={setSelectFilterValue}
+              placeholder={selectFilter.placeholder ?? `Alle (${selectFilter.label})`}
+              options={selectFilter.options}
+            />
+          )}
+          {selectFilter2 && (
+            <FilterSelect
+              value={selectFilter2Value}
+              onChange={setSelectFilter2Value}
+              placeholder={selectFilter2.placeholder ?? `Alle (${selectFilter2.label})`}
+              options={selectFilter2.options}
+            />
           )}
           {dateValue && (
             <div className="flex items-center gap-2 text-sm text-neutral-400">
@@ -337,6 +335,50 @@ export function DataTable<T extends { id: string }>({
           )}
         </table>
       </div>
+    </div>
+  );
+}
+
+// Dropdown der Filterleiste. Eigener Pfeil statt der nativen Browser-Chevron: die native Darstellung von <select> weicht
+// je nach Browser/Betriebssystem in ihrem intrinsischen Mindestmaß von einem <input> ab (v.a. bei langen
+// <option>-Texten) und ließ sich mit Breiten-Klassen allein nicht zuverlässig exakt an das Suchfeld angleichen —
+// appearance-none entfernt die native Darstellung komplett, wodurch das Feld exakt wie das Suchfeld daneben aus
+// denselben Box-Maßen (Breite, Höhe, Padding) besteht.
+function FilterSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="relative w-full max-w-xs sm:w-72">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full appearance-none rounded-md border border-neutral-700 bg-neutral-950 py-2 pl-3 pr-8 text-sm text-white outline-none focus:border-neutral-400"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400"
+      >
+        <path d="M5.5 7.5L10 12l4.5-4.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </div>
   );
 }
