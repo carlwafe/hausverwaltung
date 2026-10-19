@@ -13,10 +13,13 @@ export function VersendetFeld({
   abrechnungId,
   versendetAm,
   heute,
+  belegFehlt,
 }: {
   abrechnungId: string;
   versendetAm: string | null;
   heute: string;
+  /** Umlagefähige Positionen ohne Beleg (Belegprüfung) — Warnung vor dem Markieren, kein Sperren. */
+  belegFehlt: number;
 }) {
   const [fehler, formAction, pending] = useActionState(
     (_prev: string | null, formData: FormData) => runFormAction(speichereVersendetAm.bind(null, abrechnungId), formData),
@@ -26,7 +29,21 @@ export function VersendetFeld({
 
   return (
     <div className="mb-6 max-w-3xl rounded-md border border-neutral-800 px-3 py-2">
-      <form action={formAction} className="flex flex-wrap items-center gap-3">
+      <form
+        action={formAction}
+        onSubmit={(e) => {
+          const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+          if (versendetAm || submitter?.value === "zuruecknehmen" || belegFehlt === 0) return;
+          if (
+            !confirm(
+              `Für ${belegFehlt} umlagefähige Position${belegFehlt === 1 ? "" : "en"} fehlt noch ein Beleg. Der Mieter darf die Belege einsehen. Trotzdem als versendet markieren?`,
+            )
+          ) {
+            e.preventDefault();
+          }
+        }}
+        className="flex flex-wrap items-center gap-3"
+      >
         <span className={`text-sm ${versendetAm ? "text-green-400" : "text-neutral-300"}`}>
           {versendetAm ? `Versendet am ${t}.${m}.${j}` : "Noch nicht versendet"}
         </span>

@@ -11,6 +11,7 @@ import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
+import { MAX_BELEG_AUSNAHME_GRUND, uebernehmeBelegAusnahme } from "@/lib/beleg-status";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -178,6 +179,7 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
     // Belege gehören zur Position, nicht zur stornierten Fassung — auf die neue umhängen (sonst fehlen sie
     // an der aktiven Position und bleiben an der stornierten hängen).
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: neu.id } });
+    await uebernehmeBelegAusnahme(tx, id, neu.id);
   });
 
   revalidatePath("/kosten");
@@ -291,6 +293,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
       where: { buchungId: id },
       data: { buchungId: neuePositionen[0].id },
     });
+    await uebernehmeBelegAusnahme(tx, id, neuePositionen.map((p) => p.id));
     await storniereBuchung(tx, id, erstelltVon);
   });
 
@@ -365,6 +368,7 @@ export async function hebeAufteilungAuf(positionId: string) {
       data: { buchungId: neu.id },
     });
     for (const teil of gruppe) {
+      await uebernehmeBelegAusnahme(tx, teil.id, neu.id);
       await storniereBuchung(tx, teil.id, erstelltVon);
     }
   });
@@ -444,3 +448,42 @@ export async function pruefeKostenDoppelzahlungen() {
   await requireUser();
   return ladeKostenDoppelzahlungen();
 }
+
+// „Kein Beleg nötig“ für eine umlagefähige Kostenposition (Belegprüfung der Nebenkostenabrechnung). Der Grund ist
+// Pflicht, damit die Markierung später nachvollziehbar bleibt; leer = nicht erlaubt (zum Entfernen
+// entferneBelegAusnahme). Gibt null bei Erfolg zurück, sonst die Meldung.
+export const setzeBelegAusnahme = mitMeldung(async function setzeBelegAusnahme(
+  buchungId: string,
+  grund: string,
+): Promise<string | null> {
+  const user = await requireEditor();
+  const bereinigt = grund.trim();
+  if (!bereinigt) throw new AktionsFehler("Bitte einen Grund angeben (z.B. „Pauschale ohne Rechnung“).");
+  if (bereinigt.length > MAX_BELEG_AUSNAHME_GRUND) {
+    throw new AktionsFehler(`Der Grund darf höchstens ${MAX_BELEG_AUSNAHME_GRUND} Zeichen lang sein.`);
+  }
+  const position = await prisma.buchung.findFirst({
+    where: { id: buchungId, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
+    select: { id: true, jahr: true },
+  });
+  if (!position) throw new AktionsFehler("Kostenposition nicht gefunden.");
+  const gesetztVon = benutzerLabel(user);
+  await prisma.buchungBelegAusnahme.upsert({
+    where: { buchungId },
+    create: { buchungId, grund: bereinigt, gesetztVon },
+    update: { grund: bereinigt, gesetztVon, gesetztAm: new Date() },
+  });
+  revalidatePath("/kosten");
+  revalidatePath("/nebenkostenabrechnungen", "layout");
+  return null;
+});
+
+export const entferneBelegAusnahme = mitMeldung(async function entferneBelegAusnahme(
+  buchungId: string,
+): Promise<string | null> {
+  await requireEditor();
+  await prisma.buchungBelegAusnahme.deleteMany({ where: { buchungId } });
+  revalidatePath("/kosten");
+  revalidatePath("/nebenkostenabrechnungen", "layout");
+  return null;
+});

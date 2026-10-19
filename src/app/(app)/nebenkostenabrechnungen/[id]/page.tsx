@@ -22,6 +22,7 @@ import {
 } from "../actions";
 import { ManuellePositionForm } from "../manuelle-position-form";
 import { VersendetFeld } from "./versendet-feld";
+import { zaehleBelegLuecken } from "@/lib/beleg-pruefung";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
 import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
 import { mieterName } from "@/lib/mieter-name";
@@ -60,6 +61,7 @@ export default async function NebenkostenabrechnungDetailPage({
     },
   });
   if (!abrechnung) notFound();
+  const belegLuecken = await zaehleBelegLuecken(abrechnung.jahr);
   const pruefungen = new Map(abrechnung.pruefungen.map((p) => [p.mietvertragId, p]));
 
   const [
@@ -363,8 +365,25 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       </div>
 
+      <div className="mb-3 max-w-3xl rounded-md border border-neutral-800 px-3 py-2 text-sm">
+        <span className={belegLuecken.fehlt > 0 ? "text-amber-400" : "text-green-400"}>
+          {belegLuecken.gesamt === 0
+            ? "Keine umlagefähigen Kostenpositionen zu belegen."
+            : belegLuecken.fehlt === 0
+              ? `Alle ${belegLuecken.gesamt} umlagefähigen Positionen sind belegt oder markiert.`
+              : `Beleg fehlt bei ${belegLuecken.fehlt} von ${belegLuecken.gesamt} umlagefähigen Positionen.`}
+        </span>{" "}
+        <Link href={`/nebenkostenabrechnungen/${id}/belege`} className="text-neutral-300 underline hover:text-white">
+          Belegprüfung öffnen
+        </Link>
+        <p className="mt-0.5 text-xs text-neutral-500">
+          Der Mieter darf die Belege zur Abrechnung einsehen — am besten vor dem Versand vervollständigen.
+        </p>
+      </div>
+
       <VersendetFeld
         abrechnungId={id}
+        belegFehlt={belegLuecken.fehlt}
         versendetAm={abrechnung.versendetAm ? abrechnung.versendetAm.toISOString().slice(0, 10) : null}
         heute={new Date().toISOString().slice(0, 10)}
       />

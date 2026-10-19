@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/data-table";
+import { BelegBadge } from "@/components/beleg-badge";
+import type { BelegStatus } from "@/lib/beleg-anzeige";
 import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
 import { deleteKostenpositionen } from "./actions";
 import {
@@ -36,6 +38,8 @@ export type KostenpositionRow = {
   beschreibung: string | null;
   // Die Bankzeile selbst wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
   hatRohdaten: boolean;
+  // Belegprüfung der Nebenkostenabrechnung: Dokument vorhanden / fehlt / „Kein Beleg nötig“ / nicht beleg-pflichtig.
+  belegStatus: BelegStatus;
   importBatchId: string | null;
   importDateiname: string | null;
   // Gesetzt, wenn diese Zeile aus dem Aufteilen einer ursprünglich einzelnen Buchung entstanden
@@ -106,6 +110,12 @@ const columns: Column<KostenpositionRow>[] = [
       ),
   },
   {
+    key: "beleg",
+    label: "Beleg",
+    sortValue: (k) => ({ FEHLT: 0, AUSNAHME: 1, BELEGT: 2, ENTFAELLT: 3 })[k.belegStatus],
+    render: (k) => <BelegBadge status={k.belegStatus} />,
+  },
+  {
     key: "betrag",
     label: "Betrag",
     sortValue: (k) => k.betrag,
@@ -141,6 +151,7 @@ const csvSpalten: CsvSpalte<KostenpositionRow>[] = [
   { label: "Gebäude", wert: (k) => k.gebaeudeLabel },
   { label: "Kostenart", wert: (k) => k.kostenartName },
   { label: "Umlagefähig", wert: (k) => (k.umlagefaehig ? "Ja" : "Nein") },
+  { label: "Beleg", wert: (k) => ({ BELEGT: "Ja", AUSNAHME: "Kein Beleg nötig", FEHLT: "Fehlt", ENTFAELLT: "" })[k.belegStatus] },
   { label: "Betrag", wert: (k) => formatEuroFuerCsv(k.betrag) },
   { label: "Empfänger", wert: (k) => k.empfaenger ?? "" },
   { label: "Beschreibung", wert: (k) => k.beschreibung ?? "" },
@@ -149,6 +160,9 @@ const csvSpalten: CsvSpalte<KostenpositionRow>[] = [
 export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KostenpositionRow[]>([]);
   const [pending, startTransition] = useTransition();
+  const [nurOhneBeleg, setNurOhneBeleg] = useState(false);
+  const fehlend = rows.filter((r) => r.belegStatus === "FEHLT").length;
+  const sichtbar = nurOhneBeleg ? rows.filter((r) => r.belegStatus === "FEHLT") : rows;
 
   const kostenartOptionen = [...new Set(rows.map((r) => r.kostenartName))]
     .sort((a, b) => a.localeCompare(b, "de"))
@@ -197,9 +211,15 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
           </div>
         </div>
       )}
+      {fehlend > 0 && (
+        <label className="mb-3 flex w-fit items-center gap-2 text-sm text-neutral-300">
+          <input type="checkbox" checked={nurOhneBeleg} onChange={(e) => setNurOhneBeleg(e.target.checked)} />
+          Nur umlagefähige Positionen ohne Beleg zeigen ({fehlend})
+        </label>
+      )}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={sichtbar}
         emptyMessage="Noch keine Kostenpositionen erfasst."
         searchPlaceholder="Kosten durchsuchen…"
         selectable

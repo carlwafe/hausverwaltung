@@ -17,6 +17,8 @@ import { getCurrentUser } from "@/lib/session";
 import { ladeEingangFuerBuchung } from "@/lib/dokument-zuordnung";
 import { ibanAus } from "@/lib/kosten-doppelzahlung";
 import { EingangHinweis } from "./eingang-hinweis";
+import { BelegAusnahme } from "@/components/beleg-ausnahme";
+import { ladeBelegStatus } from "@/lib/beleg-status";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -100,6 +102,13 @@ export default async function KostenpositionDetailPage({
           sicher: t.bewertung.sicher,
         }))
       : [];
+
+  const [belegStatusMap, belegAusnahme] = await Promise.all([
+    ladeBelegStatus([kostenposition]),
+    prisma.buchungBelegAusnahme.findUnique({ where: { buchungId: id } }),
+  ]);
+  const belegStatus = belegStatusMap.get(id) ?? "ENTFAELLT";
+  const eigeneBelege = kostenposition.dokumente.filter((d) => !d.ausgeblendetAm).length;
 
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
   const gebaeudeLabel = gebaeudeOderHausLabel(
@@ -226,6 +235,15 @@ export default async function KostenpositionDetailPage({
           kostenbeleg
         />
       </div>
+
+      <BelegAusnahme
+        buchungId={id}
+        status={belegStatus}
+        grund={belegAusnahme?.grund ?? ""}
+        gesetztVon={belegAusnahme?.gesetztVon ?? ""}
+        ueberAndereTeile={belegStatus === "BELEGT" && eigeneBelege === 0}
+        bearbeitbar={user !== null && user.role !== "GAST"}
+      />
     </div>
   );
 }

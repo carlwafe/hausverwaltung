@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { gebaeudeOderHausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
+import { ladeBelegStatus, type BelegStatus } from "@/lib/beleg-status";
 import type { Prisma } from "@/generated/prisma/client";
 import type { KostenpositionRow } from "./kosten-table";
 import type { NichtZugeordneteBuchungRow } from "./nicht-zugeordnete-buchungen-table";
@@ -24,7 +25,8 @@ export async function ladeKosten(where: {
 } = {}): Promise<KostenpositionRow[]> {
   const abfrage: Prisma.BuchungWhereInput = { ...where, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER };
   const [positionen, mitRohdaten] = await Promise.all([ladePositionen(abfrage), idsMitRohdaten(abfrage)]);
-  return mappePositionen(positionen, mitRohdaten);
+  const belegStatus = await ladeBelegStatus(positionen.filter((k) => k.kostenart));
+  return mappePositionen(positionen, mitRohdaten, belegStatus);
 }
 
 async function ladePositionen(abfrage: Prisma.BuchungWhereInput) {
@@ -51,7 +53,11 @@ async function ladePositionen(abfrage: Prisma.BuchungWhereInput) {
 
 type PositionBuchung = Awaited<ReturnType<typeof ladePositionen>>[number];
 
-function mappePositionen(positionen: PositionBuchung[], mitRohdaten: Set<string>): KostenpositionRow[] {
+function mappePositionen(
+  positionen: PositionBuchung[],
+  mitRohdaten: Set<string>,
+  belegStatus: Map<string, BelegStatus>,
+): KostenpositionRow[] {
   return positionen
     .filter((k) => k.kostenart)
     .map((k) => ({
@@ -65,6 +71,7 @@ function mappePositionen(positionen: PositionBuchung[], mitRohdaten: Set<string>
       empfaenger: k.empfaenger,
       beschreibung: k.verwendungszweck,
       hatRohdaten: mitRohdaten.has(k.id),
+      belegStatus: belegStatus.get(k.id) ?? "ENTFAELLT",
       importBatchId: k.importBatchId,
       importDateiname: k.importBatch?.dateiname ?? null,
       aufteilungGruppeId: k.aufteilungGruppeId,
