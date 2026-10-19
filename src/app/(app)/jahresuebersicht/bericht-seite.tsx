@@ -7,7 +7,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { JahrFilterForm } from "./jahr-filter-form";
 import { MieterTabelle } from "./mieter-tabelle";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
-import { berechneMieterBericht, berechneMieterSonderbewegungen, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
+import { berechneMieterBericht, berechneMieterNkAusgleich, berechneMieterSonderbewegungen, type MietvertragFuerJahresbericht } from "@/lib/jahresbericht-mieter";
 import { hausLabel } from "@/lib/gebaeude-gruppen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
@@ -529,6 +529,7 @@ export async function ladeMieterZeilen(zeitraum: Zeitraum) {
 
   // Gebühren (Sonderbewegungen) getrennt und das Haus je Vertrag — nur für den PDF-Bericht „nach Gruppen“.
   const sonder = berechneMieterSonderbewegungen(vertraege, zeitraum, objekt?.buchhaltungBis ?? null);
+  const nkAusgleich = berechneMieterNkAusgleich(vertraege, zeitraum.jahr, zeitraum.bis);
   const hausJeVertrag = new Map(
     vertraegeRaw.map((v) => [
       v.id,
@@ -543,6 +544,8 @@ export async function ladeMieterZeilen(zeitraum: Zeitraum) {
       ...z,
       sonderGefordert: sonder.get(z.mietvertragId)?.gefordert ?? 0,
       sonderGezahlt: sonder.get(z.mietvertragId)?.gezahlt ?? 0,
+      nkAbrechnung: zeitraum.mitNkOffen === false ? 0 : (nkAusgleich.get(z.mietvertragId)?.abrechnung ?? 0),
+      nkAusgleich: zeitraum.mitNkOffen === false ? 0 : (nkAusgleich.get(z.mietvertragId)?.ausgleich ?? 0),
       hausLabel: hausJeVertrag.get(z.mietvertragId) ?? "",
       einheitRang: einheitRang.get(z.mietvertragId) ?? 0,
       eigenerStichtag: abweichenderStichtag.get(z.mietvertragId) ?? null,

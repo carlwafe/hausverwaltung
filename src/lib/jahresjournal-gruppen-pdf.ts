@@ -22,6 +22,9 @@ export type MieterUebersichtZeile = {
   sonderGezahlt: number;
   nebenkostenGegenrechnung: number;
   nebenkostenabrechnungOffen: number | null;
+  // Abrechnung des Vorjahres (Guthaben +, Nachzahlung −) und der dazu gebuchte Ausgleich (Vorzeichen wie Saldo).
+  nkAbrechnung: number;
+  nkAusgleich: number;
   saldoNeu: number;
 };
 
@@ -96,15 +99,15 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   b.titel(ueberschrift, 12);
   b.absatz(
     `Je Mietvertrag: Saldo zum 01.01.${jahr}, Soll (Kaltmiete und Nebenkosten-Vorauszahlung, bei Garagen mit Umsatzsteuer), gezahlte Miete nach Mietperiode, Gebühren und Saldo zum Ende. ` +
-      "Saldo = Saldo Anfang − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt (+ Gutschrift/Abrechnung Nebenkosten). Negativer Saldo = der Mieter schuldet, positiv = Guthaben des Mieters.",
+      "Saldo = Saldo Anfang − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt (+ Nebenkostenabrechnung des Vorjahres und ihr Ausgleich). Negativer Saldo = der Mieter schuldet, positiv = Guthaben des Mieters.",
     { farbe: GRAU },
   );
   b.abstand(4);
 
   const zeigeGutschrift = mieter.some((m) => Math.abs(m.nebenkostenGegenrechnung) >= 0.005);
-  const zeigeOffen = mieter.some((m) => Math.abs(m.nebenkostenabrechnungOffen ?? 0) >= 0.005);
-  const anzahlZahlen = 7 + (zeigeGutschrift ? 1 : 0) + (zeigeOffen ? 1 : 0);
-  const zahl = anzahlZahlen <= 7 ? 66 : anzahlZahlen === 8 ? 62 : 58;
+  const zeigeNk = mieter.some((m) => Math.abs(m.nkAbrechnung) >= 0.005 || Math.abs(m.nkAusgleich) >= 0.005);
+  const anzahlZahlen = 7 + (zeigeGutschrift ? 1 : 0) + (zeigeNk ? 2 : 0);
+  const zahl = anzahlZahlen <= 7 ? 66 : anzahlZahlen === 8 ? 62 : anzahlZahlen === 9 ? 58 : 55;
   const spalten: Spalte[] = [
     { titel: "Wohnung", w: 120, maxZeilen: 2 },
     { titel: "Mieter", w: Math.floor(NUTZBREITE) - 120 - zahl * anzahlZahlen, maxZeilen: 2 },
@@ -115,7 +118,12 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
     { titel: "Gebühren gef.", w: zahl, rechts: true },
     { titel: "Gebühren gez.", w: zahl, rechts: true },
     ...(zeigeGutschrift ? [{ titel: "NK-Gutschrift", w: zahl, rechts: true } as Spalte] : []),
-    ...(zeigeOffen ? [{ titel: "NK-Abrechn.", w: zahl, rechts: true } as Spalte] : []),
+    ...(zeigeNk
+      ? [
+          { titel: `NK-Abr. ${jahr - 1}`, w: zahl, rechts: true } as Spalte,
+          { titel: "NK-Ausgleich", w: zahl, rechts: true } as Spalte,
+        ]
+      : []),
     { titel: "Saldo 31.12.", w: zahl, rechts: true },
   ];
   const zelle = (m: MieterUebersichtZeile, kopf: string): string[] => [
@@ -128,7 +136,7 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
     euro(m.sonderGefordert),
     euro(m.sonderGezahlt),
     ...(zeigeGutschrift ? [euro(m.nebenkostenGegenrechnung)] : []),
-    ...(zeigeOffen ? [euro(m.nebenkostenabrechnungOffen ?? 0)] : []),
+    ...(zeigeNk ? [euro(m.nkAbrechnung), euro(m.nkAusgleich)] : []),
     euro(m.saldoNeu),
   ];
   const summiere = (liste: MieterUebersichtZeile[]): MieterUebersichtZeile => {
@@ -147,6 +155,8 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
       sonderGezahlt: s((m) => m.sonderGezahlt),
       nebenkostenGegenrechnung: s((m) => m.nebenkostenGegenrechnung),
       nebenkostenabrechnungOffen: s((m) => m.nebenkostenabrechnungOffen ?? 0),
+      nkAbrechnung: s((m) => m.nkAbrechnung),
+      nkAusgleich: s((m) => m.nkAusgleich),
       saldoNeu: s((m) => m.saldoNeu),
     };
   };
@@ -174,11 +184,11 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   // Zeilenprobe: Saldo Ende = Saldo Anfang − Soll + Gezahlt − Gefordert + Gezahlt (Gebühren) + Gutschrift + Abrechnung offen.
   const nichtOk = mieter.filter(
     (m) =>
-      Math.abs(m.saldoNeu - (m.saldoAlt - m.soll + m.miete - m.sonderGefordert + m.sonderGezahlt + m.nebenkostenGegenrechnung + (m.nebenkostenabrechnungOffen ?? 0))) > 0.011,
+      Math.abs(m.saldoNeu - (m.saldoAlt - m.soll + m.miete - m.sonderGefordert + m.sonderGezahlt + m.nebenkostenGegenrechnung + m.nkAbrechnung + m.nkAusgleich)) > 0.011,
   );
   b.absatz(
     nichtOk.length === 0
-      ? `Rechenprobe bestanden: In allen ${mieter.length} Zeilen ergibt Saldo 01.01. − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt${zeigeGutschrift || zeigeOffen ? " + NK-Positionen" : ""} den Saldo 31.12.`
+      ? `Rechenprobe bestanden: In allen ${mieter.length} Zeilen ergibt Saldo 01.01. − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt${zeigeGutschrift || zeigeNk ? " + NK-Positionen" : ""} den Saldo 31.12.`
       : `ACHTUNG Rechenprobe: ${nichtOk.length} Zeilen gehen nicht auf (${nichtOk.map((m) => m.einheitBezeichnung).slice(0, 5).join("; ")}).`,
     { farbe: nichtOk.length === 0 ? GRUEN : ROT },
   );
@@ -211,7 +221,7 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   }
   b.absatz(
     "Die Mieter-Übersicht ordnet Zahlungen dem Monat zu, für den sie bestimmt sind (Mietperiode); der Kontoauszug und der Bericht nach Monaten zählen nach dem Datum der Gutschrift. " +
-      "Spalten: „Gezahlt“ = gezahlte Miete (Kaltmiete + Nebenkosten zusammen, wie überwiesen); „Gebühren gef.“ = Rücklastschrift-/Mahngebühren u. ä.; „Gebühren gez.“ = Zahlungen darauf sowie Verrechnungen mit Kaution oder Nebenkostenabrechnung (ohne Geldfluss); „NK-Gutschrift“ = nicht gezahlte NK-Vorauszahlung nach Versand der Abrechnung; „NK-Abrechn.“ = offene Nachzahlung/Guthaben der Vorjahresabrechnung.",
+      "Spalten: „Gezahlt“ = gezahlte Miete (Kaltmiete + Nebenkosten zusammen, wie überwiesen); „Gebühren gef.“ = Rücklastschrift-/Mahngebühren u. ä.; „Gebühren gez.“ = Zahlungen darauf sowie Verrechnungen mit Kaution oder Nebenkostenabrechnung (ohne Geldfluss); „NK-Gutschrift“ = nicht gezahlte NK-Vorauszahlung nach Versand der Abrechnung; „NK-Abr.“ = Ergebnis der Nebenkostenabrechnung des Vorjahres (Guthaben +, Nachzahlung −); „NK-Ausgleich“ = dazu bisher ausgezahltes Guthaben (−), gezahlte oder verrechnete Nachzahlung (+). Abrechnung + Ausgleich = noch offener Rest. Der Ausgleich zählt alle bisher gebuchten Zahlungen, auch nach dem Berichtsjahr; die einzelnen Buchungen stehen in Abschnitt 4.",
     { farbe: GRAU },
   );
 }

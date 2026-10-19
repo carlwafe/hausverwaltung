@@ -95,6 +95,33 @@ export function berechneMieterSonderbewegungen(
   return ergebnis;
 }
 
+/**
+ * Abrechnung und Ausgleich der Nebenkostenabrechnung des Vorjahres je Vertrag, beide im Vorzeichen des
+ * Mietsaldos (negativ = der Mieter schuldet): `abrechnung` = Saldo der Position (Guthaben +, Nachzahlung −),
+ * `ausgleich` = bisher gebuchte Auszahlung/Zahlung/Verrechnung dazu mit umgekehrtem Vorzeichen (ausgezahltes
+ * Guthaben −, gezahlte Nachzahlung +). Abrechnung + Ausgleich = „NK-Abrechnung offen“ (bis auf die Toleranz von
+ * 1 Cent). Gleiche Auswahl wie `nebenkostenabrechnungOffenBetrag` (Position von jahr−1, erst ab Versand); wie
+ * dort zählt der Ausgleich alles, was bisher gebucht ist, nicht nur den Berichtszeitraum. Eigene Funktion statt
+ * Feldern in `MieterJahresberichtZeile`, damit sich deren JSON-Ausgabe nicht ändert.
+ */
+export function berechneMieterNkAusgleich(
+  vertraege: MietvertragFuerJahresbericht[],
+  jahr: number,
+  bis: Date,
+): Map<string, { abrechnung: number; ausgleich: number }> {
+  const ergebnis = new Map<string, { abrechnung: number; ausgleich: number }>();
+  for (const v of vertraege) {
+    const p = v.nebenkostenPositionen.find((x) => x.jahr === jahr - 1);
+    if (!p) continue;
+    if (p.versendetAm && p.versendetAm > bis) continue;
+    ergebnis.set(v.id, {
+      abrechnung: Math.round(p.saldo * 100) / 100 || 0,
+      ausgleich: Math.round(-p.zahlungSumme * 100) / 100 || 0,
+    });
+  }
+  return ergebnis;
+}
+
 /** Jahr+Monat als einzelne, vergleichbare Zahl (z.B. 2025-03 -> 2025*12+3). */
 function periodeVon(datum: Date): number {
   return datum.getFullYear() * 12 + (datum.getMonth() + 1);
