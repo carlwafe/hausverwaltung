@@ -880,10 +880,13 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
             {!istQuartal && (
               <p className="mt-3 flex flex-wrap gap-4 text-sm">
                 <a href={`/api/jahresjournal?jahr=${jahr}`} target="_blank" rel="noreferrer" className="text-neutral-300 underline hover:text-white">
-                  Jahresbericht Kontoführung als PDF (alle Buchungen mit Kontostand)
+                  Jahresbericht nach Monaten (PDF, alle Buchungen mit Kontostand)
                 </a>
                 <a href={`/api/jahresjournal?jahr=${jahr}&stornos=1`} target="_blank" rel="noreferrer" className="text-neutral-400 underline hover:text-white">
                   mit Anhang stornierter Buchungen
+                </a>
+                <a href={`/api/jahresjournal?jahr=${jahr}&ansicht=gruppen`} target="_blank" rel="noreferrer" className="text-neutral-300 underline hover:text-white">
+                  Jahresbericht nach Gruppen (PDF, umlagefähig / nicht umlagefähig, je Kostenart und Haus)
                 </a>
               </p>
             )}

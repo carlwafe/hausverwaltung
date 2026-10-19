@@ -5,30 +5,30 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import type { Jahresjournal } from "@/lib/jahresjournal";
 
-const B = 841.89; // A4 quer
-const H = 595.28;
-const RAND = 30;
-const NUTZBREITE = B - 2 * RAND;
+export const B = 841.89; // A4 quer
+export const H = 595.28;
+export const RAND = 30;
+export const NUTZBREITE = B - 2 * RAND;
 const OBEN = H - 52; // erste Schreibzeile unter dem Seitenkopf
 const UNTEN = 42; // darunter beginnt die Fußzeile
 
-const SCHWARZ = rgb(0, 0, 0);
-const GRAU = rgb(0.4, 0.4, 0.4);
-const HELLGRAU = rgb(0.93, 0.93, 0.93);
-const LINIE = rgb(0.8, 0.8, 0.8);
-const ROT = rgb(0.7, 0.1, 0.1);
-const GRUEN = rgb(0.1, 0.45, 0.2);
+export const SCHWARZ = rgb(0, 0, 0);
+export const GRAU = rgb(0.4, 0.4, 0.4);
+export const HELLGRAU = rgb(0.93, 0.93, 0.93);
+export const LINIE = rgb(0.8, 0.8, 0.8);
+export const ROT = rgb(0.7, 0.1, 0.1);
+export const GRUEN = rgb(0.1, 0.45, 0.2);
 
-const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+export const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
 const zahlFormat = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const euro = (n: number) => zahlFormat.format(Math.abs(n) < 0.005 ? 0 : n);
-const datum = (d: Date) =>
+export const datum = (d: Date) =>
   `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`;
-const datumKurz = (d: Date) => datum(d).slice(0, 6) + String(d.getUTCFullYear()).slice(2);
+export const datumKurz = (d: Date) => datum(d).slice(0, 6) + String(d.getUTCFullYear()).slice(2);
 
-type Spalte = { titel: string; w: number; rechts?: boolean; maxZeilen?: number; ersteZeileFett?: boolean };
-type Zeile = {
+export type Spalte = { titel: string; w: number; rechts?: boolean; maxZeilen?: number; ersteZeileFett?: boolean };
+export type Zeile = {
   cells: string[];
   fett?: boolean;
   fill?: RGB;
@@ -38,9 +38,12 @@ type Zeile = {
   // Erste Zeile der Zelle dieser Spalte fett (Gegenpartei über dem Verwendungszweck).
   ersteZeileFettSpalte?: number;
   linieOben?: boolean;
+  // Überschriftzeile über die ganze Breite (statt Spalten), mit Einzug in pt.
+  spanText?: string;
+  spanEinzug?: number;
 };
 
-class Bericht {
+export class Bericht {
   readonly doc: PDFDocument;
   readonly normal: PDFFont;
   readonly fett: PDFFont;
@@ -213,6 +216,7 @@ class Bericht {
 
     // Vorab umbrechen, damit die Zeilenhöhe feststeht.
     const vorbereitet = zeilen.map((z) => {
+      if (z.spanText !== undefined) return { z, zellen: [] as string[][], h: zeilenHoehe + 4 };
       const zellen = z.cells.map((c, i) => {
         const sp = spalten[i];
         const fettErste = !!sp.ersteZeileFett && z.ersteZeileFettSpalte === i;
@@ -230,6 +234,9 @@ class Bericht {
 
       if (z.fill) this.seite.drawRectangle({ x: RAND, y: this.y - h, width: gesamt, height: h, color: z.fill });
       if (z.linieOben) this.seite.drawLine({ start: { x: RAND, y: this.y }, end: { x: RAND + gesamt, y: this.y }, thickness: 0.6, color: GRAU });
+      if (z.spanText !== undefined) {
+        this.text(z.spanText, RAND + 2 + (z.spanEinzug ?? 0), this.y - g - 2, { groesse: g, fett: true, farbe: z.farbe });
+      }
       zellen.forEach((zeilenText, i) => {
         const sp = spalten[i];
         zeilenText.forEach((t, li) => {
@@ -265,31 +272,13 @@ class Bericht {
   }
 }
 
-export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const normal = await doc.embedFont(StandardFonts.Helvetica);
-  const fett = await doc.embedFont(StandardFonts.HelveticaBold);
+function zeichneFortschreibung(b: Bericht, d: Jahresjournal, ueberschrift: string) {
   const jahr = d.jahr;
-  const kopfLinks = d.objekt ? `${d.objekt.name} · ${d.objekt.adresse}` : "";
-  // Läuft das Jahr noch, ist der „Endbestand“ nur ein Zwischenstand nach der letzten gebuchten Bewegung.
-  const zwischenstand = Date.now() < Date.UTC(jahr, 11, 31, 23, 59, 59);
-  const b = new Bericht(doc, normal, fett, kopfLinks, `Jahresbericht Kontoführung ${jahr}${zwischenstand ? " (Zwischenstand)" : ""}`);
-
   const von = `01.01.${jahr}`;
   const bis = `31.12.${jahr}`;
+  const zwischenstand = istZwischenstand(jahr);
   const endeLabel = zwischenstand ? "Kontostand nach der letzten Buchung (Jahr noch nicht abgeschlossen)" : `Kontostand am ${bis} (Endbestand)`;
-
-  // ───────────── Seite 1: Übersicht ─────────────
-  b.text(`Jahresbericht Kontoführung ${jahr}`, RAND, b.y - 16, { groesse: 18, fett: true });
-  b.y -= 24;
-  b.absatz(
-    `Alle Kontobewegungen des Mietkontos vom ${von} bis ${bis} (Zu- und Abflüsse nach Buchungsdatum) mit fortlaufendem Kontostand. ` +
-      "Die Summen dieser Übersicht lassen sich Zeile für Zeile im Journal ab Seite 3 nachvollziehen.",
-    { groesse: 9, farbe: GRAU },
-  );
-  b.abstand(8);
-
-  b.titel("1  Kontostand-Fortschreibung");
+  b.titel(ueberschrift);
   const fort: Zeile[] = [
     { cells: [`Kontostand am ${von} (Anfangsbestand)`, euro(d.anfangsbestand)], fett: true },
     { cells: [`+ Einnahmen (${d.zeilen.filter((z) => z.betrag >= 0).length} Buchungen)`, euro(d.einnahmen)] },
@@ -310,46 +299,12 @@ export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Ar
       "fortgeschrieben bzw. zurückgerechnet mit allen Buchungen bis zum Jahresanfang.",
     { farbe: GRAU },
   );
-  b.abstand(10);
+}
 
-  b.titel("2  Bewegungen nach Buchungsart");
-  const artZeilen: Zeile[] = d.arten.map((a) => ({
-    cells: [
-      a.art,
-      a.eurRelevant === null ? "offen" : a.eurRelevant ? "ja" : "nein (durchlaufend)",
-      String(a.anzahl),
-      euro(a.einnahmen),
-      euro(a.ausgaben),
-      euro(a.saldo),
-    ],
-  }));
-  artZeilen.push({
-    cells: ["Summe", "", String(d.zeilen.length), euro(d.einnahmen), euro(d.ausgaben), euro(d.einnahmen + d.ausgaben)],
-    fett: true,
-    fill: HELLGRAU,
-    linieOben: true,
-  });
-  b.tabelle(
-    [
-      { titel: "Buchungsart", w: 190 },
-      { titel: "Ergebnis-wirksam (EÜR)", w: 120 },
-      { titel: "Anzahl", w: 50, rechts: true },
-      { titel: "Einnahmen", w: 90, rechts: true },
-      { titel: "Ausgaben", w: 90, rechts: true },
-      { titel: "Saldo", w: 90, rechts: true },
-    ],
-    artZeilen,
-    { groesse: 8 },
-  );
-  b.abstand(3);
-  b.absatz(
-    "Ergebnis-wirksam sind Mieten, Nebenkosten-Ausgleich und Kosten (fließen in die Einnahmen-Überschuss-Rechnung ein). " +
-      "Durchlaufende Posten (Mietweiterleitung, Darlehenstilgung, Kautionen) bewegen den Kontostand, sind aber weder Einnahme noch Ausgabe im steuerlichen Sinn.",
-    { farbe: GRAU },
-  );
-  b.abstand(10);
-
-  b.titel("3  Abstimmung mit den Kontoauszügen");
+function zeichneAbstimmung(b: Bericht, d: Jahresjournal, ueberschrift: string) {
+  const jahr = d.jahr;
+  const bis = `31.12.${jahr}`;
+  b.titel(ueberschrift);
   if (d.kontrollen.length === 0 && !d.verifikation) {
     b.absatz(
       "Für dieses Jahr sind keine Kontostände aus Kontoauszügen hinterlegt – der Endbestand ist rein rechnerisch aus dem Journal ermittelt. " +
@@ -394,6 +349,74 @@ export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Ar
       { groesse: 8 },
     );
   }
+}
+
+export const istZwischenstand = (jahr: number) => Date.now() < Date.UTC(jahr, 11, 31, 23, 59, 59);
+
+export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const normal = await doc.embedFont(StandardFonts.Helvetica);
+  const fett = await doc.embedFont(StandardFonts.HelveticaBold);
+  const jahr = d.jahr;
+  const kopfLinks = d.objekt ? `${d.objekt.name} · ${d.objekt.adresse}` : "";
+  // Läuft das Jahr noch, ist der „Endbestand“ nur ein Zwischenstand nach der letzten gebuchten Bewegung.
+  const zwischenstand = istZwischenstand(jahr);
+  const b = new Bericht(doc, normal, fett, kopfLinks, `Jahresbericht Kontoführung ${jahr}${zwischenstand ? " (Zwischenstand)" : ""}`);
+
+  const von = `01.01.${jahr}`;
+  const bis = `31.12.${jahr}`;
+
+  // ───────────── Seite 1: Übersicht ─────────────
+  b.text(`Jahresbericht Kontoführung ${jahr}`, RAND, b.y - 16, { groesse: 18, fett: true });
+  b.y -= 24;
+  b.absatz(
+    `Alle Kontobewegungen des Mietkontos vom ${von} bis ${bis} (Zu- und Abflüsse nach Buchungsdatum) mit fortlaufendem Kontostand. ` +
+      "Die Summen dieser Übersicht lassen sich Zeile für Zeile im Journal ab Seite 3 nachvollziehen.",
+    { groesse: 9, farbe: GRAU },
+  );
+  b.abstand(8);
+
+  zeichneFortschreibung(b, d, "1  Kontostand-Fortschreibung");
+  b.abstand(10);
+
+  b.titel("2  Bewegungen nach Buchungsart");
+  const artZeilen: Zeile[] = d.arten.map((a) => ({
+    cells: [
+      a.art,
+      a.eurRelevant === null ? "offen" : a.eurRelevant ? "ja" : "nein (durchlaufend)",
+      String(a.anzahl),
+      euro(a.einnahmen),
+      euro(a.ausgaben),
+      euro(a.saldo),
+    ],
+  }));
+  artZeilen.push({
+    cells: ["Summe", "", String(d.zeilen.length), euro(d.einnahmen), euro(d.ausgaben), euro(d.einnahmen + d.ausgaben)],
+    fett: true,
+    fill: HELLGRAU,
+    linieOben: true,
+  });
+  b.tabelle(
+    [
+      { titel: "Buchungsart", w: 190 },
+      { titel: "Ergebnis-wirksam (EÜR)", w: 120 },
+      { titel: "Anzahl", w: 50, rechts: true },
+      { titel: "Einnahmen", w: 90, rechts: true },
+      { titel: "Ausgaben", w: 90, rechts: true },
+      { titel: "Saldo", w: 90, rechts: true },
+    ],
+    artZeilen,
+    { groesse: 8 },
+  );
+  b.abstand(3);
+  b.absatz(
+    "Ergebnis-wirksam sind Mieten, Nebenkosten-Ausgleich und Kosten (fließen in die Einnahmen-Überschuss-Rechnung ein). " +
+      "Durchlaufende Posten (Mietweiterleitung, Darlehenstilgung, Kautionen) bewegen den Kontostand, sind aber weder Einnahme noch Ausgabe im steuerlichen Sinn.",
+    { farbe: GRAU },
+  );
+  b.abstand(10);
+
+  zeichneAbstimmung(b, d, "3  Abstimmung mit den Kontoauszügen");
   b.abstand(8);
   b.absatz(
     d.stornoAnzahl > 0

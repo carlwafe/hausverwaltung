@@ -7,6 +7,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
 import { kontostandAmStichtag } from "@/lib/kontostand";
 import { mieterName } from "@/lib/mieter-name";
+import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 
 export const NICHT_ZUGEORDNET = "NICHT_ZUGEORDNET";
 
@@ -56,6 +57,12 @@ export type JournalZeile = {
   // Vorzeichen wie auf dem Kontoauszug: positiv = eingegangen, negativ = abgegangen.
   betrag: number;
   kontostand: number;
+  // Für die Gruppenansicht: Kostenart (nur Kostenpositionen), umlagefähig (null = keine Kostenposition
+  // oder ohne Kostenart) und Ort (Haus/Gebäude/Kostengruppe, sonst „Gesamtes Objekt“) samt Sortierrang.
+  umlagefaehig: boolean | null;
+  kostenart: string | null;
+  ort: string;
+  ortRang: number;
 };
 
 export type ArtSumme = {
@@ -140,13 +147,14 @@ async function ladeBuchungen(von: Date, bis: Date) {
       jahr: true,
       erstelltAm: true,
       buchungsart: { select: { code: true, bezeichnung: true, eurRelevant: true } },
-      kostenart: { select: { name: true } },
-      einheit: { select: { bezeichnung: true } },
-      gebaeude: { select: { strasse: true, hausnummer: true } },
+      kostenart: { select: { name: true, umlagefaehig: true } },
+      einheit: { select: { bezeichnung: true, gebaeude: { select: { strasse: true, hausnummer: true, hausId: true } } } },
+      gebaeude: { select: { strasse: true, hausnummer: true, hausId: true } },
+      haus: { select: { id: true, gebaeude: { select: { strasse: true, hausnummer: true } } } },
       kostengruppe: { select: { bezeichnung: true } },
       mietvertrag: {
         select: {
-          einheit: { select: { bezeichnung: true } },
+          einheit: { select: { bezeichnung: true, gebaeude: { select: { strasse: true, hausnummer: true, hausId: true } } } },
           mieter: { select: { vorname: true, nachname: true } },
         },
       },
@@ -178,6 +186,25 @@ function zuordnungsText(b: BuchungRoh, datumsJahr: number): string {
   return teile.map((t) => t.trim()).filter(Boolean).join(" · ");
 }
 
+type HausInfo = { label: string; rang: number };
+type GebaeudeKurz = { strasse: string; hausnummer: string; hausId: string | null };
+
+const OHNE_ORT: HausInfo = { label: "Gesamtes Objekt", rang: -1 };
+
+function ortFuer(b: BuchungRoh, haeuser: Map<string, HausInfo>): HausInfo {
+  const ausGebaeude = (g: GebaeudeKurz | null | undefined): HausInfo | null => {
+    if (!g) return null;
+    const h = g.hausId ? haeuser.get(g.hausId) : undefined;
+    return h ?? { label: `${g.strasse} ${g.hausnummer}`, rang: 1000 + (parseInt(g.hausnummer, 10) || 0) };
+  };
+  if (b.haus) return haeuser.get(b.haus.id) ?? { label: hausLabel(b.haus.gebaeude), rang: 900 };
+  if (b.gebaeude) return ausGebaeude(b.gebaeude) ?? OHNE_ORT;
+  if (b.kostengruppe) return { label: b.kostengruppe.bezeichnung, rang: 5000 };
+  if (b.einheit) return ausGebaeude(b.einheit.gebaeude) ?? OHNE_ORT;
+  if (b.mietvertrag) return ausGebaeude(b.mietvertrag.einheit.gebaeude) ?? OHNE_ORT;
+  return OHNE_ORT;
+}
+
 export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: boolean } = {}): Promise<Jahresjournal | null> {
   const objekt = await prisma.objekt.findFirst({
     select: { name: true, strasse: true, hausnummer: true, plz: true, ort: true, kontostandAnkerDatum: true, kontostandAnkerBetrag: true },
@@ -190,7 +217,7 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
   const bis = new Date(Date.UTC(jahr, 11, 31, 23, 59, 59, 999));
   const vorjahresende = new Date(von.getTime() - 1);
 
-  const [eintraege, buchungen, geparkt, stornoAnzahl, kontrollenRoh, verifikationRoh] = await Promise.all([
+  const [eintraege, buchungen, geparkt, stornoAnzahl, kontrollenRoh, verifikationRoh, hausRoh] = await Promise.all([
     ladeKontostandEintraege(),
     ladeBuchungen(von, bis),
     prisma.nichtZugeordneteBuchung.findMany({
@@ -202,7 +229,11 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
     }),
     prisma.kontostandKontrolle.findMany({ where: { datum: { gte: von, lte: bis } }, orderBy: { datum: "asc" } }),
     prisma.kontenabgleichVerifikation.findUnique({ where: { jahr_quartal: { jahr, quartal: 0 } } }),
+    prisma.haus.findMany({ select: { id: true, reihenfolge: true, gebaeude: { select: { strasse: true, hausnummer: true } } } }),
   ]);
+
+  const haeuser = new Map<string, HausInfo>();
+  [...hausRoh].sort(vergleicheHaus).forEach((h, i) => haeuser.set(h.id, { label: hausLabel(h.gebaeude), rang: i }));
 
   const anfangsbestand = rund(kontostandAmStichtag(eintraege, anker, vorjahresende));
   const endbestandUnabhaengig = rund(kontostandAmStichtag(eintraege, anker, bis));
@@ -221,6 +252,10 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
       zweck: textOderLeer(b.verwendungszweck) || textOderLeer(b.bemerkung),
       zuordnung: zuordnungsText(b, b.datum.getUTCFullYear()),
       betrag: bankBetrag(code, Number(b.betrag)),
+      umlagefaehig: code === "KOSTENPOSITION" ? (b.kostenart?.umlagefaehig ?? null) : null,
+      kostenart: code === "KOSTENPOSITION" ? (b.kostenart?.name ?? null) : null,
+      ort: ortFuer(b, haeuser).label,
+      ortRang: ortFuer(b, haeuser).rang,
       sort: b.erstelltAm.getTime(),
     });
   }
@@ -234,6 +269,10 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
       zweck: textOderLeer(g.verwendungszweck),
       zuordnung: "",
       betrag: Number(g.betrag),
+      umlagefaehig: null,
+      kostenart: null,
+      ort: "",
+      ortRang: 0,
       sort: g.createdAt.getTime(),
     });
   }
@@ -254,6 +293,10 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
       zuordnung: r.zuordnung,
       betrag: r.betrag,
       kontostand: stand / 100,
+      umlagefaehig: r.umlagefaehig,
+      kostenart: r.kostenart,
+      ort: r.ort,
+      ortRang: r.ortRang,
     };
   });
   const endbestand = stand / 100;

@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { ladeJahresjournal } from "@/lib/jahresjournal";
 import { erzeugeJahresjournalPdf } from "@/lib/jahresjournal-pdf";
+import { erzeugeGruppenPdf } from "@/lib/jahresjournal-gruppen-pdf";
 
-// Jahresbericht Kontoführung als PDF (nur lesend, auch für Gäste). Wird nur auf Knopfdruck gerechnet.
+// Jahresbericht Kontoführung als PDF (nur lesend, auch für Gäste), zwei Ansichten derselben Buchungen:
+// nach Monaten (Journal mit Kontostand, Standard) oder `ansicht=gruppen` (nach Kosten-/Einnahmegruppen).
+// Wird nur auf Knopfdruck gerechnet.
 export async function GET(req: Request) {
   await requireUser();
   const url = new URL(req.url);
@@ -11,7 +14,8 @@ export async function GET(req: Request) {
   if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
     return NextResponse.json({ error: "Ungültiges Jahr." }, { status: 400 });
   }
-  const mitStornos = url.searchParams.get("stornos") === "1";
+  const gruppen = url.searchParams.get("ansicht") === "gruppen";
+  const mitStornos = !gruppen && url.searchParams.get("stornos") === "1";
 
   const daten = await ladeJahresjournal(jahr, { mitStornos });
   if (!daten) {
@@ -20,11 +24,11 @@ export async function GET(req: Request) {
       { status: 409 },
     );
   }
-  const pdf = await erzeugeJahresjournalPdf(daten);
+  const pdf = gruppen ? await erzeugeGruppenPdf(daten) : await erzeugeJahresjournalPdf(daten);
   return new NextResponse(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${jahr} Jahresbericht Kontofuehrung.pdf"`,
+      "Content-Disposition": `inline; filename="${jahr} Jahresbericht ${gruppen ? "nach Gruppen" : "nach Monaten"}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });
