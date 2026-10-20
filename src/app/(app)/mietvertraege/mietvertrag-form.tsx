@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
+import { holeMandatAusKontoauszug } from "./actions";
 import { ZAHLUNGSWEG_LABEL, type ZahlungswegArt } from "@/lib/zahlungsweg-anzeige";
 
 type Option = { id: string; label: string };
@@ -45,6 +46,7 @@ export function MietvertragForm({
   objektStichtag = "",
   mieterMitWohnung = [],
   zahlungswegVorschlag = "",
+  mietvertragId,
   action,
 }: {
   einheiten: EinheitOption[];
@@ -56,6 +58,8 @@ export function MietvertragForm({
   mieterMitWohnung?: string[];
   // Zahlungsweg, den die Ableitung aus den Kontoauszugs-Zeilen vorschlägt ("" = nicht eindeutig).
   zahlungswegVorschlag?: string;
+  // Nur beim Bearbeiten: für den Knopf „Mandat aus Kontoauszug übernehmen“.
+  mietvertragId?: string;
   action: FormAktion;
 }) {
   const [error, formAction, pending] = useActionState(
@@ -92,6 +96,47 @@ export function MietvertragForm({
   const [mandatDatum, setMandatDatum] = useState(initial?.mandatDatum ?? "");
   const [mandatKontoinhaber, setMandatKontoinhaber] = useState(initial?.mandatKontoinhaber ?? "");
   const [mandatIban, setMandatIban] = useState(initial?.mandatIban ?? "");
+  const [mandatLaedt, setMandatLaedt] = useState(false);
+  const [mandatMeldung, setMandatMeldung] = useState<{ text: string; fehler: boolean } | null>(null);
+
+  async function mandatAusKontoauszug() {
+    if (!mietvertragId) return;
+    setMandatLaedt(true);
+    setMandatMeldung(null);
+    try {
+      const m = await holeMandatAusKontoauszug(mietvertragId);
+      if (typeof m === "string") {
+        setMandatMeldung({ text: m, fehler: true });
+      } else if (!m) {
+        setMandatMeldung({
+          text: "Kein Lastschrift-Einzug mit Mandat im Kontoauszug gefunden — erst nach dem ersten importierten Einzug möglich.",
+          fehler: true,
+        });
+      } else {
+        const abweichend = [
+          [mandatReferenz, m.referenz],
+          [mandatGlaeubigerId, m.glaeubigerId],
+          [mandatKontoinhaber, m.kontoinhaber],
+          [mandatIban.replace(/\s+/g, "").toUpperCase(), m.iban],
+        ].some(([alt, neu]) => alt && neu && alt !== neu);
+        if (abweichend && !window.confirm("Die bereits eingetragenen Mandatsangaben weichen vom Kontoauszug ab. Mit den Werten aus dem Kontoauszug überschreiben?")) {
+          return;
+        }
+        if (m.referenz) setMandatReferenz(m.referenz);
+        if (m.glaeubigerId) setMandatGlaeubigerId(m.glaeubigerId);
+        if (m.kontoinhaber) setMandatKontoinhaber(m.kontoinhaber);
+        if (m.iban) setMandatIban(m.iban);
+        setMandatMeldung({
+          text: `Aus dem Einzug vom ${deutschesDatum(m.einzugAm)} übernommen — zum Festhalten unten speichern. Das Unterschriftsdatum bleibt unverändert.`,
+          fehler: false,
+        });
+      }
+    } catch {
+      setMandatMeldung({ text: "Der Kontoauszug konnte nicht gelesen werden. Bitte erneut versuchen.", fehler: true });
+    } finally {
+      setMandatLaedt(false);
+    }
+  }
 
   // Garage zur Wohnung desselben Mieters = Nebenleistung (steuerfrei), allein vermietet = 19 % USt.
   const hatWohnung = [mieterId1, mieterId2].some((id) => id && mieterMitWohnung.includes(id));
@@ -317,6 +362,25 @@ export function MietvertragForm({
           Nur zum Nachschlagen (Nachweis bei Widerspruch, spätere Einzugsdatei). Bestehende Mandate sind aus dem
           Kontoauszug eingetragen; das Unterschriftsdatum steht dort nicht und kommt aus den Mandatsunterlagen.
         </p>
+        {mietvertragId && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={mandatAusKontoauszug}
+              disabled={mandatLaedt}
+              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-900 disabled:opacity-50"
+            >
+              {mandatLaedt ? "Lese Kontoauszug …" : "Aus Kontoauszug übernehmen"}
+            </button>
+            <p className="mt-1 text-xs text-neutral-400">
+              Liest Referenz, Gläubiger-ID, Kontoinhaber und IBAN aus dem jüngsten Lastschrift-Einzug dieses Vertrags.
+              Gedacht für neue Lastschrift-Mieter, sobald der erste Einzug importiert ist.
+            </p>
+            {mandatMeldung && (
+              <p className={`mt-1 text-xs ${mandatMeldung.fehler ? "text-amber-400" : "text-green-500"}`}>{mandatMeldung.text}</p>
+            )}
+          </div>
+        )}
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-sm" htmlFor="mandatReferenz">

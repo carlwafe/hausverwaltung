@@ -10,6 +10,7 @@ import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { istGueltigeIban } from "@/lib/dokument-erkennung";
 import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
+import { ladeMandatAusKontoauszug } from "@/lib/lastschrift-mandat";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -566,4 +567,21 @@ export const verwerfeZahlungswegHinweis = mitMeldung(async function verwerfeZahl
   });
   revalidiereZahlungsweg(id);
   return null;
+});
+
+/**
+ * Mandatsangaben aus dem jüngsten Lastschrift-Einzug des Vertrags im Kontoauszug (für den Knopf „aus Kontoauszug
+ * übernehmen“ im Formular). Schreibt nichts — das Formular füllt nur die Felder, gespeichert wird beim Speichern.
+ */
+export const holeMandatAusKontoauszug = mitMeldung(async function holeMandatAusKontoauszug(id: string) {
+  await requireEditor();
+  const m = await ladeMandatAusKontoauszug(id);
+  if (!m) return null;
+  return {
+    referenz: m.referenz,
+    glaeubigerId: m.glaeubigerId ?? "",
+    iban: m.iban ?? "",
+    kontoinhaber: m.kontoinhaber ?? "",
+    einzugAm: m.einzugAm.toISOString().slice(0, 10),
+  };
 });

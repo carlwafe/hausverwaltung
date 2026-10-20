@@ -88,3 +88,25 @@ export async function ladeLastschriftMandat(mietvertragId: string): Promise<Last
   }
   return null;
 }
+
+/** Mandat aus dem jüngsten Lastschrift-Einzug des Vertrags im Journal samt Datum des Einzugs (null = kein Einzug mit Mandat). */
+export async function ladeMandatAusKontoauszug(
+  mietvertragId: string,
+): Promise<(MandatAusBankzeile & { einzugAm: Date }) | null> {
+  const zeilen = await prisma.buchung.findMany({
+    where: {
+      mietvertragId,
+      ...AKTIVE_BUCHUNG_FILTER,
+      buchungsart: { code: "MIETZAHLUNG" },
+      rohdaten: { not: Prisma.DbNull },
+    },
+    orderBy: { datum: "desc" },
+    take: 24,
+    select: { datum: true, rohdaten: true },
+  });
+  for (const z of zeilen) {
+    const mandat = mandatDetailsAusEinzug(z.rohdaten);
+    if (mandat && z.datum) return { ...mandat, einzugAm: z.datum };
+  }
+  return null;
+}
