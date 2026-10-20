@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { mitMeldung } from "@/lib/aktion";
 import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
+import { istGueltigeIban } from "@/lib/dokument-erkennung";
 
 const objektSchema = z
   .object({
@@ -34,6 +35,18 @@ const objektSchema = z
       .trim()
       .transform((v) => v.replace(/\s+/g, "").toUpperCase() || null)
       .refine((v) => v === null || glaeubigerIdGueltig(v), "Gläubiger-ID ist ungültig (Aufbau oder Prüfziffer stimmt nicht)"),
+    mietkontoInhaber: z.string().trim().transform((v) => v || null),
+    mietkontoIban: z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/\s+/g, "").toUpperCase() || null)
+      .refine((v) => v === null || istGueltigeIban(v), "IBAN des Mietkontos ist ungültig (Aufbau oder Prüfziffer stimmt nicht)"),
+    mietkontoBic: z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/\s+/g, "").toUpperCase() || null)
+      .refine((v) => v === null || /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(v), "BIC des Mietkontos ist ungültig"),
+    mietkontoBank: z.string().trim().transform((v) => v || null),
     buchhaltungAb: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerDatum: optionalesDatum().transform((v) => v ?? null),
     kontostandAnkerBetrag: z
@@ -65,6 +78,10 @@ export const updateObjekt = mitMeldung(async function updateObjekt(
     sepaGlaeubigerName: formData.get("sepaGlaeubigerName") ?? "",
     sepaGlaeubigerAnschrift: formData.get("sepaGlaeubigerAnschrift") ?? "",
     sepaGlaeubigerId: formData.get("sepaGlaeubigerId") ?? "",
+    mietkontoInhaber: formData.get("mietkontoInhaber") ?? "",
+    mietkontoIban: formData.get("mietkontoIban") ?? "",
+    mietkontoBic: formData.get("mietkontoBic") ?? "",
+    mietkontoBank: formData.get("mietkontoBank") ?? "",
     buchhaltungAb: formData.get("buchhaltungAb") || "",
     kontostandAnkerDatum: formData.get("kontostandAnkerDatum") || "",
     kontostandAnkerBetrag: formData.get("kontostandAnkerBetrag") || "",

@@ -332,6 +332,11 @@ model Objekt {
   sepaGlaeubigerName     String?
   sepaGlaeubigerAnschrift String?
   sepaGlaeubigerId       String?
+  // Bankverbindung des Mietkontos (Kontoinhaber, IBAN, BIC, Bank) — nur zur Information/für Schreiben.
+  mietkontoInhaber       String?
+  mietkontoIban          String?
+  mietkontoBic           String?
+  mietkontoBank          String?
   // Stichtag, ab dem Soll/Ist-Vergleiche gerechnet werden (z.B. weil ältere Kontoauszüge
   // nicht mehr vorliegen). Ist er gesetzt, läuft die Soll-Berechnung erst ab max(Mietbeginn,
   // buchhaltungAb) statt seit dem tatsächlichen (evtl. jahrzehntealten) Mietbeginn.

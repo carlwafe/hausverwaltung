@@ -18,6 +18,10 @@ type Objekt = {
   sepaGlaeubigerName: string | null;
   sepaGlaeubigerAnschrift: string | null;
   sepaGlaeubigerId: string | null;
+  mietkontoInhaber: string | null;
+  mietkontoIban: string | null;
+  mietkontoBic: string | null;
+  mietkontoBank: string | null;
   buchhaltungAb: Date | string | null;
   kontostandAnkerDatum: Date | string | null;
   kontostandAnkerBetrag: string | null;
@@ -148,6 +152,63 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
             />
           </div>
         </div>
+      </div>
+
+      <div className="rounded-md border border-neutral-800 p-4">
+        <p className="mb-3 text-sm font-medium">Bankverbindung Mietkonto</p>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="mietkontoInhaber">
+              Kontoinhaber
+            </label>
+            <input
+              id="mietkontoInhaber"
+              name="mietkontoInhaber"
+              defaultValue={initial.mietkontoInhaber ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="mietkontoIban">
+              IBAN
+            </label>
+            <input
+              id="mietkontoIban"
+              name="mietkontoIban"
+              defaultValue={initial.mietkontoIban ?? ""}
+              placeholder="DE00 0000 0000 0000 0000 00"
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium" htmlFor="mietkontoBic">
+                BIC (optional)
+              </label>
+              <input
+                id="mietkontoBic"
+                name="mietkontoBic"
+                defaultValue={initial.mietkontoBic ?? ""}
+                className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium" htmlFor="mietkontoBank">
+                Bank (optional)
+              </label>
+              <input
+                id="mietkontoBank"
+                name="mietkontoBank"
+                defaultValue={initial.mietkontoBank ?? ""}
+                className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+              />
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-neutral-400">
+          Konto, auf das die Mieter zahlen. Die IBAN wird auf Aufbau und Prüfziffer geprüft und ohne Leerzeichen
+          gespeichert. Reine Information, ohne Wirkung auf Buchungen.
+        </p>
       </div>
 
       <div className="rounded-md border border-neutral-800 p-4">
