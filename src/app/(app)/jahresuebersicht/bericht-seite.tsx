@@ -402,12 +402,18 @@ export async function ladeMieterZeilen(zeitraum: Zeitraum) {
   ]);
 
   const mietvertragIds = vertraegeRaw.map((v) => v.id);
-  // Nur berechnete Positionen (details gesetzt) bekommen die Gegenrechnung der unbezahlten
-  // NK-Vorauszahlung; manuelle haben von Hand eingetragene Beträge (siehe unbezahlteNkVorauszahlung).
+  // Positionen mit Gegenrechnung der unbezahlten NK-Vorauszahlung (siehe hatGegenrechnung in nk-saldo.ts):
+  // berechnete (details gesetzt) und manuelle versendeter Abrechnungen mit eingetragener Vorauszahlung > 0.
+  // Sonstige manuelle Positionen haben von Hand eingetragene Beträge (siehe unbezahlteNkVorauszahlung).
   const berechnetePositionIds = new Set(
     (
       await prisma.nebenkostenabrechnungPosition.findMany({
-        where: { NOT: { details: { equals: Prisma.DbNull } } },
+        where: {
+          OR: [
+            { NOT: { details: { equals: Prisma.DbNull } } },
+            { vorauszahlungGesamt: { gt: 0 }, abrechnung: { versendetAm: { not: null } } },
+          ],
+        },
         select: { id: true },
       })
     ).map((p) => p.id),

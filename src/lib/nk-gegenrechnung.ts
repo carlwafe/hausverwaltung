@@ -5,8 +5,8 @@ import type { MietvertragFuerSollIst } from "./soll-ist";
 
 /**
  * Gegenrechnungen der unbezahlten NK-Vorauszahlung (siehe `gegenrechnungenJeJahr`) für viele Verträge in
- * einer Abfrage — für Offene Posten und Dashboard. Es werden nur berechnete Positionen (`details` gesetzt)
- * versendeter Abrechnungen (Versanddatum bis zum Stichtag `bis`) geladen, und `details` selbst bleibt in der
+ * einer Abfrage — für Offene Posten und Dashboard. Es werden nur Positionen mit Gegenrechnung (berechnet, oder
+ * manuell mit Vorauszahlung > 0, siehe `hatGegenrechnung`) versendeter Abrechnungen (Versanddatum bis zum Stichtag `bis`) geladen, und `details` selbst bleibt in der
  * Datenbank (nur der Filter läuft dort).
  */
 export async function ladeNkGegenrechnungen(
@@ -20,7 +20,9 @@ export async function ladeNkGegenrechnungen(
   const positionen = await prisma.nebenkostenabrechnungPosition.findMany({
     where: {
       mietvertragId: { in: vertraege.map((v) => v.id) },
-      NOT: { details: { equals: Prisma.DbNull } },
+      // Berechnete Positionen oder manuelle mit eingetragener Vorauszahlung > 0 (siehe `hatGegenrechnung`;
+      // der Versand ist unten verlangt).
+      OR: [{ NOT: { details: { equals: Prisma.DbNull } } }, { vorauszahlungGesamt: { gt: 0 } }],
       abrechnung: { versendetAm: { not: null, lte: bis } },
     },
     select: {

@@ -26,8 +26,11 @@ const monatsIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
  * `buchhaltungAb` ist der wirksame Stichtag des Vertrags (eigener oder der des Objekts, siehe
  * effektiverStichtag in buchhaltung-stichtag.ts): Hat ein Vertrag einen früheren eigenen Stichtag, gilt die
  * Gegenrechnung auch für Abrechnungen ab diesem Datum.
- * Für manuelle Positionen (`details = null`) nicht aufrufen: deren Vorauszahlung ist von Hand
- * eingetragen (Verwalter-Betrag bzw. Platzhalter 0) und hat keine Beziehung zu den Zahlungen.
+ * Für manuelle Positionen (`details = null`) nur aufrufen, wenn `hatGegenrechnung` es erlaubt: deren
+ * Vorauszahlung ist von Hand eingetragen (Verwalter-Betrag bzw. Platzhalter 0). Bei einer versendeten
+ * manuellen Position mit Vorauszahlung > 0 gilt der eingetragene Wert als die angesetzte Vorauszahlung
+ * (Entscheidung 20.10.2026: sonst steht die unbezahlte NK-Vorauszahlung im Mietrückstand und zusätzlich in
+ * der Nachzahlung gegen den kleineren Betrag).
  */
 export function unbezahlteNkVorauszahlung(
   vertrag: Pick<MietvertragFuerSollIst, "kaltmiete" | "nebenkostenVorauszahlung" | "mieterhoehungen">,
@@ -44,6 +47,26 @@ export function unbezahlteNkVorauszahlung(
   return Math.round((soll - position.vorauszahlungGesamt) * 100) / 100;
 }
 
+/**
+ * Ob eine Abrechnungsposition die Gegenrechnung der unbezahlten NK-Vorauszahlung bekommt (und damit wie eine
+ * berechnete Position behandelt wird: zählt erst ab dem Versand der Abrechnung):
+ * - berechnete Positionen (`details` gesetzt) immer,
+ * - manuelle nur, wenn die Abrechnung versendet ist und die eingetragene Vorauszahlung > 0 ist. Platzhalter
+ *   (Vorauszahlung 0) würden sonst das ganze NK-Soll gutschreiben; manuelle Positionen unversendeter
+ *   Abrechnungen (Verwalter-Beträge 2021–2024) bleiben unberührt — ihre Vorauszahlung ist die des Verwalters
+ *   und passt nicht zum NK-Soll (sonst +100 €/−360 € Gutschrift ohne Grund, sobald jemand „versendet“ setzt:
+ *   dann zuerst prüfen, ob die Vorauszahlung der Position der tatsächlich gezahlten entspricht).
+ * Vor dem Stichtag des Vertrags ergibt `unbezahlteNkVorauszahlung` ohnehin 0.
+ */
+export function hatGegenrechnung(position: {
+  berechnet: boolean;
+  vorauszahlungGesamt: number;
+  versendetAm: Date | null;
+}): boolean {
+  if (position.berechnet) return true;
+  return position.versendetAm !== null && position.vorauszahlungGesamt > 0;
+}
+
 export type BerechnetePosition = {
   jahr: number;
   zeitraumVon: Date;
@@ -56,7 +79,7 @@ export type BerechnetePosition = {
 export type Gegenrechnung = { jahr: number; betrag: number; datum: Date };
 
 /**
- * Gegenrechnung je Abrechnung (nur Beträge ≠ 0) für die *berechneten* Positionen eines Vertrags, jeweils mit
+ * Gegenrechnung je Abrechnung (nur Beträge ≠ 0) für die Positionen eines Vertrags, die sie bekommen (`hatGegenrechnung`), jeweils mit
  * dem Datum, ab dem sie gilt: dem Versanddatum der Abrechnung. Nicht versendete Abrechnungen haben keine.
  *
  * Sie gehört zum Mietsaldo: Die unbezahlte NK-Vorauszahlung steht dort als Rückstand, ist aber erst mit der

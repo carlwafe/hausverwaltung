@@ -14,7 +14,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
-import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungBis } from "@/lib/nk-saldo";
+import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungBis, hatGegenrechnung } from "@/lib/nk-saldo";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
@@ -131,13 +131,19 @@ export default async function MietvertragDetailPage({
   const sonderOffenImSaldo = sonderBuchungen
     .filter((b) => b.datum && (!stichtagAb || b.datum >= stichtagAb) && b.datum <= bis)
     .reduce((sum, b) => sum - sonderWirkung(b.buchungsart.code, Number(b.betrag)), 0);
-  // Unbezahlte NK-Vorauszahlung berechneter Abrechnungen (je Abrechnung): steht als Rückstand im Soll, ist
+  // Unbezahlte NK-Vorauszahlung berechneter (und versendeter manueller, siehe hatGegenrechnung) Abrechnungen (je Abrechnung): steht als Rückstand im Soll, ist
   // nach dem Versand der Abrechnung aber nicht mehr geschuldet. Zählt zum Saldo ab dem Versanddatum (siehe
   // gegenrechnungenJeJahr); die Abrechnung selbst (Nachzahlung/Guthaben) steht nicht darin.
   const nkGegenrechnungen = gegenrechnungenJeJahr(
     vertragFuerSollIst,
     vertrag.abrechnungspositionen
-      .filter((p) => Array.isArray(p.details))
+      .filter((p) =>
+        hatGegenrechnung({
+          berechnet: Array.isArray(p.details),
+          vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+          versendetAm: p.abrechnung.versendetAm,
+        }),
+      )
       .map((p) => ({
         jahr: p.abrechnung.jahr,
         zeitraumVon: p.zeitraumVon,
