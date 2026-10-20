@@ -20,7 +20,7 @@ export async function ladeAnpassungsschreiben(
     prisma.mietvertrag.findUnique({
       where: { id },
       include: {
-        einheit: { include: { gebaeude: { select: { strasse: true, hausnummer: true, objekt: { select: { plz: true, ort: true } } } } } },
+        einheit: { include: { gebaeude: { select: { strasse: true, hausnummer: true, objekt: { select: { plz: true, ort: true, mietkontoInhaber: true, mietkontoIban: true, mietkontoBic: true, mietkontoBank: true } } } } } },
         mieter: true,
         mieterhoehungen: { orderBy: { gueltigAb: "asc" } },
         dokumente: { where: { art: "SCHREIBEN" }, orderBy: { createdAt: "desc" } },
@@ -104,6 +104,10 @@ export async function ladeAnpassungsschreiben(
       jobcenter: vertrag.zahlungsweg === "BEHOERDE",
       zahlungsweg: vertrag.zahlungsweg,
       mandat,
+      mietkonto: (() => {
+        const o = vertrag.einheit.gebaeude.objekt;
+        return o.mietkontoIban ? { inhaber: o.mietkontoInhaber, iban: o.mietkontoIban, bic: o.mietkontoBic, bank: o.mietkontoBank } : null;
+      })(),
       kopien: vertrag.dokumente.map((d) => ({
         id: d.id,
         dateiname: d.dateiname,

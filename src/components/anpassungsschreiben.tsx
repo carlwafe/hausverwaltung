@@ -49,6 +49,8 @@ export type AnpassungsschreibenProps = {
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | null;
   // Mandatsreferenz/Gläubiger-ID aus der Bankzeile der letzten Lastschrift (null = keine gefunden).
   mandat: MandatDaten | null;
+  // Mietkonto des Objekts (Stammdaten → Objekt); null = nicht erfasst, dann nennt das Schreiben kein Konto.
+  mietkonto: { inhaber: string | null; iban: string; bic: string | null; bank: string | null } | null;
   kopien: SchreibenKopie[];
   // Seite, die nach dem Ablegen einer Kopie neu geladen wird.
   revalidatePfad: string;
@@ -91,6 +93,11 @@ const empfaengerZeile = (m: Mieter) => `${m.anrede === "FRAU" ? "Frau " : m.anre
 
 const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
 
+/** IBAN in Vierergruppen (DE12 3456 …). */
+function formatIban(iban: string): string {
+  return iban.replace(/(.{4})/g, "$1 ").trim();
+}
+
 /**
  * Anpassungsschreiben an den Mieter mit zwei einzeln zuschaltbaren Abschnitten: Indexerhöhung der Kaltmiete
  * (§ 557b BGB) und Anpassung der NK-Vorauszahlung (§ 560 Abs. 4 BGB). Ein Schreiben, eine Gesamtmiete, eine
@@ -99,7 +106,7 @@ const eingabeKlasse = "w-full rounded-md border border-neutral-700 bg-transparen
  */
 export function Anpassungsschreiben({
   mietvertragId, mieter, strasse, plzOrt, einheit, basisKaltmiete, basisNk, erhoehungen, mehrwertsteuer, jobcenter,
-  zahlungsweg: zahlungswegVertrag, mandat, kopien, revalidatePfad, index, indexHinweis, nk, nkHinweis, startIndex, startNk,
+  zahlungsweg: zahlungswegVertrag, mandat, mietkonto, kopien, revalidatePfad, index, indexHinweis, nk, nkHinweis, startIndex, startNk,
 }: AnpassungsschreibenProps) {
   const [mitIndex, setMitIndex] = useState(index !== null && startIndex);
   const [mitNk, setMitNk] = useState(nk !== null && startNk);
@@ -454,6 +461,13 @@ export function Anpassungsschreiben({
                   : "Im Journal wurde keine Mandatsreferenz gefunden — Mandatsreferenz und Gläubiger-ID fehlen im Schreiben."}
               </p>
             )}
+            {zahlungsweg === "UEBERWEISUNG" && (
+              <p className="mt-1 text-xs text-neutral-500">
+                {mietkonto
+                  ? "Das Mietkonto aus Stammdaten → Objekt steht im Schreiben."
+                  : "Im Objekt ist kein Mietkonto erfasst — das Schreiben nennt kein Konto (Stammdaten → Objekt → Bankverbindung Mietkonto)."}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
             <button type="button" onClick={() => window.print()} disabled={!bereit} className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50">
@@ -646,7 +660,7 @@ export function Anpassungsschreiben({
                   ) : zahlungsweg === "BEHOERDE" ? (
                     `Ab dem ${gueltigAbText} beträgt die zu zahlende Gesamtmiete ${formatEuro(gesamt)}. Da Ihre Miete vom Amt gezahlt wird, leiten Sie dieses Schreiben bitte dorthin weiter, damit die Zahlung angepasst wird.`
                   ) : (
-                    `Bitte zahlen Sie ab dem ${gueltigAbText} die neue Gesamtmiete von ${formatEuro(gesamt)} und passen Sie einen bestehenden Dauerauftrag entsprechend an.`
+                    `Bitte zahlen Sie ab dem ${gueltigAbText} die neue Gesamtmiete von ${formatEuro(gesamt)}${mietkonto ? ` auf das Konto ${[mietkonto.inhaber, `IBAN ${formatIban(mietkonto.iban)}`, mietkonto.bic && `BIC ${mietkonto.bic}`, mietkonto.bank].filter(Boolean).join(", ")}` : ""} und passen Sie einen bestehenden Dauerauftrag entsprechend an.`
                   )}
                   {jobcenter && zahlungsweg !== "BEHOERDE" && " Wird Ihre Miete vom Jobcenter gezahlt, leiten Sie dieses Schreiben bitte dorthin weiter."}
                 </p>
