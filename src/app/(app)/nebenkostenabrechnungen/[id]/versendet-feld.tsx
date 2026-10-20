@@ -73,6 +73,9 @@ export function VersendetFeld({
         Jahres-/Quartalsübersicht, Offene Posten, Dashboard) und bei berechneten Abrechnungen auch die Nachzahlung/das
         Guthaben der Abrechnung in der Jahresübersicht — vorher besteht der Rückstand tatsächlich noch. Unabhängig vom
         Status Entwurf/Final. Das Datum bei einem späteren Versand oder Zugang beim Mieter nachtragen bzw. ändern.
+        Manuelle Positionen mit eingetragener Vorauszahlung &gt; 0 bekommen die Gutschrift ab dem Versand ebenfalls
+        (Soll minus eingetragene Vorauszahlung) — vor dem Markieren prüfen, ob dieser Betrag der tatsächlich gezahlten
+        Vorauszahlung entspricht (bei Beträgen des Vorverwalters meist nicht).
       </p>
     </div>
   );

@@ -529,6 +529,16 @@ export default async function NebenkostenabrechnungDetailPage({
             Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
           </p>
           <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Manuelle Positionen und unbezahlte Vorauszahlung:</strong>{" "}
+            Die nicht gezahlte NK-Vorauszahlung steht im Mietrückstand (NK-Soll) und würde zusätzlich in der
+            Nachzahlung stehen. Deshalb wird sie ab dem Versand der Abrechnung gutgeschrieben (NK-Soll
+            minus Vorauszahlung der Position). Das gilt für berechnete Positionen und für manuelle mit
+            eingetragener Vorauszahlung &gt; 0; automatisch angelegte Positionen (Vorauszahlung 0) und
+            manuelle Positionen einer noch nicht versendeten Abrechnung (z.B. Beträge des Vorverwalters
+            2021–2024) bleiben ausgenommen. Wer eine Position von Hand auf den Betrag des Vorverwalters
+            setzt, ändert damit auch die Gutschrift — der eingetragene Wert gilt als gezahlte Vorauszahlung.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
             <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
             Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
             dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
