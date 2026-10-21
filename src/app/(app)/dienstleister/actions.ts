@@ -68,8 +68,14 @@ function parseForm(formData: FormData) {
 export const createDienstleister = mitMeldung(async function createDienstleister(formData: FormData) {
   await requireEditor();
   const { kostenartIds, ...data } = parseForm(formData);
+  // Ein neuer Handwerker wird von der neuen Verwaltung beauftragt und braucht keine
+  // Information zum Verwalterwechsel; Sonstige (Versorger, Versicherung …) bleiben offen.
   const neu = await prisma.dienstleister.create({
-    data: { ...data, kostenarten: { connect: kostenartIds.map((id) => ({ id })) } },
+    data: {
+      ...data,
+      verwaltungInformiertAm: data.typ === "HANDWERKER" ? heuteAlsDatum() : null,
+      kostenarten: { connect: kostenartIds.map((id) => ({ id })) },
+    },
   });
   revalidatePath("/dienstleister");
   // Weiter zur Detailseite, damit direkt ein Vertrag hochgeladen werden kann.

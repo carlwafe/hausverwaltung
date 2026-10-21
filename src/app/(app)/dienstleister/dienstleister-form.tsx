@@ -125,17 +125,19 @@ export function DienstleisterForm({
         </div>
       </div>
 
-      <div>
-        <DateInput
-          name="verwaltungInformiertAm"
-          label="Über Verwalterwechsel informiert am"
-          defaultValue={iso(initial?.verwaltungInformiertAm)}
-        />
-        <p className="mt-1 text-xs text-neutral-500">
-          Datum, an dem dieser Dienstleister über die neue Verwaltung (und die Kündigung der alten)
-          benachrichtigt wurde. Leer = noch offen. In der Liste lässt es sich auch direkt anklicken.
-        </p>
-      </div>
+      {initial && (
+        <div>
+          <DateInput
+            name="verwaltungInformiertAm"
+            label="Über Verwalterwechsel informiert am"
+            defaultValue={iso(initial.verwaltungInformiertAm)}
+          />
+          <p className="mt-1 text-xs text-neutral-500">
+            Datum, an dem dieser Dienstleister über die neue Verwaltung (und die Kündigung der alten)
+            benachrichtigt wurde. Leer = noch offen. In der Liste lässt es sich auch direkt anklicken.
+          </p>
+        </div>
+      )}
 
       <div>
         <label className={labelClass} htmlFor="adresse">
