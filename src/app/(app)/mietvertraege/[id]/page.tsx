@@ -15,6 +15,8 @@ import { MietvertragReiter } from "./mietvertrag-reiter";
 import type { NkJahrDaten } from "./nebenkosten-ansicht";
 import { mieterName } from "@/lib/mieter-name";
 import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungBis, hatGegenrechnung } from "@/lib/nk-saldo";
+import { getCurrentUser } from "@/lib/session";
+import { MietvertragNotiz } from "./mietvertrag-notiz";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 
@@ -50,7 +52,7 @@ export default async function MietvertragDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [vertrag, objekt] = await Promise.all([
+  const [vertrag, objekt, user] = await Promise.all([
     prisma.mietvertrag.findUnique({
       where: { id },
       include: {
@@ -78,6 +80,7 @@ export default async function MietvertragDetailPage({
       },
     }),
     prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
+    getCurrentUser(),
   ]);
 
   if (!vertrag) notFound();
@@ -368,6 +371,8 @@ export default async function MietvertragDetailPage({
           (n) => `${String(n.monat).padStart(2, "0")}/${n.jahr}: ${formatEuro(-Number(n.betrag))} Kaltmiete (${n.grund})`,
         )}
       />
+
+      <MietvertragNotiz mietvertragId={vertrag.id} notiz={vertrag.notiz ?? ""} bearbeitbar={user?.role !== "GAST"} />
 
       <div className="my-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">

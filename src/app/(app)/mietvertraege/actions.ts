@@ -11,6 +11,7 @@ import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { istGueltigeIban } from "@/lib/dokument-erkennung";
 import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
 import { ladeMandatAusKontoauszug } from "@/lib/lastschrift-mandat";
+import { MAX_MIETVERTRAG_NOTIZ } from "@/lib/mietvertrag-notiz";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -584,4 +585,21 @@ export const holeMandatAusKontoauszug = mitMeldung(async function holeMandatAusK
     kontoinhaber: m.kontoinhaber ?? "",
     einzugAm: m.einzugAm.toISOString().slice(0, 10),
   };
+});
+
+// Interne Notiz am Mietvertrag (z.B. weitere Bewohner, die nicht im Vertrag stehen). Leer speichern entfernt sie.
+// Bewusst kein revalidatePath: Das Feld hält seinen Text selbst (die Vertragsseite ist rechenintensiv).
+export const speichereMietvertragNotiz = mitMeldung(async function speichereMietvertragNotiz(
+  id: string,
+  text: string,
+): Promise<string | null> {
+  await requireEditor();
+  const bereinigt = text.trim();
+  if (bereinigt.length > MAX_MIETVERTRAG_NOTIZ) {
+    throw new AktionsFehler(`Die Notiz darf höchstens ${MAX_MIETVERTRAG_NOTIZ} Zeichen lang sein.`);
+  }
+  const vertrag = await prisma.mietvertrag.findUnique({ where: { id }, select: { id: true } });
+  if (!vertrag) throw new AktionsFehler("Mietvertrag nicht gefunden.");
+  await prisma.mietvertrag.update({ where: { id }, data: { notiz: bereinigt || null } });
+  return null;
 });

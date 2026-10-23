@@ -543,6 +543,8 @@ model Mietvertrag {
   mandatDatum              DateTime?
   mandatKontoinhaber       String?
   mandatIban               String?
+  // Interne Freitext-Notiz (z.B. weitere Bewohner, die nicht im Vertrag stehen). Reine Information.
+  notiz                    String?
   createdAt                DateTime          @default(now())
 
   kaution                         Kaution?
