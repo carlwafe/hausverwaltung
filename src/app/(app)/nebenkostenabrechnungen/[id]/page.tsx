@@ -381,6 +381,15 @@ export default async function NebenkostenabrechnungDetailPage({
         </p>
       </div>
 
+      <div className="mb-3 max-w-3xl rounded-md border border-neutral-800 px-3 py-2 text-sm">
+        <Link href={`/nebenkostenabrechnungen/${id}/schreiben`} className="text-neutral-300 underline hover:text-white">
+          Schreiben an die Mieter (PDF)
+        </Link>
+        <p className="mt-0.5 text-xs text-neutral-500">
+          Betriebskostenabrechnung je Mietvertrag als Brief — einzeln oder alle auf einmal.
+        </p>
+      </div>
+
       <VersendetFeld
         abrechnungId={id}
         belegFehlt={belegLuecken.fehlt}
