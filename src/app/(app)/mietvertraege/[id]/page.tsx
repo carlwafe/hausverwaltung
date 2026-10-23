@@ -311,6 +311,7 @@ export default async function MietvertragDetailPage({
       bis,
       nebenkostenabrechnungOffen: nkOffen,
       gegenrechnungen: nkGegenrechnungen,
+      mehrwertsteuerMonatlich: vertragFuerSollIst.mehrwertsteuer,
     });
   }
 

@@ -7,6 +7,7 @@
 // der Jahresübersicht (jahresbericht-mieter.ts), damit beide denselben Saldo zeigen. Sonderbuchungen
 // (Gebühren) stehen im Monat ihres Buchungsdatums.
 import type { SollZeile } from "./soll-ist";
+import { ANTEILIG_AB_JAHR, nkAnteilEinerZahlung } from "./nk-anteil";
 
 export type MieterkontoZeile = {
   // Monat nur in der ersten Zeile eines Monats, sonst leer.
@@ -84,6 +85,41 @@ export function verfuegbareKontoJahre(sollZeilen: SollZeile[], bis: Date): numbe
   return jahre;
 }
 
+const formatEuro = (v: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(v);
+
+/**
+ * Hinweis zur Aufteilung einer Teilzahlung auf Nebenkosten und Kaltmiete, je Zahlungs-ID. Nur ab
+ * Mietjahr ANTEILIG_AB_JAHR und nur für Zahlungen, bei denen die Summe der Zahlungen des Monats davor noch
+ * unter dem Soll lag (Kaltmiete + NK, ohne Umsatzsteuer) — wer das Soll voll zahlt, braucht keinen Hinweis.
+ * Dieselbe Regel wie in der Nebenkostenabrechnung (nkAnteilEinerZahlung); das Konto selbst rechnet weiter
+ * mit dem Gesamtbetrag, der Hinweis ändert den Saldo nicht.
+ */
+function teilzahlungsHinweise(pays: Zahlung[], soll: SollZeile | undefined, mehrwertsteuer: number, jahr: number): Map<string, string> {
+  const hinweise = new Map<string, string>();
+  if (!soll || jahr < ANTEILIG_AB_JAHR) return hinweise;
+  const nkSoll = soll.betrag - soll.kaltmiete - mehrwertsteuer;
+  const sollOhneUst = soll.kaltmiete + nkSoll;
+  if (nkSoll < 0.005 || soll.kaltmiete < 0.005) return hinweise;
+  let davor = 0;
+  for (const z of pays) {
+    const danach = davor + z.betrag;
+    // Eine einzelne Zahlung, die das Soll voll deckt, ist keine Teilzahlung.
+    const deckt = davor < 0.005 && z.betrag >= sollOhneUst - 0.005;
+    if (z.betrag > 0 && davor < sollOhneUst - 0.005 && !deckt) {
+      const nkDavor = nkAnteilEinerZahlung(davor, nkSoll, sollOhneUst, jahr);
+      const nkDanach = nkAnteilEinerZahlung(danach, nkSoll, sollOhneUst, jahr);
+      const nk = nkDanach - nkDavor;
+      const kalt = z.betrag - nk;
+      hinweise.set(
+        z.id,
+        `${danach < sollOhneUst - 0.005 ? "Teilzahlung" : "Restzahlung"} anteilig: ${formatEuro(nk)} NK + ${formatEuro(kalt)} Kaltmiete`,
+      );
+    }
+    davor = danach;
+  }
+  return hinweise;
+}
+
 export function baueMieterkontoJahr(input: {
   jahr: number;
   saldovortrag: number;
@@ -97,6 +133,9 @@ export function baueMieterkontoJahr(input: {
   // gegenrechnungenJeJahr in nk-saldo.ts). Sie steht als Zeile am Versanddatum der Abrechnung; was vor dem
   // Jahresanfang versendet wurde, steckt im Übertrag, was nach `bis` liegt, fehlt noch.
   gegenrechnungen?: { jahr: number; betrag: number; datum: Date }[];
+  // Monatliche Umsatzsteuer (Garagen) im Soll — gehört nicht zu den Nebenkosten und wird für den Hinweis zur
+  // anteiligen Aufteilung von Teilzahlungen vom Soll abgezogen.
+  mehrwertsteuerMonatlich?: number;
 }): MieterkontoJahr {
   const { jahr } = input;
   // Zahlungen zählen nach ihrer Mietperiode: von der Periode des Stichtags `ab` bis zur Periode von
@@ -165,6 +204,7 @@ export function baueMieterkontoJahr(input: {
     ].sort((a, b) => a.datum.getTime() - b.datum.getTime() || rang(a) - rang(b));
 
     const sollBetrag = soll?.betrag ?? 0;
+    const teilzahlungHinweise = teilzahlungsHinweise(pays, soll, input.mehrwertsteuerMonatlich ?? 0, jahr);
     const ersteIstZahlung = ereignisse[0]?.art === "zahlung";
 
     // Soll-Zeile: mit der ersten Zahlung zusammen, wenn diese das erste Ereignis des Monats ist,
@@ -189,7 +229,8 @@ export function baueMieterkontoJahr(input: {
           monat: monatLabel(),
           sollKaltmiete: mitSoll ? sollKalt : null, sollNebenkosten: mitSoll ? sollNk : null, sollGesamt: mitSoll ? soll!.betrag : null,
           buchungsart: "Mietzahlung", datum: z.datum, betrag: z.betrag, differenz, saldo,
-          bemerkung: z.verwendungszweck ?? "", href: `/zahlungen/${z.id}`, sonderbuchung: false,
+          bemerkung: [teilzahlungHinweise.get(z.id), z.verwendungszweck].filter(Boolean).join(" · "),
+          href: `/zahlungen/${z.id}`, sonderbuchung: false,
         });
         summe.betrag += z.betrag;
         summe.differenz += differenz;
