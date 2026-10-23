@@ -117,6 +117,7 @@ export async function ladeNkSchreiben(
       // Die Anschrift der Mieter ist die Wohnung; ausgezogene Mieter haben eine neue Anschrift, die nicht in der App steht.
       empfaengerAnschrift: beendet ? ["[neue Anschrift ergänzen]"] : [`${g.strasse} ${g.hausnummer}`, `${g.objekt.plz} ${g.objekt.ort}`],
       wohnung: kurzbezeichnung(p.einheit.bezeichnung),
+      wohnungLage: p.einheit.bezeichnung.includes(" - ") ? p.einheit.bezeichnung.split(" - ").slice(1).join(" - ").trim() || undefined : undefined,
       objektAnschrift: `${g.strasse} ${g.hausnummer}, ${g.objekt.plz} ${g.objekt.ort}`,
       zeitraumVon: p.zeitraumVon,
       zeitraumBis: p.zeitraumBis,

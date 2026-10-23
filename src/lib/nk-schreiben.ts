@@ -36,6 +36,8 @@ export type NkSchreibenDaten = {
   empfaengerAnschrift: string[];
   /** Kurzbezeichnung der Wohnung („HS 2 WHG 4“) und Anschrift des Mietobjekts („Breslauer Str. 2, 23701 Eutin“). */
   wohnung: string;
+  /** Lage der Wohnung („EG links“): Teil der Einheit-Bezeichnung nach „ - “; fehlt, wenn keine angegeben ist. */
+  wohnungLage?: string;
   objektAnschrift: string;
   zeitraumVon: Date;
   zeitraumBis: Date;
@@ -120,6 +122,16 @@ export function berechneArbeitskostenZeilen(details: KostenanteilDetailEintrag[]
 const tageInklusive = (von: Date, bis: Date) => Math.round((bis.getTime() - von.getTime()) / 86400000) + 1;
 const tageImJahr = (jahr: number) => (jahr % 4 === 0 && (jahr % 100 !== 0 || jahr % 400 === 0) ? 366 : 365);
 
+/** Wohnfläche der Wohnung aus den Verteilungen nach Wohnfläche (so wurde gerechnet); null, wenn keine vorkommt. */
+function wohnflaecheAusDetails(details: KostenanteilDetailEintrag[]): number | null {
+  const werte = details.filter((x) => x.verteilerschluessel === "WOHNFLAECHE" && x.einheitMasswert > 0).map((x) => x.einheitMasswert);
+  if (werte.length === 0) return null;
+  // Bei abweichenden Werten (selten) gilt der häufigste.
+  const zaehler = new Map<number, number>();
+  for (const w of werte) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
+  return [...zaehler.entries()].sort((x, y) => y[1] - x[1])[0][0];
+}
+
 export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
   const nachzahlung = d.saldo < -0.005;
   const guthaben = d.saldo > 0.005;
@@ -128,6 +140,8 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
     d.zeitraumVon.getUTCMonth() === 0 && d.zeitraumVon.getUTCDate() === 1 && d.zeitraumBis.getUTCMonth() === 11 && d.zeitraumBis.getUTCDate() === 31;
   const zeitraum = `${datumText(d.zeitraumVon)} bis ${datumText(d.zeitraumBis)}`;
   const verwendungszweck = `Betriebskosten ${d.jahr} ${d.wohnung}`;
+  const wohnungText = `Wohnung ${d.wohnung}${d.wohnungLage ? `, ${d.wohnungLage}` : ""}`;
+  const wohnflaeche = wohnflaecheAusDetails(d.details);
   const inhalt: Baustein[] = [];
 
   inhalt.push({
@@ -176,6 +190,7 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
     keepNext: true,
     text:
       `Die umlagefähigen Kosten des Jahres ${d.jahr} verteile ich nach den jeweils angegebenen Verteilerschlüsseln auf die Wohnungen.` +
+      (wohnflaeche ? ` Die Wohnfläche Ihrer Wohnung beträgt ${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(wohnflaeche)} m².` : "") +
       (ganzesJahr || tage >= jahrestage
         ? ""
         : ` Ihre Mietzeit umfasst ${tage} von ${jahrestage} Tagen; die Jahresanteile sind entsprechend anteilig berechnet.`),
@@ -241,7 +256,7 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
     datum: datumText(d.datum),
     betreff: [
       `Betriebskostenabrechnung ${d.jahr}${nachzahlung ? ` und Nachzahlung über ${euro(betrag)}` : guthaben ? ` und Guthaben über ${euro(betrag)}` : ""}`,
-      `Mietobjekt: ${d.objektAnschrift}, Wohnung ${d.wohnung}${ganzesJahr ? "" : ` (Mietzeit ${datumText(d.zeitraumVon)} – ${datumText(d.zeitraumBis)})`}`,
+      `Mietobjekt: ${d.objektAnschrift}, ${wohnungText}${ganzesJahr ? "" : ` (Mietzeit ${datumText(d.zeitraumVon)} – ${datumText(d.zeitraumBis)})`}`,
     ],
     anrede: briefAnrede(d.mieter),
     inhalt,
@@ -249,7 +264,7 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
       arbeit.length > 0
         ? {
             titel: `Anlage zur Betriebskostenabrechnung ${d.jahr}: Ausweis der Arbeitskosten (§ 35a EStG)`,
-            untertitel: `Mietobjekt: ${d.objektAnschrift}, Wohnung ${d.wohnung}${ganzesJahr ? "" : ` (Mietzeit ${datumText(d.zeitraumVon)} – ${datumText(d.zeitraumBis)})`}`,
+            untertitel: `Mietobjekt: ${d.objektAnschrift}, ${wohnungText}${ganzesJahr ? "" : ` (Mietzeit ${datumText(d.zeitraumVon)} – ${datumText(d.zeitraumBis)})`}`,
             inhalt: [
               {
                 art: "tabelle",
