@@ -66,6 +66,8 @@ export type SchreibenInhalt = {
   rueckfragen?: string;
   gruss?: string;
   unterschrift: string;
+  /** Optional: Anlage auf einer eigenen Seite nach der Unterschrift (Überschrift, graue Zeile darunter, Bausteine). */
+  anlage?: { titel: string; untertitel?: string; inhalt: Baustein[] };
 };
 
 type Lauf = { text: string; fett: boolean };
@@ -76,6 +78,8 @@ type Item = {
   after: number;
   keepNext: boolean;
   draw: (seite: PDFPage, oben: number) => void;
+  /** Beginnt eine neue Seite (Anlage). */
+  seitenumbruchVor?: boolean;
   /** Kopfzeile der Tabelle, die nach einem Seitenumbruch mitten in der Tabelle wiederholt wird. */
   kopf?: Item;
   /** Zeile einer Tabelle (zur Erkennung eines Umbruchs mitten in der Tabelle). */
@@ -290,6 +294,18 @@ export function fuegeSchreibenHinzu(doc: PDFDocument, s: Schriften, c: Schreiben
   items.push(absatzItem(s, c.gruss ?? "Mit freundlichen Grüßen", { after: 58, keepNext: true }));
   items.push(absatzItem(s, c.unterschrift, { after: 0 }));
 
+  if (c.anlage) {
+    const titel = absatzItem(s, c.anlage.titel, { fett: true, groesse: 11.5, zeile: 11.5 * EINZEL * 1.2, after: c.anlage.untertitel ? 0 : 14, keepNext: true });
+    titel.seitenumbruchVor = true;
+    items.push(titel);
+    if (c.anlage.untertitel) items.push(absatzItem(s, c.anlage.untertitel, { before: 2, after: 14, keepNext: true, farbe: GRAU }));
+    for (const b of c.anlage.inhalt) {
+      if (b.art === "absatz") items.push(absatzItem(s, b.text, { keepNext: b.keepNext }));
+      else if (b.art === "ueberschrift") items.push(absatzItem(s, b.text, { fett: true, before: 6, after: 4, keepNext: true }));
+      else items.push(...tabelleItems(s, b));
+    }
+  }
+
   // ----- Seitenumbruch (Items mit keepNext bleiben zusammen; Tabellen bleiben ganz, wenn sie auf eine Seite passen) -----
   const obenSeite = SEITE_H - RAND_OBEN;
   const untenGrenze = RAND_UNTEN;
@@ -304,6 +320,11 @@ export function fuegeSchreibenHinzu(doc: PDFDocument, s: Schriften, c: Schreiben
     while (j < items.length - 1 && items[j].keepNext) j++;
     const gruppe = items.slice(i, j + 1);
     const gruppenHoehe = gruppe.reduce((sum, it, n) => sum + (n === 0 && aufSeitenAnfang ? 0 : it.before) + it.h + (n < gruppe.length - 1 ? it.after : 0), 0);
+    if (gruppe[0].seitenumbruchVor && !aufSeitenAnfang) {
+      seite = neueSeite();
+      y = obenSeite;
+      aufSeitenAnfang = true;
+    }
     const passt = y - gruppenHoehe >= untenGrenze;
     if (!passt && !aufSeitenAnfang && gruppenHoehe <= seitenHoehe) {
       seite = neueSeite();

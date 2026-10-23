@@ -6,6 +6,18 @@ import type { KostenanteilDetailEintrag } from "./nebenkostenabrechnung";
 
 export type NkSchreibenDetail = KostenanteilDetailEintrag & { warm: boolean };
 
+export type ArbeitskostenZeile = {
+  kostenartName: string;
+  /** Rechnungsbetrag der Kostenart (alle Kostenkreise), brutto. */
+  rechnungsbetrag: number;
+  /** Davon Arbeitskosten (Lohn inkl. USt, ohne Material). */
+  arbeitskostenGesamt: number;
+  /** Anteil des Mieters an den Kosten dieser Kostenart (Zeitraum des Mietvertrags). */
+  anteil: number;
+  /** Davon Arbeitskosten. */
+  arbeitskostenAnteil: number;
+};
+
 export type NkSchreibenDaten = {
   jahr: number;
   absender: {
@@ -34,6 +46,8 @@ export type NkSchreibenDaten = {
   /** Nicht gezahlte NK-Vorauszahlung, die durch die Abrechnung abgegolten ist (unbezahlteNkVorauszahlung); 0 = kein Hinweis. */
   unbezahlteVorauszahlung: number;
   details: NkSchreibenDetail[];
+  /** Ausweis der Arbeitskosten nach § 35a EStG (Anlage); leer/fehlend = keine Anlage. Siehe berechneArbeitskostenZeilen. */
+  arbeitskosten?: ArbeitskostenZeile[];
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | null;
   konto: { inhaber: string; iban: string; bic?: string | null; bank?: string | null } | null;
 };
@@ -74,6 +88,33 @@ function kostenartText(d: KostenanteilDetailEintrag): string {
   const kreis = d.scopeLabel.trim();
   if (!kreis || /^objekt gesamt$/i.test(kreis) || /^extern vorverteilt/i.test(kreis)) return name;
   return `${name} (${kreis})`;
+}
+
+/**
+ * Arbeitskosten-Ausweis (§ 35a EStG) für eine Position: je Kostenart mit Quote (Arbeitskosten ÷ Rechnungsbetrag aus den
+ * Kostenpositionen, nur vollständig erfasste Kostenarten, siehe src/lib/arbeitskosten.ts) Rechnungsbetrag, Arbeitskosten
+ * und der Anteil des Mieters daran. Extern vorverteilte Kosten (Techem) werden dort selbst ausgewiesen und hier übersprungen.
+ */
+export function berechneArbeitskostenZeilen(details: KostenanteilDetailEintrag[], quoten: Map<string, number>): ArbeitskostenZeile[] {
+  const proKostenart = new Map<string, ArbeitskostenZeile & { quote: number }>();
+  for (const d of details) {
+    const quote = quoten.get(d.kostenartId);
+    if (!quote || d.verteilerschluessel === "VORVERTEILT") continue;
+    const e = proKostenart.get(d.kostenartId) ?? { kostenartName: d.kostenartName.trim(), rechnungsbetrag: 0, arbeitskostenGesamt: 0, anteil: 0, arbeitskostenAnteil: 0, quote };
+    e.rechnungsbetrag += d.gesamtbetragPool;
+    e.anteil += d.anteilZeitraum;
+    proKostenart.set(d.kostenartId, e);
+  }
+  return [...proKostenart.values()]
+    .map(({ quote, ...e }) => ({
+      ...e,
+      rechnungsbetrag: rund2(e.rechnungsbetrag),
+      arbeitskostenGesamt: rund2(e.rechnungsbetrag * quote),
+      anteil: rund2(e.anteil),
+      arbeitskostenAnteil: rund2(e.anteil * quote),
+    }))
+    .filter((z) => z.arbeitskostenAnteil > 0)
+    .sort((x, y) => x.kostenartName.localeCompare(y.kostenartName, "de"));
 }
 
 const tageInklusive = (von: Date, bis: Date) => Math.round((bis.getTime() - von.getTime()) / 86400000) + 1;
@@ -173,6 +214,14 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
     });
   }
 
+  const arbeit = d.arbeitskosten ?? [];
+  if (arbeit.length > 0) {
+    inhalt.push({
+      art: "absatz",
+      text: "Der Anlage zu diesem Schreiben können Sie die in Ihrem Kostenanteil enthaltenen Arbeitskosten (haushaltsnahe Dienstleistungen) entnehmen.",
+    });
+  }
+
   inhalt.push({
     art: "absatz",
     text:
@@ -196,6 +245,31 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
     ],
     anrede: briefAnrede(d.mieter),
     inhalt,
+    anlage:
+      arbeit.length > 0
+        ? {
+            titel: `Anlage zur Betriebskostenabrechnung ${d.jahr}: Ausweis der Arbeitskosten (§ 35a EStG)`,
+            untertitel: `Mietobjekt: ${d.objektAnschrift}, Wohnung ${d.wohnung}${ganzesJahr ? "" : ` (Mietzeit ${datumText(d.zeitraumVon)} – ${datumText(d.zeitraumBis)})`}`,
+            inhalt: [
+              {
+                art: "tabelle",
+                zeilen: [
+                  { zellen: ["Kostenart", "Rechnungsbetrag brutto", "davon Arbeitskosten brutto", "Ihr Kostenanteil brutto", "davon Arbeitskosten brutto"], kopf: true },
+                  ...arbeit.map((z) => ({ zellen: [z.kostenartName, euro(z.rechnungsbetrag), euro(z.arbeitskostenGesamt), euro(z.anteil), euro(z.arbeitskostenAnteil)] })),
+                  ...(arbeit.length > 1
+                    ? [{ zellen: ["Summe", "", "", euro(rund2(arbeit.reduce((x, z) => x + z.anteil, 0))), euro(rund2(arbeit.reduce((x, z) => x + z.arbeitskostenAnteil, 0)))], summe: true }]
+                    : []),
+                ],
+                breiten: [26, 18, 19, 18, 19],
+                rechts: [1, 2, 3, 4],
+              },
+              {
+                art: "absatz",
+                text: "Arbeitskosten sind der Lohnanteil der Rechnungen einschließlich Umsatzsteuer, ohne Material- und Fahrtkosten. Die ausgewiesenen Arbeitskosten können Sie gegebenenfalls nach § 35a EStG in Ihrer Steuererklärung geltend machen.",
+              },
+            ],
+          }
+        : undefined,
     rueckfragen: "Für Rückfragen stehe ich Ihnen gern zur Verfügung; meine Kontaktdaten stehen oben rechts.",
     unterschrift: d.absender.name,
   };

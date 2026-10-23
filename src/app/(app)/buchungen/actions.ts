@@ -9,6 +9,7 @@ import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { storniereBuchung } from "@/lib/buchung-storno";
 import { MAX_BUCHUNG_KOMMENTAR, uebernehmeBuchungKommentar } from "@/lib/buchung-kommentar";
 import { uebernehmeBelegAusnahme } from "@/lib/beleg-status";
+import { uebernehmeArbeitskosten } from "@/lib/arbeitskosten";
 import { ermittleBuchungsartGruppe } from "@/lib/import/buchung-klassifizierung";
 
 // Umbuchung: die Buchung wird storniert und mit anderer Buchungsart neu angelegt (Storno-Prinzip —
@@ -84,6 +85,7 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: angelegt.id } });
     await uebernehmeBuchungKommentar(tx, id, angelegt.id);
     await uebernehmeBelegAusnahme(tx, id, angelegt.id);
+    await uebernehmeArbeitskosten(tx, id, angelegt.id);
     await storniereBuchung(tx, id, erstelltVon);
     return angelegt;
   });

@@ -12,6 +12,7 @@ import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilu
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { MAX_BELEG_AUSNAHME_GRUND, uebernehmeBelegAusnahme } from "@/lib/beleg-status";
+import { uebernehmeArbeitskosten } from "@/lib/arbeitskosten";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -180,6 +181,7 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
     // an der aktiven Position und bleiben an der stornierten hängen).
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: neu.id } });
     await uebernehmeBelegAusnahme(tx, id, neu.id);
+    await uebernehmeArbeitskosten(tx, id, neu.id);
   });
 
   revalidatePath("/kosten");
@@ -294,6 +296,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
       data: { buchungId: neuePositionen[0].id },
     });
     await uebernehmeBelegAusnahme(tx, id, neuePositionen.map((p) => p.id));
+    await uebernehmeArbeitskosten(tx, id, neuePositionen.map((p) => p.id));
     await storniereBuchung(tx, id, erstelltVon);
   });
 
@@ -367,6 +370,7 @@ export async function hebeAufteilungAuf(positionId: string) {
       where: { buchungId: { in: alleGruppenMitgliederIds } },
       data: { buchungId: neu.id },
     });
+    await uebernehmeArbeitskosten(tx, gruppe.map((t) => t.id), neu.id);
     for (const teil of gruppe) {
       await uebernehmeBelegAusnahme(tx, teil.id, neu.id);
       await storniereBuchung(tx, teil.id, erstelltVon);
@@ -483,6 +487,46 @@ export const entferneBelegAusnahme = mitMeldung(async function entferneBelegAusn
 ): Promise<string | null> {
   await requireEditor();
   await prisma.buchungBelegAusnahme.deleteMany({ where: { buchungId } });
+  revalidatePath("/kosten");
+  revalidatePath("/nebenkostenabrechnungen", "layout");
+  return null;
+});
+
+// Arbeitskostenanteil (Lohn inkl. Umsatzsteuer, ohne Material) einer Kostenposition für den Ausweis nach § 35a EStG im
+// Schreiben „Betriebskostenabrechnung“. Leer = Angabe entfernen. Der Anteil hat dasselbe Vorzeichen wie der Betrag der
+// Position und ist höchstens so groß wie dieser. Gibt null bei Erfolg zurück, sonst die Meldung.
+export const speichereArbeitskosten = mitMeldung(async function speichereArbeitskosten(
+  buchungId: string,
+  wert: string,
+): Promise<string | null> {
+  const user = await requireEditor();
+  const position = await prisma.buchung.findFirst({
+    where: { id: buchungId, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
+    select: { betrag: true },
+  });
+  if (!position) throw new AktionsFehler("Kostenposition nicht gefunden.");
+  const text = wert.trim();
+  if (!text) {
+    await prisma.buchungArbeitskosten.deleteMany({ where: { buchungId } });
+  } else {
+    // „2.423,67“ und „2423.67“ sind beide erlaubt: mit Komma gelten Punkte als Tausendertrenner.
+    const zahl = Number(text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text);
+    if (!Number.isFinite(zahl)) throw new AktionsFehler("Bitte einen Betrag in Euro eingeben (z.B. 2.423,67).");
+    const betrag = Math.round(zahl * 100) / 100;
+    const rechnung = Number(position.betrag);
+    if (betrag !== 0 && Math.sign(betrag) !== Math.sign(rechnung)) {
+      throw new AktionsFehler("Der Arbeitskostenanteil muss dasselbe Vorzeichen wie der Rechnungsbetrag haben.");
+    }
+    if (Math.abs(betrag) > Math.abs(rechnung) + 0.005) {
+      throw new AktionsFehler("Der Arbeitskostenanteil darf nicht größer als der Rechnungsbetrag sein.");
+    }
+    const geaendertVon = benutzerLabel(user);
+    await prisma.buchungArbeitskosten.upsert({
+      where: { buchungId },
+      create: { buchungId, betrag, geaendertVon },
+      update: { betrag, geaendertVon },
+    });
+  }
   revalidatePath("/kosten");
   revalidatePath("/nebenkostenabrechnungen", "layout");
   return null;

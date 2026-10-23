@@ -206,6 +206,7 @@ model Buchung {
   ticketKosten     TicketKosten[]
   kommentar        BuchungKommentar?
   belegAusnahme    BuchungBelegAusnahme?
+  arbeitskosten    BuchungArbeitskosten?
   darlehenZuordnung DarlehenZuordnung?
 
   @@index([mietvertragId, datum])
@@ -246,6 +247,23 @@ model BuchungBelegAusnahme {
   gesetztAm DateTime @default(now())
 
   @@map("buchung_beleg_ausnahmen")
+}
+
+// Arbeitskostenanteil (Lohn inkl. Umsatzsteuer, ohne Material und Fahrtkosten) einer umlagefähigen Kostenposition für den
+// Ausweis der haushaltsnahen Dienstleistungen/Handwerkerleistungen (§ 35a EStG) im Schreiben „Betriebskostenabrechnung“.
+// Eigene Tabelle, weil Buchungen unveränderlich sind (siehe BuchungBelegAusnahme); Bearbeiten/Aufteilen/Zusammenführen
+// kopieren den Anteil auf die neue(n) Position(en) (uebernehmeArbeitskosten, src/lib/arbeitskosten.ts). Vorzeichen und
+// Größenordnung wie Buchung.betrag (Kostenposition: positiv = Ausgabe), betrag ≤ Rechnungsbetrag.
+model BuchungArbeitskosten {
+  id             String   @id @default(cuid())
+  buchung        Buchung  @relation(fields: [buchungId], references: [id], onDelete: Cascade)
+  buchungId      String   @unique
+  betrag         Decimal  @db.Decimal(10, 2)
+  // Benutzerkennung (benutzerLabel) des Nutzers, der den Anteil zuletzt gesetzt hat.
+  geaendertVon   String?
+  aktualisiertAm DateTime @updatedAt
+
+  @@map("buchung_arbeitskosten")
 }
 
 // Zuordnung einer Darlehensrate zu einem Darlehen der Stammdaten (Seite „Darlehen“, Kontoauszug-Import). Eigene

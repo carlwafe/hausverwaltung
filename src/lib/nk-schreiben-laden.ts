@@ -6,7 +6,8 @@ import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { istWarmeKostenart } from "@/lib/kostenart-warm";
 import { unbezahlteNkVorauszahlung } from "@/lib/nk-saldo";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
-import { baueNkSchreiben, type NkSchreibenDaten } from "@/lib/nk-schreiben";
+import { baueNkSchreiben, berechneArbeitskostenZeilen, type NkSchreibenDaten } from "@/lib/nk-schreiben";
+import { ladeArbeitskostenStand } from "@/lib/arbeitskosten";
 import { erzeugeSchreibenPdf, type SchreibenInhalt } from "@/lib/schreiben-pdf";
 
 /**
@@ -71,6 +72,11 @@ export async function ladeNkSchreiben(
   const kostenarten = await prisma.kostenart.findMany({ where: { id: { in: [...kostenartIds] } }, select: { id: true, name: true, betrKvNummer: true } });
   const warmById = new Map(kostenarten.map((k) => [k.id, istWarmeKostenart(k)]));
 
+  // Arbeitskosten-Quoten (§ 35a EStG): nur Kostenarten, bei denen alle Positionen des Jahres eine Angabe haben.
+  const arbeitskostenQuoten = new Map(
+    (await ladeArbeitskostenStand(abrechnung.jahr)).filter((k) => k.vollstaendig && k.quote !== null).map((k) => [k.kostenartId, k.quote as number]),
+  );
+
   const ergebnis: NkSchreibenErgebnis = { jahr: abrechnung.jahr, schreiben: [], uebersprungen: [] };
   const mieterNameKurz = (m: { vorname: string; nachname: string }) => [m.vorname, m.nachname].map((x) => x.trim()).filter(Boolean).join(" ");
 
@@ -119,6 +125,7 @@ export async function ladeNkSchreiben(
       saldo: Number(p.saldo),
       unbezahlteVorauszahlung: unbezahlt > 0.005 ? unbezahlt : 0,
       details: details.map((d) => ({ ...d, warm: warmById.get(d.kostenartId) ?? false })),
+      arbeitskosten: berechneArbeitskostenZeilen(details, arbeitskostenQuoten),
       zahlungsweg: v.zahlungsweg,
       konto,
     };

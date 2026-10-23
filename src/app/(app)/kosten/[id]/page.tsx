@@ -18,7 +18,8 @@ import { ladeEingangFuerBuchung } from "@/lib/dokument-zuordnung";
 import { ibanAus } from "@/lib/kosten-doppelzahlung";
 import { EingangHinweis } from "./eingang-hinweis";
 import { BelegAusnahme } from "@/components/beleg-ausnahme";
-import { ladeBelegStatus } from "@/lib/beleg-status";
+import { ladeBelegStatus, belegPflichtig } from "@/lib/beleg-status";
+import { ArbeitskostenBox } from "@/components/arbeitskosten-box";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -103,9 +104,10 @@ export default async function KostenpositionDetailPage({
         }))
       : [];
 
-  const [belegStatusMap, belegAusnahme] = await Promise.all([
+  const [belegStatusMap, belegAusnahme, arbeitskosten] = await Promise.all([
     ladeBelegStatus([kostenposition]),
     prisma.buchungBelegAusnahme.findUnique({ where: { buchungId: id } }),
+    prisma.buchungArbeitskosten.findUnique({ where: { buchungId: id } }),
   ]);
   const belegStatus = belegStatusMap.get(id) ?? "ENTFAELLT";
   const eigeneBelege = kostenposition.dokumente.filter((d) => !d.ausgeblendetAm).length;
@@ -244,6 +246,15 @@ export default async function KostenpositionDetailPage({
         ueberAndereTeile={belegStatus === "BELEGT" && eigeneBelege === 0}
         bearbeitbar={user !== null && user.role !== "GAST"}
       />
+
+      {belegPflichtig(kostenposition) && (
+        <ArbeitskostenBox
+          buchungId={id}
+          rechnungsbetrag={Number(kostenposition.betrag)}
+          startwert={arbeitskosten ? Number(arbeitskosten.betrag) : null}
+          bearbeitbar={user !== null && user.role !== "GAST"}
+        />
+      )}
     </div>
   );
 }
