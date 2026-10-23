@@ -1,7 +1,7 @@
 // Schreiben an Mieter als PDF im Layout „klar“ (CLAUDE.md, Abschnitt „Schreiben (Optik; Entscheidung 20.10.2026)“;
 // Vorlage für Word: scripts-tmp/schreiben/schreiben-vorlage.js). Maße und Abstände sind dort abgelesen:
 // A4, Arial 10,5 pt (hier die metrisch gleiche, eingebettete Arimo), Zeilenabstand 1,25, Ränder links 25 / rechts 20 /
-// oben 15 / unten 20 mm, kein Briefkopf, Absenderzeile + Anschriftfeld ab 52 mm (mittig im Fenster), Informationsblock rechts,
+// oben 15 / unten 20 mm, kein Briefkopf, Absenderzeile + Anschriftfeld ab 49 mm (mittig im Fenster), Informationsblock rechts,
 // Tabellen ohne Gitter mit hellen Trennlinien, Fußzeile mit Kontoverbindung (Seite 1) und „Seite x von y“.
 // Reine Funktionen ohne Prisma (auch per tsx aus Skripten nutzbar).
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
@@ -295,7 +295,7 @@ export function fuegeSchreibenHinzu(doc: PDFDocument, s: Schriften, c: Schreiben
   const untenGrenze = RAND_UNTEN;
   const seitenHoehe = obenSeite - untenGrenze;
   let seite = neueSeite();
-  let y = obenSeite - mm(37); // Platz bis zum Anschriftfeld (Absenderzeile beginnt 52 mm von oben, damit der Block mittig im Briefumschlag-Fenster sitzt)
+  let y = obenSeite - mm(34); // Platz bis zum Anschriftfeld (Absenderzeile beginnt 49 mm von oben, damit der Block mittig im Briefumschlag-Fenster sitzt)
   let aufSeitenAnfang = false;
 
   let i = 0;
