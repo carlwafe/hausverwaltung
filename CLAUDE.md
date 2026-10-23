@@ -17,7 +17,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/lokal-testen.md` | Wie man Seiten und den Kontoauszug-Import lokal im Browser prüft und Testdaten wieder entfernt. |
 | `docs/deployment-vercel.md` | Verbrauch, Gegenmaßnahmen und Regeln, damit Seiten und Server Actions wenig CPU kosten. |
 | `docs/nebenkosten.md` | Berechnung, Gegenrechnung der unbezahlten Vorauszahlung, Versanddatum, Abweichungen Überweisung ↔ Abrechnung. |
-| `docs/schreiben-mieter.md` | Anpassungsschreiben, Layout „klar“, BK-Abrechnung als PDF, Arbeitskosten-Ausweis (§ 35a), Mietrechtsreform. |
+| `docs/schreiben-mieter.md` | Anpassungsschreiben, Layout „klar“, BK-Abrechnung als PDF, Arbeitskosten-Ausweis (§ 35a), Mahnung/Korrektur/Kündigung bei Zahlungsverzug, Mietrechtsreform. |
 | `docs/mietvertraege-mieter.md` | Kontaktdaten und Bankverbindung des Objekts, Mieternamen, Notiz, Mieter-Status, Garagen-Umsatzsteuer, Buchhaltungs-Stichtag je Vertrag. |
 | `docs/zahlungen-kautionen.md` | Kautionskonto, Lastschrift vs. Überweisung, Tilgungsreihenfolge bei Teilzahlungen, Mietperiode der Zahlung. |
 | `docs/sepa-lastschrift.md` | Gläubiger-ID, Mandate, Mandatsseite, Septemberlauf als Größenordnung. |
