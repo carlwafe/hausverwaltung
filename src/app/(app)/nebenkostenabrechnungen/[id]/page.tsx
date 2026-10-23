@@ -550,11 +550,12 @@ export default async function NebenkostenabrechnungDetailPage({
           <p className="mb-3 text-sm text-neutral-400">
             <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
             Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
-            dort zuerst auf die NK-Vorauszahlung bis zum NK-Soll angerechnet, erst der Rest auf die
-            Kaltmiete (§ 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in einem
-            Monat weniger als das NK-Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € NK zählen von
-            380 € gezahlt 280 € als NK, 100 € Kaltmiete bleiben offen; ein Monat ohne Zahlung bringt 0 €
-            NK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
+            dort angerechnet: bis Mietjahr 2024 zuerst auf die NK-Vorauszahlung bis zum NK-Soll, erst der
+            Rest auf die Kaltmiete; ab 2025 bei einer Teilzahlung anteilig im Verhältnis NK : Kaltmiete (NK-Anteil
+            auf volle Euro gerundet, § 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in
+            einem Monat weniger als das Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € NK zählen ab 2025
+            von 380 € gezahlt 172 € als NK (380 × 280 ÷ 620), 208 € als Kaltmiete (bis 2024: 280 € NK, 100 €
+            Kaltmiete); ein Monat ohne Zahlung bringt 0 € NK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
             berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
             an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
           </p>

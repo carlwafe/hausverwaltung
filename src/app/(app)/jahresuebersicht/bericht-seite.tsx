@@ -935,7 +935,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
       text: "Vereinnahmte Mieten (Kaltmiete, netto)",
       betrag: st.mieten,
       hinweis:
-        "Zahlungen je Monat zuerst auf die NK-Vorauszahlung angerechnet, der Rest ist Kaltmiete" +
+        "Zahlungen je Monat auf die NK-Vorauszahlung angerechnet (Teilzahlungen ab Mietjahr 2025 anteilig), der Rest ist Kaltmiete" +
         (st.kautionMitMiete !== 0 ? `; darin ${formatEuro(st.kautionMitMiete)} mit Kaution verrechnet` : ""),
     },
     ...(st.umsatzsteuer !== 0
@@ -1119,9 +1119,11 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             umlagefähig. Eine weitere Gliederung der laufenden Betriebskosten ist nicht nötig.
           </p>
           <p>
-            Mieten und Nebenkosten: Jede Mietzahlung wird je Mietmonat zuerst auf die NK-Vorauszahlung
-            angerechnet (höchstens das NK-Soll, § 366 Abs. 2 BGB — wie in der Nebenkostenabrechnung), der Rest
-            ist Kaltmiete (z.B. 380 € bei 280 € NK = 280 € Nebenkosten + 100 € Kaltmiete). Maßgeblich für den
+            Mieten und Nebenkosten: Jede Mietzahlung wird je Mietmonat auf die NK-Vorauszahlung angerechnet
+            (höchstens das NK-Soll, § 366 Abs. 2 BGB — wie in der Nebenkostenabrechnung), der Rest ist
+            Kaltmiete. Zahlt der Mieter weniger als das Soll, gilt ab Mietjahr 2025 die anteilige Aufteilung
+            (z.B. 380 € bei 340 € Kaltmiete + 280 € NK = 172 € Nebenkosten + 208 € Kaltmiete, NK-Anteil auf volle
+            Euro gerundet), bis 2024 zuerst die NK (280 € + 100 €). Maßgeblich für den
             Zeitraum ist das Zahlungsdatum, für die Aufteilung der Mietmonat. Ausgezahlte NK-Guthaben mindern
             die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie (wie Anlage V, Z. 13); im Bericht oben stehen
             sie dagegen als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.

@@ -253,7 +253,7 @@ export function NebenkostenAnsicht({
               </td>
               <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(daten.vorauszahlungGesamt)}</td>
               <td className="px-4 py-2 text-xs text-neutral-500">
-                tatsächlich gezahlt; je Monat zuerst auf die NK bis zum NK-Soll, Rest auf die Kaltmiete (§ 366 Abs. 2 BGB)
+                tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die NK, ab 2025 anteilig NK : Kaltmiete (§ 366 Abs. 2 BGB)
               </td>
             </tr>
             <tr className="border-t border-neutral-700 font-medium">
