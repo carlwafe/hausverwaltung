@@ -37,6 +37,8 @@ export type TabellenZeile = {
   kopf?: boolean;
   /** Zwischenüberschrift über die ganze Breite (nur zellen[0]), fett. */
   gruppe?: boolean;
+  /** Zwischensumme einer Gruppe: fett wie eine Summe, aber nur mit heller Trennlinie. */
+  zwischen?: boolean;
 };
 
 export type Baustein =
@@ -198,7 +200,7 @@ function tabelleItems(s: Schriften, b: Extract<Baustein, { art: "tabelle" }>): I
     const letzte = i === n - 1;
     const bleibtMitNaechster = !letzte && (!teilbar || i < 2 || i >= n - 3 || !!z.gruppe);
     const groesse = z.kopf ? 9.5 : GROESSE;
-    const fett = !!(z.summe || z.kopf || z.gruppe);
+    const fett = !!(z.summe || z.kopf || z.gruppe || z.zwischen);
     const farbe = z.kopf ? GRAU : SCHWARZ;
     const breitenZeile = z.gruppe ? [TEXTBREITE] : w;
     const einzug = (k: number) => (!z.gruppe && k > 0 && !rechts.has(k) ? EINZUG_LINKS : 0);

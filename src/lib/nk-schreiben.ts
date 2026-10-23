@@ -175,10 +175,16 @@ export function baueNkSchreiben(d: NkSchreibenDaten): SchreibenInhalt {
   });
   const kostenZeilen: TabellenZeile[] = [{ zellen: ["Kostenart", "Gesamtkosten", "Verteilung", "Ihr Anteil"], kopf: true }];
   const mitGruppen = kalt.length > 0 && warm.length > 0;
+  // Zwischensumme je Gruppe aus den gerundeten Zeilen (wie die Tabelle sie zeigt), damit sie nachrechenbar bleibt.
+  const zwischensumme = (gruppe: NkSchreibenDetail[]): TabellenZeile[] => [
+    { zellen: ["Zwischensumme", "", "", euro(rund2(gruppe.reduce((sum, x) => sum + rund2(x.anteilZeitraum), 0)))], zwischen: true },
+  ];
   if (mitGruppen) kostenZeilen.push({ zellen: ["Kalte Betriebskosten"], gruppe: true });
   kostenZeilen.push(...kalt.map(zeile));
+  if (mitGruppen) kostenZeilen.push(...zwischensumme(kalt));
   if (mitGruppen) kostenZeilen.push({ zellen: ["Heiz- und Warmwasserkosten"], gruppe: true });
   kostenZeilen.push(...warm.map(zeile));
+  if (mitGruppen) kostenZeilen.push(...zwischensumme(warm));
   const summeZeilen = rund2(d.details.reduce((s, x) => s + rund2(x.anteilZeitraum), 0));
   kostenZeilen.push({ zellen: ["Summe Ihr Anteil", "", "", euro(d.kostenanteil)], summe: true });
 
