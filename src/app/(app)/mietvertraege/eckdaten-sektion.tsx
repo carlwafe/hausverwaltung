@@ -48,6 +48,7 @@ export function EckdatenSektion({
   saldovortragText,
   eigenerStichtagText,
   zahlungsweg,
+  notiz = null,
   zahlungswegHinweis = null,
   mandat = null,
   kaution,
@@ -67,6 +68,8 @@ export function EckdatenSektion({
   // Eigener Buchhaltungs-Stichtag des Vertrags (formatiert), nur wenn er vom Objekt abweicht.
   eigenerStichtagText: string | null;
   zahlungsweg: string | null;
+  // Interne Notiz des Vertrags (Freitext), null/leer = keine.
+  notiz?: string | null;
   // Vorgeschlagener Zahlungsweg laut jüngsten Zahlungen, wenn er vom erfassten abweicht (Warnung), sonst null.
   zahlungswegHinweis?: string | null;
   // SEPA-Mandat des Vertrags (alle Werte bereits formatiert); null = nichts erfasst.
@@ -113,6 +116,12 @@ export function EckdatenSektion({
             </>
           )}
         </div>
+        {notiz && (
+          <div className="mt-3">
+            <p className="text-xs text-neutral-400">Notiz</p>
+            <p className="mt-0.5 whitespace-pre-wrap text-sm text-white">{notiz}</p>
+          </div>
+        )}
         {zahlungswegHinweis && (
           <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
             <span>

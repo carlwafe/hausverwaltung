@@ -46,6 +46,7 @@ const mietvertragSchema = z
     mandatDatum: optionalesDatum(),
     mandatKontoinhaber: z.string().trim().max(70, "Kontoinhaber: höchstens 70 Zeichen").optional(),
     mandatIban: z.string().optional(),
+    notiz: z.string().trim().max(MAX_MIETVERTRAG_NOTIZ, `Notiz: höchstens ${MAX_MIETVERTRAG_NOTIZ} Zeichen`).optional(),
   })
   .refine((d) => !d.mieterId2 || d.mieterId2 !== d.mieterId1, {
     message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
@@ -83,6 +84,7 @@ async function parseForm(formData: FormData) {
     mandatDatum: formData.get("mandatDatum") || "",
     mandatKontoinhaber: formData.get("mandatKontoinhaber") || undefined,
     mandatIban: formData.get("mandatIban") || undefined,
+    notiz: formData.get("notiz") || undefined,
   });
 
   if (!parsed.success) {
@@ -153,6 +155,7 @@ export const createMietvertrag = mitMeldung(async function createMietvertrag(for
       buchhaltungAb: data.buchhaltungAb ?? null,
       zahlungsweg: data.zahlungsweg ?? null,
       ...mandatFelder(data),
+      notiz: data.notiz || null,
       ...(data.kautionBetrag !== undefined
         ? {
             kaution: {
@@ -204,6 +207,7 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
         buchhaltungAb: data.buchhaltungAb ?? null,
         zahlungsweg: data.zahlungsweg ?? null,
         ...mandatFelder(data),
+      notiz: data.notiz || null,
       },
     });
 
@@ -585,21 +589,4 @@ export const holeMandatAusKontoauszug = mitMeldung(async function holeMandatAusK
     kontoinhaber: m.kontoinhaber ?? "",
     einzugAm: m.einzugAm.toISOString().slice(0, 10),
   };
-});
-
-// Interne Notiz am Mietvertrag (z.B. weitere Bewohner, die nicht im Vertrag stehen). Leer speichern entfernt sie.
-// Bewusst kein revalidatePath: Das Feld hält seinen Text selbst (die Vertragsseite ist rechenintensiv).
-export const speichereMietvertragNotiz = mitMeldung(async function speichereMietvertragNotiz(
-  id: string,
-  text: string,
-): Promise<string | null> {
-  await requireEditor();
-  const bereinigt = text.trim();
-  if (bereinigt.length > MAX_MIETVERTRAG_NOTIZ) {
-    throw new AktionsFehler(`Die Notiz darf höchstens ${MAX_MIETVERTRAG_NOTIZ} Zeichen lang sein.`);
-  }
-  const vertrag = await prisma.mietvertrag.findUnique({ where: { id }, select: { id: true } });
-  if (!vertrag) throw new AktionsFehler("Mietvertrag nicht gefunden.");
-  await prisma.mietvertrag.update({ where: { id }, data: { notiz: bereinigt || null } });
-  return null;
 });

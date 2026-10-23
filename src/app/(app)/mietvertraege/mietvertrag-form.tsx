@@ -5,6 +5,7 @@ import { runFormAction, type FormAktion } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { MietvertragAuswahl } from "@/components/mietvertrag-auswahl";
 import { holeMandatAusKontoauszug } from "./actions";
+import { MAX_MIETVERTRAG_NOTIZ } from "@/lib/mietvertrag-notiz";
 import { ZAHLUNGSWEG_LABEL, type ZahlungswegArt } from "@/lib/zahlungsweg-anzeige";
 
 type Option = { id: string; label: string };
@@ -34,6 +35,7 @@ type Initial = {
   mandatDatum?: string;
   mandatKontoinhaber?: string;
   mandatIban?: string;
+  notiz?: string;
 };
 
 // yyyy-mm-dd → dd.mm.yyyy für Hinweistexte.
@@ -96,6 +98,7 @@ export function MietvertragForm({
   const [mandatDatum, setMandatDatum] = useState(initial?.mandatDatum ?? "");
   const [mandatKontoinhaber, setMandatKontoinhaber] = useState(initial?.mandatKontoinhaber ?? "");
   const [mandatIban, setMandatIban] = useState(initial?.mandatIban ?? "");
+  const [notiz, setNotiz] = useState(initial?.notiz ?? "");
   const [mandatLaedt, setMandatLaedt] = useState(false);
   const [mandatMeldung, setMandatMeldung] = useState<{ text: string; fehler: boolean } | null>(null);
 
@@ -559,6 +562,25 @@ export function MietvertragForm({
           stattdessen als Einzahlung auf /kautionen buchen.
         </p>
       </fieldset>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="notiz">
+          Notiz (optional)
+        </label>
+        <textarea
+          id="notiz"
+          name="notiz"
+          value={notiz}
+          onChange={(e) => setNotiz(e.target.value)}
+          rows={3}
+          maxLength={MAX_MIETVERTRAG_NOTIZ}
+          className="w-full resize-y rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
+        <p className="mt-1 text-xs text-neutral-400">
+          Interner Freitext, z.B. weitere Bewohner, die nicht im Vertrag stehen. Wird in den Vertragsdaten angezeigt,
+          ändert aber nichts an Beträgen oder Berechnungen.
+        </p>
+      </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
