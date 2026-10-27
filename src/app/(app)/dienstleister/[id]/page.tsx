@@ -14,7 +14,7 @@ export default async function DienstleisterDetailPage({ params }: { params: Prom
   const [dienstleister, kostenarten] = await Promise.all([
     prisma.dienstleister.findUnique({
       where: { id },
-      include: { kostenarten: { select: { id: true } }, dokumente: true },
+      include: { kostenarten: { select: { id: true } }, dokumente: { where: { buchungId: null } } },
     }),
     ladeKostenartenOptionen(),
   ]);

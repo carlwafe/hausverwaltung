@@ -44,7 +44,8 @@ export default async function EinheitDetailPage({
       orderBy: { beginn: { sort: "desc", nulls: "last" } },
     }),
     prisma.dokument.findMany({
-      where: { einheitId: id },
+      // Kostenbelege (hängen an einer Kostenposition und tragen die Einheit nur als weiteren Bezug) sind keine Fotos.
+      where: { einheitId: id, buchungId: null },
       orderBy: { createdAt: "desc" },
       select: { id: true, dateiname: true },
     }),

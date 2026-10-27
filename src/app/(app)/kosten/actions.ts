@@ -13,6 +13,7 @@ import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { MAX_BELEG_AUSNAHME_GRUND, uebernehmeBelegAusnahme } from "@/lib/beleg-status";
 import { uebernehmeArbeitskosten } from "@/lib/arbeitskosten";
+import { ziehBelegBezuegeNach } from "@/lib/beleg-bezuege";
 
 async function ladeKostenpositionBuchungsartId(): Promise<string> {
   const art = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } });
@@ -180,6 +181,8 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
     // Belege gehören zur Position, nicht zur stornierten Fassung — auf die neue umhängen (sonst fehlen sie
     // an der aktiven Position und bleiben an der stornierten hängen).
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: neu.id } });
+    // Geänderte Einheit/Gebäude/Haus ziehen an den Belegen mit (nur wo sie noch den alten Wert tragen).
+    await ziehBelegBezuegeNach(tx, neu.id, bisherige, neu);
     await uebernehmeBelegAusnahme(tx, id, neu.id);
     await uebernehmeArbeitskosten(tx, id, neu.id);
   });

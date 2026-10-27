@@ -18,6 +18,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
 import { ladeBezugOptionen } from "@/lib/dokumente-uebersicht";
+import { ladeBelegBezuege } from "@/lib/beleg-bezuege";
 import { ladeBuchungAuswahl, ladeBuchungVorschlaege, labelsMitErkennung, type DokumentLabels } from "@/lib/dokument-zuordnung";
 
 type UploadZiel =
@@ -192,9 +193,13 @@ async function legeDokumenteAn(ziel: UploadZiel, formData: FormData): Promise<{ 
   const belegDatum = parseBelegDatum(formData.get("belegDatum"));
   // Optionale Dokumentart (leer = nicht angegeben), gilt für alle Dateien dieses Uploads.
   const artWert = formData.get("art");
-  const art = istGueltigeArt(artWert) ? artWert : null;
+  // Beleg an einer Kostenposition: ohne Angabe „Rechnung“ vorbelegt (auf /dokumente/[id] änderbar, z.B. Bescheid).
+  const art = istGueltigeArt(artWert) ? artWert : "buchungId" in ziel ? "RECHNUNG" : null;
   // Optionaler Titel (z.B. beim Upload eines Vertrags), gilt für alle Dateien dieses Uploads.
   const titel = textFeld(formData.get("titel"), 200);
+  // Beleg an einer Kostenposition übernimmt deren Einheit/Gebäude/Haus/Dienstleister als weitere Bezüge, damit er auch
+  // in diesen Ordnern der Ablage steht (die Kostenposition selbst bleibt der feste Nachweis).
+  const belegBezuege = "buchungId" in ziel ? await ladeBelegBezuege(ziel.buchungId) : null;
 
   // Erkennung beim Hochladen mit gesetztem Häkchen: zuerst die Regeln (lokal, ohne Datenversand); was sie nicht sicher
   // erkennen, bleibt „nicht erkannt“ und lässt sich per KI-Prüfung nachholen. Mieterunterlagen (Vertrag, Schreiben,
@@ -220,9 +225,10 @@ async function legeDokumenteAn(ziel: UploadZiel, formData: FormData): Promise<{ 
         groesseBytes: file.size,
         buchungId: "buchungId" in ziel ? ziel.buchungId : undefined,
         mietvertragId: "mietvertragId" in ziel ? ziel.mietvertragId : undefined,
-        einheitId: "einheitId" in ziel ? ziel.einheitId : undefined,
-        gebaeudeId: "gebaeudeId" in ziel ? ziel.gebaeudeId : undefined,
-        dienstleisterId: "dienstleisterId" in ziel ? ziel.dienstleisterId : undefined,
+        einheitId: "einheitId" in ziel ? ziel.einheitId : (belegBezuege?.einheitId ?? undefined),
+        gebaeudeId: "gebaeudeId" in ziel ? ziel.gebaeudeId : (belegBezuege?.gebaeudeId ?? undefined),
+        hausId: belegBezuege?.hausId ?? undefined,
+        dienstleisterId: "dienstleisterId" in ziel ? ziel.dienstleisterId : (belegBezuege?.dienstleisterId ?? undefined),
         ticketId: "ticketId" in ziel ? ziel.ticketId : undefined,
         ordner: "ordner" in ziel ? ziel.ordner : undefined,
         eingang: "eingang" in ziel ? true : undefined,
