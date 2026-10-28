@@ -17,7 +17,6 @@ import {
   loescheMietnachlass,
 } from "../../actions";
 import { mieterName, mieterNameNachnameZuerst } from "@/lib/mieter-name";
-import { ladeMieterIdsMitWohnung } from "@/lib/mieter-mit-wohnung";
 import { ermittleZahlungsweg } from "@/lib/zahlungsweg-ableiten";
 
 function formatEuro(value: number) {
@@ -41,7 +40,7 @@ export default async function MietvertragBearbeitenPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [vertrag, einheitenRaw, mieter, objekt, mieterMitWohnung, zahlungswegVorschlag] = await Promise.all([
+  const [vertrag, einheitenRaw, mieter, objekt, zahlungswegVorschlag] = await Promise.all([
     prisma.mietvertrag.findUnique({
       where: { id },
       include: {
@@ -55,7 +54,6 @@ export default async function MietvertragBearbeitenPage({
     prisma.einheit.findMany({ include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } }),
     prisma.mieter.findMany({ orderBy: { nachname: "asc" } }),
     prisma.objekt.findFirst({ select: { buchhaltungAb: true } }),
-    ladeMieterIdsMitWohnung(),
     ermittleZahlungsweg(id),
   ]);
   if (!vertrag) notFound();
@@ -121,7 +119,6 @@ export default async function MietvertragBearbeitenPage({
           notiz: vertrag.notiz ?? "",
         }}
         objektStichtag={toDateInputValue(objekt?.buchhaltungAb)}
-        mieterMitWohnung={mieterMitWohnung}
         zahlungswegVorschlag={vertrag.zahlungswegHinweis ?? zahlungswegVorschlag ?? ""}
         mietvertragId={id}
         action={updateMietvertrag.bind(null, id)}
