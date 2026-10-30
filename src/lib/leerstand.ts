@@ -27,6 +27,9 @@ export type LeerstandAbbuchung = {
   // Die Buchung hängt nur am Gebäude, nicht an der Wohnung; sie wurde dem einzigen passenden
   // Leerstandszeitraum des Gebäudes zugerechnet.
   nurGebaeude: boolean;
+  // Die Buchung liegt vor dem Beginn des Leerstandszeitraums laut Mietvertrag (Wohnung war dann
+  // noch vermietet) — Hinweis auf Widerspruch zwischen Buchungstext und Vertragsdaten.
+  vorBeginn: boolean;
 };
 
 export type LeerstandPeriode = {
@@ -187,6 +190,7 @@ export async function ladeLeerstand(heute = new Date()): Promise<LeerstandDaten>
       verwendungszweck: z.verwendungszweck,
       kundennummer: kundennummerAus(z.verwendungszweck),
       nurGebaeude,
+      vorBeginn: !!p.von && z.datum < new Date(p.von),
     });
   };
 

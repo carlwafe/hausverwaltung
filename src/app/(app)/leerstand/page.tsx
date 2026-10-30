@@ -53,6 +53,11 @@ function Abbuchungen({ liste, summe }: { liste: LeerstandAbbuchung[]; summe: num
               <td className="whitespace-nowrap py-1.5 pr-4 font-mono">{a.kundennummer ?? "–"}</td>
               <td className="py-1.5 pr-4 text-neutral-400">
                 {a.verwendungszweck}
+                {a.vorBeginn && (
+                  <span className="ml-2 rounded border border-neutral-700 px-1 text-xs text-amber-400">
+                    vor Leerstandsbeginn
+                  </span>
+                )}
                 {a.nurGebaeude && (
                   <span className="ml-2 rounded border border-neutral-700 px-1 text-xs text-amber-400">
                     nur dem Gebäude zugeordnet
@@ -193,6 +198,18 @@ export default async function LeerstandPage({ searchParams }: { searchParams: Pr
                   <span className="text-neutral-500">keine Buchung gefunden</span>
                 )}
               </p>
+
+              {p.kundennummern.length > 1 && (
+                <p className="mt-1 text-xs text-amber-400">
+                  Mehrere Kundennummern in diesem Zeitraum (z.B. Vertragswechsel bei den Stadtwerken) — bitte prüfen.
+                </p>
+              )}
+              {p.abbuchungen.some((a) => a.vorBeginn) && (
+                <p className="mt-1 text-xs text-amber-400">
+                  Einzelne Buchungen liegen vor dem Leerstandsbeginn laut Mietvertrag — entweder stand die Wohnung
+                  schon früher leer (Vertragsende prüfen) oder die Zuordnung der Buchung stimmt nicht.
+                </p>
+              )}
 
               {p.abbuchungen.length > 0 && <Abbuchungen liste={p.abbuchungen} summe={p.summe} />}
             </section>
