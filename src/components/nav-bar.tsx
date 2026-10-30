@@ -16,6 +16,7 @@ const STAMMDATEN: NavLink[] = [
   { href: "/mietvertraege/lastschrift-mandate", label: "Lastschrift-Mandate" },
   { href: "/einheiten", label: "Einheiten" },
   { href: "/einheiten/zeitachse", label: "Zeitachse" },
+  { href: "/leerstand", label: "Leerstand" },
   { href: "/gebaeude", label: "Gebäude" },
   { href: "/darlehen/tilgungsplan", label: "Darlehen & Tilgungspläne" },
   { href: "/buchungsarten", label: "Buchungsarten" },
