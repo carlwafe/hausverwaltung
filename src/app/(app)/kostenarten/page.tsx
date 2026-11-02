@@ -41,10 +41,11 @@ export default async function KostenartenPage() {
             &bdquo;kein Verteilerschlüssel&ldquo; in der Abrechnung ist dann erwartet.
           </p>
           <p className="mt-1 max-w-2xl text-xs text-neutral-500">
-            &bdquo;Winterdienst&ldquo; ist nicht umlagefähig angelegt. Die Winterdienst-Rechnung 11/2025
-            (535,50 €) kam so vom Vorverwalter und blieb in der Nebenkostenabrechnung 2025 bewusst
-            unberücksichtigt (Abrechnung abgeschlossen, Änderung lohnt nicht); die Rechnung 12/2025
-            steht dagegen unter &bdquo;Hauswart&ldquo; und ist enthalten.
+            &bdquo;Winterdienst&ldquo; nicht mehr verwenden: Immo-Runner-Rechnungen (Hausmeister,
+            Treppenhaus, Garten, Winterdienst) werden einheitlich unter &bdquo;Hauswart&ldquo; gebucht,
+            auch eine separate Winterdienst-Zeile. Die Kostenart bleibt nur wegen der Buchung
+            11/2025 (535,50 €) bestehen, die so vom Vorverwalter kam und in der Nebenkostenabrechnung
+            2025 unberücksichtigt blieb (Abrechnung abgeschlossen).
           </p>
         </div>
         <Link

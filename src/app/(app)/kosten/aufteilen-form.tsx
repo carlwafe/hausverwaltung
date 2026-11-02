@@ -92,8 +92,9 @@ export function AufteilenForm({
         Buchung ({betragGesamt.toFixed(2)} €) auf mehrere Kostenarten aufteilen
       </p>
       <p className="mb-3 text-xs text-neutral-500">
-        Ersetzt diese Position durch die unten angegebenen — z.B. eine Hausmeister-Rechnung, die
-        sowohl umlagefähigen Hausmeisterdienst als auch nicht umlagefähigen Winterdienst enthält.
+        Ersetzt diese Position durch die unten angegebenen — z.B. eine Rechnung, die Kosten
+        verschiedener Kostenarten oder Gebäude enthält. Hausmeister-Rechnungen mit Winterdienst
+        werden nicht aufgeteilt, sondern komplett als Hauswart gebucht.
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Stadtwerke Wasser/Abwasser: Der Kontoauszug zeigt pro Haus nur den Saldo aus Schlussrechnung
