@@ -260,17 +260,18 @@ export function fuegeSchreibenHinzu(doc: PDFDocument, s: Schriften, c: Schreiben
     ...(c.kontakt?.telefon ? ([["Telefon", c.kontakt.telefon]] as [string, string][]) : []),
   ];
   const absenderZeile = sicher(s, c.absenderZeile);
+  // Lange Namen (Firmen) brechen in der linken Spalte um, damit sie nicht in den Informationsblock laufen.
+  const empfaengerZeilen = c.empfaenger.flatMap((t) => umbrechen(s, laeufe(s, t), GROESSE, spalteLinks - 12));
   items.push({
     before: 0,
-    h: Math.max(mm(34), 8.04 + 6 + c.empfaenger.length * ZEILE),
+    h: Math.max(mm(34), 8.04 + 6 + empfaengerZeilen.length * ZEILE),
     after: 26, // Betreff beginnt 26 pt darunter
     keepNext: true,
     draw: (seite, oben) => {
       seite.drawText(absenderZeile, { x: RAND_LI, y: oben - 8.04 + 7 * DESCENT, size: 7, font: s.normal, color: GRAU });
       const ub = s.normal.widthOfTextAtSize(absenderZeile, 7);
       seite.drawLine({ start: { x: RAND_LI, y: oben - 8.04 + 7 * DESCENT - 1 }, end: { x: RAND_LI + ub, y: oben - 8.04 + 7 * DESCENT - 1 }, thickness: 0.4, color: GRAU });
-      c.empfaenger.forEach((t, i) => {
-        const z = umbrechen(s, laeufe(s, t), GROESSE, TEXTBREITE)[0];
+      empfaengerZeilen.forEach((z, i) => {
         zeichneZeile(s, seite, z, RAND_LI, oben - (8.04 + 6) - (i + 1) * ZEILE + GROESSE * DESCENT, GROESSE);
       });
       info.forEach(([etikett, wert], i) => {
