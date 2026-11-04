@@ -659,6 +659,98 @@ export const ersetzeBezug = mitMeldung(async function ersetzeBezug(id: string, z
   return null;
 });
 
+// Ein Beleg für mehrere Kostenpositionen (z.B. Jahresrechnung Allgemeinstrom für zwölf Abschläge): Dokument.buchungId bleibt
+// die Hauptposition, die weiteren Positionen stehen in DokumentBuchung (siehe Schema). Reine Verknüpfung, deshalb jederzeit lösbar.
+export type WeitereKostenKandidat = { id: string; label: string; hatBeleg: boolean };
+
+const euroFormat = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+
+/**
+ * Kandidaten für „weitere Kostenpositionen“: aktive Kostenpositionen mit derselben Kostenart und demselben Kostenjahr wie die
+ * Hauptposition (mit `alleKostenarten` jede Kostenart des Jahres), ohne die Hauptposition und ohne die schon zugeordneten.
+ * Erst beim Öffnen nachgeladen (Vercel-CPU).
+ */
+export async function ladeWeitereKostenKandidaten(dokumentId: string, alleKostenarten: boolean): Promise<WeitereKostenKandidat[] | null> {
+  await requireEditor();
+  const d = await prisma.dokument.findUnique({
+    where: { id: dokumentId },
+    select: { buchungId: true, buchung: { select: { kostenartId: true, jahr: true, datum: true } }, weitereBuchungen: { select: { buchungId: true } } },
+  });
+  if (!d?.buchungId || !d.buchung) return null;
+  const jahr = d.buchung.jahr ?? d.buchung.datum?.getUTCFullYear() ?? null;
+  const ausschliessen = [d.buchungId, ...d.weitereBuchungen.map((w) => w.buchungId)];
+  const liste = await prisma.buchung.findMany({
+    where: {
+      buchungsart: { code: "KOSTENPOSITION" },
+      ...AKTIVE_BUCHUNG_FILTER,
+      id: { notIn: ausschliessen },
+      ...(alleKostenarten || !d.buchung.kostenartId ? {} : { kostenartId: d.buchung.kostenartId }),
+      ...(jahr === null
+        ? {}
+        : { OR: [{ jahr }, { jahr: null, datum: { gte: new Date(Date.UTC(jahr, 0, 1)), lt: new Date(Date.UTC(jahr + 1, 0, 1)) } }] }),
+    },
+    orderBy: [{ datum: "asc" }, { id: "asc" }],
+    take: 300,
+    select: {
+      id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true,
+      kostenart: { select: { name: true } },
+      _count: { select: { dokumente: { where: { ausgeblendetAm: null } } } },
+    },
+  });
+  return liste.map((k) => ({
+    id: k.id,
+    label: [
+      k.datum ? k.datum.toISOString().slice(0, 10).split("-").reverse().join(".") : "ohne Datum",
+      k.empfaenger ?? "–",
+      ...(alleKostenarten ? [k.kostenart?.name ?? "–"] : []),
+      euroFormat.format(Number(k.betrag)),
+      ...(k.verwendungszweck ? [k.verwendungszweck.length > 50 ? `${k.verwendungszweck.slice(0, 50)}…` : k.verwendungszweck] : []),
+    ].join(" · "),
+    hatBeleg: k._count.dokumente > 0,
+  }));
+}
+
+function revalidiereWeitereKosten(dokumentId: string, buchungIds: string[]) {
+  revalidatePath(`/dokumente/${dokumentId}`);
+  revalidatePath("/dokumente");
+  for (const b of buchungIds) revalidatePath(`/kosten/${b}`);
+}
+
+export const ordneWeitereKostenpositionen = mitMeldung(async function ordneWeitereKostenpositionen(
+  dokumentId: string,
+  buchungIds: string[],
+): Promise<string | null> {
+  const user = await requireEditor();
+  const ids = [...new Set(buchungIds)];
+  if (ids.length === 0) throw new AktionsFehler("Bitte mindestens eine Kostenposition wählen.");
+  if (ids.length > 300) throw new AktionsFehler("Bitte höchstens 300 Kostenpositionen auf einmal zuordnen.");
+  const d = await prisma.dokument.findUnique({ where: { id: dokumentId }, select: { buchungId: true } });
+  if (!d) throw new AktionsFehler("Das Dokument existiert nicht mehr.");
+  if (!d.buchungId) throw new AktionsFehler("Das Dokument gehört noch zu keiner Kostenposition — zuerst die Hauptposition als Bezug setzen.");
+  if (ids.includes(d.buchungId)) throw new AktionsFehler("Die Hauptposition des Belegs ist schon zugeordnet.");
+  const gueltig = await prisma.buchung.findMany({
+    where: { id: { in: ids }, buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER },
+    select: { id: true },
+  });
+  if (gueltig.length !== ids.length) throw new AktionsFehler("Mindestens eine Kostenposition existiert nicht mehr oder ist storniert.");
+  await prisma.dokumentBuchung.createMany({
+    data: ids.map((buchungId) => ({ dokumentId, buchungId, erstelltVon: benutzerLabel(user) })),
+    skipDuplicates: true,
+  });
+  revalidiereWeitereKosten(dokumentId, ids);
+  return null;
+});
+
+export const loeseWeitereKostenposition = mitMeldung(async function loeseWeitereKostenposition(
+  dokumentId: string,
+  buchungId: string,
+): Promise<string | null> {
+  await requireEditor();
+  await prisma.dokumentBuchung.deleteMany({ where: { dokumentId, buchungId } });
+  revalidiereWeitereKosten(dokumentId, [buchungId]);
+  return null;
+});
+
 // Legt ein Dokument aus dem Eingang ab, auch ohne Bezug (z.B. Versicherungspolice); der optionale Ordnername gilt nur ohne Bezug.
 export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: string, ordner: string): Promise<string | null> {
   await requireEditor();

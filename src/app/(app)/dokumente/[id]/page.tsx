@@ -17,7 +17,7 @@ import {
 } from "@/lib/dokument-zuordnung";
 import { istErkennbar, type ErkennungErgebnis } from "@/lib/dokument-erkennung";
 import type { ZuordnungsZiel } from "../actions";
-import { AufteilenPanel, BezuegePanel, ErkennenBereich, LabelsForm, type AktuellerBezug, type LabelWerte, type Vorschlag } from "./dokument-formulare";
+import { AufteilenPanel, BezuegePanel, ErkennenBereich, LabelsForm, WeitereKostenBox, type AktuellerBezug, type LabelWerte, type Vorschlag } from "./dokument-formulare";
 
 // Die Texterkennung läuft in einer Server-Aktion dieser Seite (Claude liest das PDF).
 export const maxDuration = 60;
@@ -81,6 +81,22 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
     entfernbar: b.typ !== "kosten",
   }));
   const hat = (z: ZuordnungsZiel) => bezuege.some((b) => b.ziel === z);
+
+  // Weitere Kostenpositionen, für die dieses Dokument ebenfalls der Beleg ist (nur mit Hauptposition sinnvoll).
+  const weitereKosten = hat("buchung")
+    ? (
+        await prisma.dokumentBuchung.findMany({
+          where: { dokumentId: id },
+          select: { buchungId: true, buchung: { select: { datum: true, betrag: true, empfaenger: true, kostenart: { select: { name: true } } } } },
+        })
+      )
+        .map((w) => ({
+          buchungId: w.buchungId,
+          datum: w.buchung.datum,
+          label: `${w.buchung.datum ? formatDate(w.buchung.datum) : "ohne Datum"} · ${w.buchung.empfaenger ?? "–"} · ${w.buchung.kostenart?.name ?? "–"} · ${formatEuro(Number(w.buchung.betrag))}`,
+        }))
+        .sort((a, b) => (a.datum?.getTime() ?? 0) - (b.datum?.getTime() ?? 0))
+    : [];
 
   // Vorschläge nur für Bezüge, die noch fehlen, und nur für Bearbeiter. Kostenpositionen brauchen Betrag, Rechnungsnummer
   // oder Aussteller als Anhaltspunkt.
@@ -229,6 +245,9 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
                 </ul>
               )}
             </div>
+          )}
+          {hat("buchung") && (weitereKosten.length > 0 || kannBearbeiten) && (
+            <WeitereKostenBox id={id} zeilen={weitereKosten.map(({ buchungId, label }) => ({ buchungId, label }))} bearbeitbar={kannBearbeiten} />
           )}
           <LabelsForm
             key={`${dokument.erkanntAm?.toISOString() ?? ""}-${JSON.stringify(werte)}`}

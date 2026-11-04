@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { DateInput } from "@/components/date-input";
 import { useActionState, useState, useTransition } from "react";
 import { DeleteButton } from "./delete-button";
-import { aendereBelegDatum, blendeDokumentAus, deleteDokument, stelleDokumentWiederHer } from "@/app/(app)/dokumente/actions";
+import { aendereBelegDatum, blendeDokumentAus, deleteDokument, loeseWeitereKostenposition, stelleDokumentWiederHer } from "@/app/(app)/dokumente/actions";
 import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
 import { GroessenFehler } from "@/components/groessen-fehler";
@@ -18,6 +19,10 @@ export type BelegRow = {
   // Nur Kostenbelege (Löschsperre): wann/von wem ausgeblendet.
   ausgeblendetAm?: Date | null;
   ausgeblendetVon?: string | null;
+  /** Kostenbeleg, der Hauptbeleg weiterer Kostenpositionen ist (Anzahl der weiteren Positionen). */
+  weitere?: number;
+  /** Gemeinsamer Beleg: hängt an einer anderen Hauptposition und deckt diese Position mit ab. */
+  mitbenutzt?: boolean;
 };
 
 const zuInputWert = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
@@ -67,7 +72,10 @@ export function BelegeSektion({
   leerText = "Noch keine Belege hochgeladen.",
   maxBytes = MAX_DATEIGROESSE_BYTES,
   kostenbeleg = false,
+  mitbenutztBuchungId,
 }: {
+  /** Kostenposition, an der die gemeinsamen Belege (`mitbenutzt`) hängen — zum Lösen der Zuordnung. */
+  mitbenutztBuchungId?: string;
   /** Kostenbelege (Nachweis für Finanzamt/Nebenkostenabrechnung) lassen sich nicht löschen, nur ausblenden. */
   kostenbeleg?: boolean;
   maxBytes?: number;
@@ -125,6 +133,16 @@ export function BelegeSektion({
                   >
                     {d.dateiname}
                   </a>
+                  {d.mitbenutzt && (
+                    <Link href={`/dokumente/${d.id}`} prefetch={false} className="block text-xs text-neutral-400 underline hover:text-white">
+                      Gemeinsamer Beleg — gehört auch zu anderen Kostenpositionen
+                    </Link>
+                  )}
+                  {!d.mitbenutzt && !!d.weitere && (
+                    <Link href={`/dokumente/${d.id}`} prefetch={false} className="block text-xs text-neutral-400 underline hover:text-white">
+                      Gemeinsamer Beleg — auch Beleg für {d.weitere} weitere Kostenposition{d.weitere === 1 ? "" : "en"}
+                    </Link>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <BelegDatumFeld id={d.id} wert={d.belegDatum} revalidatePath={revalidatePath} />
@@ -134,10 +152,22 @@ export function BelegeSektion({
                   {formatBytes(d.groesseBytes)}
                 </td>
                 <td className="py-2 pl-3 text-right">
-                  {kostenbeleg ? (
+                  {d.mitbenutzt && mitbenutztBuchungId ? (
+                    <AktionsKnopf
+                      action={async () => {
+                        await loeseWeitereKostenposition(d.id, mitbenutztBuchungId);
+                      }}
+                      confirmText="Zuordnung lösen? Der Beleg bleibt bei den anderen Kostenpositionen; diese Position steht dann ohne Beleg da."
+                      label="Zuordnung lösen"
+                    />
+                  ) : kostenbeleg ? (
                     <AktionsKnopf
                       action={blendeDokumentAus.bind(null, d.id, revalidatePath)}
-                      confirmText="Beleg ausblenden? Er wird nicht gelöscht und lässt sich hier wiederherstellen."
+                      confirmText={
+                        d.weitere
+                          ? `Beleg ausblenden? Er ist auch der Beleg für ${d.weitere} weitere Kostenposition${d.weitere === 1 ? "" : "en"}, die dann ohne Beleg dastehen. Er lässt sich hier wiederherstellen.`
+                          : "Beleg ausblenden? Er wird nicht gelöscht und lässt sich hier wiederherstellen."
+                      }
                       label="Ausblenden"
                     />
                   ) : (

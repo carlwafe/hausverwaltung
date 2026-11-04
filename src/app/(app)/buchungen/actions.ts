@@ -8,7 +8,7 @@ import { requireEditor, benutzerLabel } from "@/lib/session";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { storniereBuchung } from "@/lib/buchung-storno";
 import { MAX_BUCHUNG_KOMMENTAR, uebernehmeBuchungKommentar } from "@/lib/buchung-kommentar";
-import { uebernehmeBelegAusnahme } from "@/lib/beleg-status";
+import { uebernehmeBelegAusnahme, verlegeMitbenutzteBelege } from "@/lib/beleg-status";
 import { uebernehmeArbeitskosten } from "@/lib/arbeitskosten";
 import { ermittleBuchungsartGruppe } from "@/lib/import/buchung-klassifizierung";
 
@@ -83,6 +83,7 @@ export const aendereBuchungsart = mitMeldung(async function aendereBuchungsart(
     });
     // Belege gehören zur Buchung, nicht zum Journal — sie ziehen auf die neue Buchung um.
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: angelegt.id } });
+    await verlegeMitbenutzteBelege(tx, [id], angelegt.id);
     await uebernehmeBuchungKommentar(tx, id, angelegt.id);
     await uebernehmeBelegAusnahme(tx, id, angelegt.id);
     await uebernehmeArbeitskosten(tx, id, angelegt.id);

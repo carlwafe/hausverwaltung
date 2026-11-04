@@ -40,7 +40,9 @@ export default async function KostenpositionDetailPage({
         haus: { include: { gebaeude: true } },
         kostengruppe: true,
         einheit: { include: { gebaeude: true } },
-        dokumente: { orderBy: { createdAt: "desc" } },
+        dokumente: { orderBy: { createdAt: "desc" }, include: { _count: { select: { weitereBuchungen: true } } } },
+        // Gemeinsame Belege: Dokumente, die an einer anderen Hauptposition hängen und diese Position mit abdecken.
+        mitbenutzteBelege: { include: { dokument: true } },
       },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),
@@ -110,7 +112,11 @@ export default async function KostenpositionDetailPage({
     prisma.buchungArbeitskosten.findUnique({ where: { buchungId: id } }),
   ]);
   const belegStatus = belegStatusMap.get(id) ?? "ENTFAELLT";
-  const eigeneBelege = kostenposition.dokumente.filter((d) => !d.ausgeblendetAm).length;
+  const belegZeilen = [
+    ...kostenposition.dokumente.map(({ _count, ...d }) => ({ ...d, weitere: _count.weitereBuchungen })),
+    ...kostenposition.mitbenutzteBelege.map((m) => ({ ...m.dokument, mitbenutzt: true })),
+  ];
+  const eigeneBelege = belegZeilen.filter((d) => !d.ausgeblendetAm).length;
 
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
   const gebaeudeLabel = gebaeudeOderHausLabel(
@@ -228,7 +234,8 @@ export default async function KostenpositionDetailPage({
 
       <div className="mt-6">
         <BelegeSektion
-          dokumente={kostenposition.dokumente}
+          dokumente={belegZeilen}
+          mitbenutztBuchungId={id}
           uploadAction={uploadDokument.bind(null, {
             buchungId: id,
             revalidatePath: `/kosten/${id}`,

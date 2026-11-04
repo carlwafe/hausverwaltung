@@ -11,7 +11,7 @@ import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
-import { MAX_BELEG_AUSNAHME_GRUND, uebernehmeBelegAusnahme } from "@/lib/beleg-status";
+import { MAX_BELEG_AUSNAHME_GRUND, uebernehmeBelegAusnahme, verlegeMitbenutzteBelege } from "@/lib/beleg-status";
 import { uebernehmeArbeitskosten } from "@/lib/arbeitskosten";
 import { ziehBelegBezuegeNach } from "@/lib/beleg-bezuege";
 
@@ -181,6 +181,7 @@ export const updateKostenposition = mitMeldung(async function updateKostenpositi
     // Belege gehören zur Position, nicht zur stornierten Fassung — auf die neue umhängen (sonst fehlen sie
     // an der aktiven Position und bleiben an der stornierten hängen).
     await tx.dokument.updateMany({ where: { buchungId: id }, data: { buchungId: neu.id } });
+    await verlegeMitbenutzteBelege(tx, [id], neu.id);
     // Geänderte Einheit/Gebäude/Haus ziehen an den Belegen mit (nur wo sie noch den alten Wert tragen).
     await ziehBelegBezuegeNach(tx, neu.id, bisherige, neu);
     await uebernehmeBelegAusnahme(tx, id, neu.id);
@@ -298,6 +299,7 @@ export const teileKostenpositionAuf = mitMeldung(async function teileKostenposit
       where: { buchungId: id },
       data: { buchungId: neuePositionen[0].id },
     });
+    await verlegeMitbenutzteBelege(tx, [id], neuePositionen[0].id);
     await uebernehmeBelegAusnahme(tx, id, neuePositionen.map((p) => p.id));
     await uebernehmeArbeitskosten(tx, id, neuePositionen.map((p) => p.id));
     await storniereBuchung(tx, id, erstelltVon);
@@ -373,6 +375,7 @@ export async function hebeAufteilungAuf(positionId: string) {
       where: { buchungId: { in: alleGruppenMitgliederIds } },
       data: { buchungId: neu.id },
     });
+    await verlegeMitbenutzteBelege(tx, alleGruppenMitgliederIds, neu.id);
     await uebernehmeArbeitskosten(tx, gruppe.map((t) => t.id), neu.id);
     for (const teil of gruppe) {
       await uebernehmeBelegAusnahme(tx, teil.id, neu.id);

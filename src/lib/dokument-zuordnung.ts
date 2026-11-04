@@ -312,7 +312,7 @@ export async function ladeBuchungVorschlaege(d: DokumentLabels, max = 8): Promis
       kostenart: { select: { name: true } },
       einheit: { select: { bezeichnung: true, gebaeude: { select: { hausnummer: true } } } },
       gebaeude: { select: { hausnummer: true } },
-      _count: { select: { dokumente: { where: { ausgeblendetAm: null } } } },
+      _count: { select: { dokumente: { where: { ausgeblendetAm: null } }, mitbenutzteBelege: { where: { dokument: { ausgeblendetAm: null } } } } },
     },
     take: 1500,
   });
@@ -350,7 +350,7 @@ export async function ladeBuchungVorschlaege(d: DokumentLabels, max = 8): Promis
       kostenart: k.kostenart?.name ?? "",
       verwendungszweck: k.verwendungszweck ?? "",
       betrag: Number(k.betrag),
-      belege: k._count.dokumente,
+      belege: k._count.dokumente + k._count.mitbenutzteBelege,
       bewertung,
     }));
 }

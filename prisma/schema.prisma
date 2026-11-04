@@ -208,6 +208,7 @@ model Buchung {
   belegAusnahme    BuchungBelegAusnahme?
   arbeitskosten    BuchungArbeitskosten?
   darlehenZuordnung DarlehenZuordnung?
+  mitbenutzteBelege DokumentBuchung[]
 
   @@index([mietvertragId, datum])
   @@index([buchungsartId])
@@ -232,6 +233,25 @@ model BuchungKommentar {
   aktualisiertAm DateTime @updatedAt
 
   @@map("buchung_kommentare")
+}
+
+// Ein Beleg für mehrere Kostenpositionen: Dokument.buchungId bleibt die Hauptposition (Löschsperre, Ablage), jede Zeile
+// hier ist eine weitere Position, die dasselbe Dokument als Beleg nutzt (z.B. Jahresrechnung Allgemeinstrom für zwölf
+// Abschläge). Eigene Tabelle statt Umbau von buchungId: bestehende Zuordnungen bleiben unberührt. Bearbeiten/Aufteilen/
+// Zusammenführen einer Position ziehen die Zeilen mit um (verlegeMitbenutzteBelege, src/lib/beleg-status.ts).
+model DokumentBuchung {
+  id         String   @id @default(cuid())
+  dokument   Dokument @relation(fields: [dokumentId], references: [id], onDelete: Cascade)
+  dokumentId String
+  buchung    Buchung  @relation(fields: [buchungId], references: [id], onDelete: Cascade)
+  buchungId  String
+  erstelltAm DateTime @default(now())
+  // Benutzerkennung (benutzerLabel) des Nutzers, der die Position zugeordnet hat.
+  erstelltVon String?
+
+  @@unique([dokumentId, buchungId])
+  @@index([buchungId])
+  @@map("dokument_buchungen")
 }
 
 // „Kein Beleg nötig“ für eine umlagefähige Kostenposition (Belegprüfung der Nebenkostenabrechnung, z.B. Pauschale oder
@@ -1134,6 +1154,8 @@ model Dokument {
   herkunft        Dokument?      @relation("Aufteilung", fields: [herkunftId], references: [id], onDelete: SetNull)
   herkunftId      String?
   teile           Dokument[]     @relation("Aufteilung")
+  // Weitere Kostenpositionen, für die dieses Dokument ebenfalls der Beleg ist (z.B. eine Jahresrechnung für zwölf Abschläge).
+  weitereBuchungen DokumentBuchung[]
   createdAt       DateTime       @default(now())
 
   @@map("dokumente")

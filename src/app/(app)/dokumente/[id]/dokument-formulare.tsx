@@ -11,8 +11,12 @@ import {
   erkenneDokument,
   erkenneDokumentRegeln,
   ladeBezugAuswahl,
+  ladeWeitereKostenKandidaten,
   legeDokumentAb,
+  loeseWeitereKostenposition,
   ordneDokumentZu,
+  ordneWeitereKostenpositionen,
+  type WeitereKostenKandidat,
   speichereDokumentLabels,
   teileDokumentAuf,
   verwerfeAufteilung,
@@ -692,6 +696,182 @@ export function BezuegePanel({
           </div>
         </div>
       )}
+      {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}
+    </div>
+  );
+}
+
+export type WeitereKostenZeile = { buchungId: string; label: string };
+
+// Ein Beleg für mehrere Kostenpositionen (z.B. Jahresrechnung Allgemeinstrom für zwölf Abschläge): die Hauptposition steht
+// oben bei den Bezügen, hier kommen weitere dazu. Kandidaten (gleiche Kostenart und gleiches Kostenjahr) werden erst beim
+// Öffnen nachgeladen.
+export function WeitereKostenBox({ id, zeilen, bearbeitbar }: { id: string; zeilen: WeitereKostenZeile[]; bearbeitbar: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [offen, setOffen] = useState(false);
+  const [alleArten, setAlleArten] = useState(false);
+  const [kandidaten, setKandidaten] = useState<WeitereKostenKandidat[] | null>(null);
+  const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set());
+  const [suche, setSuche] = useState("");
+
+  useEffect(() => {
+    if (!offen) return;
+    let aktiv = true;
+    ladeWeitereKostenKandidaten(id, alleArten).then(
+      (k) => {
+        if (aktiv) setKandidaten(k ?? []);
+      },
+      () => {
+        if (aktiv) setFehler("Die Kostenpositionen konnten nicht geladen werden.");
+      },
+    );
+    return () => {
+      aktiv = false;
+    };
+  }, [offen, alleArten, id]);
+
+  function fuehreAus(aktion: () => Promise<string | null>, danach?: () => void) {
+    setFehler(null);
+    startTransition(async () => {
+      const f = await aktion();
+      if (f) setFehler(f);
+      else danach?.();
+    });
+  }
+
+  const sichtbar = (kandidaten ?? []).filter((k) => k.label.toLowerCase().includes(suche.trim().toLowerCase()));
+  const alleSichtbarGewaehlt = sichtbar.length > 0 && sichtbar.every((k) => gewaehlt.has(k.id));
+
+  function schalte(idWert: string) {
+    setGewaehlt((alt) => {
+      const neu = new Set(alt);
+      if (neu.has(idWert)) neu.delete(idWert);
+      else neu.add(idWert);
+      return neu;
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-neutral-800 p-4">
+      <h2 className="mb-1 text-lg font-medium text-white">Weitere Kostenpositionen{zeilen.length > 0 ? ` (${zeilen.length})` : ""}</h2>
+      <p className="mb-3 text-xs text-neutral-500">
+        Dasselbe Dokument ist der Beleg für mehrere Kostenpositionen, z.B. eine Jahresrechnung für zwölf Abschläge. Diese Positionen gelten in der
+        Belegprüfung der Nebenkostenabrechnung als belegt und zeigen den Beleg auf ihrer Seite. Die Zuordnung lässt sich jederzeit lösen.
+      </p>
+      {zeilen.length > 0 && (
+        <ul className="mb-4 divide-y divide-neutral-800 rounded-md border border-neutral-800 text-sm">
+          {zeilen.map((z) => (
+            <li key={z.buchungId} className="flex items-center justify-between gap-3 px-3 py-2">
+              <Link href={`/kosten/${z.buchungId}`} prefetch={false} className="min-w-0 text-white [overflow-wrap:anywhere] hover:underline">
+                {z.label}
+              </Link>
+              {bearbeitbar && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    if (confirm(`Zuordnung zu „${z.label}“ lösen? Diese Position steht dann ohne Beleg da.`)) fuehreAus(() => loeseWeitereKostenposition(id, z.buchungId));
+                  }}
+                  className="shrink-0 rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-900 hover:text-white disabled:opacity-50"
+                >
+                  Lösen
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {bearbeitbar &&
+        (offen ? (
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <input
+                value={suche}
+                onChange={(e) => setSuche(e.target.value)}
+                placeholder="Suchen (Datum, Empfänger, Betrag…)"
+                className="h-[38px] w-72 max-w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white"
+              />
+              <label className="flex items-center gap-2 text-xs text-neutral-400">
+                <input type="checkbox" checked={alleArten} onChange={(e) => {
+                    setKandidaten(null);
+                    setAlleArten(e.target.checked);
+                  }} />
+                Auch andere Kostenarten des Jahres
+              </label>
+            </div>
+            {kandidaten === null ? (
+              <p className="text-sm text-neutral-500">Lädt…</p>
+            ) : kandidaten.length === 0 ? (
+              <p className="text-sm text-neutral-500">Keine weiteren Kostenpositionen mit gleicher Kostenart und gleichem Kostenjahr.</p>
+            ) : (
+              <>
+                <label className="mb-1 flex items-center gap-2 text-xs text-neutral-400">
+                  <input
+                    type="checkbox"
+                    checked={alleSichtbarGewaehlt}
+                    onChange={() =>
+                      setGewaehlt((alt) => {
+                        const neu = new Set(alt);
+                        for (const k of sichtbar) {
+                          if (alleSichtbarGewaehlt) neu.delete(k.id);
+                          else neu.add(k.id);
+                        }
+                        return neu;
+                      })
+                    }
+                  />
+                  Alle angezeigten wählen ({sichtbar.length})
+                </label>
+                <ul className="mb-3 max-h-80 divide-y divide-neutral-800 overflow-y-auto rounded-md border border-neutral-800 text-sm">
+                  {sichtbar.map((k) => (
+                    <li key={k.id}>
+                      <label className="flex cursor-pointer items-start gap-2 px-3 py-2 hover:bg-neutral-900">
+                        <input type="checkbox" checked={gewaehlt.has(k.id)} onChange={() => schalte(k.id)} className="mt-1" />
+                        <span className="min-w-0 text-white [overflow-wrap:anywhere]">
+                          {k.label}
+                          {k.hatBeleg && <span className="ml-2 text-xs text-amber-400">hat schon einen eigenen Beleg</span>}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={pending || gewaehlt.size === 0}
+                onClick={() =>
+                  fuehreAus(
+                    () => ordneWeitereKostenpositionen(id, [...gewaehlt]),
+                    () => {
+                      setGewaehlt(new Set());
+                      setOffen(false);
+                    },
+                  )
+                }
+                className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+              >
+                {gewaehlt.size > 0 ? `${gewaehlt.size} Position${gewaehlt.size === 1 ? "" : "en"} zuordnen` : "Zuordnen"}
+              </button>
+              <button type="button" onClick={() => setOffen(false)} className="text-sm text-neutral-400 hover:text-white">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setKandidaten(null);
+              setOffen(true);
+            }}
+            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          >
+            + Weitere Kostenpositionen zuordnen
+          </button>
+        ))}
       {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}
     </div>
   );

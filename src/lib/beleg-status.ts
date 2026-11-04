@@ -32,7 +32,7 @@ export function belegPflichtig(p: PflichtEingabe): boolean {
  */
 export async function ladeBelegStatus(
   positionen: (PflichtEingabe & { id: string; aufteilungGruppeId: string | null })[],
-  client: Pick<Prisma.TransactionClient, "buchung" | "dokument" | "buchungBelegAusnahme"> = prisma,
+  client: Pick<Prisma.TransactionClient, "buchung" | "dokument" | "dokumentBuchung" | "buchungBelegAusnahme"> = prisma,
 ): Promise<Map<string, BelegStatus>> {
   const ergebnis = new Map<string, BelegStatus>();
   const pflichtig = positionen.filter(belegPflichtig);
@@ -53,11 +53,12 @@ export async function ladeBelegStatus(
   ]);
 
   const alleIds = [...new Set([...ids, ...mitglieder.map((m) => m.id)])];
-  const dokumente = await client.dokument.findMany({
-    where: { buchungId: { in: alleIds }, ausgeblendetAm: null },
-    select: { buchungId: true },
-  });
-  const mitBeleg = new Set(dokumente.map((d) => d.buchungId));
+  const [dokumente, mitbenutzt] = await Promise.all([
+    client.dokument.findMany({ where: { buchungId: { in: alleIds }, ausgeblendetAm: null }, select: { buchungId: true } }),
+    // Gemeinsamer Beleg: ein Dokument, das an einer anderen (Haupt-)Position hängt und diese Position mitabdeckt.
+    client.dokumentBuchung.findMany({ where: { buchungId: { in: alleIds }, dokument: { ausgeblendetAm: null } }, select: { buchungId: true } }),
+  ]);
+  const mitBeleg = new Set<string | null>([...dokumente.map((d) => d.buchungId), ...mitbenutzt.map((m) => m.buchungId)]);
   const gruppeBelegt = new Set(
     mitglieder.filter((m) => mitBeleg.has(m.id)).map((m) => m.aufteilungGruppeId as string),
   );
@@ -86,4 +87,28 @@ export async function uebernehmeBelegAusnahme(
     data: ziele.map((buchungId) => ({ buchungId, grund: ausnahme.grund, gesetztVon: ausnahme.gesetztVon })),
     skipDuplicates: true,
   });
+}
+
+/**
+ * Beim Ersetzen einer Kostenposition (Bearbeiten, Aufteilen, Zusammenführen, Umbuchen) hängen die „weiteren Positionen“
+ * gemeinsamer Belege (DokumentBuchung) an der alten Position — sie ziehen wie die Hauptbelege (`dokument.updateMany`) auf die
+ * neue um. Aufrufen NACH dem Umhängen von `Dokument.buchungId`: eine Zeile, die dann auf die Hauptposition selbst zeigen
+ * würde, entfällt, und Doppelte (Zusammenführen) werden zusammengelegt.
+ */
+export async function verlegeMitbenutzteBelege(tx: Prisma.TransactionClient, vonBuchungIds: string[], nachBuchungId: string) {
+  if (vonBuchungIds.length === 0) return;
+  const zeilen = await tx.dokumentBuchung.findMany({ where: { buchungId: { in: vonBuchungIds } } });
+  if (zeilen.length === 0) return;
+  const hauptDokumente = await tx.dokument.findMany({
+    where: { id: { in: zeilen.map((z) => z.dokumentId) }, buchungId: nachBuchungId },
+    select: { id: true },
+  });
+  const istHaupt = new Set(hauptDokumente.map((d) => d.id));
+  await tx.dokumentBuchung.deleteMany({ where: { id: { in: zeilen.map((z) => z.id) } } });
+  const neu = new Map<string, { dokumentId: string; buchungId: string; erstelltVon: string | null }>();
+  for (const z of zeilen) {
+    if (istHaupt.has(z.dokumentId) || neu.has(z.dokumentId)) continue;
+    neu.set(z.dokumentId, { dokumentId: z.dokumentId, buchungId: nachBuchungId, erstelltVon: z.erstelltVon });
+  }
+  if (neu.size > 0) await tx.dokumentBuchung.createMany({ data: [...neu.values()], skipDuplicates: true });
 }
