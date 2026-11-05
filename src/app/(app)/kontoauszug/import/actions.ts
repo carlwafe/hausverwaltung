@@ -18,6 +18,8 @@ import { speichereDatei } from "@/lib/storage";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
 import { parseSuchbegriffe, type DienstleisterKandidat } from "@/lib/import/dienstleister";
 import { ermittleDoppelzahlungHinweise } from "@/lib/import/doppelzahlung";
+import { schlageMietperiodenVor, type PeriodenKontext } from "@/lib/import/mietperiode";
+import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import {
   mapKostenRows,
   type EinheitKandidat,
@@ -102,6 +104,8 @@ export type PreviewResult =
       importBatchId: string;
       // Nur bei CAMT-Import (XML): Ergebnis der Saldoprüfung.
       camtPruefung: CamtPruefung | null;
+      // Bisherige Mietzahlungen und Vertragsdaten für den Mietperioden-Vorschlag (Neuberechnung bei Vertragswechsel).
+      periodenKontext: PeriodenKontext;
     }
   | { error: string };
 
@@ -300,7 +304,16 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
       prisma.mietvertrag.findMany({ where: { status: { in: ["AKTIV", "BEENDET"] } }, select: { id: true } }),
       prisma.buchung.findMany({
         where: { buchungsart: { code: "MIETZAHLUNG" }, ...dedup },
-        select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
+        select: {
+          mietvertragId: true,
+          datum: true,
+          betrag: true,
+          verwendungszweck: true,
+          aufteilungGruppeId: true,
+          periodeJahr: true,
+          periodeMonat: true,
+          storniertDurchBuchungId: true,
+        },
       }),
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, ...dedup },
@@ -471,7 +484,16 @@ export async function previewImport(
       }),
       prisma.buchung.findMany({
         where: { buchungsart: { code: "MIETZAHLUNG" }, ...dedup },
-        select: { mietvertragId: true, datum: true, betrag: true, verwendungszweck: true, aufteilungGruppeId: true },
+        select: {
+          mietvertragId: true,
+          datum: true,
+          betrag: true,
+          verwendungszweck: true,
+          aufteilungGruppeId: true,
+          periodeJahr: true,
+          periodeMonat: true,
+          storniertDurchBuchungId: true,
+        },
       }),
       prisma.buchung.findMany({
         where: { buchungsart: { code: "KOSTENPOSITION" }, ...dedup },
@@ -674,11 +696,24 @@ export async function previewImport(
     });
     const vereinheitlicht = vereinheitlicheZeilen(zahlungenRows, kostenRows);
     const doppelzahlungen = ermittleDoppelzahlungHinweise(vereinheitlicht, bestehendeKostenpositionen, dienstleisterKandidaten);
+    const periodenKontext = await ladePeriodenKontext(vereinheitlicht, vertraege, zahlungenRaw);
+    const perioden = schlageMietperiodenVor(
+      vereinheitlicht.map((z) => ({
+        rowNumber: z.rowNumber,
+        datum: z.datum,
+        betrag: z.betrag,
+        verwendungszweck: z.verwendungszweck,
+        // Nur Zeilen, die als Mietzahlung vorgeschlagen sind, zählen in die Zahlungshistorie des Vertrags.
+        mietvertragId: z.kandidaten[0]?.code === "MIETZAHLUNG" ? z.vorgeschlagenerMietvertragId : null,
+      })),
+      periodenKontext,
+    );
     const zeilen = vereinheitlicht.map((z) => ({
       ...z,
       rohdatenSchluessel: zeilenSchluesselAusRohdaten(z.rohdaten),
       rohdatenSchluesselWeitere: weitereZeilenSchluesselAusRohdaten(z.rohdaten),
       doppelzahlungHinweis: doppelzahlungen.get(z.rowNumber) ?? null,
+      vorgeschlagenePeriode: perioden.get(z.rowNumber),
     }));
 
     return {
@@ -697,6 +732,7 @@ export async function previewImport(
       fileName: dateiname,
       importBatchId: importBatch.id,
       camtPruefung,
+      periodenKontext,
       ...bestehendeSets,
     };
   } catch (err) {
@@ -707,6 +743,49 @@ export async function previewImport(
           : "Unbekannter Fehler beim Lesen der Datei.",
     };
   }
+}
+
+// Mietzahlungen je Vertrag rund um den Zeitraum der Datei (ab 8 Monate vor der ersten Zeile) und die Vertragsdaten für
+// den Mietperioden-Vorschlag. Nur aktive Buchungen: das stornierte Original einer Aufteilung (steht für die
+// Bereits-importiert-Erkennung in zahlungenRaw) würde sonst neben seinen Teilen doppelt zählen.
+async function ladePeriodenKontext(
+  zeilen: { datum: string | null }[],
+  vertraege: { id: string; beginn: Date | null; ende: Date | null; buchhaltungAb: Date | null; kaltmiete: unknown; nebenkostenVorauszahlung: unknown }[],
+  zahlungen: {
+    mietvertragId: string | null;
+    datum: Date | null;
+    betrag: unknown;
+    periodeJahr: number | null;
+    periodeMonat: number | null;
+    storniertDurchBuchungId: string | null;
+  }[],
+): Promise<PeriodenKontext> {
+  const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
+  const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  const ersteZeile = zeilen.map((z) => z.datum).filter((d): d is string => Boolean(d)).sort()[0] ?? null;
+  const ab = ersteZeile ? new Date(Date.UTC(Number(ersteZeile.slice(0, 4)), Number(ersteZeile.slice(5, 7)) - 9, 1)) : null;
+  const historie: PeriodenKontext["historie"] = {};
+  for (const z of zahlungen) {
+    if (!z.mietvertragId || !z.datum || z.storniertDurchBuchungId || z.periodeJahr === null || z.periodeMonat === null) continue;
+    if (ab && z.datum < ab) continue;
+    (historie[z.mietvertragId] ??= []).push({
+      datum: iso(z.datum)!,
+      betrag: Number(z.betrag),
+      periodeJahr: z.periodeJahr,
+      periodeMonat: z.periodeMonat,
+    });
+  }
+  for (const liste of Object.values(historie)) liste.sort((a, b) => a.datum.localeCompare(b.datum));
+  const vertraegeKontext: PeriodenKontext["vertraege"] = {};
+  for (const v of vertraege) {
+    vertraegeKontext[v.id] = {
+      beginn: iso(v.beginn),
+      ende: iso(v.ende),
+      stichtag: iso(effektiverStichtag(v, objekt)),
+      warmmiete: Number(v.kaltmiete) + Number(v.nebenkostenVorauszahlung),
+    };
+  }
+  return { historie, vertraege: vertraegeKontext };
 }
 
 // Zinsanteil einer Darlehenszeile: bei einer Sonderbuchung (z.B. Verzugszinsen) der ganze Betrag, sonst der eingetragene

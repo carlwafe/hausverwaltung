@@ -8,6 +8,7 @@
 // die Ergebnisse zusammengeführt.
 import type { ParsedZahlungRow } from "./zahlungen-import";
 import type { ParsedKostenRow } from "./kosten-import";
+import type { MietperiodeVorschlag } from "./mietperiode";
 
 // Nur zwei Zustände: "vorschlag" (Buchungsart wurde sicher erkannt, z.B. über ein Muster wie
 // Kaution/Nebenkostenausgleich oder einen eindeutigen Mietvertrags-/Kostenart-Treffer) und
@@ -40,6 +41,8 @@ export type VereinheitlichteZeile = {
   vorgeschlagenerMietvertragId: string | null;
   vorgeschlageneKostenartId: string | null;
   vorgeschlageneGebaeudeAuswahl: string | null | undefined;
+  // Mietperiode (für welchen Monat die Zahlung gedacht ist), siehe mietperiode.ts — wird erst in previewImport gesetzt.
+  vorgeschlagenePeriode?: MietperiodeVorschlag;
   // Schlüssel der Bankzeile für die artunabhängige Bereits-importiert-Erkennung (siehe
   // BestehendeImportSets.bestehendeRohdaten) — wird erst in previewImport gesetzt.
   rohdatenSchluessel?: string | null;

@@ -87,6 +87,15 @@ export default function KontoauszugImportPage() {
         Für unsichere Zeilen gibt es &bdquo;Offene Zeilen mit KI prüfen&ldquo;: Claude macht pro Zeile einen
         Vorschlag mit kurzer Begründung (Spalte &bdquo;KI-Einschätzung&ldquo;). Es wird nur auf Knopfdruck
         geprüft, IBANs werden nicht übertragen, und nichts wird automatisch zum Import ausgewählt.
+        &bdquo;Ausgewählte mit KI prüfen&ldquo; schickt alle zum Import ausgewählten Zeilen samt Zuordnung und
+        Mietmonat (mit den bisherigen Zahlungen des Mieters) zur Kontrolle: bestätigte Zeilen bleiben ausgewählt,
+        Zeilen mit Widerspruch werden abgewählt und zeigen den Vorschlag zum Übernehmen (Filter &bdquo;KI-Widerspruch&ldquo;).
+      </p>
+      <p className="mb-2 max-w-2xl text-xs text-neutral-500">
+        Mietmonat: Nennt der Verwendungszweck einen Monat (&bdquo;Miete Januar&ldquo;, &bdquo;11.26&ldquo;), gilt
+        dieser. Zahlungen ab dem 25. gelten als Miete für den Folgemonat (bei Mietern, die bisher am Monatsende
+        vorauszahlen, z.B. Jobcenter, schon ab dem 20.) — außer der laufende Monat ist noch unbezahlt. Sonst gilt der
+        Eingangsmonat. Abweichungen sind gelb markiert (Filter &bdquo;Mietmonat ≠ Eingangsmonat&ldquo;).
       </p>
       <p className="mb-6 max-w-2xl text-xs text-neutral-500">
         Stadtwerke-Zahlungen sind pro Haus ein Saldo aus Schlussrechnung und neuen Abschlägen; der
@@ -172,6 +181,7 @@ export default function KontoauszugImportPage() {
             bestehendeSets={bestehendeSets}
             bestehendeNichtZugeordnetListe={bestehendeSets.bestehendeNichtZugeordnet}
             importBatchId={preview.importBatchId}
+            periodenKontext={preview.periodenKontext}
             onCommitted={refreshBestehendeSets}
           />
         </div>

@@ -9,9 +9,10 @@ import {
   type KiVorschlag,
 } from "@/lib/import/ki-klassifizierung";
 
-const MAX_ZEILEN = 80;
+// Ein Monats-Kontoauszug hat ~170 Zeilen — „Ausgewählte mit KI prüfen“ soll ihn auf einmal schaffen.
+const MAX_ZEILEN = 250;
 
-/** Manuell ausgelöste KI-Zweitmeinung für unsichere Import-Zeilen (nur Vorschläge, keine Buchung). */
+/** Manuell ausgelöste KI-Zweitmeinung für unsichere oder zum Import ausgewählte Zeilen (nur Vorschläge, keine Buchung). */
 export const kiPruefeZeilen = mitMeldung(async function kiPruefeZeilen(
   zeilen: KiEingabeZeile[],
   kontext: KiKontext,

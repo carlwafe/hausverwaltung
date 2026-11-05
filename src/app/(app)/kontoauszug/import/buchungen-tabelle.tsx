@@ -20,6 +20,8 @@ import { DateInput } from "@/components/date-input";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { NichtKategorisiertButton } from "./nicht-kategorisiert-button";
 import { kiPruefeZeilen } from "./ki-actions";
+import type { KiEingabeZeile } from "@/lib/import/ki-klassifizierung";
+import { mietperiodeFuerVertrag, periodeLabel, type PeriodenKontext } from "@/lib/import/mietperiode";
 import { findePlanRate, type DarlehenPlanRate } from "@/lib/darlehen-plan-match";
 import { erkenneDarlehen } from "@/lib/darlehen-erkennung";
 
@@ -95,7 +97,16 @@ const HINWEIS_FARBEN: Record<HinweisAnzeige, string> = {
 // Der Hinweis-Filter trennt jeweils "noch nicht importiert" von "bereits importiert": eine schon
 // importierte Zeile mit Vorschlag/Prüf-Hinweis soll die Arbeitsliste der noch offenen Zeilen nicht
 // verstopfen, muss aber separat auffindbar bleiben.
-type HinweisFilter = "alle" | "vorschlag" | "vorschlag_bereits" | "pruefen" | "pruefen_bereits";
+type HinweisFilter =
+  | "alle"
+  | "vorschlag"
+  | "vorschlag_bereits"
+  | "pruefen"
+  | "pruefen_bereits"
+  // Zahlungen, deren Mietmonat vom Eingangsmonat abweicht (Monatsende, Monat im Text …) — zum Durchsehen.
+  | "monat_abweichend"
+  // Zeilen, denen die KI bei „Ausgewählte mit KI prüfen“ widersprochen hat.
+  | "ki_widerspruch";
 
 const HINWEIS_OPTIONEN: { value: HinweisFilter; label: string }[] = [
   { value: "alle", label: "Alle Hinweise" },
@@ -103,7 +114,14 @@ const HINWEIS_OPTIONEN: { value: HinweisFilter; label: string }[] = [
   { value: "vorschlag_bereits", label: "Vorgeschlagen + bereits importiert" },
   { value: "pruefen", label: HINWEIS_LABELS.pruefen },
   { value: "pruefen_bereits", label: `${HINWEIS_LABELS.pruefen} + bereits importiert` },
+  { value: "monat_abweichend", label: "Mietmonat ≠ Eingangsmonat" },
+  { value: "ki_widerspruch", label: "KI-Widerspruch" },
 ];
+
+// Zahlung, deren Mietmonat nicht der Monat des Eingangs ist.
+function monatWeichtAb(r: Pick<BuchungEditRow, "datum" | "periodeJahr" | "periodeMonat">): boolean {
+  return Boolean(r.datum) && (r.periodeJahr !== Number(r.datum!.slice(0, 4)) || r.periodeMonat !== Number(r.datum!.slice(5, 7)));
+}
 
 function passtZuHinweisFilter(filter: HinweisFilter, hinweis: HinweisAnzeige | null, bereitsImportiert: boolean): boolean {
   if (filter === "alle") return true;
@@ -143,9 +161,26 @@ type BuchungEditRow = VereinheitlichteZeile & {
   darlehenId: string;
   // Nur Darlehen: Sonderbuchung (z.B. Verzugszinsen) statt Rate — der ganze Betrag ist Zins, kein Tilgungsanteil, kein Monat.
   darlehenSonder: boolean;
+  // Begründung des Mietperioden-Vorschlags (Monatsende → Folgemonat, Monat aus dem Text …), null = Buchungsmonat.
+  periodeHinweis: string | null;
   ausgewaehlt: boolean;
-  // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung) — nur Vorschlag + Begründung.
-  ki?: { kommentar: string; konfidenz: "hoch" | "mittel" | "niedrig" };
+  // KI-Zweitmeinung (manuell ausgelöst, siehe runKiPruefung). Bei „Ausgewählte prüfen“ zusätzlich, ob die KI der
+  // Zuordnung zustimmt (passt) — und bei Widerspruch ihr Korrekturvorschlag, den man mit „Übernehmen“ setzt.
+  ki?: {
+    kommentar: string;
+    konfidenz: "hoch" | "mittel" | "niedrig";
+    passt?: boolean | null;
+    korrektur?: KiKorrektur | null;
+  };
+};
+
+type KiKorrektur = {
+  buchungsartCode: string | null;
+  mietvertragId: string | null;
+  kostenartId: string | null;
+  jahr: number | null;
+  periodeJahr: number | null;
+  periodeMonat: number | null;
 };
 
 // Zinsanteil einer Darlehensrate als Zahl (Komma oder Punkt); leer = 0 = die ganze Rate ist Tilgung, NaN = ungültig.
@@ -256,8 +291,10 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
     ...r,
     buchungsartCode,
     mietvertragId: r.vorgeschlagenerMietvertragId ?? "",
-    periodeMonat: monat,
-    periodeJahr: jahr,
+    // Mietperiode aus previewImport (Monatsende → Folgemonat, Monat aus dem Verwendungszweck, …), sonst Buchungsmonat.
+    periodeMonat: r.vorgeschlagenePeriode?.monat ?? monat,
+    periodeJahr: r.vorgeschlagenePeriode?.jahr ?? jahr,
+    periodeHinweis: r.vorgeschlagenePeriode?.hinweis ?? null,
     kostenartId: r.vorgeschlageneKostenartId ?? "",
     gebaeudeAuswahl: r.vorgeschlageneGebaeudeAuswahl ?? "",
     jahrEingabe:
@@ -287,6 +324,7 @@ export function BuchungenTabelle({
   bestehendeSets: bestehendeImportSets,
   bestehendeNichtZugeordnetListe,
   importBatchId,
+  periodenKontext,
   onCommitted,
 }: {
   zeilen: VereinheitlichteZeile[];
@@ -307,6 +345,7 @@ export function BuchungenTabelle({
   bestehendeSets: BestehendeImportSets;
   bestehendeNichtZugeordnetListe: string[];
   importBatchId: string;
+  periodenKontext: PeriodenKontext;
   onCommitted: () => void;
 }) {
   const [commitMessage, commitAction, commitPending] = useActionState(commitBuchungen, null);
@@ -316,7 +355,7 @@ export function BuchungenTabelle({
   const [hinweisFilter, setHinweisFilter] = useState<HinweisFilter>("alle");
   const [familieFilter, setFamilieFilter] = useState<"alle" | BuchungsartGruppe>("alle");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
-  const [kiPending, setKiPending] = useState(false);
+  const [kiPending, setKiPending] = useState<"offen" | "ausgewaehlt" | null>(null);
   const [kiMeldung, setKiMeldung] = useState<string | null>(null);
   const kostenartGruppen = gruppiereKostenarten(kostenarten, (k) => k.name);
   const gebaeudeGruppen = gruppiereGebaeude(gebaeude, einheiten);
@@ -334,18 +373,71 @@ export function BuchungenTabelle({
       !istBereitsImportiert(ermittleBuchungsartGruppe(r.buchungsartCode), r, bestehendeSets),
   );
 
-  async function runKiPruefung() {
+  // Bisherige Mietzahlungen des Vertrags für die KI („28.10.2026 550,00 € → 11/2026“): gebuchte plus frühere
+  // ausgewählte Zeilen derselben Datei mit ihrem aktuellen Monat.
+  function verlaufFuer(r: BuchungEditRow): string[] {
+    if (!r.mietvertragId || !r.datum) return [];
+    const gebucht = (periodenKontext.historie[r.mietvertragId] ?? []).map((h) => ({
+      datum: h.datum,
+      betrag: h.betrag,
+      periode: periodeLabel({ jahr: h.periodeJahr, monat: h.periodeMonat }),
+    }));
+    const ausDatei = editRows
+      .filter(
+        (x) =>
+          x.rowNumber !== r.rowNumber &&
+          x.ausgewaehlt &&
+          x.mietvertragId === r.mietvertragId &&
+          ermittleBuchungsartGruppe(x.buchungsartCode) === "MIETE" &&
+          x.datum !== null &&
+          x.betrag !== null,
+      )
+      .map((x) => ({ datum: x.datum!, betrag: x.betrag!, periode: periodeLabel({ jahr: x.periodeJahr, monat: x.periodeMonat }) }));
+    return [...gebucht, ...ausDatei]
+      .filter((h) => h.datum < r.datum!)
+      .sort((a, b) => a.datum.localeCompare(b.datum))
+      .slice(-8)
+      .map((h) => `${h.datum.split("-").reverse().join(".")} ${formatEuro(h.betrag)} → ${h.periode}`);
+  }
+
+  function kiZeile(r: BuchungEditRow, mitAktuell: boolean): KiEingabeZeile {
+    const gruppe = ermittleBuchungsartGruppe(r.buchungsartCode);
+    const miete = gruppe === "MIETE";
+    return {
+      rowNumber: r.rowNumber,
+      datum: r.datum,
+      betrag: r.betrag,
+      name: r.name,
+      verwendungszweck: r.verwendungszweck,
+      aktuell: mitAktuell
+        ? {
+            buchungsartCode: r.buchungsartCode,
+            mietvertragId: r.mietvertragId || null,
+            periode: miete ? periodeLabel({ jahr: r.periodeJahr, monat: r.periodeMonat }) : null,
+            kostenartId: gruppe === "KOSTEN" ? r.kostenartId || null : null,
+            jahr: (gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH") && r.jahrEingabe ? Number(r.jahrEingabe) : null,
+            regelHinweis: miete ? r.periodeHinweis : null,
+          }
+        : null,
+      verlauf: verlaufFuer(r),
+      sollMiete: r.mietvertragId ? (periodenKontext.vertraege[r.mietvertragId]?.warmmiete ?? null) : null,
+    };
+  }
+
+  // „offen“: unsichere Zeilen klassifizieren (Vorschläge werden vorbelegt, nie ausgewählt). „ausgewaehlt“: die zum
+  // Import ausgewählten Zeilen samt Mietperiode prüfen — Zeilen, denen die KI widerspricht, werden abgewählt und
+  // zeigen ihren Vorschlag zum Übernehmen.
+  async function runKiPruefung(modus: "offen" | "ausgewaehlt") {
     setKiMeldung(null);
-    setKiPending(true);
+    setKiPending(modus);
+    const pruefen = modus === "ausgewaehlt";
+    // Zahlungen desselben Mieters nebeneinander, damit sie im selben Batch landen (die KI sieht dann die ganze Folge).
+    const quelle = pruefen
+      ? [...kiAusgewaehlt].sort((a, b) => a.mietvertragId.localeCompare(b.mietvertragId) || (a.datum ?? "").localeCompare(b.datum ?? ""))
+      : kiKandidaten;
     try {
       const antwort = await kiPruefeZeilen(
-        kiKandidaten.map((r) => ({
-          rowNumber: r.rowNumber,
-          datum: r.datum,
-          betrag: r.betrag,
-          name: r.name,
-          verwendungszweck: r.verwendungszweck,
-        })),
+        quelle.map((r) => kiZeile(r, pruefen)),
         {
           buchungsarten: buchungsarten
             .filter((b) => b.zahlungswirksam && b.code !== "MAHNGEBUEHR")
@@ -359,11 +451,35 @@ export function BuchungenTabelle({
         return;
       }
       const nachRow = new Map(antwort.vorschlaege.map((v) => [v.rowNumber, v]));
-      // Vorschläge werden nur vorbelegt, nie automatisch zum Import ausgewählt.
+      const bestaetigt = antwort.vorschlaege.filter((v) => v.passt === true).length;
+      const widerspruch = antwort.vorschlaege.filter((v) => v.passt === false).length;
       setEditRows((rs) =>
         rs.map((r) => {
           const v = nachRow.get(r.rowNumber);
           if (!v) return r;
+          if (pruefen) {
+            if (v.passt === false) {
+              return {
+                ...r,
+                ausgewaehlt: false,
+                ki: {
+                  kommentar: v.kommentar,
+                  konfidenz: v.konfidenz,
+                  passt: false,
+                  korrektur: {
+                    buchungsartCode: v.buchungsartCode,
+                    mietvertragId: v.mietvertragId,
+                    kostenartId: v.kostenartId,
+                    jahr: v.jahr,
+                    periodeJahr: v.periodeJahr,
+                    periodeMonat: v.periodeMonat,
+                  },
+                },
+              };
+            }
+            return { ...r, ki: { kommentar: v.kommentar, konfidenz: v.konfidenz, passt: v.passt } };
+          }
+          // Vorschläge werden nur vorbelegt, nie automatisch zum Import ausgewählt.
           const neu: BuchungEditRow = { ...r, ki: { kommentar: v.kommentar, konfidenz: v.konfidenz }, ausgewaehlt: false };
           if (v.buchungsartCode) {
             const gruppe = ermittleBuchungsartGruppe(v.buchungsartCode);
@@ -371,16 +487,83 @@ export function BuchungenTabelle({
             if (v.mietvertragId) neu.mietvertragId = v.mietvertragId;
             if (gruppe === "KOSTEN" && v.kostenartId) neu.kostenartId = v.kostenartId;
             if ((gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH") && v.jahr) neu.jahrEingabe = String(v.jahr);
+            if (gruppe === "MIETE") Object.assign(neu, periodeNachVertrag(neu, neu.mietvertragId));
+            if (gruppe === "MIETE" && v.periodeJahr && v.periodeMonat) {
+              neu.periodeJahr = v.periodeJahr;
+              neu.periodeMonat = v.periodeMonat;
+              neu.periodeHinweis = "Monat von der KI vorgeschlagen";
+            }
           }
           return neu;
         }),
       );
-      setKiMeldung(`${antwort.vorschlaege.length} Zeile(n) von der KI eingeschätzt — Vorschläge bitte prüfen und selbst auswählen.`);
+      setKiMeldung(
+        pruefen
+          ? `${antwort.vorschlaege.length} ausgewählte Zeile(n) von der KI geprüft: ${bestaetigt} bestätigt, ${widerspruch} mit Widerspruch${
+              widerspruch > 0 ? " — diese sind abgewählt (Filter „KI-Widerspruch“), Vorschlag ansehen und ggf. übernehmen" : ""
+            }.`
+          : `${antwort.vorschlaege.length} Zeile(n) von der KI eingeschätzt — Vorschläge bitte prüfen und selbst auswählen.`,
+      );
     } catch {
       setKiMeldung("KI-Prüfung fehlgeschlagen.");
     } finally {
-      setKiPending(false);
+      setKiPending(null);
     }
+  }
+
+  // Mietperiode nach der Regel (mietperiode.ts) für den gewählten Vertrag neu berechnen — z.B. nach Vertragswechsel.
+  function periodeNachVertrag(
+    r: Pick<BuchungEditRow, "datum" | "betrag" | "verwendungszweck">,
+    mietvertragId: string,
+  ): Partial<BuchungEditRow> {
+    if (!r.datum || r.betrag === null) return {};
+    const p = mietperiodeFuerVertrag({ datum: r.datum, betrag: r.betrag, verwendungszweck: r.verwendungszweck }, mietvertragId || null, periodenKontext);
+    return { periodeJahr: p.jahr, periodeMonat: p.monat, periodeHinweis: p.hinweis };
+  }
+
+  // Was die KI anders zuordnen würde, in Worten („Monat 12/2026 statt 11/2026“).
+  function kiAbweichungen(r: BuchungEditRow, k: KiKorrektur): string[] {
+    const code = k.buchungsartCode ?? r.buchungsartCode;
+    const gruppe = ermittleBuchungsartGruppe(code);
+    const aus: string[] = [];
+    if (code !== r.buchungsartCode) {
+      aus.push(`Buchungsart ${buchungsarten.find((b) => b.code === code)?.bezeichnung ?? code}`);
+    }
+    if (k.mietvertragId && k.mietvertragId !== r.mietvertragId) {
+      aus.push(`Mietvertrag ${mietvertragKandidaten.find((m) => m.id === k.mietvertragId)?.label ?? "?"}`);
+    }
+    if (gruppe === "MIETE" && k.periodeJahr && k.periodeMonat && (k.periodeJahr !== r.periodeJahr || k.periodeMonat !== r.periodeMonat)) {
+      aus.push(
+        `Monat ${periodeLabel({ jahr: k.periodeJahr, monat: k.periodeMonat })} statt ${periodeLabel({ jahr: r.periodeJahr, monat: r.periodeMonat })}`,
+      );
+    }
+    if (gruppe === "KOSTEN" && k.kostenartId && k.kostenartId !== r.kostenartId) {
+      aus.push(`Kostenart ${kostenarten.find((x) => x.id === k.kostenartId)?.name ?? "?"}`);
+    }
+    if ((gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH") && k.jahr && String(k.jahr) !== r.jahrEingabe) {
+      aus.push(`Jahr ${k.jahr}`);
+    }
+    return aus;
+  }
+
+  function uebernehmeKiKorrektur(r: BuchungEditRow) {
+    const k = r.ki?.korrektur;
+    if (!k) return;
+    const code = k.buchungsartCode ?? r.buchungsartCode;
+    const gruppe = ermittleBuchungsartGruppe(code);
+    const neu: BuchungEditRow = { ...r, buchungsartCode: code };
+    if (k.mietvertragId) neu.mietvertragId = k.mietvertragId;
+    if (gruppe === "KOSTEN" && k.kostenartId) neu.kostenartId = k.kostenartId;
+    if ((gruppe === "KOSTEN" || gruppe === "NEBENKOSTENAUSGLEICH") && k.jahr) neu.jahrEingabe = String(k.jahr);
+    if (gruppe === "MIETE" && k.periodeJahr && k.periodeMonat) {
+      neu.periodeJahr = k.periodeJahr;
+      neu.periodeMonat = k.periodeMonat;
+      neu.periodeHinweis = "Monat von der KI übernommen";
+    }
+    // Bewusst übernommen: die Zeile ist wieder ausgewählt, sofern sie vollständig und noch nicht importiert ist.
+    neu.ausgewaehlt = kannAuswaehlen(neu) && !istBereitsImportiert(gruppe, neu, bestehendeSets);
+    neu.ki = { kommentar: `Übernommen: ${r.ki!.kommentar}`, konfidenz: r.ki!.konfidenz, passt: null, korrektur: null };
+    updateRow(r.rowNumber, neu);
   }
 
   function handleBuchungsartChange(r: BuchungEditRow, code: string) {
@@ -446,7 +629,11 @@ export function BuchungenTabelle({
     // Der Filter richtet sich nach dem ursprünglichen Vorschlag, nicht nach der aktuellen Auswahl:
     // eine umkategorisierte Zeile bleibt unter ihrem Filter, damit man sie weiter bearbeiten kann.
     const vorschlagCode = r.kandidaten[0]?.code ?? "";
-    if (
+    if (hinweisFilter === "monat_abweichend") {
+      if (ermittleBuchungsartGruppe(r.buchungsartCode) !== "MIETE" || !monatWeichtAb(r)) return false;
+    } else if (hinweisFilter === "ki_widerspruch") {
+      if (r.ki?.passt !== false) return false;
+    } else if (
       !passtZuHinweisFilter(
         hinweisFilter,
         hinweisFuerVorschlag(r),
@@ -515,6 +702,10 @@ export function BuchungenTabelle({
   }
 
   const importierbareRows = editRows.filter((r) => r.ausgewaehlt && kannAuswaehlen(r));
+  // „Ausgewählte mit KI prüfen“: alles, was beim Klick auf „Importieren“ gebucht würde (unabhängig vom Filter).
+  const kiAusgewaehlt = importierbareRows.filter(
+    (r) => r.errors.length === 0 && !istBereitsImportiert(ermittleBuchungsartGruppe(r.buchungsartCode), r, bestehendeSets),
+  );
   const rowsForCommit: BuchungCommitRow[] = importierbareRows.map((r) => {
     const gruppe = ermittleBuchungsartGruppe(r.buchungsartCode);
     // Kosten-Import-Konvention: Kostenposition.betrag ist der negierte Rohbetrag der Bankbuchung
@@ -579,12 +770,25 @@ export function BuchungenTabelle({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={runKiPruefung}
-            disabled={kiPending || kiKandidaten.length === 0}
+            onClick={() => runKiPruefung("offen")}
+            disabled={kiPending !== null || kiKandidaten.length === 0}
             title="Schickt nur unsichere, noch nicht importierte Zeilen (ohne IBAN) an Claude. Ergebnis sind Vorschläge mit Begründung."
             className="rounded-md border border-violet-500/60 px-3 py-1.5 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40"
           >
-            {kiPending ? "KI prüft…" : `Offene Zeilen mit KI prüfen (${kiKandidaten.length})`}
+            {kiPending === "offen" ? "KI prüft…" : `Offene Zeilen mit KI prüfen (${kiKandidaten.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => runKiPruefung("ausgewaehlt")}
+            disabled={kiPending !== null || kiAusgewaehlt.length === 0 || kiAusgewaehlt.length > 250}
+            title={
+              kiAusgewaehlt.length > 250
+                ? "Höchstens 250 Zeilen auf einmal — Auswahl verkleinern."
+                : "Schickt alle zum Import ausgewählten Zeilen (ohne IBAN) samt Buchungsart, Mietvertrag, Mietmonat bzw. Kostenart an Claude. Zeilen, denen die KI widerspricht, werden abgewählt und zeigen ihren Vorschlag."
+            }
+            className="rounded-md border border-violet-500/60 px-3 py-1.5 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40"
+          >
+            {kiPending === "ausgewaehlt" ? "KI prüft…" : `Ausgewählte mit KI prüfen (${kiAusgewaehlt.length})`}
           </button>
           <select
             value={hinweisFilter}
@@ -655,7 +859,8 @@ export function BuchungenTabelle({
                 <Fragment key={r.rowNumber}>
                   <tr
                     className={`border-t border-neutral-800 ${
-                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt ? "opacity-50" : ""
+                      // Zeilen mit KI-Widerspruch sind abgewählt, sollen aber auffallen statt ausgegraut zu sein.
+                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt && r.ki?.passt !== false ? "opacity-50" : ""
                     }`}
                   >
                     <td className="px-3 py-1.5">
@@ -734,14 +939,20 @@ export function BuchungenTabelle({
                               updateRow(r.rowNumber, {
                                 mietvertragId: id,
                                 ausgewaehlt: r.errors.length === 0 && Boolean(id) && !bereitsImportiert,
+                                // Der Vorschlag hängt am Zahlungsverlauf des Vertrags (zahlt er am Monatsende voraus?).
+                                ...periodeNachVertrag(r, id),
                               })
                             }
                           />
-                          <div className="flex gap-1">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] text-neutral-500">Miete für</span>
                             <select
                               value={r.periodeMonat}
-                              onChange={(e) => updateRow(r.rowNumber, { periodeMonat: Number(e.target.value) })}
-                              className="rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                              onChange={(e) => updateRow(r.rowNumber, { periodeMonat: Number(e.target.value), periodeHinweis: null })}
+                              title="Mietmonat: für welchen Monat die Zahlung gedacht ist (nicht wann sie einging)"
+                              className={`rounded-md border bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 ${
+                                monatWeichtAb(r) ? "border-amber-500 text-amber-300" : "border-neutral-700"
+                              }`}
                             >
                               {MONATE.map((m, idx) => (
                                 <option key={m} value={idx + 1}>
@@ -752,10 +963,17 @@ export function BuchungenTabelle({
                             <input
                               type="number"
                               value={r.periodeJahr}
-                              onChange={(e) => updateRow(r.rowNumber, { periodeJahr: Number(e.target.value) })}
-                              className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
+                              onChange={(e) => updateRow(r.rowNumber, { periodeJahr: Number(e.target.value), periodeHinweis: null })}
+                              className={`w-16 rounded-md border bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 ${
+                                monatWeichtAb(r) ? "border-amber-500 text-amber-300" : "border-neutral-700"
+                              }`}
                             />
                           </div>
+                          {(r.periodeHinweis || monatWeichtAb(r)) && (
+                            <p className="text-[11px] text-amber-300/90">
+                              {r.periodeHinweis ?? "Mietmonat weicht vom Eingangsmonat ab (von Hand gesetzt)"}
+                            </p>
+                          )}
                         </div>
                       )}
                       {gruppe === "KOSTEN" && (
@@ -1040,7 +1258,36 @@ export function BuchungenTabelle({
                       )}
                     </td>
                     <td className="max-w-[260px] px-3 py-1.5 text-xs">
-                      {r.ki ? (
+                      {r.ki?.passt === true ? (
+                        <span title={r.ki.kommentar} className="text-green-400">
+                          <span className="mr-1 font-medium">✓ KI bestätigt:</span>
+                          <span className="text-neutral-400">{r.ki.kommentar}</span>
+                        </span>
+                      ) : r.ki?.passt === false ? (
+                        (() => {
+                          const abw = r.ki.korrektur ? kiAbweichungen(r, r.ki.korrektur) : [];
+                          return (
+                            <div className="space-y-1 rounded-md border border-amber-900/60 bg-amber-500/5 p-1.5">
+                              <p className="text-amber-300">
+                                <span className="mr-1 font-medium">KI-Widerspruch ({r.ki.konfidenz}):</span>
+                                {r.ki.kommentar}
+                              </p>
+                              {abw.length > 0 && (
+                                <p className="text-neutral-300">
+                                  Vorschlag: {abw.join(", ")}{" "}
+                                  <button
+                                    type="button"
+                                    onClick={() => uebernehmeKiKorrektur(r)}
+                                    className="ml-1 rounded border border-violet-500/60 px-1.5 py-0.5 text-violet-300 hover:bg-violet-950/40"
+                                  >
+                                    Übernehmen
+                                  </button>
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()
+                      ) : r.ki ? (
                         <span
                           title={r.ki.kommentar}
                           className={r.ki.konfidenz === "hoch" ? "text-violet-300" : r.ki.konfidenz === "mittel" ? "text-amber-300" : "text-neutral-400"}
