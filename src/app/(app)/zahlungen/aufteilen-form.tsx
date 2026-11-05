@@ -192,8 +192,10 @@ export function AufteilenForm({
         Wohnung und Garage in einer Summe zahlt, eine Zahlung, die teilweise eine
         Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist, oder erste Miete und Kaution in
         einer Summe (Teil &quot;Kaution&quot; = Einzahlung Mieter aufs Kautionskonto des Vertrags). Bei einer geplatzten Lastschrift:
-        Mietteil negativ, die Bankgebühr als Kosten mit negativem Betrag (&quot;dem Mieter berechnen&quot; merkt sie
-        als Forderung vor). Gebühren stehen im Mieterkonto unter dem Monat des Mietteils (änderbar).
+        Mietteil negativ mit dem Mietmonat der geplatzten Zahlung, die Bankgebühr als Kosten &bdquo;Nebenkosten des
+        Geldverkehrs&ldquo; mit negativem Betrag und &quot;dem Mieter berechnen&quot; (legt die Forderung an) — nicht als
+        negative Gebühren-Zahlung. Eine negative Gebühren-Zahlung nur, wenn eine Gebührenzahlung des Mieters zurückgebucht
+        wird. Gebühren stehen im Mieterkonto unter dem Monat des Mietteils (änderbar).
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
@@ -394,6 +396,13 @@ export function AufteilenForm({
           </span>
         </div>
 
+        {zeilen.some((z) => z.typ === "sonderzahlung" && parseKommaBetrag(z.betrag) < 0) && (
+          <p className="text-xs text-amber-400">
+            Negative Gebühren-Zahlung: nur für die Rückbuchung einer Gebührenzahlung des Mieters. Eine neue Bankgebühr
+            stattdessen als Kosten &bdquo;Nebenkosten des Geldverkehrs&ldquo; mit &quot;dem Mieter berechnen&quot; buchen —
+            sonst steht sie in der Steuer-Aufstellung bei den Sonstigen Einnahmen statt bei den Kosten.
+          </p>
+        )}
         {fehler && <p className="text-sm text-red-400">{fehler}</p>}
 
         <div className="flex gap-2 pt-2">

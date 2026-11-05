@@ -142,6 +142,12 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
             </Link>{" "}
             mit den offenen Sonderforderungen.
           </p>
+          <p className="text-xs text-neutral-500">
+            Aufteilen (z.B. Rücklastschrift einer Gebührenzahlung plus neue Bankgebühr): erst unten &bdquo;Buchungsart
+            ändern…&ldquo; auf Miete mit dem Mietmonat, dann die neue Mietzahlung aufteilen — die neue Bankgebühr als Kosten
+            &bdquo;Nebenkosten des Geldverkehrs&ldquo; mit &bdquo;dem Mieter berechnen&ldquo;, nicht als negative
+            Gebühren-Zahlung.
+          </p>
         </div>
         <GebuehrMonatForm
           buchungId={id}
