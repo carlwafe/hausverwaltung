@@ -42,6 +42,11 @@ export default async function KostenPage() {
             Ungeteilt würde die Straßenreinigung nur den Mietern des Hauses als Grundsteuer
             angerechnet.
           </p>
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+            Beleg: Jede Kostenposition braucht einen Beleg (Mieter-Einsicht bei der Nebenkostenabrechnung, Prüfung durch das
+            Finanzamt) — Filter „Beleg fehlt“. Ausgenommen sind Kostenarten ohne Häkchen „Einzelbeleg erforderlich“
+            (z.B. Bankgebühren); Techem-Positionen brauchen die Techem-Abrechnung als Beleg.
+          </p>
         </div>
         <div className="flex gap-2">
           <Link

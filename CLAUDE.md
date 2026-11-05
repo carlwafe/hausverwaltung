@@ -25,7 +25,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/darlehen.md` | Zins/Tilgung-Buchung, Tilgungsplan-Rechnung, Soll/Ist-Darlehenskonto, Jahreswerte „Zinsen von anderen Konten“. |
 | `docs/kontoauszug-import.md` | Klassifizierung, CAMT-Import, Doppelzahlungs-Prüfung, Vollständigkeits-Check, Import-Verwaltung, KI-Prüfung. |
 | `docs/kosten-dienstleister.md` | Stadtwerke-Salden, Dienstleister-Stammdaten, Anwaltskosten, Grundsteuer-Rate, Winterdienst, Heizungswartung, Leerstand-Seite (Strom-Kundennummern). |
-| `docs/dokumente.md` | Dokumentenablage, Dokumenttyp/Labels/Erkennung, Eingang, Belegprüfung der Nebenkostenabrechnung, Kostenart-Absicherung. |
+| `docs/dokumente.md` | Dokumentenablage, Dokumenttyp/Labels/Erkennung, Eingang, Belegprüfung (Nebenkostenabrechnung) und Belegpflicht für alle Kostenarten, Kostenart-Absicherung. |
 | `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, Darstellung hell/dunkel. |
 | `docs/abgleich-vorverwalter.md` | PDF→CSV-Umwandlung der PowerHaus-Berichte, Quartalsvergleich App ↔ PDF, Kostenabgleich. |
 
