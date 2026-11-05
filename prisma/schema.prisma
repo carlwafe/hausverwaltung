@@ -780,6 +780,10 @@ model Kostenart {
   // Jahresübersicht einfließt. NULL = automatischer Vorschlag (siehe src/lib/anlage-v.ts).
   anlageVZeile                AnlageVZeile?
 
+  // false = für Kostenpositionen dieser Art wird kein Einzelbeleg verlangt (Belegprüfung, siehe
+  // src/lib/beleg-status.ts): Kontoauszug oder interne Forderung genügt (z.B. Bankgebühren, Mahngebühren).
+  belegErforderlich           Boolean              @default(true)
+
   @@map("kostenarten")
 }
 

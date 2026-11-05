@@ -225,14 +225,15 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
           label: "Umlage / Beleg",
           placeholder: "Alle Positionen",
           matches: (k, wert) =>
-            k.umlagefaehig &&
-            (wert === "umlagefaehig" ||
-              (wert === "ohne-beleg" && k.belegStatus === "FEHLT") ||
-              (wert === "mit-beleg" && (k.belegStatus === "BELEGT" || k.belegStatus === "AUSNAHME"))),
+            (wert === "umlagefaehig" && k.umlagefaehig) ||
+            (wert === "ohne-beleg" && k.belegStatus === "FEHLT") ||
+            (wert === "ohne-beleg-umlage" && k.umlagefaehig && k.belegStatus === "FEHLT") ||
+            (wert === "mit-beleg" && (k.belegStatus === "BELEGT" || k.belegStatus === "AUSNAHME")),
           options: [
+            { value: "ohne-beleg", label: "Beleg fehlt" },
+            { value: "ohne-beleg-umlage", label: "Umlagefähig – Beleg fehlt" },
+            { value: "mit-beleg", label: "Beleg vorhanden / nicht nötig" },
             { value: "umlagefaehig", label: "Alle umlagefähigen anzeigen" },
-            { value: "ohne-beleg", label: "Umlagefähig – Beleg fehlt" },
-            { value: "mit-beleg", label: "Umlagefähig – Beleg vorhanden" },
           ],
         }}
         renderExpanded={(k, colSpan) =>

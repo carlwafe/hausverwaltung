@@ -25,6 +25,7 @@ const kostenartSchema = z
     istSonstigeBetriebskosten: z.coerce.boolean(),
     vertraglicheGrundlage: z.string().optional(),
     anlageVZeile: z.enum(ANLAGE_V_ZEILEN).optional(),
+    belegErforderlich: z.coerce.boolean(),
   })
   .refine(
     (data) => !(data.umlagefaehig && data.istSonstigeBetriebskosten) || !!data.vertraglicheGrundlage?.trim(),
@@ -53,6 +54,7 @@ function parseForm(formData: FormData) {
     istSonstigeBetriebskosten: formData.get("istSonstigeBetriebskosten") === "on",
     vertraglicheGrundlage: formData.get("vertraglicheGrundlage") || undefined,
     anlageVZeile: formData.get("anlageVZeile") || undefined,
+    belegErforderlich: formData.get("belegErforderlich") === "on",
   });
 
   if (!parsed.success) {

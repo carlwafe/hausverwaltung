@@ -29,6 +29,8 @@ import { afaEinzelposten } from "@/lib/aufstellung-export";
 import { teileMietzahlungen } from "@/lib/miete-aufteilung";
 import { zeitraumText } from "@/lib/darlehen-zinsen";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
+import { zaehleBelegLueckenJahr } from "@/lib/beleg-pruefung";
+import { BelegLueckenHinweis } from "@/components/beleg-luecken-hinweis";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -564,7 +566,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
   const { label } = zeitraum;
   const istQuartal = quartal !== 0;
 
-  const [daten, mieterZeilen, verifikationen, kommentare, kontenabgleich, kontenabgleichVerifikation] = await Promise.all([
+  const [daten, mieterZeilen, verifikationen, kommentare, kontenabgleich, kontenabgleichVerifikation, belegLuecken] = await Promise.all([
     ladeJahresuebersicht(zeitraum),
     ladeMieterZeilen(zeitraum),
     prisma.jahresberichtVerifikation.findMany({ where: { jahr, quartal }, select: { mietvertragId: true } }),
@@ -574,6 +576,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
       where: { jahr_quartal: { jahr, quartal } },
       select: { kontostandLautBankauszug: true },
     }),
+    zaehleBelegLueckenJahr(jahr),
   ]);
   const verifizierteIds = new Set(verifikationen.map((v) => v.mietvertragId));
   const kommentarNachMietvertrag = new Map(kommentare.map((k) => [k.mietvertragId, k.kommentar]));
@@ -604,6 +607,8 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
       <div className="mb-6 rounded-lg border border-neutral-800 p-4">
         <JahrFilterForm jahr={jahr} quartal={quartal} />
       </div>
+
+      <BelegLueckenHinweis jahr={jahr} luecken={belegLuecken} />
 
       <div className="mb-6">
         <h2 className="mb-3 text-lg font-medium text-white">Mieteinnahmen nach Mietvertrag</h2>

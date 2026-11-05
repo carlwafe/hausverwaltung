@@ -3,25 +3,27 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import type { Prisma } from "@/generated/prisma/client";
 import { MAX_BELEG_AUSNAHME_GRUND, type BelegStatus } from "@/lib/beleg-anzeige";
 
-// Belegprüfung der Nebenkostenabrechnung: Der Mieter darf die Belege einsehen, deshalb braucht jede umlagefähige
-// Kostenposition ein Dokument (Dokument.buchungId, nicht ausgeblendet) — oder die ausdrückliche Markierung „Kein
-// Beleg nötig“ (BuchungBelegAusnahme, mit Begründung). Status-Bedeutung: siehe beleg-anzeige.ts.
+// Belegprüfung: Jede Kostenposition braucht ein Dokument (Dokument.buchungId, nicht ausgeblendet) — für den Mieter, der die
+// Belege zur Nebenkostenabrechnung einsehen darf, und für eine Prüfung durch das Finanzamt — oder die ausdrückliche
+// Markierung „Kein Beleg nötig“ (BuchungBelegAusnahme, mit Begründung). Status-Bedeutung: siehe beleg-anzeige.ts.
 export type { BelegStatus };
 export { MAX_BELEG_AUSNAHME_GRUND };
 
 type PflichtEingabe = {
   bezugTyp: string | null;
-  kostenart: { umlagefaehig: boolean; standardVerteilerschluessel: string | null } | null;
+  kostenart: { belegErforderlich: boolean } | null;
 };
 
 /**
- * Beleg-pflichtig ist eine umlagefähige Kostenposition, außer
- * - Kostenarten mit Schlüssel IN_ABRECHNUNG_ENTHALTEN (stecken in der Techem-Abrechnung, die selbst der Beleg ist),
+ * Beleg-pflichtig ist jede Kostenposition mit Kostenart, außer
+ * - Kostenarten, bei denen kein Einzelbeleg verlangt wird (Kostenart.belegErforderlich = false: Kontoauszug bzw. interne
+ *   Forderung ist der Beleg, z.B. Bankgebühren, Mahngebühren),
  * - der Gegen-Gutschrift „Verrechnet mit Kaution“ (bezugTyp „Buchung“; die verrechnete Rechnung trägt den Beleg).
+ * Auch die Techem-Kostenarten (Schlüssel IN_ABRECHNUNG_ENTHALTEN) sind beleg-pflichtig: Die Techem-Abrechnung wird als
+ * gemeinsamer Beleg an die Positionen gehängt.
  */
 export function belegPflichtig(p: PflichtEingabe): boolean {
-  if (!p.kostenart?.umlagefaehig) return false;
-  if (p.kostenart.standardVerteilerschluessel === "IN_ABRECHNUNG_ENTHALTEN") return false;
+  if (!p.kostenart?.belegErforderlich) return false;
   if (p.bezugTyp === "Buchung") return false;
   return true;
 }

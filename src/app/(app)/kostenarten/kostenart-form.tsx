@@ -39,6 +39,7 @@ type Kostenart = {
   istSonstigeBetriebskosten: boolean;
   vertraglicheGrundlage: string | null;
   anlageVZeile: AnlageVZeile | null;
+  belegErforderlich: boolean;
 };
 
 export function KostenartForm({
@@ -214,6 +215,23 @@ export function KostenartForm({
           (AfA); frühere Jahre bleiben unverändert. Schuldzinsen sind der Zinsanteil einer Darlehensrate: eigene
           Zeile in der Aufstellung, nie umlagefähig; die Tilgung wird dagegen nicht als Kostenart, sondern als
           Buchungsart „Darlehenstilgung“ erfasst (siehe Kontoauszug-Import).
+        </p>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="belegErforderlich"
+            defaultChecked={initial?.belegErforderlich ?? true}
+            className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+          />
+          Einzelbeleg erforderlich
+        </label>
+        <p className="mt-1 text-xs text-neutral-500">
+          Für das Finanzamt (und bei umlagefähigen Kosten für den Mieter) braucht jede Kostenposition einen Beleg. Häkchen
+          nur entfernen, wenn der Kontoauszug bzw. die interne Forderung genügt (z.B. Bankgebühren, Mahngebühren). Techem-Kostenarten
+          bleiben beleg-pflichtig: die Techem-Abrechnung als gemeinsamen Beleg anhängen.
         </p>
       </div>
 

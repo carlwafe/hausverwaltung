@@ -6,8 +6,8 @@ import { MAX_BELEG_AUSNAHME_GRUND, type BelegStatus } from "@/lib/beleg-anzeige"
 import { setzeBelegAusnahme, entferneBelegAusnahme } from "@/app/(app)/kosten/actions";
 
 /**
- * Belegstatus einer Kostenposition für die Nebenkostenabrechnung (Detailseite der Kostenposition): Der Mieter darf die
- * Belege einsehen, deshalb braucht jede umlagefähige Position ein Dokument — oder die ausdrückliche Markierung „Kein
+ * Belegstatus einer Kostenposition (Detailseite der Kostenposition): Der Mieter darf die Belege zur Nebenkostenabrechnung
+ * einsehen, das Finanzamt kann sie verlangen, deshalb braucht jede Position ein Dokument — oder die ausdrückliche Markierung „Kein
  * Beleg nötig“ mit Grund. Hält den Zustand selbst (die Aktionen laden die Seite nicht neu).
  */
 export function BelegAusnahme({
@@ -73,11 +73,11 @@ export function BelegAusnahme({
   return (
     <div className="mt-6 max-w-xl rounded-lg border border-neutral-800 p-4">
       <p className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
-        Beleg für die Nebenkostenabrechnung <BelegBadge status={status} />
+        Beleg <BelegBadge status={status} />
       </p>
       <p className="text-xs text-neutral-500">
-        Der Mieter darf die Belege zur Abrechnung einsehen. Umlagefähige Kostenpositionen sollten deshalb ein Dokument
-        haben (Rechnung, Bescheid, Abrechnung).
+        Jede Kostenposition sollte ein Dokument haben (Rechnung, Bescheid, Abrechnung): der Mieter darf die Belege zur
+        Nebenkostenabrechnung einsehen, und das Finanzamt kann sie bei einer Prüfung verlangen.
       </p>
       {status === "BELEGT" && ueberAndereTeile && (
         <p className="mt-2 text-xs text-neutral-400">

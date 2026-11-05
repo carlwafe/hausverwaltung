@@ -10,6 +10,8 @@ import {
   type ExportZeile,
 } from "@/lib/aufstellung-export";
 import { DruckenKnopf } from "./drucken-knopf";
+import { zaehleBelegLueckenJahr } from "@/lib/beleg-pruefung";
+import { BelegLueckenHinweis } from "@/components/beleg-luecken-hinweis";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -40,9 +42,10 @@ function Tabelle({ titel, zeilen }: { titel: string; zeilen: ExportZeile[] }) {
 export default async function AufstellungDruckPage({ searchParams }: { searchParams: Promise<{ jahr?: string }> }) {
   const { jahr: jahrParam } = await searchParams;
   const jahr = Number(jahrParam) || new Date().getFullYear() - 1;
-  const [daten, objekt] = await Promise.all([
+  const [daten, objekt, belegLuecken] = await Promise.all([
     ladeJahresuebersicht(bildeZeitraum(jahr, 0)),
     prisma.objekt.findFirst({ select: { name: true, strasse: true, hausnummer: true, plz: true, ort: true } }),
+    zaehleBelegLueckenJahr(jahr),
   ]);
   const z = aufstellungZeilen(daten.steuer, jahr);
   // Anschaffungs-/Herstellungskosten stehen mit ihren Einzelposten in eigenem Abschnitt.
@@ -66,6 +69,8 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
           </a>
         </div>
       </div>
+
+      <BelegLueckenHinweis jahr={jahr} luecken={belegLuecken} />
 
       <div className="overflow-x-auto">
         <div className="druckbereich mx-auto w-[210mm] bg-white font-sans text-black shadow">

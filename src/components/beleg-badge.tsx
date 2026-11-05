@@ -17,7 +17,7 @@ export function BelegBadge({ status }: { status: BelegStatus }) {
       );
     case "FEHLT":
       return (
-        <span title="Umlagefähig, aber ohne Beleg" className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
+        <span title="Beleg fehlt" className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
           ⚠ fehlt
         </span>
       );

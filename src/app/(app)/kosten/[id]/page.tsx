@@ -254,7 +254,7 @@ export default async function KostenpositionDetailPage({
         bearbeitbar={user !== null && user.role !== "GAST"}
       />
 
-      {belegPflichtig(kostenposition) && (
+      {kostenposition.kostenart?.umlagefaehig && belegPflichtig(kostenposition) && (
         <ArbeitskostenBox
           buchungId={id}
           rechnungsbetrag={Number(kostenposition.betrag)}

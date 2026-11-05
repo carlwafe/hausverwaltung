@@ -61,8 +61,8 @@ export type ArbeitskostenStand = {
 
 /**
  * Erfassungsstand je Kostenart für ein Kostenjahr: nur Kostenarten, bei denen mindestens eine Position eine Angabe hat
- * (alle anderen gelten als nicht begünstigt). Gleiche Positionsmenge wie die Belegprüfung (umlagefähig, nicht in der
- * Techem-Abrechnung enthalten, keine Kaution-Gegenbuchung).
+ * (alle anderen gelten als nicht begünstigt). Gleiche Positionsmenge wie die Belegprüfung (umlagefähig, beleg-pflichtig,
+ * keine Kaution-Gegenbuchung).
  */
 export async function ladeArbeitskostenStand(jahr: number): Promise<ArbeitskostenStand[]> {
   const positionen = await prisma.buchung.findMany({
@@ -72,7 +72,7 @@ export async function ladeArbeitskostenStand(jahr: number): Promise<Arbeitskoste
       betrag: true,
       bezugTyp: true,
       kostenartId: true,
-      kostenart: { select: { id: true, name: true, umlagefaehig: true, standardVerteilerschluessel: true } },
+      kostenart: { select: { id: true, name: true, umlagefaehig: true, belegErforderlich: true } },
       arbeitskosten: { select: { betrag: true } },
     },
   });

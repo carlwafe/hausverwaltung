@@ -23,7 +23,7 @@ export default async function BelegPruefungPage({ params }: { params: Promise<{ 
   });
   if (!abrechnung) notFound();
 
-  const { zeilen, inTechem } = await ladeBelegPruefung(abrechnung.jahr);
+  const { zeilen } = await ladeBelegPruefung(abrechnung.jahr);
   const z = fasseBelegPruefungZusammen(zeilen);
   const fehlend = zeilen.filter((r) => r.status === "FEHLT");
 
@@ -74,13 +74,6 @@ export default async function BelegPruefungPage({ params }: { params: Promise<{ 
           <p className="text-xs text-neutral-500">{formatEuro(z.betragFehlt)}</p>
         </div>
       </div>
-      {inTechem > 0 && (
-        <p className="mb-6 max-w-3xl text-xs text-neutral-500">
-          Nicht gezählt: {inTechem} Position{inTechem === 1 ? "" : "en"} in der Techem-Abrechnung enthalten (Gas, Allgemeinstrom,
-          Wasser/Abwasser über Techem) — dort ist die Techem-Abrechnung der Beleg.
-        </p>
-      )}
-
       <h2 className="mb-2 text-lg font-medium text-white">Ohne Beleg ({fehlend.length})</h2>
       {fehlend.length === 0 ? (
         <p className="mb-8 text-sm text-green-400">Alle umlagefähigen Positionen sind belegt oder markiert.</p>
