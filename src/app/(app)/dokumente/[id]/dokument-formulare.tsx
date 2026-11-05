@@ -16,7 +16,7 @@ import {
   loeseWeitereKostenposition,
   ordneDokumentZu,
   ordneWeitereKostenpositionen,
-  type WeitereKostenKandidat,
+  type WeitereKostenKandidaten,
   speichereDokumentLabels,
   teileDokumentAuf,
   verwerfeAufteilung,
@@ -704,23 +704,28 @@ export function BezuegePanel({
 export type WeitereKostenZeile = { buchungId: string; label: string };
 
 // Ein Beleg für mehrere Kostenpositionen (z.B. Jahresrechnung Allgemeinstrom für zwölf Abschläge): die Hauptposition steht
-// oben bei den Bezügen, hier kommen weitere dazu. Kandidaten (gleiche Kostenart und gleiches Kostenjahr) werden erst beim
-// Öffnen nachgeladen.
+// oben bei den Bezügen, hier kommen weitere dazu. Kandidaten (gleiche Kostenart, gleiches Kostenjahr, gleiches Objekt) werden
+// erst beim Öffnen nachgeladen; Positionen mit derselben Kundennummer ohne eigenen Beleg sind vorausgewählt.
 export function WeitereKostenBox({ id, zeilen, bearbeitbar }: { id: string; zeilen: WeitereKostenZeile[]; bearbeitbar: boolean }) {
   const [pending, startTransition] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const [offen, setOffen] = useState(false);
   const [alleArten, setAlleArten] = useState(false);
-  const [kandidaten, setKandidaten] = useState<WeitereKostenKandidat[] | null>(null);
+  const [alleObjekte, setAlleObjekte] = useState(false);
+  const [geladen, setGeladen] = useState<WeitereKostenKandidaten | null>(null);
+  const kandidaten = geladen?.kandidaten ?? null;
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set());
   const [suche, setSuche] = useState("");
 
   useEffect(() => {
     if (!offen) return;
     let aktiv = true;
-    ladeWeitereKostenKandidaten(id, alleArten).then(
+    ladeWeitereKostenKandidaten(id, alleArten, alleObjekte).then(
       (k) => {
-        if (aktiv) setKandidaten(k ?? []);
+        if (!aktiv) return;
+        setGeladen(k ?? { kandidaten: [], objekt: null, kundennummer: null });
+        // Auswahl je Ladevorgang neu: sonst blieben Positionen gewählt, die nach Umschalten eines Häkchens gar nicht mehr in der Liste stehen.
+        setGewaehlt(new Set((k?.kandidaten ?? []).filter((x) => x.vorgewaehlt).map((x) => x.id)));
       },
       () => {
         if (aktiv) setFehler("Die Kostenpositionen konnten nicht geladen werden.");
@@ -729,7 +734,7 @@ export function WeitereKostenBox({ id, zeilen, bearbeitbar }: { id: string; zeil
     return () => {
       aktiv = false;
     };
-  }, [offen, alleArten, id]);
+  }, [offen, alleArten, alleObjekte, id]);
 
   function fuehreAus(aktion: () => Promise<string | null>, danach?: () => void) {
     setFehler(null);
@@ -792,18 +797,34 @@ export function WeitereKostenBox({ id, zeilen, bearbeitbar }: { id: string; zeil
                 placeholder="Suchen (Datum, Empfänger, Betrag…)"
                 className="h-[38px] w-72 max-w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white"
               />
+              {(geladen?.objekt || alleObjekte) && (
+                <label className="flex items-center gap-2 text-xs text-neutral-400">
+                  <input type="checkbox" checked={alleObjekte} onChange={(e) => {
+                      setGeladen(null);
+                      setAlleObjekte(e.target.checked);
+                    }} />
+                  Auch andere Objekte{geladen?.objekt ? ` (sonst nur ${geladen.objekt})` : ""}
+                </label>
+              )}
               <label className="flex items-center gap-2 text-xs text-neutral-400">
                 <input type="checkbox" checked={alleArten} onChange={(e) => {
-                    setKandidaten(null);
+                    setGeladen(null);
                     setAlleArten(e.target.checked);
                   }} />
                 Auch andere Kostenarten des Jahres
               </label>
             </div>
+            {geladen && geladen.kandidaten.some((k) => k.vorgewaehlt) && (
+              <p className="mb-2 text-xs text-neutral-500">
+                Vorausgewählt (Jahresabrechnung): Positionen mit derselben Kundennummer ({geladen.kundennummer}), gleicher Kostenart und gleichem Objekt, die noch keinen eigenen Beleg haben.
+              </p>
+            )}
             {kandidaten === null ? (
               <p className="text-sm text-neutral-500">Lädt…</p>
             ) : kandidaten.length === 0 ? (
-              <p className="text-sm text-neutral-500">Keine weiteren Kostenpositionen mit gleicher Kostenart und gleichem Kostenjahr.</p>
+              <p className="text-sm text-neutral-500">
+                Keine weiteren Kostenpositionen mit gleicher Kostenart und gleichem Kostenjahr{!alleObjekte && geladen?.objekt ? ` für ${geladen.objekt}` : ""}.
+              </p>
             ) : (
               <>
                 <label className="mb-1 flex items-center gap-2 text-xs text-neutral-400">
@@ -864,7 +885,7 @@ export function WeitereKostenBox({ id, zeilen, bearbeitbar }: { id: string; zeil
           <button
             type="button"
             onClick={() => {
-              setKandidaten(null);
+              setGeladen(null);
               setOffen(true);
             }}
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"

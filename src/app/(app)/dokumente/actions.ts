@@ -15,6 +15,7 @@ import { sichereKostenart } from "@/lib/dokument-kostenart";
 import { erkenneDokumentPerRegeln, type RegelKontext } from "@/lib/dokument-regeln";
 import { EINGANG_OFFEN_WHERE } from "@/lib/dokument-eingang-offen";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { kundennummerAus } from "@/lib/leerstand";
 import type { Prisma } from "@/generated/prisma/client";
 import { speichereDatei, loescheDatei, leseDatei } from "@/lib/storage";
 import { ladeBezugOptionen } from "@/lib/dokumente-uebersicht";
@@ -661,30 +662,81 @@ export const ersetzeBezug = mitMeldung(async function ersetzeBezug(id: string, z
 
 // Ein Beleg für mehrere Kostenpositionen (z.B. Jahresrechnung Allgemeinstrom für zwölf Abschläge): Dokument.buchungId bleibt
 // die Hauptposition, die weiteren Positionen stehen in DokumentBuchung (siehe Schema). Reine Verknüpfung, deshalb jederzeit lösbar.
-export type WeitereKostenKandidat = { id: string; label: string; hatBeleg: boolean };
+export type WeitereKostenKandidat = { id: string; label: string; hatBeleg: boolean; vorgewaehlt: boolean };
+export type WeitereKostenKandidaten = {
+  kandidaten: WeitereKostenKandidat[];
+  /** Bezeichnung des Objekts der Hauptposition (z.B. „Breslauer Str. 15“); null = Hauptposition ohne Zuordnung, keine Einschränkung möglich. */
+  objekt: string | null;
+  /** Kundennummer aus dem Verwendungszweck der Hauptposition (Versorger-Abschläge), falls erkannt. */
+  kundennummer: string | null;
+};
 
 const euroFormat = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 
 /**
- * Kandidaten für „weitere Kostenpositionen“: aktive Kostenpositionen mit derselben Kostenart und demselben Kostenjahr wie die
- * Hauptposition (mit `alleKostenarten` jede Kostenart des Jahres), ohne die Hauptposition und ohne die schon zugeordneten.
+ * Kandidaten für „weitere Kostenpositionen“: aktive Kostenpositionen mit derselben Kostenart, demselben Kostenjahr und derselben
+ * Zuordnung (Gebäude/Haus/Kostengruppe/Einheit) wie die Hauptposition, ohne die Hauptposition und ohne die schon zugeordneten.
+ * `alleKostenarten` hebt die Kostenart-Einschränkung auf, `alleObjekte` die Objekt-Einschränkung. Vorausgewählt sind Positionen
+ * ohne eigenen Beleg mit gleicher Kostenart, gleichem Objekt und derselben Kundennummer wie die Hauptposition — nur bei einem
+ * Dokument vom Typ „Abrechnung“ (ohne Kundennummer oder bei einer Rechnung wäre jede Reparatur desselben Betriebs ein Treffer).
  * Erst beim Öffnen nachgeladen (Vercel-CPU).
  */
-export async function ladeWeitereKostenKandidaten(dokumentId: string, alleKostenarten: boolean): Promise<WeitereKostenKandidat[] | null> {
+export async function ladeWeitereKostenKandidaten(
+  dokumentId: string,
+  alleKostenarten: boolean,
+  alleObjekte: boolean,
+): Promise<WeitereKostenKandidaten | null> {
   await requireEditor();
   const d = await prisma.dokument.findUnique({
     where: { id: dokumentId },
-    select: { buchungId: true, buchung: { select: { kostenartId: true, jahr: true, datum: true } }, weitereBuchungen: { select: { buchungId: true } } },
+    select: {
+      buchungId: true,
+      art: true,
+      buchung: {
+        select: {
+          kostenartId: true, jahr: true, datum: true, verwendungszweck: true,
+          gebaeudeId: true, hausId: true, kostengruppeId: true, einheitId: true,
+          gebaeude: { select: { strasse: true, hausnummer: true } },
+          einheit: { select: { bezeichnung: true, gebaeude: { select: { strasse: true, hausnummer: true } } } },
+          kostengruppe: { select: { bezeichnung: true } },
+        },
+      },
+      weitereBuchungen: { select: { buchungId: true } },
+    },
   });
   if (!d?.buchungId || !d.buchung) return null;
-  const jahr = d.buchung.jahr ?? d.buchung.datum?.getUTCFullYear() ?? null;
+  const haupt = d.buchung;
+  const jahr = haupt.jahr ?? haupt.datum?.getUTCFullYear() ?? null;
   const ausschliessen = [d.buchungId, ...d.weitereBuchungen.map((w) => w.buchungId)];
+  const kundennummer = kundennummerAus(haupt.verwendungszweck);
+
+  // Zuordnung der Hauptposition (höchstens eine der vier Ebenen ist gesetzt).
+  const objektFilter: Prisma.BuchungWhereInput | null = haupt.gebaeudeId
+    ? { gebaeudeId: haupt.gebaeudeId }
+    : haupt.einheitId
+      ? { einheitId: haupt.einheitId }
+      : haupt.hausId
+        ? { hausId: haupt.hausId }
+        : haupt.kostengruppeId
+          ? { kostengruppeId: haupt.kostengruppeId }
+          : null;
+  const objekt = haupt.gebaeude
+    ? `${haupt.gebaeude.strasse} ${haupt.gebaeude.hausnummer}`
+    : haupt.einheit
+      ? `${haupt.einheit.gebaeude.strasse} ${haupt.einheit.gebaeude.hausnummer} · ${haupt.einheit.bezeichnung}`
+      : haupt.kostengruppe
+        ? haupt.kostengruppe.bezeichnung
+        : haupt.hausId
+          ? "diesem Haus"
+          : null;
+
   const liste = await prisma.buchung.findMany({
     where: {
       buchungsart: { code: "KOSTENPOSITION" },
       ...AKTIVE_BUCHUNG_FILTER,
       id: { notIn: ausschliessen },
-      ...(alleKostenarten || !d.buchung.kostenartId ? {} : { kostenartId: d.buchung.kostenartId }),
+      ...(alleKostenarten || !haupt.kostenartId ? {} : { kostenartId: haupt.kostenartId }),
+      ...(alleObjekte || !objektFilter ? {} : objektFilter),
       ...(jahr === null
         ? {}
         : { OR: [{ jahr }, { jahr: null, datum: { gte: new Date(Date.UTC(jahr, 0, 1)), lt: new Date(Date.UTC(jahr + 1, 0, 1)) } }] }),
@@ -693,21 +745,40 @@ export async function ladeWeitereKostenKandidaten(dokumentId: string, alleKosten
     take: 300,
     select: {
       id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true,
+      kostenartId: true, gebaeudeId: true, hausId: true, kostengruppeId: true, einheitId: true,
       kostenart: { select: { name: true } },
+      gebaeude: { select: { strasse: true, hausnummer: true } },
       _count: { select: { dokumente: { where: { ausgeblendetAm: null } } } },
     },
   });
-  return liste.map((k) => ({
-    id: k.id,
-    label: [
-      k.datum ? k.datum.toISOString().slice(0, 10).split("-").reverse().join(".") : "ohne Datum",
-      k.empfaenger ?? "–",
-      ...(alleKostenarten ? [k.kostenart?.name ?? "–"] : []),
-      euroFormat.format(Number(k.betrag)),
-      ...(k.verwendungszweck ? [k.verwendungszweck.length > 50 ? `${k.verwendungszweck.slice(0, 50)}…` : k.verwendungszweck] : []),
-    ].join(" · "),
-    hatBeleg: k._count.dokumente > 0,
-  }));
+  // Vorauswahl nur bei einer Jahresabrechnung (Versorger-/Versicherungsabschläge); bei einer Handwerker-Rechnung trügen alle
+  // Rechnungen desselben Betriebs dieselbe Kundennummer.
+  const vorauswahlMoeglich = d.art === "ABRECHNUNG" && kundennummer !== null;
+  const gleichesObjekt = (k: (typeof liste)[number]) =>
+    haupt.gebaeudeId ? k.gebaeudeId === haupt.gebaeudeId
+    : haupt.einheitId ? k.einheitId === haupt.einheitId
+    : haupt.hausId ? k.hausId === haupt.hausId
+    : haupt.kostengruppeId ? k.kostengruppeId === haupt.kostengruppeId
+    : true;
+  // Mit aufgehobener Objekt-Einschränkung zeigt jede Zeile ihr Gebäude (sonst wären die Zeilen verschiedener Häuser nicht unterscheidbar).
+  const kandidaten = liste.map((k) => {
+    const hatBeleg = k._count.dokumente > 0;
+    return {
+      id: k.id,
+      label: [
+        k.datum ? k.datum.toISOString().slice(0, 10).split("-").reverse().join(".") : "ohne Datum",
+        ...(alleObjekte && k.gebaeude ? [`${k.gebaeude.strasse} ${k.gebaeude.hausnummer}`] : []),
+        k.empfaenger ?? "–",
+        ...(alleKostenarten ? [k.kostenart?.name ?? "–"] : []),
+        euroFormat.format(Number(k.betrag)),
+        ...(k.verwendungszweck ? [k.verwendungszweck.length > 50 ? `${k.verwendungszweck.slice(0, 50)}…` : k.verwendungszweck] : []),
+      ].join(" · "),
+      hatBeleg,
+      vorgewaehlt:
+        vorauswahlMoeglich && !hatBeleg && k.kostenartId === haupt.kostenartId && gleichesObjekt(k) && kundennummerAus(k.verwendungszweck) === kundennummer,
+    };
+  });
+  return { kandidaten, objekt, kundennummer };
 }
 
 function revalidiereWeitereKosten(dokumentId: string, buchungIds: string[]) {
