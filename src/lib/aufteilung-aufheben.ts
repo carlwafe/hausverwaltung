@@ -56,6 +56,17 @@ export async function hebeZahlungAufteilungAuf(
       : gruppe.find((b) => b.id === vorlageId) ?? gruppe.find((b) => ZAHLUNG_CODES.includes(b.buchungsart.code));
   if (!vorlage) throw new AktionsFehler("Keine Zahlung in dieser Aufteilung gefunden.");
 
+  // Mietmonat der zusammengeführten Zahlung: der der Mietteile, wenn sie alle denselben haben (wurde ein Teil nach
+  // dem Aufteilen z.B. auf den Monat der geplatzten Lastschrift umgestellt, bleibt dieser erhalten), sonst der der Vorlage.
+  const mietMonate = new Set(
+    gruppe.filter((b) => b.buchungsart.code === "MIETZAHLUNG" && b.periodeJahr && b.periodeMonat).map((b) => `${b.periodeJahr}-${b.periodeMonat}`),
+  );
+  const mietTeil = gruppe.find((b) => b.buchungsart.code === "MIETZAHLUNG" && b.periodeJahr && b.periodeMonat);
+  const periode =
+    mietMonate.size === 1 && mietTeil && vorlage.buchungsart.code === "MIETZAHLUNG"
+      ? { periodeMonat: mietTeil.periodeMonat, periodeJahr: mietTeil.periodeJahr }
+      : { periodeMonat: vorlage.periodeMonat, periodeJahr: vorlage.periodeJahr };
+
   const kostenIds = gruppe.filter((b) => b.buchungsart.code === "KOSTENPOSITION").map((b) => b.id);
   const forderungen = kostenIds.length
     ? await prisma.buchung.findMany({
@@ -70,8 +81,7 @@ export async function hebeZahlungAufteilungAuf(
         buchungsartId: vorlage.buchungsartId,
         datum: vorlage.datum,
         betrag: Math.round(summe * 100) / 100,
-        periodeMonat: vorlage.periodeMonat,
-        periodeJahr: vorlage.periodeJahr,
+        ...periode,
         verwendungszweck: vorlage.verwendungszweck?.replace(/^Storno: /, "") ?? null,
         rohdaten: vorlage.rohdaten ?? undefined,
         importBatchId: vorlage.importBatchId,

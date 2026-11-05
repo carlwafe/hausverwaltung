@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ZahlungForm } from "../zahlung-form";
 import { updateZahlung, deleteZahlung, hebeZahlungAufteilungAuf } from "../actions";
 import { AufteilenForm } from "../aufteilen-form";
+import { GebuehrMonatForm } from "../gebuehr-monat-form";
 import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
 import { BuchungsartInfo } from "@/components/buchungsart-info";
@@ -94,6 +95,15 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
               : "ohne Geldfluss, ausgeglichen erst durch eine Gebühren-Zahlung."}
           </p>
         </div>
+        {!nkJahr && (
+          <GebuehrMonatForm
+            buchungId={id}
+            datum={zahlung.datum}
+            periodeMonat={zahlung.periodeMonat}
+            periodeJahr={zahlung.periodeJahr}
+            bearbeitbar={user?.role !== "GAST"}
+          />
+        )}
         {kommentarBox}
       </div>
     );
@@ -133,6 +143,13 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
             mit den offenen Sonderforderungen.
           </p>
         </div>
+        <GebuehrMonatForm
+          buchungId={id}
+          datum={zahlung.datum}
+          periodeMonat={zahlung.periodeMonat}
+          periodeJahr={zahlung.periodeJahr}
+          bearbeitbar={user?.role !== "GAST"}
+        />
         {kommentarBox}
         <BuchungsartAendern
           buchungId={id}

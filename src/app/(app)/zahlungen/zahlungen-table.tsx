@@ -43,7 +43,7 @@ export type ZahlungRow = {
   datum: string;
   einheitBezeichnung: string;
   mieterNamen: string;
-  // Nur bei Mietzahlungen gesetzt (Gebühren gehören zu keiner Mietperiode).
+  // Bei Mietzahlungen die Mietperiode; bei Gebühren optional der Monat, unter dem sie im Mieterkonto stehen.
   periodeMonat: number | null;
   periodeJahr: number | null;
   betrag: number;

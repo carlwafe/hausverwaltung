@@ -60,7 +60,16 @@ type Sonder = {
   // Abweichende Bezeichnung/Link, z.B. "Verrechnung mit Kaution" (sonst Gebühr / Gebühren-Zahlung).
   bezeichnung?: string;
   href?: string;
+  // Optional gewählter Monat (z.B. Rücklastschriftgebühr unter dem Mietmonat der geplatzten Lastschrift). Gilt nur
+  // innerhalb des Jahres des Buchungsdatums — Übertrag und Saldo rechnen weiter nach dem Datum, wie die Jahresübersicht.
+  periodeMonat?: number | null;
+  periodeJahr?: number | null;
 };
+
+/** Monat (1–12), unter dem eine Sonderbuchung im Mieterkonto steht. */
+function sonderMonat(s: Sonder): number {
+  return s.periodeMonat && s.periodeJahr === s.datum.getFullYear() ? s.periodeMonat : s.datum.getMonth() + 1;
+}
 
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
@@ -170,7 +179,9 @@ export function baueMieterkontoJahr(input: {
   for (let monat = 1; monat <= 12; monat++) {
     const soll = input.sollZeilen.find((s) => s.jahr === jahr && s.monat === monat);
     const pays = zahlungenImMonat(monat);
-    const sonders = imMonat(sonder, monat);
+    const sonders = sonder
+      .filter((s) => s.datum.getFullYear() === jahr && sonderMonat(s) === monat)
+      .sort((a, b) => a.datum.getTime() - b.datum.getTime());
     if (!soll && pays.length === 0 && sonders.length === 0 && imMonat(gegenrechnungen, monat).length === 0) continue;
 
     let erste = true;

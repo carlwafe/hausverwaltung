@@ -82,7 +82,15 @@ export default async function MietvertragDetailPage({
 
   const sonderBuchungen = await prisma.buchung.findMany({
     where: { mietvertragId: id, ...SONDERBUCHUNGEN_FILTER, ...AKTIVE_BUCHUNG_FILTER },
-    select: { id: true, datum: true, betrag: true, verwendungszweck: true, buchungsart: { select: { code: true } } },
+    select: {
+      id: true,
+      datum: true,
+      betrag: true,
+      verwendungszweck: true,
+      periodeMonat: true,
+      periodeJahr: true,
+      buchungsart: { select: { code: true } },
+    },
     orderBy: { datum: "desc" },
   });
 
@@ -175,6 +183,8 @@ export default async function MietvertragDetailPage({
       betrag: b.buchungsart.code === "MAHNGEBUEHR" ? Number(b.betrag) : sonderWirkung(b.buchungsart.code, Number(b.betrag)),
       verwendungszweck: b.verwendungszweck,
       istForderung: b.buchungsart.code === "MAHNGEBUEHR",
+      periodeMonat: b.periodeMonat,
+      periodeJahr: b.periodeJahr,
       ...(b.buchungsart.code === "KAUTION_EINBEHALT" ? { bezeichnung: "Verrechnung mit Kaution", href: "/kautionen" } : {}),
     }));
   // Offene Nebenkostenabrechnung des Vorjahres je Jahr (wie in der Jahresübersicht): Saldo der

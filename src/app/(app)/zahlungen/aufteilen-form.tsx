@@ -15,7 +15,44 @@ type Zeile = {
   kostenartId: string;
   beschreibung: string;
   demMieterBerechnen: boolean;
+  // Gebühren-Teile: Monat von Hand gewählt — sonst folgt er dem Monat des (ersten) Mietteils.
+  periodeManuell: boolean;
 };
+
+// Monatsauswahl einer Gebühr (Gebühren-Zahlung oder dem Mieter berechnete Bankgebühr): unter diesem Monat steht sie
+// im Mieterkonto, z.B. die Rücklastschriftgebühr beim Mietmonat der geplatzten Lastschrift.
+function GebuehrMonat({
+  monat,
+  jahr,
+  onChange,
+}: {
+  monat: number;
+  jahr: number;
+  onChange: (patch: { periodeMonat?: number; periodeJahr?: number }) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1" title="Monat, unter dem die Gebühr im Mieterkonto steht (Saldo und Steuer rechnen weiter nach dem Datum)">
+      <span className="text-xs text-neutral-500">Monat</span>
+      <select
+        value={monat}
+        onChange={(e) => onChange({ periodeMonat: Number(e.target.value) })}
+        className="rounded-md border border-neutral-700 bg-transparent px-1 py-1.5 text-sm outline-none focus:border-neutral-400"
+      >
+        {MONATE_KURZ.map((name, idx) => (
+          <option key={name} value={idx + 1} className="bg-neutral-900">
+            {name}
+          </option>
+        ))}
+      </select>
+      <input
+        type="number"
+        value={jahr}
+        onChange={(e) => onChange({ periodeJahr: Number(e.target.value) })}
+        className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1.5 text-sm outline-none focus:border-neutral-400"
+      />
+    </div>
+  );
+}
 
 function parseKommaBetrag(text: string): number {
   const bereinigt = text.trim().replace(",", ".");
@@ -57,6 +94,7 @@ export function AufteilenForm({
     kostenartId: "",
     beschreibung: "",
     demMieterBerechnen: false,
+    periodeManuell: false,
   });
   const [zeilen, setZeilen] = useState<Zeile[]>([
     {
@@ -68,6 +106,7 @@ export function AufteilenForm({
       kostenartId: "",
       beschreibung: "",
       demMieterBerechnen: false,
+      periodeManuell: false,
     },
     neueZeile(),
   ]);
@@ -80,6 +119,18 @@ export function AufteilenForm({
 
   function aktualisiereZeile(index: number, patch: Partial<Zeile>) {
     setZeilen((z) => z.map((zeile, i) => (i === index ? { ...zeile, ...patch } : zeile)));
+  }
+
+  // Monat eines Gebühren-Teils: von Hand gewählt, sonst der des ersten Mietteils (geplatzte Lastschrift für Januar →
+  // Gebühr ebenfalls unter Januar).
+  const ersterMietteil = zeilen.find((z) => z.typ === "miete");
+  function gebuehrPeriode(zeile: Zeile): { periodeMonat: number; periodeJahr: number } {
+    if (zeile.periodeManuell || !ersterMietteil) return { periodeMonat: zeile.periodeMonat, periodeJahr: zeile.periodeJahr };
+    return { periodeMonat: ersterMietteil.periodeMonat, periodeJahr: ersterMietteil.periodeJahr };
+  }
+  function aendereGebuehrPeriode(index: number, patch: { periodeMonat?: number; periodeJahr?: number }) {
+    const aktuell = gebuehrPeriode(zeilen[index]);
+    aktualisiereZeile(index, { ...aktuell, ...patch, periodeManuell: true });
   }
 
   function zeileEntfernen(index: number) {
@@ -105,6 +156,7 @@ export function AufteilenForm({
                   mietvertragId: z.mietvertragId || aktuelleMietvertragId,
                   betrag: parseKommaBetrag(z.betrag),
                   beschreibung: z.beschreibung || undefined,
+                  ...(z.typ === "sonderzahlung" ? gebuehrPeriode(z) : {}),
                 }
               : {
                   typ: "kosten",
@@ -112,6 +164,7 @@ export function AufteilenForm({
                   betrag: parseKommaBetrag(z.betrag),
                   beschreibung: z.beschreibung || undefined,
                   demMieterBerechnen: z.demMieterBerechnen,
+                  ...(z.demMieterBerechnen && parseKommaBetrag(z.betrag) < 0 ? gebuehrPeriode(z) : {}),
                 },
         ),
       ),
@@ -140,7 +193,7 @@ export function AufteilenForm({
         Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist, oder erste Miete und Kaution in
         einer Summe (Teil &quot;Kaution&quot; = Einzahlung Mieter aufs Kautionskonto des Vertrags). Bei einer geplatzten Lastschrift:
         Mietteil negativ, die Bankgebühr als Kosten mit negativem Betrag (&quot;dem Mieter berechnen&quot; merkt sie
-        als Forderung vor).
+        als Forderung vor). Gebühren stehen im Mieterkonto unter dem Monat des Mietteils (änderbar).
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
@@ -247,6 +300,13 @@ export function AufteilenForm({
                     className="w-full rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
                   />
                 </div>
+                {zeile.typ === "sonderzahlung" && (
+                  <GebuehrMonat
+                    monat={gebuehrPeriode(zeile).periodeMonat}
+                    jahr={gebuehrPeriode(zeile).periodeJahr}
+                    onChange={(patch) => aendereGebuehrPeriode(i, patch)}
+                  />
+                )}
               </>
             ) : (
               <>
@@ -297,6 +357,13 @@ export function AufteilenForm({
                     />
                     dem Mieter berechnen
                   </label>
+                )}
+                {parseKommaBetrag(zeile.betrag) < 0 && zeile.demMieterBerechnen && (
+                  <GebuehrMonat
+                    monat={gebuehrPeriode(zeile).periodeMonat}
+                    jahr={gebuehrPeriode(zeile).periodeJahr}
+                    onChange={(patch) => aendereGebuehrPeriode(i, patch)}
+                  />
                 )}
               </>
             )}

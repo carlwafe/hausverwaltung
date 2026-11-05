@@ -217,6 +217,24 @@ export async function deleteZahlungen(ids: string[]) {
   revalidatePath("/");
 }
 
+// Optionaler Monat einer Gebühren-Forderung/-Zahlung im Mieterkonto (Gebühren haben sonst nur ihr Datum).
+// Nur zur Einordnung im Mieterkonto; Saldo, offene Gebühren und Jahresübersicht rechnen weiter nach dem Datum.
+const gebuehrMonatFelder = {
+  periodeMonat: z.coerce.number().int().min(1).max(12).optional(),
+  periodeJahr: z.coerce.number().int().min(2000).max(2100).optional(),
+};
+
+// Der Monat gilt nur im Jahr des Buchungsdatums (der Saldo-Übertrag ins Folgejahr rechnet nach Datum, siehe
+// sonderMonat in mieterkonto.ts) — ein Monat in einem anderen Jahr wird nicht gespeichert.
+function gebuehrMonat(
+  t: { periodeMonat?: number; periodeJahr?: number },
+  datum: Date | null,
+): { periodeMonat: number | null; periodeJahr: number | null } {
+  return t.periodeMonat && t.periodeJahr && (!datum || datum.getUTCFullYear() === t.periodeJahr)
+    ? { periodeMonat: t.periodeMonat, periodeJahr: t.periodeJahr }
+    : { periodeMonat: null, periodeJahr: null };
+}
+
 const aufteilungTeilSchema = z.discriminatedUnion("typ", [
   z.object({
     typ: z.literal("miete"),
@@ -242,12 +260,15 @@ const aufteilungTeilSchema = z.discriminatedUnion("typ", [
     // Nur bei negativem Betrag sinnvoll: die Gebühr zusätzlich als Forderung (MAHNGEBUEHR) auf dem
     // Mietkonto des Mieters vormerken, damit sie später per Sonderzahlung ausgeglichen werden kann.
     demMieterBerechnen: z.coerce.boolean().optional(),
+    // Monat, unter dem die Forderung im Mieterkonto steht (z.B. der Mietmonat der geplatzten Lastschrift).
+    ...gebuehrMonatFelder,
   }),
   z.object({
     typ: z.literal("sonderzahlung"),
     mietvertragId: z.string().min(1, "Mietvertrag ist erforderlich"),
     betrag: z.coerce.number().refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
     beschreibung: z.string().optional(),
+    ...gebuehrMonatFelder,
   }),
   // Kautionsanteil einer Sammelüberweisung (z.B. "1. Miete und Kaution") — wird zur
   // KAUTION_EINZAHLUNG mit Bankvorzeichen, wie beim Import einer reinen Kautionszahlung.
@@ -258,6 +279,72 @@ const aufteilungTeilSchema = z.discriminatedUnion("typ", [
     beschreibung: z.string().optional(),
   }),
 ]);
+
+/**
+ * Gebühren-Forderung oder Gebühren-Zahlung einem anderen Monat im Mieterkonto zuordnen (Storno + Neuanlage,
+ * alles andere bleibt gleich, auch der Bezug zur Kosten-Position der Rücklastschriftgebühr). Leerer Monat =
+ * wieder nach Datum einordnen. Nur Anzeige: Saldo, offene Gebühren und Jahresübersicht rechnen nach dem Datum.
+ */
+export const aendereGebuehrMonat = mitMeldung(async function aendereGebuehrMonat(
+  id: string,
+  _prev: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const user = await requireEditor();
+  const monatRoh = String(formData.get("periodeMonat") ?? "");
+  const parsed = z
+    .object(gebuehrMonatFelder)
+    .safeParse(monatRoh === "" ? {} : { periodeMonat: monatRoh, periodeJahr: formData.get("periodeJahr") });
+  if (!parsed.success) throw zodFehler(parsed.error);
+
+  const bisherige = await prisma.buchung.findFirst({
+    where: { id, ...AKTIVE_BUCHUNG_FILTER },
+    include: { buchungsart: { select: { code: true } } },
+  });
+  if (!bisherige || !bisherige.mietvertragId) throw new AktionsFehler("Buchung nicht gefunden oder bereits storniert.");
+  const istGebuehr =
+    (bisherige.buchungsart.code === "MAHNGEBUEHR" && bisherige.bezugTyp !== NK_VERRECHNUNG_BEZUG) ||
+    bisherige.buchungsart.code === "SONDERZAHLUNG";
+  if (!istGebuehr) throw new AktionsFehler("Nur Gebühren-Forderungen und Gebühren-Zahlungen haben einen frei wählbaren Monat.");
+  if (parsed.data.periodeJahr && bisherige.datum && parsed.data.periodeJahr !== bisherige.datum.getUTCFullYear()) {
+    throw new AktionsFehler(
+      `Der Monat muss im Jahr des Datums (${bisherige.datum.getUTCFullYear()}) liegen — der Übertrag ins Folgejahr rechnet nach dem Datum.`,
+    );
+  }
+  const neuerMonat = gebuehrMonat(parsed.data, bisherige.datum);
+  if (bisherige.periodeMonat === neuerMonat.periodeMonat && bisherige.periodeJahr === neuerMonat.periodeJahr) return null;
+
+  const erstelltVon = benutzerLabel(user);
+  const neu = await prisma.$transaction(async (tx) => {
+    const angelegt = await tx.buchung.create({
+      data: {
+        mietvertragId: bisherige.mietvertragId,
+        buchungsartId: bisherige.buchungsartId,
+        datum: bisherige.datum,
+        betrag: bisherige.betrag,
+        ...neuerMonat,
+        jahr: bisherige.jahr,
+        empfaenger: bisherige.empfaenger,
+        verwendungszweck: bisherige.verwendungszweck,
+        bemerkung: bisherige.bemerkung,
+        bezugTyp: bisherige.bezugTyp,
+        bezugId: bisherige.bezugId,
+        rohdaten: bisherige.rohdaten ?? undefined,
+        importBatchId: bisherige.importBatchId,
+        aufteilungGruppeId: bisherige.aufteilungGruppeId,
+        erstelltVon,
+      },
+    });
+    await storniereBuchung(tx, id, erstelltVon);
+    await uebernehmeBuchungKommentar(tx, id, angelegt.id);
+    return angelegt;
+  });
+
+  revalidatePath("/zahlungen");
+  revalidatePath("/offene-posten");
+  revalidatePath(`/mietvertraege/${bisherige.mietvertragId}`);
+  redirect(`/zahlungen/${neu.id}`);
+});
 
 /**
  * Teilt eine als eine Buchung importierte/erfasste Zahlung (z.B. eine Überweisung, die Miete für
@@ -350,6 +437,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
           datum: original.datum,
           betrag: teil.betrag,
           verwendungszweck: teil.beschreibung || original.verwendungszweck,
+          ...gebuehrMonat(teil, original.datum),
           rohdaten: original.rohdaten ?? undefined,
           importBatchId: original.importBatchId,
           aufteilungGruppeId: gruppeId,
@@ -399,6 +487,7 @@ export const teileZahlungAuf = mitMeldung(async function teileZahlungAuf(
             datum: original.datum,
             betrag: -teil.betrag,
             verwendungszweck: teil.beschreibung || original.verwendungszweck,
+            ...gebuehrMonat(teil, original.datum),
             bezugTyp: "Buchung",
             bezugId: kostenBuchung.id,
             erstelltVon,
