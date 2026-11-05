@@ -98,10 +98,11 @@ export function AufteilenForm({
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Stadtwerke Wasser/Abwasser: Der Kontoauszug zeigt pro Haus nur den Saldo aus Schlussrechnung
-        und neuen Abschlägen — wie im Verwalter-Journal in Wasser SR, Abwasser SR, Abschlag Wasser und
-        Abschlag Abwasser aufteilen. Vorzeichen umgekehrt zum Kontoauszug: Guthaben negativ,
-        Abschläge/Nachzahlungen positiv (z.B. −70,62 − 143,50 + 111,00 + 60,00 = −43,12 €). Die
-        Schlussrechnungs-Teile bekommen das Vorjahr als Kostenjahr.
+        und neuen Abschlägen — in zwei Teile aufteilen (Wasser und Abwasser nicht trennen): Saldo
+        der Schlussrechnung (Vorjahr als Kostenjahr) und neuer Abschlag (Jahr der Abbuchung).
+        Vorzeichen umgekehrt zum Kontoauszug: Guthaben negativ, Nachzahlung/Abschlag positiv
+        (z.B. 42,62 + 131,00 = 173,62 €). Beschreibung z.B. „SR 2025 HS 14 — &lt;Originaltext&gt;“ und
+        „Abschlag HS 14 — &lt;Originaltext&gt;“, damit die Kundennummer erhalten bleibt.
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Kostenjahr gilt nur für die Nebenkostenabrechnung; die Jahresübersicht zählt alle Teile im
