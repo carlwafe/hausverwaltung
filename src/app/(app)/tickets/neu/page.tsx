@@ -23,7 +23,7 @@ export default async function NeuesTicketPage({
           beschreibung: "",
           status: "OFFEN",
           prioritaet: "NORMAL",
-          kategorie: "MANGEL_REPARATUR",
+          kategorie: "BUCHHALTUNG",
           faelligAm: "",
           einheitId: mietvertrag?.einheitId ?? q.einheitId ?? "",
           mietvertragId: mietvertrag?.id ?? "",

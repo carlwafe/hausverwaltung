@@ -27,7 +27,7 @@ async function parseForm(formData: FormData) {
     beschreibung: formData.get("beschreibung") || undefined,
     status: formData.get("status") ?? "OFFEN",
     prioritaet: formData.get("prioritaet") ?? "NORMAL",
-    kategorie: formData.get("kategorie") ?? "MANGEL_REPARATUR",
+    kategorie: formData.get("kategorie") ?? "BUCHHALTUNG",
     faelligAm: formData.get("faelligAm") ?? undefined,
   });
   if (!parsed.success) {
