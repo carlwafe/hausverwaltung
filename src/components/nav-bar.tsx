@@ -9,8 +9,8 @@ import { signOut } from "next-auth/react";
 type NavLink = { href: string; label: string };
 
 const STAMMDATEN: NavLink[] = [
-  { href: "/mieter", label: "Mieter" },
   { href: "/mietvertraege", label: "Mietverträge" },
+  { href: "/mieter", label: "Mieter" },
   { href: "/mietvertraege/moegliche-erhoehungen", label: "Mieterhöhung" },
   { href: "/mietvertraege/nk-anpassung", label: "NK-Anpassung" },
   { href: "/mietvertraege/lastschrift-mandate", label: "Lastschrift-Mandate" },
