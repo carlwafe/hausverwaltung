@@ -147,7 +147,7 @@ Ein Brief je Mieter mit Umsatzsteuer im Vertrag (mehrere Garagen desselben Miete
 - Ab Dezember 2026 Miete ohne Umsatzsteuer (bei Lastschrift zugleich Vorabankündigung).
 
 **Vor dem Versand**
-- Postanschriften der Mieter sind (noch) nicht erfasst; das Skript setzt Platzhalter in das Anschriftfeld.
+- Das Skript liest die Postanschrift aus dem Mieter (`anschriftStrasse`/`anschriftPlz`/`anschriftOrt`); ohne Eintrag steht ein Platzhalter und das Skript meldet es.
 - Die Erstattungsbeträge sind ein Lesestand aus den Zahlungen — mit dem Kontoauszug abgleichen (einmal lagen Fremdbuchungen als Mietzahlung auf einer Garage; Sammelbeträge prüfen).
 - Vertragswerte (Mehrwertsteuer 9,50 € → 0) und Lastschriften vor dem Dezember-Einzug umstellen (offen, siehe `docs/mietvertraege-mieter.md`).
 - Der Steuerberater hat Erstattung und Miete ohne Umsatzsteuer bestätigt.
