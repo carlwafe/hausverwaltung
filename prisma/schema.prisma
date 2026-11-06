@@ -523,6 +523,11 @@ model Mieter {
   email                 String?
   handynummer           String?
   festnetznummer        String?
+  // Postanschrift außerhalb des Objekts: neue Anschrift ausgezogener Mieter, Wohnort externer Garagenmieter.
+  // Alle drei optional; Straße mit Hausnummer in einem Feld. Leer bei Mietern, die im Objekt wohnen.
+  anschriftStrasse      String?
+  anschriftPlz          String?
+  anschriftOrt          String?
   // Rein informativ, um nachzuvollziehen, dass die Miete (teilweise) direkt vom Jobcenter
   // gezahlt wird, statt fälschlich als Zahlungsverzug zu erscheinen — keine Wertung.
   buergergeldEmpfaenger Boolean  @default(false)

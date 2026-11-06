@@ -95,6 +95,9 @@ export async function ladeNkSchreiben(
     }
     const g = p.einheit.gebaeude;
     const beendet = v.status === "BEENDET";
+    // Erste vollständig erfasste Postanschrift der Mieter des Vertrags.
+    const anschriftMieter = v.mieter.find((m) => m.anschriftStrasse && m.anschriftPlz && m.anschriftOrt);
+    const neueAnschrift = anschriftMieter ? [anschriftMieter.anschriftStrasse!, `${anschriftMieter.anschriftPlz} ${anschriftMieter.anschriftOrt}`] : null;
     const unbezahlt = unbezahlteNkVorauszahlung(
       {
         kaltmiete: Number(v.kaltmiete),
@@ -114,8 +117,10 @@ export async function ladeNkSchreiben(
       datum: o.datum,
       frist: o.frist,
       mieter: v.mieter.map((m) => ({ anrede: m.anrede, vorname: m.vorname, nachname: m.nachname })),
-      // Die Anschrift der Mieter ist die Wohnung; ausgezogene Mieter haben eine neue Anschrift, die nicht in der App steht.
-      empfaengerAnschrift: beendet ? ["[neue Anschrift ergänzen]"] : [`${g.strasse} ${g.hausnummer}`, `${g.objekt.plz} ${g.objekt.ort}`],
+      // Die Anschrift der Mieter ist die Wohnung; ausgezogene Mieter haben eine neue Anschrift (am Mieter erfasst, sonst Platzhalter).
+      empfaengerAnschrift: beendet
+        ? neueAnschrift ?? ["[neue Anschrift ergänzen]"]
+        : [`${g.strasse} ${g.hausnummer}`, `${g.objekt.plz} ${g.objekt.ort}`],
       wohnung: kurzbezeichnung(p.einheit.bezeichnung),
       wohnungLage: p.einheit.bezeichnung.includes(" - ") ? p.einheit.bezeichnung.split(" - ").slice(1).join(" - ").trim() || undefined : undefined,
       objektAnschrift: `${g.strasse} ${g.hausnummer}, ${g.objekt.plz} ${g.objekt.ort}`,

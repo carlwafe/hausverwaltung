@@ -10,6 +10,9 @@ type Mieter = {
   email: string | null;
   handynummer: string | null;
   festnetznummer: string | null;
+  anschriftStrasse: string | null;
+  anschriftPlz: string | null;
+  anschriftOrt: string | null;
   notizen: string | null;
 };
 
@@ -109,6 +112,52 @@ export function MieterForm({
           />
         </div>
       </div>
+
+      <fieldset className="space-y-3 rounded-md border border-neutral-800 p-3">
+        <legend className="px-1 text-sm font-medium">Postanschrift (optional)</legend>
+        <p className="text-xs text-neutral-500">
+          Nur für Mieter, die nicht im Objekt wohnen: neue Anschrift ausgezogener Mieter, Wohnort externer Garagenmieter.
+          Sie steht dann als Empfänger in den Schreiben (z.B. Betriebskostenabrechnung).
+        </p>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="anschriftStrasse">
+            Straße und Hausnummer
+          </label>
+          <input
+            id="anschriftStrasse"
+            name="anschriftStrasse"
+            maxLength={120}
+            defaultValue={initial?.anschriftStrasse ?? ""}
+            className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium" htmlFor="anschriftPlz">
+              PLZ
+            </label>
+            <input
+              id="anschriftPlz"
+              name="anschriftPlz"
+              maxLength={10}
+              defaultValue={initial?.anschriftPlz ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="mb-1 block text-sm font-medium" htmlFor="anschriftOrt">
+              Ort
+            </label>
+            <input
+              id="anschriftOrt"
+              name="anschriftOrt"
+              maxLength={80}
+              defaultValue={initial?.anschriftOrt ?? ""}
+              className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+        </div>
+      </fieldset>
 
       {initial && (
         <p className="text-sm">

@@ -15,6 +15,9 @@ const mieterSchema = z.object({
   email: z.string().email("Ungültige E-Mail").optional().or(z.literal("").transform(() => undefined)),
   handynummer: z.string().optional(),
   festnetznummer: z.string().optional(),
+  anschriftStrasse: z.string().trim().max(120).optional(),
+  anschriftPlz: z.string().trim().max(10).optional(),
+  anschriftOrt: z.string().trim().max(80).optional(),
   notizen: z.string().optional(),
 });
 
@@ -26,13 +29,22 @@ function parseForm(formData: FormData) {
     email: formData.get("email") ?? "",
     handynummer: formData.get("handynummer") || undefined,
     festnetznummer: formData.get("festnetznummer") || undefined,
+    anschriftStrasse: formData.get("anschriftStrasse") || undefined,
+    anschriftPlz: formData.get("anschriftPlz") || undefined,
+    anschriftOrt: formData.get("anschriftOrt") || undefined,
     notizen: formData.get("notizen") || undefined,
   });
 
   if (!parsed.success) {
     throw zodFehler(parsed.error);
   }
-  return parsed.data;
+  const d = parsed.data;
+  // Eine Postanschrift ist nur vollständig brauchbar mit allen drei Teilen (sie steht im Anschriftfeld der Schreiben).
+  const teile = [d.anschriftStrasse, d.anschriftPlz, d.anschriftOrt];
+  if (teile.some(Boolean) && !teile.every(Boolean)) {
+    throw new AktionsFehler("Anschrift: bitte Straße, PLZ und Ort angeben — oder alle drei leer lassen.");
+  }
+  return d;
 }
 
 export const createMieter = mitMeldung(async function createMieter(formData: FormData) {
