@@ -1,3 +1,4 @@
+import { vergleicheEinheitBezeichnung } from "./einheit-sort";
 import { vergleicheGebaeudeNachHaus, type HausMitReihenfolge } from "./gebaeude-gruppen";
 
 type EinheitMitGebaeude = {
@@ -25,8 +26,9 @@ export function sortEinheitenNachGebaeude<T extends EinheitMitGebaeude>(items: T
       { ...b.gebaeude, haus: b.gebaeude.haus ?? null },
     );
     if (gruppeCompare !== 0) return gruppeCompare;
-    const hausnummerCompare = Number(a.gebaeude.hausnummer) - Number(b.gebaeude.hausnummer);
+    // Hausnummern wie "G" (Garagen) sind nicht numerisch — natürlich vergleichen statt NaN zu liefern.
+    const hausnummerCompare = a.gebaeude.hausnummer.localeCompare(b.gebaeude.hausnummer, "de", { numeric: true });
     if (hausnummerCompare !== 0) return hausnummerCompare;
-    return a.bezeichnung.localeCompare(b.bezeichnung);
+    return vergleicheEinheitBezeichnung(a.bezeichnung, b.bezeichnung);
   });
 }
