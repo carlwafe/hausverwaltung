@@ -44,7 +44,17 @@ Der Steuerberater hat bestätigt: Garagen an externe Mieter sind grundsätzlich 
 
 ### Vertragsformular
 
-Vorliegender Vertrag „Mietvertrag für Garagen“ (Muster ab 2025, unbefristet, Kündigungsfrist drei Monate); ob alle Garagenverträge dasselbe Formular nutzen, ist nicht belegt.
+Die Garagenverträge nutzen **nicht** alle dasselbe Formular:
+
+- **Garagen 1, 2 (aktueller Mieter), 5, 8:** Muster „Mietvertrag für Garagen“ der bisherigen Verwaltung (2023–2025), unbefristet, Kündigungsfrist drei Monate.
+- **Garagen 4 und 7:** ältere Fassung desselben Musters (2002 bzw. 2007).
+- **Garagen 3 und 9:** Garagenmietvertrag der GWL Lübeck (1998/1999, Miete in DM, ohne Umsatzsteuer, Kündigungsfrist drei Monate).
+- **Garage 6:** Formular von 1978 (Miete in DM, Kündigungsfrist 30 Tage zum Monatsende).
+- Die Heizkosten-Klausel der alten Formulare gilt nur bei beheizbaren Boxen; hier ohne Bedeutung.
+
+Die Vertragsdaten (Beginn, Miete, Umsatzsteuer) der vorliegenden Verträge gelten als Referenz für die App; eine Abweichung ist ein Erfassungsfehler, kein fachlicher Sonderfall (siehe „Beim Erfassen prüfen“).
+
+**Mietentwicklung der Bestandsgaragen.** Die Mieten 2, 3 und 9 wurden 2019 einvernehmlich (schriftliche Zustimmung des Mieters) auf 50 € netto ohne Umsatzsteuer angehoben; die Anpassungsvereinbarungen für 4, 6 und 7 liegen nicht vor, dort stehen 2020 ebenfalls 50 € netto. Die Garagen 4, 6 und 7 wurden bereits vor 2023 mit Umsatzsteuer (19 %, 2020 zeitweise 16 %) abgerechnet — die Erstattung der Umsatzsteuer „seit 2023“ (siehe oben) deckt für sie vermutlich nicht den ganzen Zeitraum ab; mit dem Steuerberater klären. Nicht vorliegend: Erstvertrag Garage 2 (1987), Vertrag des Vormieters der Garage 8; ein Aktenvermerk von 1969 zur früheren Hauswartgarage ist nur historisch.
 
 - **§ 3 Nr. 4** verlangt die Umsatzsteuer „zusätzlich“ (Miete netto, Steuernummer eingetragen) — passt nicht zur Kleinunternehmerregelung; bei künftigen Verträgen weglassen bzw. anpassen.
 - **§ 3 Nr. 3:** Umlage der Betriebskosten vereinbart, Vorauszahlung/Pauschale leer (siehe `docs/nebenkosten.md` → „Betriebskosten der Garagen“).
@@ -52,3 +62,5 @@ Vorliegender Vertrag „Mietvertrag für Garagen“ (Muster ab 2025, unbefristet
 - **§ 11** schließt das Wohnraummietrecht aus (Vertrag unabhängig von einem Wohnraummietverhältnis).
 - **Keine Indexmiete** (§ 13 leer): §§ 557b/558 BGB gelten nicht, eine Mieterhöhung geht nur mit Zustimmung oder per Änderungskündigung. Garagen bleiben deshalb aus der Mieterhöhungs-Liste heraus.
 - **Beim Erfassen prüfen:** Vertragsbeginn im Vertrag gegen die App (Beginn und erste Zahlung können abweichen), Mehrwertsteuer in der App 0 €.
+- **„Garage Nr.“ im Vertrag** bezeichnet die Garagenanlage, die Einheit ergibt sich aus „Box Nr.“ (z.B. „Garage Nr. 1, Box Nr. 8“ = Einheit „Garage 8“). Fehlt die Box-Nummer, die Einheit aus dem Dateinamen bzw. Vorgänger-Vertrag ableiten.
+- **Wechsel des Mieters:** Endet ein Vertrag am Monatsletzten und beginnt der Nachfolger laut Vertrag früher, überlappen sich die Zeiträume — Beginn/Ende gegen den Vertrag prüfen und klären, bei wem der Übergangsmonat gebucht wird.
