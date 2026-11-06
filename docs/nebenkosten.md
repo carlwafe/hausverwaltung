@@ -65,7 +65,7 @@ Vor dem Versand fehlende Belege: siehe `docs/dokumente.md` → „Belegprüfung�
 
 ## Betriebskosten der Garagen
 
-Im Garagenvertrag (§ 3 Nr. 3) ist die Umlage anteiliger Betriebskosten vereinbart (Grundsteuer, Straßenreinigung, Beleuchtung, Versicherung usw., Schlüssel nach Flächen oder „angemessen“), ohne Vorauszahlung/Pauschale. Der frühere Verwalter (2011–2026) hat nie umgelegt; die drei Kostenarten „Straßenreinigung & Grundsteuer Garagen“, „Strom Garagen“ und „Gebäudevers. Garagen“ sind nicht umlagefähig geführt (siehe `docs/kosten-dienstleister.md`).
+Nur in einem Teil der Garagenverträge ist die Umlage anteiliger Betriebskosten klar vereinbart (Garagen 1, 2, 5, 7, 8: § 3 Nr. 3, bei Garage 7 Nr. 2; Grundsteuer, Straßenreinigung, Beleuchtung, Versicherung usw., Schlüssel nach Flächen oder „angemessen“), ohne Vorauszahlung/Pauschale. Die Verträge der Garagen 3, 6 und 9 kennen keine Umlage (Pauschalmiete), Garage 4 nur die Umlage von Erhöhungen nach Vertragsschluss — dort wird nichts abgerechnet (`docs/mietvertraege-mieter.md` → „Betriebskosten im Vertrag“). Der frühere Verwalter (2011–2026) hat nie umgelegt; die drei Kostenarten „Straßenreinigung & Grundsteuer Garagen“, „Strom Garagen“ und „Gebäudevers. Garagen“ sind nicht umlagefähig geführt (siehe `docs/kosten-dienstleister.md`).
 
 **Entscheidung 04.11.2026:** Abgerechnet wird nur **2025**, als Schreiben, nicht in der App-Abrechnung (die Kostenarten bleiben nicht umlagefähig; Umsetzung: `docs/schreiben-mieter.md` → „Schreiben an die Garagenmieter“). Die Vorjahre bleiben unerwähnt (nichts vergeben, Rechtsfrage offen). Ab 2027 neue Verträge mit Betriebskostenpauschale.
 

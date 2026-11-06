@@ -141,10 +141,12 @@ Entscheidung 23.10.2026 aus einem Fall mit Rückstand und zu niedrig angesetzter
 Entscheidung 04.11.2026: Betriebskosten 2025, Umsatzsteuer-Erstattung, neue Verträge. Ein Brief je Mieter (mehrere Garagen desselben Mieters in einem Brief), PDF im Layout „klar“; Skript `scripts-tmp/garage-schreiben.ts [Briefdatum] [Frist in Tagen]` (nur lesend; Ausgabe `scripts-tmp/schreiben/Garagen/`: Einzel-PDFs und Sammel-PDF).
 
 **Inhalt**
-1. Abrechnung 2025 als Tabelle je Kostenart (Anteil = Kosten ÷ 10 × Monate/12; Zahlen und Strom nach Verbrauchsjahr: `docs/nebenkosten.md` → „Betriebskosten der Garagen“). Keine Vorauszahlung vereinbart, also volle Nachzahlung.
-2. „Warum erst jetzt“: Umlage steht in § 3 Nr. 3, die bisherige Hausverwaltung hat nie abgerechnet, nach dem Verwalterwechsel wurden die Verträge durchgesehen; ausdrücklich **kein Verzicht** auf die Umlage. Keine Position zu den Vorjahren.
-3. Nur bei Verträgen mit Umsatzsteuer: Erstattung der seit 2023 gezahlten Umsatzsteuer (Kleinunternehmer, `docs/mietvertraege-mieter.md`), **verrechnet mit der Nachzahlung**, Rest per Überweisung (Standard Briefdatum + 14 Tage) auf das Konto der Mietzahlungen; ab Dezember 2026 Miete ohne Umsatzsteuer (bei Lastschrift zugleich Vorabankündigung).
-4. Neue Verträge ab 01.01.2027 mit Betriebskostenpauschale (Höhe folgt mit dem Entwurf, braucht Zustimmung; bis dahin gilt der alte Vertrag).
+**Umlage nur bei klarer Vertragsklausel.** Abschnitt 1 und 2 (Abrechnung, „Warum erst jetzt“) stehen nur in Briefen an Mieter, deren Vertrag die Umlage klar vorsieht (Garagen 1, 2, 5, 7, 8; Zuordnung `UMLAGE_PARAGRAPH` im Skript, Befund: `docs/mietvertraege-mieter.md` → „Betriebskosten im Vertrag“). Bei Garagen ohne Klausel (3, 6, 9) und mit nur eingeschränkter Klausel (4) wird nichts abgerechnet und die Umlage nicht erwähnt; Mieter mehrerer Garagen bekommen die Abrechnung nur für die Garagen mit Klausel. Der Schlüssel bleibt gleich durch 10, der Anteil der übrigen Garagen trägt die Vermieterin.
+
+1. Abrechnung 2025 als Tabelle je Kostenart (Anteil = Kosten ÷ 10 × Monate/12; Zahlen und Strom nach Verbrauchsjahr: `docs/nebenkosten.md` → „Betriebskosten der Garagen“). Die Klausel wird mit Paragraph genannt (§ 3 Nr. 3, bei Garage 7 Nr. 2). Keine Vorauszahlung vereinbart, also volle Nachzahlung.
+2. „Warum erst jetzt“: Umlage steht im Vertrag, die bisherige Hausverwaltung hat nie abgerechnet, nach dem Verwalterwechsel wurden die Verträge durchgesehen; ausdrücklich **kein Verzicht** auf die Umlage. Keine Position zu den Vorjahren.
+3. Nur bei Verträgen mit Umsatzsteuer: Erstattung der seit 2023 gezahlten Umsatzsteuer (Kleinunternehmer, `docs/mietvertraege-mieter.md`), **verrechnet mit der Nachzahlung** (falls vorhanden), Rest per Überweisung (Standard Briefdatum + 14 Tage) auf das Konto der Mietzahlungen; ab Dezember 2026 Miete ohne Umsatzsteuer (bei Lastschrift zugleich Vorabankündigung).
+4. Neue Verträge ab 01.01.2027 mit Betriebskostenpauschale (Höhe folgt mit dem Entwurf, braucht Zustimmung; bis dahin gilt der alte Vertrag). Mieter ohne Umlageklausel bekommen nur diesen Abschnitt (und ggf. die Erstattung); die Abschnittsnummern passen sich an.
 Mieter ohne Umsatzsteuer überweisen die Nachzahlung bis zur Frist.
 
 **Vor dem Versand**
