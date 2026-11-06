@@ -138,20 +138,16 @@ Entscheidung 23.10.2026 aus einem Fall mit Rückstand und zu niedrig angesetzter
 
 ## Schreiben an die Garagenmieter
 
-Entscheidung 04.11.2026: Betriebskosten 2025, Umsatzsteuer-Erstattung, neue Verträge. Ein Brief je Mieter (mehrere Garagen desselben Mieters in einem Brief), PDF im Layout „klar“; Skript `scripts-tmp/garage-schreiben.ts [Briefdatum] [Frist in Tagen]` (nur lesend; Ausgabe `scripts-tmp/schreiben/Garagen/`: Einzel-PDFs und Sammel-PDF).
+**Entscheidung 09.11.2026: Verzicht auf die Umlage der Betriebskosten 2025** (zuvor, 04.11.2026: Abrechnung als Schreiben; verworfen, weil die Umlage nur in einem Teil der Verträge klar steht, siehe `docs/mietvertraege-mieter.md` → „Betriebskosten im Vertrag“, und die Nachzahlung gering ist). Die Briefe betreffen nur noch die **Erstattung der Umsatzsteuer**; Betriebskosten, „Warum erst jetzt“ und das Angebot neuer Verträge mit Pauschale stehen nicht mehr darin. Ein ausdrücklicher Verzicht wird im Brief nicht erklärt.
+
+Ein Brief je Mieter mit Umsatzsteuer im Vertrag (mehrere Garagen desselben Mieters in einem Brief), PDF im Layout „klar“; Skript `scripts-tmp/garage-schreiben.ts [Briefdatum] [Frist in Tagen]` (nur lesend; Ausgabe `scripts-tmp/schreiben/Garagen/`: Einzel-PDFs und Sammel-PDF). Mieter ohne Umsatzsteuer (Garage 2, 3, 9) bekommen keinen Brief. Die Abrechnung samt Schlüssel (`UMLAGE_ABRECHNEN`) und das Pauschale-Angebot (`NEUE_VERTRAEGE`) sind im Skript abgeschaltet und lassen sich wieder zuschalten.
 
 **Inhalt**
-**Umlage nur bei klarer Vertragsklausel.** Abschnitt 1 und 2 (Abrechnung, „Warum erst jetzt“) stehen nur in Briefen an Mieter, deren Vertrag die Umlage klar vorsieht (Garagen 1, 2, 5, 7, 8; Zuordnung `UMLAGE_PARAGRAPH` im Skript, Befund: `docs/mietvertraege-mieter.md` → „Betriebskosten im Vertrag“). Bei Garagen ohne Klausel (3, 6, 9) und mit nur eingeschränkter Klausel (4) wird nichts abgerechnet und die Umlage nicht erwähnt; Mieter mehrerer Garagen bekommen die Abrechnung nur für die Garagen mit Klausel. Der Schlüssel bleibt gleich durch 10, der Anteil der übrigen Garagen trägt die Vermieterin.
-
-1. Abrechnung 2025 als Tabelle je Kostenart (Anteil = Kosten ÷ 10 × Monate/12; Zahlen und Strom nach Verbrauchsjahr: `docs/nebenkosten.md` → „Betriebskosten der Garagen“). Die Klausel wird mit Paragraph genannt (§ 3 Nr. 3, bei Garage 7 Nr. 2). Keine Vorauszahlung vereinbart, also volle Nachzahlung.
-2. „Warum erst jetzt“: Umlage steht im Vertrag, die bisherige Hausverwaltung hat nie abgerechnet, nach dem Verwalterwechsel wurden die Verträge durchgesehen; ausdrücklich **kein Verzicht** auf die Umlage. Keine Position zu den Vorjahren.
-3. Nur bei Verträgen mit Umsatzsteuer: Erstattung der seit 2023 gezahlten Umsatzsteuer (Kleinunternehmer, `docs/mietvertraege-mieter.md`), **verrechnet mit der Nachzahlung** (falls vorhanden), Rest per Überweisung (Standard Briefdatum + 14 Tage) auf das Konto der Mietzahlungen; ab Dezember 2026 Miete ohne Umsatzsteuer (bei Lastschrift zugleich Vorabankündigung).
-4. Neue Verträge ab 01.01.2027 mit Betriebskostenpauschale (Höhe folgt mit dem Entwurf, braucht Zustimmung; bis dahin gilt der alte Vertrag). Mieter ohne Umlageklausel bekommen nur diesen Abschnitt neben der Erstattung; die Abschnittsnummern passen sich an. Mieter ohne Umlage **und** ohne Umsatzsteuer (Garage 3 und 9) bekommen **keinen Brief**: Das Pauschale-Angebot folgt erst mit dem Vertragsentwurf.
-Mieter ohne Umsatzsteuer überweisen die Nachzahlung bis zur Frist.
+- Erstattung der seit 2023 gezahlten Umsatzsteuer (Kleinunternehmer, `docs/mietvertraege-mieter.md`) je Garage als Tabelle; Überweisung (Standard Briefdatum + 14 Tage) auf das Konto der Mietzahlungen.
+- Ab Dezember 2026 Miete ohne Umsatzsteuer (bei Lastschrift zugleich Vorabankündigung).
 
 **Vor dem Versand**
-- Mieteranschriften stehen nicht in der DB (Platzhalter).
+- Postanschriften der Mieter sind (noch) nicht erfasst; das Skript setzt Platzhalter in das Anschriftfeld.
 - Die Erstattungsbeträge sind ein Lesestand aus den Zahlungen — mit dem Kontoauszug abgleichen (einmal lagen Fremdbuchungen als Mietzahlung auf einer Garage; Sammelbeträge prüfen).
-- Die Abrechnung 2025 muss bis 31.12.2026 zugehen (Einwurf-Einschreiben oder Bote mit Zeuge).
 - Vertragswerte (Mehrwertsteuer 9,50 € → 0) und Lastschriften vor dem Dezember-Einzug umstellen (offen, siehe `docs/mietvertraege-mieter.md`).
-- Entscheidung: keine anwaltliche Prüfung (Risiko vor allem bei den Vorjahren, die der Brief nicht erwähnt). Der Steuerberater hat Erstattung und Miete ohne Umsatzsteuer bestätigt.
+- Der Steuerberater hat Erstattung und Miete ohne Umsatzsteuer bestätigt.
