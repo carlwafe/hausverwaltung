@@ -6,7 +6,7 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 
 `/tickets`, Tabellen `tickets`, `ticket_kommentare`, `ticket_kosten`: internes Merkzettel-System, kein Mieter- oder Gast-Zugang.
 
-- **Kategorien:** Mangel/Reparatur, Mieteranfrage, Aufgabe, Buchhaltung, Sonstiges; neue Tickets sind mit „Buchhaltung“ vorbelegt.
+- **Kategorien:** Mangel/Reparatur, Mieteranfrage, Aufgabe, Buchhaltung, Sonstiges; neue Tickets sind mit „Buchhaltung“ vorbelegt. Die Liste `/tickets` hat zwei Tabellen: oben alle Kategorien außer Buchhaltung, unten nur Buchhaltung.
 - **Bezug** (Einheit, Mietvertrag, `Haus`, `Gebaeude`, Dienstleister) ist optional und wird beim Löschen des Bezugsobjekts nur gelöst (SetNull). Im Formular stehen alle Mietverträge zur Auswahl, auch beendete und geplante (Zusatz „– beendet“/„– geplant“, laufende je Einheit zuerst — Tickets betreffen oft ausgezogene Mieter). Ein Mietvertrag legt die Einheit fest, ein Einheitenwechsel leert einen nicht passenden Vertrag. Liste: Reihenfolge Einheit → Hausnummer → Gebäude.
 - **Kosten** hängen über `ticket_kosten` am Ticket (nicht über `Buchung.bezugTyp/bezugId`: Buchungen sind unveränderlich, und ein Ticket kann mehrere Kosten haben). Wird eine verknüpfte Kostenposition bearbeitet oder storniert, fällt sie aus dem Ticket und muss neu verknüpft werden.
 - **Verlauf:** Änderungen an Status, Priorität, Kategorie und Zuständigkeit schreiben automatisch einen `system`-Eintrag. `erledigtAm` wird beim Wechsel auf Erledigt gesetzt und bleibt bei erneutem Speichern erhalten. "Überfällig" = nicht erledigt und `faelligAm` vor heute (`istUeberfaellig`, `src/lib/ticket.ts`).

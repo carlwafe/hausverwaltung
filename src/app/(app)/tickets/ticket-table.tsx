@@ -95,19 +95,35 @@ const columns: Column<TicketRow>[] = [
   },
 ];
 
-export function TicketTable({ rows }: { rows: TicketRow[] }) {
+// `kategorien` schränkt die Auswahl im Kategorie-Filter auf die in dieser Tabelle vorkommenden ein
+// (Standard: alle); bei nur einer Kategorie entfallen Filter und Spalte.
+export function TicketTable({
+  rows,
+  kategorien,
+  emptyMessage = "Keine Tickets.",
+}: {
+  rows: TicketRow[];
+  kategorien?: string[];
+  emptyMessage?: string;
+}) {
+  const optionen = TICKET_KATEGORIE.filter((k) => !kategorien || kategorien.includes(k.value));
+  const einzeln = optionen.length === 1;
   return (
     <DataTable
-      columns={columns}
+      columns={einzeln ? columns.filter((c) => c.key !== "kategorie") : columns}
       rows={rows}
-      emptyMessage="Keine Tickets."
+      emptyMessage={emptyMessage}
       searchPlaceholder="Tickets durchsuchen…"
-      selectFilter={{
-        label: "Kategorie",
-        value: (t) => t.kategorie,
-        options: TICKET_KATEGORIE.map((k) => ({ value: k.value, label: k.label })),
-        placeholder: "Alle Kategorien",
-      }}
+      selectFilter={
+        einzeln
+          ? undefined
+          : {
+              label: "Kategorie",
+              value: (t) => t.kategorie,
+              options: optionen.map((k) => ({ value: k.value, label: k.label })),
+              placeholder: "Alle Kategorien",
+            }
+      }
     />
   );
 }

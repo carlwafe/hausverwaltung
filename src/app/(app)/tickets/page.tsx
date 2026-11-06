@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TicketTable } from "./ticket-table";
+import { TICKET_KATEGORIE } from "@/lib/ticket";
 import { TICKET_ZEILE_INCLUDE, ticketZeile } from "./ticket-zeilen";
 
 export default async function TicketsPage({ searchParams }: { searchParams: Promise<{ alle?: string }> }) {
@@ -14,6 +15,10 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
     orderBy: [{ prioritaet: "desc" }, { faelligAm: { sort: "asc", nulls: "last" } }, { nummer: "desc" }],
   });
   const rows = tickets.map(ticketZeile);
+  // Oben Mängel/Reparaturen und alles Übrige, unten die Buchhaltung.
+  const buchhaltung = rows.filter((r) => r.kategorie === "BUCHHALTUNG");
+  const sonstige = rows.filter((r) => r.kategorie !== "BUCHHALTUNG");
+  const kategorienSonstige = TICKET_KATEGORIE.map((k) => k.value).filter((v) => v !== "BUCHHALTUNG");
   const ueberfaellig = rows.filter((r) => r.ueberfaellig).length;
 
   return (
@@ -37,7 +42,18 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
           + Neues Ticket
         </Link>
       </div>
-      <TicketTable rows={rows} />
+      <section className="mb-10">
+        <h2 className="mb-3 text-lg font-medium text-white">
+          Mängel, Reparaturen &amp; Sonstiges <span className="text-sm font-normal text-neutral-400">({sonstige.length})</span>
+        </h2>
+        <TicketTable rows={sonstige} kategorien={kategorienSonstige} emptyMessage="Keine Tickets." />
+      </section>
+      <section>
+        <h2 className="mb-3 text-lg font-medium text-white">
+          Buchhaltung <span className="text-sm font-normal text-neutral-400">({buchhaltung.length})</span>
+        </h2>
+        <TicketTable rows={buchhaltung} kategorien={["BUCHHALTUNG"]} emptyMessage="Keine Buchhaltungs-Tickets." />
+      </section>
     </div>
   );
 }
