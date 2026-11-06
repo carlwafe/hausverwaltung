@@ -138,7 +138,7 @@ Entscheidung 23.10.2026 aus einem Fall mit Rückstand und zu niedrig angesetzter
 
 ## Schreiben an die Garagenmieter
 
-**Entscheidung 09.11.2026: Verzicht auf die Umlage der Betriebskosten 2025** (zuvor, 04.11.2026: Abrechnung als Schreiben; verworfen, weil die Umlage nur in einem Teil der Verträge klar steht, siehe `docs/mietvertraege-mieter.md` → „Betriebskosten im Vertrag“, und die Nachzahlung gering ist). Die Briefe betreffen nur noch die **Erstattung der Umsatzsteuer**; Betriebskosten, „Warum erst jetzt“ und das Angebot neuer Verträge mit Pauschale stehen nicht mehr darin. Ein ausdrücklicher Verzicht wird im Brief nicht erklärt.
+**Entscheidung 09.11.2026: Verzicht auf die Umlage der Betriebskosten 2025** (zuvor, 04.11.2026: Abrechnung als Schreiben; verworfen, weil die Umlage nur in einem Teil der Verträge klar steht, siehe `docs/mietvertraege-mieter.md` → „Betriebskosten im Vertrag“, und die Nachzahlung gering ist). **Versand zurückgestellt (09.11.2026):** Der Eigentümer verschickt die Briefe erst, wenn neue Mietverträge für alle Garagen vorliegen; die Umsatzsteuer bleibt bis dahin in den Lastschriften (Folgen: `docs/mietvertraege-mieter.md` → „Erstattung“). Beträge, Daten und die Fristen im Brief (Briefdatum + 14 Tage, „ab Dezember 2026“) dann neu rechnen bzw. anpassen. Die Briefe betreffen nur noch die **Erstattung der Umsatzsteuer**; Betriebskosten, „Warum erst jetzt“ und das Angebot neuer Verträge mit Pauschale stehen nicht mehr darin. Ein ausdrücklicher Verzicht wird im Brief nicht erklärt.
 
 Ein Brief je Mieter mit Umsatzsteuer im Vertrag (mehrere Garagen desselben Mieters in einem Brief), PDF im Layout „klar“; Skript `scripts-tmp/garage-schreiben.ts [Briefdatum] [Frist in Tagen]` (nur lesend; Ausgabe `scripts-tmp/schreiben/Garagen/`: Einzel-PDFs und Sammel-PDF). Mieter ohne Umsatzsteuer (Garage 2, 3, 9) bekommen keinen Brief. Die Abrechnung samt Schlüssel (`UMLAGE_ABRECHNEN`) und das Pauschale-Angebot (`NEUE_VERTRAEGE`) sind im Skript abgeschaltet und lassen sich wieder zuschalten.
 
@@ -149,5 +149,5 @@ Ein Brief je Mieter mit Umsatzsteuer im Vertrag (mehrere Garagen desselben Miete
 **Vor dem Versand**
 - Das Skript liest die Postanschrift aus dem Mieter (`anschriftStrasse`/`anschriftPlz`/`anschriftOrt`); ohne Eintrag steht ein Platzhalter und das Skript meldet es.
 - Die Erstattungsbeträge sind ein Lesestand aus den Zahlungen — mit dem Kontoauszug abgleichen (einmal lagen Fremdbuchungen als Mietzahlung auf einer Garage; Sammelbeträge prüfen).
-- Vertragswerte (Mehrwertsteuer 9,50 € → 0) und Lastschriften vor dem Dezember-Einzug umstellen (offen, siehe `docs/mietvertraege-mieter.md`).
+- Vertragswerte (Mehrwertsteuer 9,50 € → 0) und Lastschriften umstellen, sobald der Versand feststeht (derzeit zurückgestellt, siehe `docs/mietvertraege-mieter.md`); der Satz „Ab der Miete für Dezember 2026“ im Skript muss dann zum Termin passen.
 - Der Steuerberater hat Erstattung und Miete ohne Umsatzsteuer bestätigt.
