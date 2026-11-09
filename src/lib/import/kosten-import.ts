@@ -18,6 +18,7 @@ import {
   WASCHGELD_PATTERN,
 } from "./bank-csv";
 import { findeDienstleister, type DienstleisterKandidat } from "./dienstleister";
+import { kundennummerAus } from "../kundennummer";
 import { gebaeudeWert, hausWert, kostengruppeWert, einheitWert } from "../gebaeude-gruppen";
 
 // anschaffung: Kostenart mit Einordnung „Anschaffung / Herstellung“ (AfA) — dann „bezugsbereit ab“ Pflicht.
@@ -183,6 +184,18 @@ function ermittleTreffer(
   );
 }
 
+/**
+ * Bereits erfasste Kostenbuchungen mit derselben Kundennummer im Verwendungszweck (z.B. die
+ * Abschläge eines Stadtwerke-Leerstandskontos). Die Kundennummer ist stabiler als jedes Wort im Text:
+ * Eine Gutschrift/Schlussrechnung nennt oft den Vormieter ("LEERSTAND Müller Breslauer Strasse 6") und
+ * lässt "Leerstandsstrom" aus, sodass weder die Mieter-Erkennung noch der Wortabgleich passt.
+ */
+function ermittleKundennummerTreffer(verwendungszweck: string, historie: EmpfaengerHistorie[]): EmpfaengerHistorie[] {
+  const kundennummer = kundennummerAus(verwendungszweck);
+  if (!kundennummer) return [];
+  return historie.filter((h) => kundennummerAus(h.verwendungszweck) === kundennummer);
+}
+
 // Wörter ab 3 Zeichen, ohne reine Zahlen (Kundennummern, Daten, Beträge variieren pro Buchung und
 // wären ein falsches Signal) und ohne generische Füllwörter — für den Verwendungszweck-Abgleich
 // bei mehrdeutigem Empfänger. Die Untergrenze liegt bei 3 statt 4 Zeichen, damit kurze aber
@@ -259,6 +272,9 @@ function ermittleKostenartVorschlag(
   gebaeudeKandidaten: GebaeudeKandidat[],
   mandatsref: string | null,
 ): string | null {
+  const kundennummerKostenarten = new Set(ermittleKundennummerTreffer(verwendungszweck, historie).map((t) => t.kostenartId));
+  if (kundennummerKostenarten.size === 1) return [...kundennummerKostenarten][0];
+
   if (mandatsref) {
     const mandatsrefTreffer = historie.filter((h) => h.mandatsref === mandatsref);
     if (mandatsrefTreffer.length > 0) {
@@ -406,6 +422,15 @@ function ermittleGebaeudeVorschlag(
   // Kostenarten/Häuser, siehe dort).
   kostenartId: string | null = null,
 ): string | null | undefined {
+  // Dieselbe Kundennummer wie eine bereits gebuchte Position: dieselbe Zuordnung (Einheit/Gebäude) —
+  // nur wenn alle Treffer übereinstimmen und eine Zuordnung tragen ("kein Gebäude" bleibt dem
+  // Empfänger-Verlauf unten überlassen).
+  const kundennummerAuswahl = new Set(ermittleKundennummerTreffer(verwendungszweck, historie).map((t) => t.gebaeudeAuswahl));
+  if (kundennummerAuswahl.size === 1) {
+    const [auswahl] = kundennummerAuswahl;
+    if (auswahl) return auswahl;
+  }
+
   const textLeicht = stripStrassenwort(text).toLowerCase();
   const strassen = [
     ...new Set(gebaeude.map((g) => stripStrassenwort(g.strasse).trim().toLowerCase()).filter(Boolean)),
@@ -594,7 +619,11 @@ export function mapKostenRows(
     // ist ein bekannter Mieter (siehe istBekannterMieterEmpfaenger oben) — dann ist eine
     // eingehende Buchung so gut wie immer seine Miete, selbst wenn er (z.B. für eine einmalige
     // Kostenerstattung) zufällig auch schon als Kosten-Empfänger in der Historie steht.
-    const istBekannterMieter = istBekannterMieterEmpfaenger(empfaenger, verwendungszweck, mieterKandidaten);
+    // Eine bereits gebuchte Kundennummer (z.B. Stadtwerke-Leerstandskonto) geht der Mieter-Erkennung
+    // vor: Der Vormieter im Text ("LEERSTAND <Name>") macht die Gutschrift sonst zur vermeintlichen Miete.
+    const bekannteKundennummer = ermittleKundennummerTreffer(verwendungszweck, historie).length > 0;
+    const istBekannterMieter =
+      !bekannteKundennummer && istBekannterMieterEmpfaenger(empfaenger, verwendungszweck, mieterKandidaten);
     const dienstleisterTreffer = istBekannterMieter
       ? null
       : findeDienstleister(empfaenger, verwendungszweck, dienstleister);

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
+import { kundennummerAus } from "@/lib/kundennummer";
 
 /** Einheiten, die nie als Leerstand zählen (Eigennutzung). Name = `Einheit.bezeichnung`. */
 export const LEERSTAND_AUSGENOMMEN = ["Garage 10"];
@@ -61,15 +62,7 @@ export type NichtZugeordnet = {
 
 export type LeerstandDaten = { perioden: LeerstandPeriode[]; nichtZugeordnet: NichtZugeordnet[] };
 
-// Die Kundennummer steht nur im Verwendungszweck der Stadtwerke-Buchung, in wechselnder
-// Schreibweise ("KD 232939", "KD NR. 231300", "Kd.Nr.230736", "KN 240036", "Kunden Nr. 242009",
-// "Kunden N. 245807", "Kundennummer 244268", "Vertragskonto 243144"). Die Rechnungsnummer
-// ("RN …", "Re.Nr. …", "Rechnung …") bleibt bewusst außen vor.
-const KUNDENNUMMER = /\b(?:K[DN]|Kd|Kunden\s*(?:Nr|N|nummer)|Vertragskonto)\.?\s*(?:Nr\.?)?\s*:?\s*(\d{5,9})\b/i;
-
-export function kundennummerAus(verwendungszweck: string | null): string | null {
-  return verwendungszweck?.match(KUNDENNUMMER)?.[1] ?? null;
-}
+export { kundennummerAus };
 
 type Vertrag = { beginn: Date | null; ende: Date | null; status: string; mieter: { vorname: string; nachname: string }[] };
 type Luecke = { von: Date | null; bis: Date | null; vormieter: string | null; nachmieterAb: Date | null };
