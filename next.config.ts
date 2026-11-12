@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "20mb",
     },
+    // Turbopack-Cache auf Platte nur für `next dev` abschalten (der Build ist nicht betroffen).
+    // Next 16.4.x: Nach einem Neustart des Dev-Servers über ein bestehendes `.next/dev` lud sich
+    // jede Seite im Browser endlos neu ("HMR hash mismatch", vercel/next.js#100267). Preis: Der
+    // erste Aufruf nach jedem Serverstart kompiliert kalt. Wieder einschalten, sobald der Fehler
+    // in Next behoben ist (Prüfung: docs/lokal-testen.md).
+    turbopackFileSystemCacheForDev: false,
   },
 };
 
