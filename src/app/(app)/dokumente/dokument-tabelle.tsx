@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/data-table";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegDatumFeld } from "@/components/belege-sektion";
 import { aendereArt, aendereOrdner, blendeDokumentAus, deleteDokument } from "./actions";
+import { KARTE_AKTION, KarteAktionen, KarteKopf, KarteMeta, KarteZeile } from "@/components/karte";
 import {
   ART_GRUPPEN,
   ART_OPTIONEN,
@@ -90,6 +91,48 @@ function ArtFeld({ id, wert }: { id: string; wert: string | null }) {
         </optgroup>
       ))}
     </select>
+  );
+}
+
+// Karte fürs Handy (siehe `mobileCard` an DataTable): Tippen öffnet die Detailseite, der Knopf die Datei.
+// Art, Belegdatum und Ordner sind hier nur lesbar (ändern in der Tabelle oder auf der Detailseite).
+function DokumentKarte({ d }: { d: DokumentRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <Link prefetch={false} href={d.detailHref}>
+            {d.titel ?? d.dateiname}
+          </Link>
+        }
+        wert={d.betrag === null ? undefined : formatEuro(d.betrag)}
+      />
+      <KarteZeile>
+        {d.bezuege.length > 0 ? (
+          d.bezuege.map((b) => `${b.label}${b.beendet ? " (beendet)" : ""}`).join(" · ")
+        ) : d.bereich === "eingang" ? (
+          <span className="text-amber-400">Noch nicht abgelegt – prüfen</span>
+        ) : (
+          d.ordnerLabel
+        )}
+      </KarteZeile>
+      <KarteMeta>
+        <span>
+          {[
+            d.belegDatum ? formatDate(new Date(d.belegDatum)) : `Upload ${formatDate(new Date(d.createdAt))}`,
+            d.art ? artLabel(d.art) : null,
+            d.aussteller,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      </KarteMeta>
+      <KarteAktionen>
+        <a href={`/api/dokumente/${d.id}/download`} className={KARTE_AKTION}>
+          Datei öffnen
+        </a>
+      </KarteAktionen>
+    </>
   );
 }
 
@@ -283,6 +326,17 @@ export function DokumentTabelle({
         emptyMessage="Keine Dokumente."
         searchPlaceholder="Dateiname, Ordner oder Bezug suchen…"
         defaultSort={{ key: "belegdatum", dir: "desc" }}
+        mobileCard={(d) => <DokumentKarte d={d} />}
+        mobileCardHref={(d) => d.detailHref}
+        mobileCardInteraktiv
+        mobileSort={{
+          standardLabel: "neuestes Belegdatum",
+          optionen: [
+            { label: "ältestes Belegdatum", key: "belegdatum", dir: "asc" },
+            { label: "zuletzt hochgeladen", key: "upload", dir: "desc" },
+            { label: "Name A–Z", key: "datei", dir: "asc" },
+          ],
+        }}
         selectFilter={{
           label: "Art",
           value: (d) => d.art ?? "_ohne",

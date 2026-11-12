@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
+import { KARTE_AKTION, KarteAktionen, KarteKopf, KarteMeta, KarteWerte, KarteZeile } from "@/components/karte";
 
 export type ErhoehungZeile = {
   id: string; // Mietvertrag-ID
@@ -152,6 +153,53 @@ const columns: Column<ErhoehungZeile>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable), mit Knopf zum Schreiben.
+function ErhoehungKarte({ z }: { z: ErhoehungZeile }) {
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <Link prefetch={false} href={`/mietvertraege/${z.id}`}>
+            {z.einheitBezeichnung}
+          </Link>
+        }
+        wert={
+          z.bereitsMoeglich ? (
+            <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">jetzt möglich</span>
+          ) : (
+            <span className="text-xs font-normal text-neutral-500">
+              noch {z.monateBis} Monat{z.monateBis === 1 ? "" : "e"}
+            </span>
+          )
+        }
+      />
+      <KarteZeile>{z.mieterNamen}</KarteZeile>
+      <KarteMeta>
+        <span>
+          möglich ab {formatDate(z.naechsteMoeglich)} · letzte Anpassung {formatDate(z.referenzDatum)} ({z.referenzQuelle})
+        </span>
+      </KarteMeta>
+      <KarteWerte
+        werte={[
+          { label: "Kaltmiete jetzt", wert: `${euro(z.aktuelleKalt)} €` },
+          z.neueKalt !== null && { label: "Neue Kaltmiete", wert: `${euro(z.neueKalt)} €`, klasse: "text-white" },
+          z.neueKalt !== null &&
+            z.aenderungProzent !== null && {
+              label: `Änderung (${euro(z.aenderungProzent)} %)`,
+              wert: `+${euro(z.neueKalt - z.aktuelleKalt)} €`,
+            },
+        ]}
+      />
+      {z.neueKalt === null && <div className="mt-1.5 text-xs text-neutral-500">Kein Indexwert eingetragen.</div>}
+      <KarteAktionen>
+        <Link href={`/mietvertraege/${z.id}/indexerhoehung`} prefetch={false} className={KARTE_AKTION}>
+          Schreiben erstellen
+        </Link>
+      </KarteAktionen>
+    </>
+  );
+}
+
 const PROZENT_STUFEN = [1, 2, 3, 5];
 const EURO_STUFEN = [5, 10, 15, 20];
 
@@ -219,6 +267,40 @@ export function ErhoehungenTabelle({ alle }: { alle: ErhoehungZeile[] }) {
         rows={rows}
       emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit bekanntem Mietbeginn."}
       defaultSort={{ key: "moeglichAb" }}
+      mobileCard={(z) => <ErhoehungKarte z={z} />}
+      mobileCardInteraktiv
+      mobileSort={{
+        standardLabel: "frühestes Datum zuerst",
+        optionen: [
+          { label: "nach Einheit", key: "einheit", dir: "asc" },
+          { label: "höchste Änderung", key: "aenderung", dir: "desc" },
+          { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+        ],
+      }}
+      mobileSummary={(sichtbar) => {
+        const kaltJetzt = sichtbar.reduce((s, z) => s + z.aktuelleKalt, 0);
+        const erhoehung = sichtbar.reduce((s, z) => s + (z.neueKalt === null ? 0 : z.neueKalt - z.aktuelleKalt), 0);
+        const ohneNeu = sichtbar.filter((z) => z.neueKalt === null).length;
+        return (
+          <>
+            <div className="text-sm font-medium text-white">
+              Summe <span className="text-xs font-normal text-neutral-500">({sichtbar.length} Verträge)</span>
+            </div>
+            <KarteWerte
+              werte={[
+                { label: "Kaltmiete jetzt", wert: `${euro(kaltJetzt)} €` },
+                { label: "Neue Kaltmiete", wert: `${euro(kaltJetzt + erhoehung)} €`, klasse: "text-white" },
+                { label: "Erhöhung", wert: `+${euro(erhoehung)} €` },
+              ]}
+            />
+            {ohneNeu > 0 && (
+              <div className="mt-1.5 text-xs text-neutral-500">
+                {ohneNeu} Vertr{ohneNeu === 1 ? "ag" : "äge"} ohne Indexwert unverändert angesetzt
+              </div>
+            )}
+          </>
+        );
+      }}
       renderFooter={(sichtbar) => {
         const mitNeu = sichtbar.filter((z): z is ErhoehungZeile & { neueKalt: number } => z.neueKalt !== null);
         const ohneNeu = sichtbar.length - mitNeu.length;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteWerte, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -129,6 +130,34 @@ const columns: Column<VertragRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable).
+function VertragKarte({ v }: { v: VertragRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={v.einheitBezeichnung}
+        wert={<span className={`${KARTE_KENNZEICHEN} ${statusColor[v.status]}`}>{statusLabel[v.status]}</span>}
+      />
+      <KarteZeile>{v.mieterNamen}</KarteZeile>
+      <KarteMeta>
+        <span>
+          {v.beginn ? `ab ${formatDate(v.beginn)}` : "Beginn unbekannt"}
+          {v.ende && ` bis ${formatDate(v.ende)}`}
+        </span>
+        {v.zahlungswegHinweis && (
+          <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400">⚠ Zahlungsweg prüfen</span>
+        )}
+      </KarteMeta>
+      <KarteWerte
+        werte={[
+          { label: "Kaltmiete", wert: formatEuro(v.kaltmiete) },
+          { label: "Nebenkosten", wert: formatEuro(v.nebenkostenVorauszahlung) },
+        ]}
+      />
+    </>
+  );
+}
+
 type StatusFilter = "ALLE" | VertragRow["status"];
 
 export function MietvertraegeTable({ rows }: { rows: VertragRow[] }) {
@@ -137,7 +166,7 @@ export function MietvertraegeTable({ rows }: { rows: VertragRow[] }) {
 
   return (
     <div>
-      <div className="mb-3 flex gap-1">
+      <div className="mb-3 flex flex-wrap gap-1">
         {(["ALLE", "AKTIV", "GEPLANT", "BEENDET"] as const).map((f) => {
           const anzahl = f === "ALLE" ? rows.length : rows.filter((r) => r.status === f).length;
           return (
@@ -164,6 +193,15 @@ export function MietvertraegeTable({ rows }: { rows: VertragRow[] }) {
         }
         searchPlaceholder="Mietverträge durchsuchen…"
         rowHref={(v) => `/mietvertraege/${v.id}`}
+        mobileCard={(v) => <VertragKarte v={v} />}
+        mobileSort={{
+          standardLabel: "nach Einheit",
+          optionen: [
+            { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+            { label: "höchste Kaltmiete", key: "kaltmiete", dir: "desc" },
+            { label: "neuester Beginn", key: "beginn", dir: "desc" },
+          ],
+        }}
       />
     </div>
   );

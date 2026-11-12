@@ -2,6 +2,7 @@
 
 import { DataTable, type Column } from "@/components/data-table";
 import type { KontostandKategorie } from "@/lib/kontostand";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -78,6 +79,20 @@ export function KontostandTable({ rows }: { rows: KontostandRow[] }) {
       rows={rows}
       emptyMessage="Keine Buchungen erfasst."
       searchPlaceholder="Kontostand-Verlauf durchsuchen…"
+      mobileCard={(z) => (
+        <>
+          <KarteKopf
+            titel={z.beschreibung || KATEGORIE_LABEL[z.kategorie]}
+            wert={formatEuro(z.betrag)}
+            wertKlasse={z.betrag < 0 ? "text-red-400" : "text-green-400"}
+          />
+          <KarteMeta>
+            <span>{formatDate(z.datum)}</span>
+            <span className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-300`}>{KATEGORIE_LABEL[z.kategorie]}</span>
+            <span className="ml-auto whitespace-nowrap text-neutral-300">Stand {formatEuro(z.kontostand)}</span>
+          </KarteMeta>
+        </>
+      )}
     />
   );
 }

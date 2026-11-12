@@ -110,7 +110,7 @@ export default async function KontoauszugImportePage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Kontoauszug-Importe</h1>
           <p className="text-sm text-neutral-400">

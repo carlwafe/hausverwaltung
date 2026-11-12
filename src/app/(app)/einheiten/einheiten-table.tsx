@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { mieterName } from "@/lib/mieter-name";
+import { KarteKopf, KarteMeta, KarteZeile } from "@/components/karte";
 
 const typLabel: Record<string, string> = {
   WOHNUNG: "Wohnung",
@@ -106,10 +107,30 @@ const columns: Column<EinheitRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable).
+function EinheitKarte({ e }: { e: EinheitRow }) {
+  const mieter = mieterText(e);
+  return (
+    <>
+      <KarteKopf
+        titel={e.bezeichnung}
+        wert={e.wohnflaecheQm > 0 ? `${e.wohnflaecheQm.toFixed(2)} m²` : undefined}
+        wertKlasse="text-neutral-300"
+      />
+      <KarteZeile>{mieter || <span className="text-neutral-500">leer</span>}</KarteZeile>
+      <KarteMeta>
+        <span>{[e.gebaeudeLabel, typLabel[e.typ], e.etage].filter(Boolean).join(" · ")}</span>
+        {amtZahlt(e) && <span className="text-xs text-blue-400">Amt zahlt</span>}
+      </KarteMeta>
+    </>
+  );
+}
+
 export function EinheitenTable({ rows }: { rows: EinheitRow[] }) {
   return (
     <DataTable
       rowHref={(e) => `/einheiten/${e.id}`}
+      mobileCard={(e) => <EinheitKarte e={e} />}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Einheiten angelegt."

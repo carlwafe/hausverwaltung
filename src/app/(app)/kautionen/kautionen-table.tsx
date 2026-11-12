@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { speichereKautionNotiz } from "./actions";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz, KarteWerte, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -220,10 +221,52 @@ const columns: Column<KautionRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable). Beträge erscheinen nur, wenn sie etwas aussagen; Warnungen
+// stehen als Text in der Karte (Tooltips gibt es auf dem Handy nicht). Der Kommentar ist hier nur lesbar.
+function KautionKarte({ r }: { r: KautionRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={r.einheitBezeichnung}
+        wert={<span className={`${KARTE_KENNZEICHEN} ${STATUS_FARBE[r.status]}`}>{STATUS_LABEL[r.status]}</span>}
+      />
+      <KarteZeile>{r.mieterNamen}</KarteZeile>
+      {r.mietende && (
+        <KarteMeta>
+          <span>Mietende {new Intl.DateTimeFormat("de-DE").format(new Date(r.mietende))}</span>
+        </KarteMeta>
+      )}
+      <KarteWerte
+        werte={[
+          { label: "Kaution", wert: formatEuro(r.betrag) },
+          r.zinsen ? { label: "Zinsen", wert: formatEuro(r.zinsen) } : null,
+          r.aufgeloest > 0 && { label: "Aufgelöst", wert: formatEuro(r.aufgeloest) },
+          r.ausgezahlt > 0 && { label: "Ausgezahlt", wert: formatEuro(r.ausgezahlt) },
+          r.verrechnet > 0 && { label: "Verrechnet", wert: formatEuro(r.verrechnet) },
+          r.einbehalten !== null && { label: "Einbehalten", wert: formatEuro(r.einbehalten) },
+          r.offen !== null && {
+            label: "Offen",
+            wert: formatEuro(r.offen),
+            klasse: r.offen > 0.005 ? "text-amber-400" : r.offen < -0.005 ? "text-red-400" : "text-neutral-500",
+          },
+        ]}
+      />
+      {r.betragAbweichung && (
+        <div className="mt-1.5 text-xs text-amber-400">
+          ⚠ Einzahlungen des Mieters: {formatEuro(r.einzahlungSumme!)}
+        </div>
+      )}
+      {r.warnung && <div className="mt-1.5 text-xs text-amber-400">⚠ {r.warnung}</div>}
+      {r.notizen && <KarteNotiz>{r.notizen}</KarteNotiz>}
+    </>
+  );
+}
+
 export function KautionenTable({ rows }: { rows: KautionRow[] }) {
   return (
     <DataTable
       rowHref={(r) => `/mietvertraege/${r.mietvertragId}`}
+      mobileCard={(r) => <KautionKarte r={r} />}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Kautionen erfasst."

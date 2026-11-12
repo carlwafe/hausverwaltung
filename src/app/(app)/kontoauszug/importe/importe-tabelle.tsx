@@ -6,6 +6,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { pruefeImportVollstaendigkeit, raeumeVerwaisteImporteAuf } from "./actions";
 import type { VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
 import { jahrAusDateiname } from "@/lib/dokumente-anzeige";
+import { KarteKopf, KarteMeta } from "@/components/karte";
 
 function formatDatum(iso: string) {
   return new Intl.DateTimeFormat("de-DE").format(new Date(iso));
@@ -233,7 +234,8 @@ export function ImporteTabelle({
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-end gap-3">
+      {/* Mehrfachauswahl gibt es nur in der Tabelle (ab md). */}
+      <div className="mb-3 hidden items-center justify-end gap-3 md:flex">
         <span className="text-xs text-neutral-500">{ausgewaehlt.length} ausgewählt</span>
         <button
           type="button"
@@ -259,6 +261,43 @@ export function ImporteTabelle({
           placeholder: "Alle Jahre",
         }}
         defaultSort={{ key: "erstelltAm", dir: "desc" }}
+        mobileCardInteraktiv
+        mobileCard={(r) => {
+          const teile = zuordnungsTeile(r);
+          return (
+            <>
+              <KarteKopf
+                titel={r.dateiname}
+                wert={r.anzahlZeilen !== null ? `${r.anzahlZeilen} Zeilen` : undefined}
+                wertKlasse="text-neutral-300"
+              />
+              <KarteMeta>
+                <span>
+                  importiert am {formatDatum(r.erstelltAm)}
+                  {r.anzahlImporte > 1 && ` (${r.anzahlImporte}x)`}
+                </span>
+              </KarteMeta>
+              {teile.length > 0 && (
+                <div className="mt-1 text-xs text-neutral-400">{teile.map((t) => `${t.anzahl} ${t.label}`).join(" · ")}</div>
+              )}
+              <div className="mt-2">
+                <VollstaendigkeitsZelle
+                  batchId={r.pruefBatchId}
+                  ergebnis={ergebnisse.get(r.pruefBatchId) ?? null}
+                  pending={pendingIds.has(r.pruefBatchId)}
+                  onPruefen={pruefeEinzeln}
+                />
+              </div>
+            </>
+          );
+        }}
+        mobileSort={{
+          standardLabel: "neueste zuerst",
+          optionen: [
+            { label: "älteste zuerst", key: "erstelltAm", dir: "asc" },
+            { label: "Dateiname A–Z", key: "dateiname", dir: "asc" },
+          ],
+        }}
       />
     </div>
   );

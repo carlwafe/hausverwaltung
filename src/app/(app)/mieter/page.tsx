@@ -41,7 +41,7 @@ export default async function MieterPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Mieter</h1>
           <p className="text-sm text-neutral-400">{mieter.length} Mieter insgesamt, {mieter.filter((m) => m.status === "AKTIV").length} aktiv</p>
@@ -51,7 +51,7 @@ export default async function MieterPage() {
             Amt (Zahlungsweg „Amt zahlt“ am Mietvertrag).
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             href="/mieter/anrede"
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"

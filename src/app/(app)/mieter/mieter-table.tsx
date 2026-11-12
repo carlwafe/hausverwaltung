@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { mieterName } from "@/lib/mieter-name";
+import { KARTE_AKTION, KarteAktionen, KarteKopf, KarteZeile } from "@/components/karte";
 
 export type MieterRow = {
   id: string;
@@ -79,6 +80,48 @@ const columns: Column<MieterRow>[] = [
   },
 ];
 
+const telHref = (nummer: string) => `tel:${nummer.replace(/[^\d+]/g, "")}`;
+
+// Karte fürs Handy (siehe `mobileCard` an DataTable), mit antippbaren Telefonnummern und E-Mail.
+function MieterKarte({ m }: { m: MieterRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <Link prefetch={false} href={`/mieter/${m.id}`}>
+            {mieterName(m)}
+          </Link>
+        }
+        wert={
+          <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_KLASSE[m.status]}`}>
+            {STATUS_LABEL[m.status]}
+          </span>
+        }
+      />
+      {m.einheiten.length > 0 && <KarteZeile>{m.einheiten.join(", ")}</KarteZeile>}
+      {(m.handynummer || m.festnetznummer || m.email) && (
+        <KarteAktionen>
+          {m.handynummer && (
+            <a href={telHref(m.handynummer)} className={KARTE_AKTION}>
+              <span className="min-w-0 truncate">{m.handynummer}</span>
+            </a>
+          )}
+          {m.festnetznummer && (
+            <a href={telHref(m.festnetznummer)} className={KARTE_AKTION}>
+              <span className="min-w-0 truncate">{m.festnetznummer}</span>
+            </a>
+          )}
+          {m.email && (
+            <a href={`mailto:${m.email}`} className={KARTE_AKTION}>
+              <span className="min-w-0 truncate">{m.email}</span>
+            </a>
+          )}
+        </KarteAktionen>
+      )}
+    </>
+  );
+}
+
 export function MieterTable({
   rows,
   duplikatIds,
@@ -95,7 +138,7 @@ export function MieterTable({
 
   return (
     <div>
-      <div className="mb-3 flex gap-1">
+      <div className="mb-3 flex flex-wrap gap-1">
         {(["ALLE", "AKTIV", "GEPLANT", "INAKTIV"] as const).map((f) => (
           <button
             key={f}
@@ -134,6 +177,8 @@ export function MieterTable({
         emptyMessage="Noch keine Mieter angelegt."
         searchPlaceholder="Mieter durchsuchen…"
         rowHref={(m) => `/mieter/${m.id}`}
+        mobileCard={(m) => <MieterKarte m={m} />}
+        mobileCardInteraktiv
         rowClassName={(m) => (m.amtZahlt ? "bg-blue-500/10" : "")}
       />
     </div>

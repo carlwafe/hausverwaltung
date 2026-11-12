@@ -314,7 +314,7 @@ export default async function NebenkostenabrechnungDetailPage({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">
             Nebenkostenabrechnung {abrechnung.jahr}
@@ -324,7 +324,7 @@ export default async function NebenkostenabrechnungDetailPage({
             {formatDate(abrechnung.erstelltAm)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung wird manuell geführt — zum Berechnen erst „Auf berechnet umstellen“." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
             <SubmitButton
               pendingLabel="Berechne…"

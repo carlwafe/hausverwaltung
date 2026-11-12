@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { mandatsreferenz } from "@/lib/sepa-mandat";
 import type { MandatZeile } from "@/lib/mandat-laden";
+import { KARTE_AKTION, KarteAktionen, KarteKopf, KarteMeta, KarteZeile } from "@/components/karte";
 
 const leer = <span className="text-neutral-600">–</span>;
 const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(new Date(iso));
@@ -86,8 +87,46 @@ const columns: Column<MandatZeile>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable). Mehrere Mandate auf einmal drucken geht nur in der Tabelle.
+function MandatKarte({ z }: { z: MandatZeile }) {
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <Link prefetch={false} href={`/mietvertraege/${z.id}`}>
+            {z.einheit}
+          </Link>
+        }
+        wert={<span className="text-xs font-normal text-neutral-400">{wegText(z.zahlungsweg) ?? "Zahlungsweg offen"}</span>}
+      />
+      <KarteZeile>{z.mieterNamen || "– ohne Mieter –"}</KarteZeile>
+      <KarteMeta>
+        {z.mandatReferenz ? (
+          <span>
+            Mandat <span className="font-mono text-xs text-green-400">{z.mandatReferenz}</span>
+            {z.mandatDatum && ` vom ${formatDate(z.mandatDatum)}`}
+          </span>
+        ) : (
+          <span>kein Mandat erfasst</span>
+        )}
+        {z.beginn && (
+          <span>
+            · Mietbeginn {formatDate(z.beginn)}
+            {z.geplant && <span className="ml-1 text-xs text-amber-400">geplant</span>}
+          </span>
+        )}
+      </KarteMeta>
+      <KarteAktionen>
+        <Link href={`/mietvertraege/${z.id}/lastschrift-mandat`} prefetch={false} className={KARTE_AKTION}>
+          {z.mandatReferenz ? "Mandat neu erstellen" : "Mandat erstellen"}
+        </Link>
+      </KarteAktionen>
+    </>
+  );
+}
+
 const selectKlasse =
-  "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
+  "min-w-0 max-w-full rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
 
 type Ansicht = "alle" | "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | "offen";
 type MandatAnsicht = "ohne-selbst" | "ohne-amt" | "mit" | "alle";
@@ -119,7 +158,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-400">
-        <label className="flex items-center gap-2">
+        <label className="flex max-w-full items-center gap-2">
           Mandat
           <select value={mandatAnsicht} onChange={(e) => setMandatAnsicht(e.target.value as MandatAnsicht)} className={selectKlasse}>
             <option value="ohne-selbst">ohne Mandat – Mieter zahlt selbst</option>
@@ -128,7 +167,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
             <option value="alle">alle</option>
           </select>
         </label>
-        <label className="flex items-center gap-2">
+        <label className="flex max-w-full items-center gap-2">
           Zahlungsweg
           <select value={ansicht} onChange={(e) => setAnsicht(e.target.value as Ansicht)} className={selectKlasse}>
             <option value="alle">alle</option>
@@ -152,7 +191,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
             {ids.length} ausgewählte Mandate drucken
           </Link>
         ) : (
-          <span className="text-xs text-neutral-500">Zeilen ankreuzen, um mehrere Mandate in einem Druckvorgang zu erstellen.</span>
+          <span className="hidden text-xs text-neutral-500 md:inline">Zeilen ankreuzen, um mehrere Mandate in einem Druckvorgang zu erstellen.</span>
         )}
         {mitMandat > 0 && (
           <span className="text-xs text-amber-400">
@@ -168,6 +207,8 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
         onSelectionChange={setAuswahl}
         emptyMessage="Keine Mietverträge in dieser Auswahl."
         defaultSort={{ key: "einheit" }}
+        mobileCard={(z) => <MandatKarte z={z} />}
+        mobileCardInteraktiv
       />
     </>
   );

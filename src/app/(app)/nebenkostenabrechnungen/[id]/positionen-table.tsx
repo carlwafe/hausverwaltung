@@ -9,6 +9,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { saldoMitToleranz } from "@/lib/nk-saldo";
 import { toDateInputValue } from "@/lib/date-utils";
 import { VerwalterAbgleichStern, KommentarFeld } from "./pruefung-zellen";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz, KarteWerte, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -354,6 +355,57 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
   ];
 }
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable): die gespeicherten Werte der Position. Aufschlüsselung,
+// Bearbeiten, Vergleichsrechnung und Prüfnotizen gibt es nur in der Tabelle.
+function PositionKarte({ p }: { p: PositionRow }) {
+  const erledigt = p.saldoNachGutschrift === 0;
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <>
+            {p.einheitBezeichnung}
+            {p.manuell && (
+              <span className="ml-1.5 inline-block rounded-full bg-violet-500/10 px-1.5 text-xs font-normal text-violet-400">
+                manuell
+              </span>
+            )}
+          </>
+        }
+        wert={
+          erledigt ? (
+            <span className={`${KARTE_KENNZEICHEN} bg-green-500/10 text-green-400`}>erledigt</span>
+          ) : (
+            formatEuro(p.saldoNachGutschrift)
+          )
+        }
+        wertKlasse={p.saldoNachGutschrift >= 0 ? "text-green-400" : "text-red-400"}
+        wertLabel={erledigt ? undefined : "noch offen"}
+      />
+      <KarteZeile>{p.mieterNamen || "–"}</KarteZeile>
+      <KarteMeta>
+        <span>
+          {formatDate(p.zeitraumVon)} – {formatDate(p.zeitraumBis)}
+        </span>
+        {p.stimmtMitVerwalter && <span className="text-xs text-amber-300">★ stimmt mit Verwalter</span>}
+      </KarteMeta>
+      <KarteWerte
+        werte={[
+          { label: "Kostenanteil", wert: formatEuro(p.kostenanteilGesamt) },
+          { label: "Vorauszahlung", wert: formatEuro(p.vorauszahlungGesamt) },
+          {
+            label: p.saldo >= 0 ? "Guthaben" : "Nachzahlung",
+            wert: formatEuro(p.saldo),
+            klasse: p.saldo >= 0 ? "text-green-400" : "text-red-400",
+          },
+          p.gutschriftSumme !== null && { label: "Gutschrift", wert: formatEuro(p.gutschriftSumme) },
+        ]}
+      />
+      {p.kommentar && <KarteNotiz>{p.kommentar}</KarteNotiz>}
+    </>
+  );
+}
+
 export function PositionenTable({ rows, vergleichName }: { rows: PositionRow[]; vergleichName: string }) {
   const spalten = useMemo(() => baueSpalten(vergleichName), [vergleichName]);
   return (
@@ -363,6 +415,7 @@ export function PositionenTable({ rows, vergleichName }: { rows: PositionRow[]; 
       rows={rows}
       emptyMessage="Keine Positionen vorhanden."
       searchPlaceholder="Positionen durchsuchen…"
+      mobileCard={(p) => <PositionKarte p={p} />}
       renderBelow={(p, colSpan) => {
         const details = [...p.details].sort((a, b) => a.kostenartName.localeCompare(b.kostenartName, "de"));
         const summeDetails = details.reduce((s, d) => s + d.anteilZeitraum, 0);

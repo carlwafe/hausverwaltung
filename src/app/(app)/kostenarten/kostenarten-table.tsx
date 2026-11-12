@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { KOSTENGRUPPE_LABEL, kostengruppeFuer, type AnlageVZeile } from "@/lib/anlage-v";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
   WOHNFLAECHE: "Wohnfläche",
@@ -102,10 +103,37 @@ const columns: Column<KostenartRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable). „umlagefähig“ erscheint nur, wenn es zutrifft.
+function KostenartKarte({ k }: { k: KostenartRow }) {
+  const { gruppe, automatisch } = kostengruppeFuer(k);
+  const nachweisFehlt = k.istSonstigeBetriebskosten && k.umlagefaehig && !k.vertraglicheGrundlage?.trim();
+  return (
+    <>
+      <KarteKopf titel={k.name} wert={`${k.anzahlPositionen} Pos.`} wertKlasse="text-neutral-300" />
+      <KarteMeta>
+        {k.umlagefaehig && <span className={`${KARTE_KENNZEICHEN} bg-green-500/10 text-green-400`}>umlagefähig</span>}
+        {k.standardVerteilerschluessel && <span>{VERTEILERSCHLUESSEL_LABEL[k.standardVerteilerschluessel]}</span>}
+        {k.istSonstigeBetriebskosten ? (
+          <span className={`${KARTE_KENNZEICHEN} ${nachweisFehlt ? "bg-amber-500/10 text-amber-400" : "bg-green-500/10 text-green-400"}`}>
+            BetrKV 17 — {nachweisFehlt ? "Nachweis fehlt" : "belegt"}
+          </span>
+        ) : (
+          k.betrKvNummer && <span>BetrKV {k.betrKvNummer}</span>
+        )}
+      </KarteMeta>
+      <KarteNotiz>
+        Steuerlich: {KOSTENGRUPPE_LABEL[gruppe]}
+        {automatisch && " (auto)"}
+      </KarteNotiz>
+    </>
+  );
+}
+
 export function KostenartenTable({ rows }: { rows: KostenartRow[] }) {
   return (
     <DataTable
       rowHref={(k) => `/kostenarten/${k.id}`}
+      mobileCard={(k) => <KostenartKarte k={k} />}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Kostenarten angelegt."

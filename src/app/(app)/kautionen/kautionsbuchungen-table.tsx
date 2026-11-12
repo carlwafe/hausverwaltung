@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 import {
   aktualisiereKautionsbuchungKategorie,
   deleteKautionsbuchungen,
@@ -280,6 +281,33 @@ const columns: Column<KautionsbuchungRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable). Die Kategorie ist hier nur lesbar — umstellen in der Tabelle.
+function KautionsbuchungKarte({ k }: { k: KautionsbuchungRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={
+          k.mietvertragId ? (
+            `${k.einheitBezeichnung} — ${k.mieterNamen}`
+          ) : (
+            <span className="text-neutral-500">nicht zugeordnet</span>
+          )
+        }
+        wert={formatEuro(k.betrag)}
+      />
+      <KarteMeta>
+        <span>{formatDate(k.datum)}</span>
+        <span className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-300`}>{kategorieText(k)}</span>
+        {k.aufteilungGruppeId && (
+          <span className="inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400">✂</span>
+        )}
+        {k.einbehalt && !k.einbehalt.gebucht && <span className="text-xs text-neutral-500">ohne Buchung</span>}
+      </KarteMeta>
+      {k.verwendungszweck && <KarteNotiz>{k.verwendungszweck}</KarteNotiz>}
+    </>
+  );
+}
+
 export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] }) {
   const [ausgewaehlt, setAusgewaehlt] = useState<KautionsbuchungRow[]>([]);
   const [pending, startTransition] = useTransition();
@@ -314,6 +342,17 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
       )}
       <DataTable
         rowHref={(k) => `/kautionen/buchung/${k.id}`}
+        // Ein Einbehalt hat keine eigene Buchungsseite.
+        mobileCardHref={(k) => (k.einbehalt ? null : `/kautionen/buchung/${k.id}`)}
+        mobileCard={(k) => <KautionsbuchungKarte k={k} />}
+        mobileSort={{
+          standardLabel: "neueste zuerst",
+          optionen: [
+            { label: "älteste zuerst", key: "datum", dir: "asc" },
+            { label: "höchster Betrag", key: "betrag", dir: "desc" },
+            { label: "niedrigster Betrag", key: "betrag", dir: "asc" },
+          ],
+        }}
         columns={columns}
         rows={rows}
         emptyMessage="Noch keine Kautionsbuchungen aus Kontoauszug importiert."

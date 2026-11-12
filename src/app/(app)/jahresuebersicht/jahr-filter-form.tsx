@@ -11,7 +11,7 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
     "h-10 w-32 rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm outline-none focus:border-neutral-400";
 
   return (
-    <form method="GET" className="flex items-end gap-3">
+    <form method="GET" className="flex flex-wrap items-end gap-3">
       <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="jahr">
           Jahr

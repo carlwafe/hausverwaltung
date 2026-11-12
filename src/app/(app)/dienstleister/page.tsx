@@ -51,7 +51,7 @@ export default async function DienstleisterPage() {
         const offen = vonTyp.filter((d) => d.row.aktiv && !d.row.informiertAm).length;
         return (
           <section key={a.typ} className="mb-10">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold text-white">
                 {a.titel} <span className="text-sm font-normal text-neutral-500">({anzahlAktiv} aktiv
                 {anzahlAktiv > 0 && <>, {offen === 0 ? "alle informiert" : `${offen} noch nicht über die neue Verwaltung informiert`}</>})

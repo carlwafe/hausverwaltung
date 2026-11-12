@@ -60,7 +60,10 @@ export function DataTable<T extends { id: string }>({
   defaultSort,
   renderFooter,
   mobileCard,
+  mobileCardHref,
+  mobileCardInteraktiv = false,
   mobileSort,
+  mobileSummary,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -128,8 +131,18 @@ export function DataTable<T extends { id: string }>({
    * `renderExpanded`, `renderBelow`, `renderFooter`, `rowId`. Beide Ansichten stehen im HTML
    * (Umschaltung per CSS). Bei langen Listen erscheinen zunächst nur die ersten 50 Karten, weitere
    * per Knopf „Weitere anzeigen“ — die Suche und die Filter durchsuchen trotzdem alle Zeilen.
-   * Der Karteninhalt darf keine Links oder Knöpfe enthalten (die ganze Karte ist schon der Link). */
+   * Der Karteninhalt darf keine Links oder Knöpfe enthalten (die ganze Karte ist schon der Link) —
+   * außer mit `mobileCardInteraktiv`. Bausteine für den Karteninhalt: `src/components/karte.tsx`. */
   mobileCard?: (row: T) => React.ReactNode;
+  /** Ziel einer Karte, wenn es von `rowHref` abweicht oder die Tabelle selbst keine klickbaren Zeilen
+   * hat (z.B. weil dort in der Zeile bearbeitet wird). Ohne Angabe gilt `rowHref`. */
+  mobileCardHref?: (row: T) => string | null;
+  /** Die Karte enthält eigene Links oder Knöpfe (Telefonnummer, „Schreiben erstellen“ …): Sie ist
+   * dann kein Link, sondern reagiert wie eine Tabellenzeile auf den Klick neben diesen Elementen. */
+  mobileCardInteraktiv?: boolean;
+  /** Summen o.ä. über die aktuell gefilterten Zeilen, als eigener Kasten über der Kartenliste
+   * (Gegenstück zu `renderFooter`, das es in der Kartenansicht nicht gibt). */
+  mobileSummary?: (visibleRows: T[]) => React.ReactNode;
   /** Auswahlfeld „Sortierung“ über der Kartenansicht (Ersatz für die Spaltenköpfe, nur unter `md`).
    * `standardLabel` benennt die Reihenfolge ohne Auswahl (die der übergebenen Zeilen bzw.
    * `defaultSort`), `optionen` verweisen auf Spalten mit `sortValue`. */
@@ -316,12 +329,22 @@ export function DataTable<T extends { id: string }>({
 
       {mobileCard && (
         <ul className="flex flex-col gap-2 md:hidden">
+          {mobileSummary && sortiert.length > 0 && (
+            <li className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-4 py-3">{mobileSummary(sortiert)}</li>
+          )}
           {sortiert.slice(0, kartenAnzahl).map((row) => {
-            const href = rowHref?.(row) ?? null;
+            const href = (mobileCardHref ?? rowHref)?.(row) ?? null;
             const klasse = `block rounded-lg border border-neutral-800 px-4 py-3 ${rowClassName?.(row) ?? ""}`;
             return (
               <li key={row.id}>
-                {href ? (
+                {mobileCardInteraktiv ? (
+                  <div
+                    onClick={href ? (e) => zeilenKlick(e, href) : undefined}
+                    className={`${klasse} ${href ? "cursor-pointer active:bg-neutral-900" : ""}`}
+                  >
+                    {mobileCard(row)}
+                  </div>
+                ) : href ? (
                   <Link prefetch={false} href={href} className={`${klasse} active:bg-neutral-900`}>
                     {mobileCard(row)}
                   </Link>

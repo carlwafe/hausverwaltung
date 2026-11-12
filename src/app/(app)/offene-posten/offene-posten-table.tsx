@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
+import { KarteKopf, KarteMeta, KarteWerte, KarteZeile, saldoFarbe } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -132,10 +133,53 @@ const columns: Column<OffenePostenRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable). Die „davon“-Werte erscheinen nur, wenn sie nicht null sind.
+function OffenePostenKarte({ z }: { z: OffenePostenRow }) {
+  return (
+    <>
+      <KarteKopf titel={z.einheit} wert={formatEuro(z.saldo)} wertKlasse={saldoFarbe(z.saldo)} wertLabel="Saldo" />
+      <KarteZeile>{z.mieter}</KarteZeile>
+      <KarteMeta>
+        <span>{z.status === "AKTIV" ? "Aktiv" : "Beendet"}</span>
+        {z.eigenerStichtag && <span className="text-xs text-amber-300">· eigener Stichtag {z.eigenerStichtag}</span>}
+      </KarteMeta>
+      <KarteWerte
+        werte={[
+          { label: "Soll", wert: formatEuro(z.soll) },
+          { label: "Ist", wert: formatEuro(z.ist) },
+          z.saldovortrag !== 0 && {
+            label: "Saldovortrag",
+            wert: formatEuro(z.saldovortrag),
+            klasse: z.saldovortrag < 0 ? "text-red-400" : "text-green-400",
+          },
+          z.sonderforderung !== 0 && {
+            label: "Sonderforderung",
+            wert: formatEuro(z.sonderforderung),
+            klasse: z.sonderforderung > 0 ? "text-amber-400" : "text-green-400",
+          },
+          z.nkGegenrechnung !== 0 && {
+            label: "NK-Gegenrechnung",
+            wert: formatEuro(z.nkGegenrechnung),
+            klasse: z.nkGegenrechnung > 0 ? "text-green-400" : "text-amber-400",
+          },
+        ]}
+      />
+    </>
+  );
+}
+
 export function OffenePostenTable({ rows }: { rows: OffenePostenRow[] }) {
   return (
     <DataTable
       rowHref={(z) => `/mietvertraege/${z.id}`}
+      mobileCard={(z) => <OffenePostenKarte z={z} />}
+      mobileSort={{
+        standardLabel: "nach Einheit",
+        optionen: [
+          { label: "höchster Rückstand", key: "saldo", dir: "asc" },
+          { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+        ],
+      }}
       columns={columns}
       rows={rows}
       emptyMessage="Keine aktiven oder beendeten Mietverträge vorhanden."

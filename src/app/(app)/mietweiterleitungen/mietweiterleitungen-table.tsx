@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { DataTable, type Column } from "@/components/data-table";
 import { RohdatenDialog } from "@/components/rohdaten-dialog";
+import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 import { deleteMietweiterleitungen } from "./actions";
 import {
   exportiereAlsCsv,
@@ -148,6 +149,30 @@ export function MietweiterleitungenTable({ rows }: { rows: MietweiterleitungRow[
         searchPlaceholder="Mietweiterleitungen durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
+        mobileCard={(m) => (
+          <>
+            <KarteKopf
+              titel={m.empfaenger || (m.betrag < 0 ? "Mietweiterleitung" : "Einlage")}
+              wert={formatEuro(m.betrag)}
+              wertKlasse={m.betrag < 0 ? "text-red-400" : "text-green-400"}
+            />
+            <KarteMeta>
+              <span>{formatDate(m.datum)}</span>
+              <span className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-300`}>
+                {m.betrag < 0 ? "Mietweiterleitung" : "Einlage"}
+              </span>
+            </KarteMeta>
+            {m.verwendungszweck && <KarteNotiz>{m.verwendungszweck}</KarteNotiz>}
+          </>
+        )}
+        mobileSort={{
+          standardLabel: "neueste zuerst",
+          optionen: [
+            { label: "älteste zuerst", key: "datum", dir: "asc" },
+            { label: "höchster Betrag", key: "betrag", dir: "desc" },
+            { label: "niedrigster Betrag", key: "betrag", dir: "asc" },
+          ],
+        }}
       />
     </div>
   );

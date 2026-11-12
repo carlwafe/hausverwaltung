@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { VerifikationsStern } from "./verifikations-stern";
 import { KommentarFeld } from "./kommentar-feld";
+import { KarteKopf, KarteMeta, KarteNotiz, KarteWerte, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -178,6 +179,66 @@ export function MieterTabelle({
       emptyMessage={`Keine Mietverträge mit Bewegung in ${label}.`}
       searchPlaceholder="Einheit, Mieter, Kommentar suchen…"
       defaultSort={{ key: "einheit" }}
+      // Karte fürs Handy: Prüfstern und Kommentar sind dort nur lesbar (bearbeiten in der Tabelle).
+      mobileCard={(z) => (
+        <>
+          <KarteKopf
+            titel={z.einheit}
+            wert={formatEuro(z.saldoNeu)}
+            wertKlasse={z.saldoNeu < 0 ? "text-red-400" : "text-white"}
+            wertLabel="Saldo neu"
+          />
+          <KarteZeile>{z.mieter}</KarteZeile>
+          {(z.eigenerStichtag || z.verifiziert) && (
+            <KarteMeta>
+              {z.verifiziert && <span className="text-xs text-green-400">★ geprüft</span>}
+              {z.eigenerStichtag && <span className="text-xs text-amber-300">eigener Stichtag {z.eigenerStichtag}</span>}
+            </KarteMeta>
+          )}
+          <KarteWerte
+            werte={[
+              { label: "Saldo alt", wert: formatEuro(z.saldoAlt), klasse: z.saldoAlt < 0 ? "text-red-400" : undefined },
+              { label: "Soll gesamt", wert: formatEuro(z.soll) },
+              { label: "Miete", wert: formatEuro(z.miete) },
+              mitNkOffen &&
+                abrechnungOhneGegenrechnung(z) !== 0 && {
+                  label: "NK-Abrechnung offen",
+                  wert: formatEuro(abrechnungOhneGegenrechnung(z)),
+                  klasse: abrechnungOhneGegenrechnung(z) < 0 ? "text-red-400" : undefined,
+                },
+              z.nebenkostenGegenrechnung !== 0 && { label: "NK-Gutschrift", wert: formatEuro(z.nebenkostenGegenrechnung) },
+            ]}
+          />
+          {z.kommentar && <KarteNotiz>{z.kommentar}</KarteNotiz>}
+        </>
+      )}
+      mobileSort={{
+        standardLabel: "nach Einheit",
+        optionen: [
+          { label: "niedrigster Saldo neu", key: "saldoNeu", dir: "asc" },
+          { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+        ],
+      }}
+      mobileSummary={(sichtbar) => {
+        const summe = (f: (z: MieterTabellenZeile) => number) => formatEuro(sichtbar.reduce((s, z) => s + f(z), 0));
+        return (
+          <>
+            <div className="text-sm font-medium text-white">
+              Summe <span className="text-xs font-normal text-neutral-500">({sichtbar.length} Verträge)</span>
+            </div>
+            <KarteWerte
+              werte={[
+                { label: "Saldo alt", wert: summe((z) => z.saldoAlt) },
+                { label: "Soll gesamt", wert: summe((z) => z.soll) },
+                { label: "Miete", wert: summe((z) => z.miete) },
+                mitNkOffen && { label: "NK-Abrechnung offen", wert: summe(abrechnungOhneGegenrechnung) },
+                zeigeGutschrift && { label: "NK-Gutschrift", wert: summe((z) => z.nebenkostenGegenrechnung) },
+                { label: "Saldo neu", wert: summe((z) => z.saldoNeu), klasse: "font-medium text-white" },
+              ]}
+            />
+          </>
+        );
+      }}
       renderFooter={(sichtbar) => {
         const summe = (f: (z: MieterTabellenZeile) => number) => formatEuro(sichtbar.reduce((s, z) => s + f(z), 0));
         const td = "px-4 py-2 text-right font-medium text-white";

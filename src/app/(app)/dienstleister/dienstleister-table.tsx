@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { setzeVerwaltungInformiert } from "./actions";
+import { KARTE_AKTION, KARTE_KENNZEICHEN, KarteAktionen, KarteKopf, KarteZeile } from "@/components/karte";
 
 export type DienstleisterRow = {
   id: string;
@@ -123,10 +124,46 @@ const columns: Column<DienstleisterRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable), mit antippbarer Telefonnummer und E-Mail.
+function DienstleisterKarte({ d }: { d: DienstleisterRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <Link prefetch={false} href={`/dienstleister/${d.id}`}>
+            {d.name}
+          </Link>
+        }
+        wert={d.aktiv ? undefined : <span className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-400`}>Inaktiv</span>}
+      />
+      {d.beschreibung && <KarteZeile>{d.beschreibung}</KarteZeile>}
+      {(d.telefon || d.email) && (
+        <KarteAktionen>
+          {d.telefon && (
+            <a href={`tel:${d.telefon.replace(/[^\d+]/g, "")}`} className={KARTE_AKTION}>
+              <span className="min-w-0 truncate">{d.telefon}</span>
+            </a>
+          )}
+          {d.email && (
+            <a href={`mailto:${d.email}`} className={KARTE_AKTION}>
+              <span className="min-w-0 truncate">{d.email}</span>
+            </a>
+          )}
+        </KarteAktionen>
+      )}
+      <div className="mt-2.5">
+        <InformiertKennzeichen id={d.id} datum={d.informiertAm} />
+      </div>
+    </>
+  );
+}
+
 export function DienstleisterTable({ rows }: { rows: DienstleisterRow[] }) {
   return (
     <DataTable
       rowHref={(d) => `/dienstleister/${d.id}`}
+      mobileCard={(d) => <DienstleisterKarte d={d} />}
+      mobileCardInteraktiv
       columns={columns}
       rows={rows}
       rowClassName={(d) => (d.aktiv ? "" : "bg-neutral-900/60 text-neutral-500")}

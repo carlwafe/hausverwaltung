@@ -31,7 +31,7 @@ export default async function KostenPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Kosten</h1>
           <p className="mb-1 text-sm text-neutral-400">{kosten.length} Kostenpositionen erfasst</p>

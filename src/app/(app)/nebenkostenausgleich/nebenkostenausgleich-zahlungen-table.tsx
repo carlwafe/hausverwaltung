@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 import { deleteNebenkostenausgleichZahlungen } from "./actions";
 import {
   exportiereAlsCsv,
@@ -175,6 +176,33 @@ export function NebenkostenausgleichZahlungenTable({ rows }: { rows: Nebenkosten
       )}
       <DataTable
         rowHref={(b) => `/nebenkostenausgleich/${b.id}`}
+        mobileCard={(b) => (
+          <>
+            <KarteKopf
+              titel={b.mietvertragId ? `${b.einheitBezeichnung} – ${b.mieterNamen}` : b.empfaenger || "nicht zugeordnet"}
+              wert={formatEuro(b.betrag)}
+              wertKlasse={b.betrag < 0 ? "text-red-400" : "text-green-400"}
+            />
+            <KarteMeta>
+              <span>
+                {formatDate(b.datum)}
+                {b.jahr && ` · Abrechnung ${b.jahr}`}
+              </span>
+              {b.aufteilungGruppeId && (
+                <span className="inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400">✂</span>
+              )}
+            </KarteMeta>
+            {b.verwendungszweck && <KarteNotiz>{b.verwendungszweck}</KarteNotiz>}
+          </>
+        )}
+        mobileSort={{
+          standardLabel: "neueste zuerst",
+          optionen: [
+            { label: "älteste zuerst", key: "datum", dir: "asc" },
+            { label: "höchster Betrag", key: "betrag", dir: "desc" },
+            { label: "niedrigster Betrag", key: "betrag", dir: "asc" },
+          ],
+        }}
         columns={columns}
         rows={rows}
         emptyMessage="Noch keine Nebenkostenausgleich-Zahlungen erfasst."

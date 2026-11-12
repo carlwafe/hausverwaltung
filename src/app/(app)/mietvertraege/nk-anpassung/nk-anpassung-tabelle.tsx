@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
+import { KARTE_AKTION, KarteAktionen, KarteKopf, KarteMeta, KarteWerte, KarteZeile } from "@/components/karte";
 
 export type NkAnpassungZeile = {
   id: string; // Mietvertrag-ID
@@ -132,6 +133,57 @@ const columns: Column<NkAnpassungZeile>[] = [
 const selectKlasse =
   "rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
 
+const differenzText = (d: number) => `${d >= 0 ? "+" : "−"}${euro(Math.abs(d))} €`;
+
+// Karte fürs Handy (siehe `mobileCard` an DataTable), mit Knopf zum Schreiben.
+function NkAnpassungKarte({ z }: { z: NkAnpassungZeile }) {
+  const d = differenz(z);
+  return (
+    <>
+      <KarteKopf
+        titel={
+          <Link prefetch={false} href={`/mietvertraege/${z.id}`}>
+            {z.einheitBezeichnung}
+          </Link>
+        }
+        wert={d === null ? undefined : Math.abs(d) < 0.005 ? "unverändert" : differenzText(d)}
+        wertKlasse={d === null || Math.abs(d) < 0.005 ? "text-neutral-500" : d > 0 ? "text-white" : "text-green-400"}
+        wertLabel={d !== null && Math.abs(d) >= 0.005 ? "je Monat" : undefined}
+      />
+      <KarteZeile>{z.mieterNamen}</KarteZeile>
+      <KarteMeta>
+        <span>Abrechnung {z.jahr}</span>
+        {z.entwurf && <span className="text-xs text-amber-400">Entwurf</span>}
+        {z.angepasstAb ? (
+          <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">
+            angepasst ab {formatDate(z.angepasstAb)}
+          </span>
+        ) : (
+          <span className="text-xs text-neutral-500">· Anpassung offen</span>
+        )}
+      </KarteMeta>
+      <KarteWerte
+        werte={[
+          { label: "Vorauszahlung jetzt", wert: `${euro(z.bisher)} €` },
+          z.vorschlag !== null && { label: "Vorschlag", wert: `${euro(z.vorschlag)} €`, klasse: "text-white" },
+          z.monatlich !== null && { label: "Kosten / Monat", wert: `${euro(z.monatlich)} €` },
+        ]}
+      />
+      {z.vorschlag === null && <div className="mt-1.5 text-xs text-neutral-500">Kein Kostenanteil in der Abrechnung.</div>}
+      {z.hochgerechnet && z.jahreskosten !== null && (
+        <div className="mt-1.5 text-xs text-amber-400">
+          Kostenanteil {euro(z.kostenanteil)} €, auf 12 Monate hochgerechnet: {euro(z.jahreskosten)} €
+        </div>
+      )}
+      <KarteAktionen>
+        <Link href={`/mietvertraege/${z.id}/nk-anpassung`} prefetch={false} className={KARTE_AKTION}>
+          Schreiben erstellen
+        </Link>
+      </KarteAktionen>
+    </>
+  );
+}
+
 type Ansicht = "alle" | "offen" | "angepasst";
 
 export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
@@ -181,6 +233,35 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
         rows={rows}
         emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit Nebenkostenabrechnung."}
         defaultSort={{ key: "einheit" }}
+        mobileCard={(z) => <NkAnpassungKarte z={z} />}
+        mobileCardInteraktiv
+        mobileSort={{
+          standardLabel: "nach Einheit",
+          optionen: [
+            { label: "höchste Änderung", key: "differenz", dir: "desc" },
+            { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+          ],
+        }}
+        mobileSummary={(sichtbar) => {
+          const mitVorschlag = sichtbar.filter((z): z is NkAnpassungZeile & { vorschlag: number } => z.vorschlag !== null);
+          const jetzt = mitVorschlag.reduce((s, z) => s + z.bisher, 0);
+          const neu = mitVorschlag.reduce((s, z) => s + z.vorschlag, 0);
+          return (
+            <>
+              <div className="text-sm font-medium text-white">
+                Summe{" "}
+                <span className="text-xs font-normal text-neutral-500">({mitVorschlag.length} Verträge mit Vorschlag)</span>
+              </div>
+              <KarteWerte
+                werte={[
+                  { label: "Vorauszahlung jetzt", wert: `${euro(jetzt)} €` },
+                  { label: "Vorschlag", wert: `${euro(neu)} €`, klasse: "text-white" },
+                  { label: "Änderung / Monat", wert: differenzText(neu - jetzt) },
+                ]}
+              />
+            </>
+          );
+        }}
         renderFooter={(sichtbar) => {
           const mitVorschlag = sichtbar.filter((z): z is NkAnpassungZeile & { vorschlag: number } => z.vorschlag !== null);
           const monat = mitVorschlag.reduce((s, z) => s + (z.monatlich ?? 0), 0);

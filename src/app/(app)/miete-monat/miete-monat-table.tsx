@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
+import { KarteKopf, KarteMeta, KarteWerte, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -87,10 +88,44 @@ const columns: Column<MieteMonatRow>[] = [
   },
 ];
 
+// Karte fürs Handy (siehe `mobileCard` an DataTable).
+function MieteMonatKarte({ z }: { z: MieteMonatRow }) {
+  return (
+    <>
+      <KarteKopf
+        titel={z.einheit}
+        wert={formatEuro(z.offen)}
+        wertKlasse={z.offen > 0 ? "text-red-400" : z.offen < 0 ? "text-green-400" : "text-white"}
+        wertLabel="offen"
+      />
+      <KarteZeile>{z.mieter}</KarteZeile>
+      <KarteMeta>
+        <span className={STATUS_KLASSE[z.status]}>{STATUS_TEXT[z.status]}</span>
+        <span>· fällig {z.faelligAm}</span>
+        {z.zahlungsweg && <span>· {z.zahlungsweg}</span>}
+      </KarteMeta>
+      <KarteWerte
+        werte={[
+          { label: "Soll", wert: formatEuro(z.soll) },
+          { label: "Gezahlt", wert: formatEuro(z.ist) },
+        ]}
+      />
+    </>
+  );
+}
+
 export function MieteMonatTable({ rows }: { rows: MieteMonatRow[] }) {
   return (
     <DataTable
       rowHref={(z) => `/mietvertraege/${z.id}`}
+      mobileCard={(z) => <MieteMonatKarte z={z} />}
+      mobileSort={{
+        standardLabel: "nach Einheit",
+        optionen: [
+          { label: "höchster offener Betrag", key: "offen", dir: "desc" },
+          { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+        ],
+      }}
       columns={columns}
       rows={rows}
       emptyMessage="Alle Mieten für diesen Monat sind bezahlt."
