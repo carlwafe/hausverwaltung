@@ -32,3 +32,6 @@ Haus mit sechs Fenstern im Kreis, nach Handskizze des Eigentümers: alle Striche
 ## Formularzeilen: Felder und Knöpfe gleich groß
 
 Dem Eigentümer wichtig, gilt für **jede neue und jede angefasste Seite**: Stehen Auswahlfelder, Eingabefelder und Knöpfe nebeneinander (Filter-/Anzeigezeilen, Formulare mit „Anzeigen“/„Speichern“), haben sie **dieselbe Höhe** (`h-10`) und, bei gleichartigen Feldern bzw. dem Knopf daneben, dieselbe Breite (z.B. `w-32`). Nicht über `py-*` steuern: Felder haben einen Rahmen (+2 px), Hauptknöpfe (`bg-white`) keinen — mit gleichem `py-2` ist der Knopf 2 px niedriger als das Feld. Muster: `src/app/(app)/jahresuebersicht/jahr-filter-form.tsx`.
+
+- `DateInput` ist in der Standardgröße (`md`) ebenfalls `h-10`; `size="sm"` bleibt die Kompaktvariante für Tabellenzellen.
+- Ausnahme: bewusst kleine Elemente in Tabellenzellen und Kompaktzeilen (`text-xs`) behalten ihre Höhe, müssen aber untereinander gleich hoch sein.
