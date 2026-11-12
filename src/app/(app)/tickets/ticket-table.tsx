@@ -95,6 +95,37 @@ const columns: Column<TicketRow>[] = [
   },
 ];
 
+// Karte fürs Handy (unter md statt der Tabellenzeile, siehe `mobileCard` an DataTable): Titel groß,
+// darunter Status/Priorität/Fälligkeit, dann Bezug und klein Kategorie/Zuständigkeit.
+function TicketKarte({ t, mitKategorie }: { t: TicketRow; mitKategorie: boolean }) {
+  const s = TICKET_STATUS.find((x) => x.value === t.status);
+  const p = TICKET_PRIORITAET.find((x) => x.value === t.prioritaet);
+  const kategorie = TICKET_KATEGORIE.find((k) => k.value === t.kategorie)?.label ?? t.kategorie;
+  const fuss = [mitKategorie ? kategorie : null, t.zustaendig ? `zuständig: ${t.zustaendig}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-base font-medium leading-snug text-white">{t.titel}</span>
+        <span className="shrink-0 text-sm text-neutral-500">#{t.nummer}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className={`${badge} ${s?.farbe ?? ""}`}>{s?.label ?? t.status}</span>
+        <span className={`${badge} ${p?.farbe ?? ""}`}>{p?.label ?? t.prioritaet}</span>
+        {t.faelligAm && (
+          <span className={`text-sm ${t.ueberfaellig ? "font-medium text-red-400" : "text-neutral-400"}`}>
+            bis {formatDate(t.faelligAm)}
+            {t.ueberfaellig && " (überfällig)"}
+          </span>
+        )}
+      </div>
+      {t.bezug && <div className="mt-2 text-sm text-neutral-300">{t.bezug}</div>}
+      {fuss && <div className="mt-0.5 text-xs text-neutral-500">{fuss}</div>}
+    </>
+  );
+}
+
 // `kategorien` schränkt die Auswahl im Kategorie-Filter auf die in dieser Tabelle vorkommenden ein
 // (Standard: alle); bei nur einer Kategorie entfallen Filter und Spalte.
 export function TicketTable({
@@ -111,6 +142,7 @@ export function TicketTable({
   return (
     <DataTable
       rowHref={(t) => `/tickets/${t.id}`}
+      mobileCard={(t) => <TicketKarte t={t} mitKategorie={!einzeln} />}
       columns={einzeln ? columns.filter((c) => c.key !== "kategorie") : columns}
       rows={rows}
       emptyMessage={emptyMessage}

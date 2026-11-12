@@ -49,6 +49,15 @@ Unter `md` zeigt `NavBar` statt der Dropdowns das Menü hinter dem ☰-Knopf (`M
 - **Gruppen zum Aufklappen** (Stammdaten, Finanzen, Abrechnung, Verwaltung); Dashboard und Tickets stehen direkt darüber. Beim Öffnen ist die Gruppe der aktuellen Seite aufgeklappt. Verworfen: alle Punkte untereinander, weil das über 30 Zeilen und viel Scrollen ergibt.
 - **Aktuelle Seite:** markiert wird der Menüpunkt mit dem längsten passenden Pfad (`aktiverHref`), also auch auf Unterseiten.
 
+## Tabellen auf dem Handy: Kartenansicht
+
+Breite Tabellen sind auf dem Handy schwer lesbar. `DataTable` kann deshalb unter `md` statt der Tabelle eine Kartenliste zeigen: Prop `mobileCard={(row) => …}` liefert den Inhalt einer Karte; Rahmen, Abstand und der Link um die ganze Karte (aus `rowHref`) kommen von `DataTable`.
+
+- **Im Einsatz:** Tickets (`TicketKarte` in `src/app/(app)/tickets/ticket-table.tsx`): Titel groß, darunter Status/Priorität/Fälligkeit, dann Bezug und klein Kategorie/Zuständigkeit.
+- Suche, Filter und die Reihenfolge gelten wie in der Tabelle; Spaltenköpfe zum Umsortieren gibt es in der Kartenansicht nicht.
+- **Grenzen:** Auswahl-Checkboxen, aufklappbare Zeilen und Fußzeilen (Summen) gibt es in den Karten nicht. Beide Ansichten stehen im HTML (Umschaltung per CSS) — für kurze Listen gedacht, nicht für Tabellen mit Hunderten Zeilen.
+- Suchfeld und Filter der `DataTable` sind unter `sm` so breit wie die Seite.
+
 ## Formularzeilen: Felder und Knöpfe gleich groß
 
 Dem Eigentümer wichtig, gilt für **jede neue und jede angefasste Seite**: Stehen Auswahlfelder, Eingabefelder und Knöpfe nebeneinander (Filter-/Anzeigezeilen, Formulare mit „Anzeigen“/„Speichern“), haben sie **dieselbe Höhe** (`h-10`) und, bei gleichartigen Feldern bzw. dem Knopf daneben, dieselbe Breite (z.B. `w-32`). Nicht über `py-*` steuern: Felder haben einen Rahmen (+2 px), Hauptknöpfe (`bg-white`) keinen — mit gleichem `py-2` ist der Knopf 2 px niedriger als das Feld. Muster: `src/app/(app)/jahresuebersicht/jahr-filter-form.tsx`.

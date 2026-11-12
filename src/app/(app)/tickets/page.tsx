@@ -23,7 +23,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-white">Tickets</h1>
           <p className="text-sm text-neutral-400">
@@ -37,7 +37,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
         </div>
         <Link
           href="/tickets/neu"
-          className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
+          className="shrink-0 whitespace-nowrap rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
         >
           + Neues Ticket
         </Link>

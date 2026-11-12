@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DateInput } from "@/components/date-input";
 
@@ -55,6 +56,7 @@ export function DataTable<T extends { id: string }>({
   selectFilter2,
   defaultSort,
   renderFooter,
+  mobileCard,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -115,6 +117,13 @@ export function DataTable<T extends { id: string }>({
   /** Zusätzliche Fußzeile (<tr>, z.B. Summen) über die aktuell gefilterten/sortierten Zeilen;
    * colSpan wie bei renderExpanded. */
   renderFooter?: (visibleRows: T[], colSpan: number) => React.ReactNode;
+  /** Kartenansicht fürs Handy: Wenn gesetzt, erscheint unter `md` statt der Tabelle eine Liste von
+   * Karten mit diesem Inhalt (Rahmen, Abstand und — bei `rowHref` — der Link um die ganze Karte
+   * kommen von DataTable). Suche, Filter und die aktuelle Sortierung gelten weiter; Spaltenköpfe
+   * zum Umsortieren gibt es dort nicht. Nicht unterstützt in der Kartenansicht: `selectable`,
+   * `renderExpanded`, `renderBelow`, `renderFooter`, `rowId`. Beide Ansichten stehen im HTML
+   * (Umschaltung per CSS) — für kurze Listen gedacht, nicht für Tabellen mit Hunderten Zeilen. */
+  mobileCard?: (row: T) => React.ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
@@ -224,7 +233,7 @@ export function DataTable<T extends { id: string }>({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder}
-              className="w-full max-w-xs rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
+              className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-72"
             />
           )}
           {selectFilter && (
@@ -271,7 +280,32 @@ export function DataTable<T extends { id: string }>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-neutral-800">
+      {mobileCard && (
+        <ul className="flex flex-col gap-2 md:hidden">
+          {sortiert.map((row) => {
+            const href = rowHref?.(row) ?? null;
+            const klasse = `block rounded-lg border border-neutral-800 px-4 py-3 ${rowClassName?.(row) ?? ""}`;
+            return (
+              <li key={row.id}>
+                {href ? (
+                  <Link prefetch={false} href={href} className={`${klasse} active:bg-neutral-900`}>
+                    {mobileCard(row)}
+                  </Link>
+                ) : (
+                  <div className={klasse}>{mobileCard(row)}</div>
+                )}
+              </li>
+            );
+          })}
+          {sortiert.length === 0 && (
+            <li className="rounded-lg border border-neutral-800 px-4 py-8 text-center text-sm text-neutral-500">
+              {rows.length === 0 ? emptyMessage : "Keine Treffer für diese Suche."}
+            </li>
+          )}
+        </ul>
+      )}
+
+      <div className={`overflow-x-auto rounded-lg border border-neutral-800 ${mobileCard ? "hidden md:block" : ""}`}>
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>
@@ -391,7 +425,7 @@ function FilterSelect({
   options: { value: string; label: string }[];
 }) {
   return (
-    <div className="relative w-full max-w-xs sm:w-72">
+    <div className="relative w-full sm:w-72">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
