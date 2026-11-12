@@ -25,3 +25,8 @@ Seite `/kontoprognose` (Menü Finanzen): schreibt den simulierten Kontostand (`d
 ## Stolperfalle
 
 Ein `NOT: { kostenart: { anlageVZeile: … } }` in Prisma schließt auch Kostenarten ohne Einordnung (NULL) aus — der Filter auf „Schuldzinsen“ geschieht deshalb im Code.
+
+## Offen
+
+- **Vorschlag für Verwaltung/Reparaturen/Sonstiges nach einigen vollen Monaten neu prüfen.** Er beruht auf den vollen Monaten seit der Übernahme (`VERWALTUNG_UEBERNOMMEN` in `src/lib/kontoprognose.ts`) und ist anfangs nur ein Anhaltspunkt: Der erste Monat enthielt noch die Rechnung des Vorverwalters (Verwaltungskosten ≈ unverändert) und eine Gutschrift bei den Reparaturen (Vorschlag 0 %). Die Seite warnt bei weniger als 3 vollen Monaten.
+- Der Übernahmemonat steht fest im Code; ändert sich das Datum, dort anpassen.
