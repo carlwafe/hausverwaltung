@@ -27,7 +27,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/kontoauszug-import.md` | Klassifizierung, Mahngebühren, CAMT-Import, Doppelzahlungs-Prüfung, Vollständigkeits-Check, Import-Verwaltung, KI-Prüfung. |
 | `docs/kosten-dienstleister.md` | Stadtwerke-Salden, Dienstleister-Stammdaten, Anwaltskosten, Grundsteuer-Rate, Winterdienst/Hauswart, Heizungswartung, Leerstand-Seite. |
 | `docs/dokumente.md` | Ablage und Hauptordner, Bezüge, Dokumenttyp/Labels, Erkennung (Regeln/KI, Sammel-PDFs, Versorger-Salden), Zuordnung, Belegprüfung und Belegpflicht. |
-| `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, Darstellung hell/dunkel. |
+| `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, Darstellung hell/dunkel, gleich große Felder/Knöpfe in Formularzeilen. |
 | `docs/abgleich-vorverwalter.md` | Altdaten vor Buchhaltungsbeginn, PDF→CSV der PowerHaus-Berichte, Quartalsvergleich App ↔ PDF, Kostenabgleich. |
 
 ## Befehle
@@ -54,6 +54,7 @@ Es gibt keine Testsuite. Verifiziert wird über `tsc`, `eslint`, `next build` un
 Im Hauptordner arbeiten oft mehrere Chats gleichzeitig. Deshalb:
 
 - Vor Branch-Wechsel, Löschen oder Push `git fetch` + `git status`. Fremde nicht committete Änderungen nicht anfassen (kein `stash`/`checkout --`/`reset`). Branches nur löschen, wenn `git log origin/main..<branch>` leer ist; auf einen anderen Branch nur wechseln, wenn er auf denselben Commit wie `HEAD` zeigt.
+- Vor dem Push `git log origin/main..HEAD --oneline` prüfen: Es dürfen nur die eigenen Commits drinstehen — Commits anderer Chats nicht mitpushen (Nutzer fragen, nicht eigenmächtig pushen).
 - Gezielt stagen: `git add -A src prisma` plus bei Bedarf `CLAUDE.md`, `docs/`, `package.json`/`package-lock.json`, `scripts/`, `.gitignore` — nie `git add -A`.
 - Danach immer `git diff --cached --name-only` prüfen: `git add -A src prisma` nimmt auch **nicht committete Dateien anderer Chats** mit. Fremde Dateien mit `git restore --staged <datei>` herausnehmen; bei gemischten Hunks nur den eigenen Teil stagen (HEAD-Stand + eigene Änderung in eine Temp-Datei, `git hash-object -w <datei>`, `git update-index --cacheinfo 100644,<blob>,<pfad>`).
 - **Neue Dateien zuerst oder gemeinsam committen und pushen:** Importiert eine bestehende Datei eine neue, kann ein anderer Chat die geänderte Datei ohne die neue pushen — der Vercel-Build scheitert.
@@ -92,6 +93,7 @@ Push auf `main` → Vercel baut und veröffentlicht automatisch (Repo `carlwafe/
 - Server Actions (`"use server"`-Dateien `actions.ts` neben den Seiten) beginnen mit `requireEditor()` (`src/lib/session.ts`; `GAST` = nur lesen) und rufen nach dem Schreiben `revalidatePath` für alle betroffenen Seiten auf. Formulare: `useActionState` + `runFormAction` oder Aktionen, die `string | null` zurückgeben.
 - Meldungen für den Nutzer nie mit `throw new Error` (Produktion überträgt nur den Digest), sondern `throw new AktionsFehler("…")` bzw. `throw zodFehler(parsed.error)` (`src/lib/aktion.ts`) in einer Aktion `export const x = mitMeldung(async function x(…) { … })`. Nur Aktionen umschließen, deren Rückgabewert ausgewertet wird (`runFormAction`, `useActionState`) — bei `<form action>`/Buttons ohne Auswertung würde die Meldung verschluckt.
 - Viele Einzel-Updates in einer `prisma.$transaction` überschreiten über Neon das 5-s-Limit (P2028, alles zurückgerollt) — nach Zielwert gruppieren und per `updateMany` schreiben (Beispiel `speichereAnreden` in `mieter/actions.ts`).
+- **Felder und Knöpfe in einer Zeile immer gleich hoch (`h-10`) und gleich breit** (Details und Begründung: `docs/tickets-logo-design.md`) — bei neuen und angefassten Formularen mit beachten.
 - Wiederverwendbare UI: `DataTable` (Sortierung/Suche/Filter/Auswahl), `DateInput`, `SubmitButton`, `DeleteButton` (ist selbst ein `<form>` — nicht schachteln), `MietvertragAuswahl` (Suchauswahl für `{id,label}`-Listen). Suchauswahl: Das Panel darf bei Scroll/Resize nicht schließen, sondern muss sich neu positionieren (Handy-Tastatur löst beides aus); eine vorgefilterte Liste gehört in `defaultKandidaten`, `kandidaten` bleibt die volle Liste (sonst findet die Namenssuche nichts außerhalb der Vorauswahl).
 - Client-Komponenten dürfen nichts importieren, was Prisma zieht (Turbopack liefert sonst nur „ENOENT build-manifest.json“) — Anzeige-Helfer stehen deshalb in eigenen Dateien ohne Prisma (z.B. `dokumente-anzeige.ts`, `beleg-anzeige.ts`).
 - Auth-Schutz für alle Routen über `src/proxy.ts` (NextAuth-Middleware).
