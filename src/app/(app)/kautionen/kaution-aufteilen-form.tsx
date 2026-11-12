@@ -33,7 +33,7 @@ export function KautionAufteilenForm({
       <button
         type="button"
         onClick={() => setOffen(true)}
-        className="mt-4 rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+        className="mt-4 rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900"
       >
         Aufteilen…
       </button>
@@ -62,7 +62,7 @@ export function KautionAufteilenForm({
             onChange={(e) => setKautionText(e.target.value)}
             placeholder={betragGesamt < 0 ? "z.B. -400,00" : "z.B. 400,00"}
             required
-            className="mt-1 block w-32 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+            className="mt-1 block w-32 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm text-white outline-none focus:border-neutral-400"
           />
         </label>
         <label className="text-xs text-neutral-400">
@@ -73,14 +73,14 @@ export function KautionAufteilenForm({
             value={nkJahr}
             onChange={(e) => setNkJahr(e.target.value)}
             required
-            className="mt-1 block w-24 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+            className="mt-1 block w-24 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm text-white outline-none focus:border-neutral-400"
           />
         </label>
         <span className="pb-2 text-neutral-300">= Nebenkostenausgleich {rest !== null ? formatEuro(rest) : "–"}</span>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-white px-3 py-1.5 font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+          className="rounded-md bg-white px-3 h-10 font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
         >
           {pending ? "Teile auf…" : "Aufteilen"}
         </button>

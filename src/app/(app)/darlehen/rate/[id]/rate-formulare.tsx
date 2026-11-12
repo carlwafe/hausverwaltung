@@ -6,9 +6,9 @@ import { formatEuro } from "@/lib/dokumente-anzeige";
 import { aendereRateMonat, teileRateAufMonate, fasseRatenZusammen } from "../actions";
 
 const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-const feld = "rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400";
-const knopf = "rounded-md bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50";
-const knopfRand = "rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-white hover:bg-neutral-900 disabled:opacity-50";
+const feld = "rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm outline-none focus:border-neutral-400";
+const knopf = "rounded-md bg-white px-3 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50";
+const knopfRand = "rounded-md border border-neutral-700 px-3 h-10 text-sm text-white hover:bg-neutral-900 disabled:opacity-50";
 
 const komma = (n: number) => String(n).replace(".", ",");
 const alsZahl = (t: string) => {

@@ -28,13 +28,13 @@ export function NeueAbrechnungForm() {
               type="number"
               required
               defaultValue={new Date().getFullYear() - 1}
-              className="w-28 rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+              className="w-28 rounded-md border border-neutral-700 bg-transparent px-3 h-10 text-sm outline-none focus:border-neutral-400"
             />
           </div>
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+            className="rounded-md bg-white px-4 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
           >
             {pending ? "Berechne…" : "Abrechnung berechnen"}
           </button>
@@ -55,13 +55,13 @@ export function NeueAbrechnungForm() {
                 type="number"
                 required
                 defaultValue={new Date().getFullYear() - 1}
-                className="w-28 rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400"
+                className="w-28 rounded-md border border-neutral-700 bg-transparent px-3 h-10 text-sm outline-none focus:border-neutral-400"
               />
             </div>
             <button
               type="submit"
               disabled={pendingLeer}
-              className="rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-900 disabled:opacity-50"
+              className="rounded-md border border-neutral-700 px-4 h-10 text-sm font-medium text-neutral-200 hover:bg-neutral-900 disabled:opacity-50"
             >
               {pendingLeer ? "Lege an…" : "Leer anlegen (ohne Berechnung)"}
             </button>

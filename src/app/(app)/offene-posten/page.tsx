@@ -151,7 +151,7 @@ export default async function OffenePostenPage() {
         <button
           type="submit"
           formAction={setBuchhaltungBis}
-          className="rounded-md bg-white px-3 py-2 text-sm font-medium text-black hover:bg-neutral-200"
+          className="rounded-md bg-white px-3 h-10 text-sm font-medium text-black hover:bg-neutral-200"
         >
           Speichern
         </button>
@@ -159,7 +159,7 @@ export default async function OffenePostenPage() {
           <button
             type="submit"
             formAction={resetBuchhaltungBis}
-            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+            className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900"
           >
             Zurücksetzen (auf heute)
           </button>

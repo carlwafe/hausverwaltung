@@ -198,7 +198,7 @@ export default async function MietvertragBearbeitenPage({
               name="kaltmiete"
               required
               defaultValue={aktuelleMiete.kaltmiete}
-              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <div>
@@ -210,7 +210,7 @@ export default async function MietvertragBearbeitenPage({
               name="nebenkostenVorauszahlung"
               required
               defaultValue={aktuelleMiete.nebenkostenVorauszahlung}
-              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <div>
@@ -220,7 +220,7 @@ export default async function MietvertragBearbeitenPage({
             <input
               type="month"
               name="indexMonat"
-              className="mt-1 w-40 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 w-40 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <div className="flex-1">
@@ -228,12 +228,12 @@ export default async function MietvertragBearbeitenPage({
             <input
               type="text"
               name="notizen"
-              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <button
             type="submit"
-            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+            className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900"
           >
             + Mieterhöhung erfassen
           </button>
@@ -296,7 +296,7 @@ export default async function MietvertragBearbeitenPage({
               name="monat"
               required
               defaultValue={vertrag.beginn ? toDateInputValue(vertrag.beginn).slice(0, 7) : undefined}
-              className="mt-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <div>
@@ -307,7 +307,7 @@ export default async function MietvertragBearbeitenPage({
               min="0.01"
               name="betrag"
               required
-              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <div className="flex-1">
@@ -317,12 +317,12 @@ export default async function MietvertragBearbeitenPage({
               name="grund"
               required
               placeholder="z.B. Einzug erst am 11.04., Verwalter hat anteilig berechnet"
-              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+              className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
             />
           </div>
           <button
             type="submit"
-            className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+            className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900"
           >
             + Mietnachlass erfassen
           </button>

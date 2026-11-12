@@ -5,7 +5,7 @@ import { runFormAction } from "@/lib/form-utils";
 import { MONATE_KURZ, summiereMonate } from "@/lib/darlehen-zinsen";
 import { speichereSchuldzinsenJahreswert } from "./actions";
 
-const feld = "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
+const feld = "w-full rounded-md border border-neutral-700 bg-transparent px-3 h-10 text-sm outline-none focus:border-neutral-400";
 
 export type JahreswertDarlehen = {
   id: string;
@@ -206,7 +206,7 @@ export function JahreswertForm({ jahr, darlehen, standardBis }: { jahr: number; 
         <button
           type="submit"
           disabled={pending || !darlehenId}
-          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+          className="rounded-md bg-white px-4 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
         >
           {pending ? "Speichern…" : gewaehlt?.vorhanden ? "Ersetzen" : "Speichern"}
         </button>

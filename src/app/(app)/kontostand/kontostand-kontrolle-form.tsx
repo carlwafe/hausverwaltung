@@ -17,13 +17,13 @@ export function KontostandKontrolleForm() {
     return ergebnis;
   }, null);
   const feld =
-    "rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400";
+    "rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm text-white outline-none focus:border-neutral-400";
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3">
       <div>
         <label className="mb-1 block text-xs text-neutral-400">Datum des Kontoauszugs</label>
-        <DateInput key={datumKey} name="datum" required size="sm" />
+        <DateInput key={datumKey} name="datum" required />
       </div>
       <div>
         <label className="mb-1 block text-xs text-neutral-400">Kontostand laut Kontoauszug (€)</label>
@@ -36,7 +36,7 @@ export function KontostandKontrolleForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+        className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
       >
         {pending ? "Speichere…" : "Kontostand speichern"}
       </button>

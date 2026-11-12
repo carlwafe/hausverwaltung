@@ -6,7 +6,7 @@ import { runFormAction } from "@/lib/form-utils";
 import { DateInput } from "@/components/date-input";
 import { speichereDarlehen } from "./actions";
 
-const feld = "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
+const feld = "w-full rounded-md border border-neutral-700 bg-transparent px-3 h-10 text-sm outline-none focus:border-neutral-400";
 const label = "mb-1 block text-xs text-neutral-400";
 
 export type DarlehenFormWerte = {
@@ -139,7 +139,7 @@ export function DarlehenForm({ werte }: { werte?: DarlehenFormWerte }) {
               {i === 0 && <label className={label}>Neue Rate (€, optional)</label>}
               <input value={s.rate} inputMode="decimal" onChange={(e) => setStufen((l) => l.map((x, j) => (j === i ? { ...x, rate: e.target.value } : x)))} className={feld} />
             </div>
-            <button type="button" onClick={() => setStufen((l) => l.filter((_, j) => j !== i))} className="rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-900">×</button>
+            <button type="button" onClick={() => setStufen((l) => l.filter((_, j) => j !== i))} className="rounded-md border border-neutral-700 px-3 h-10 text-sm text-neutral-300 hover:bg-neutral-900">×</button>
           </div>
         ))}
         <button type="button" onClick={() => setStufen((l) => [...l, { ab: "", zinssatz: "", rate: "" }])} className="text-sm text-neutral-300 underline hover:text-white">
@@ -171,7 +171,7 @@ export function DarlehenForm({ werte }: { werte?: DarlehenFormWerte }) {
               {i === 0 && <label className={label}>Restschuld 31.12. (€)</label>}
               <input value={b.restschuld} inputMode="decimal" onChange={(e) => setBank((l) => l.map((x, j) => (j === i ? { ...x, restschuld: e.target.value } : x)))} className={feld} />
             </div>
-            <button type="button" onClick={() => setBank((l) => l.filter((_, j) => j !== i))} className="rounded-md border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-900">×</button>
+            <button type="button" onClick={() => setBank((l) => l.filter((_, j) => j !== i))} className="rounded-md border border-neutral-700 px-3 h-10 text-sm text-neutral-300 hover:bg-neutral-900">×</button>
           </div>
         ))}
         <button type="button" onClick={() => setBank((l) => [...l, { jahr: "", zinsen: "", tilgung: "", restschuld: "" }])} className="text-sm text-neutral-300 underline hover:text-white">
@@ -190,10 +190,10 @@ export function DarlehenForm({ werte }: { werte?: DarlehenFormWerte }) {
 
       {fehler && <p className="text-sm text-red-400">{fehler}</p>}
       <div className="flex gap-3">
-        <button type="submit" disabled={pending} className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50">
+        <button type="submit" disabled={pending} className="rounded-md bg-white px-4 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50">
           {pending ? "Speichern…" : "Speichern"}
         </button>
-        <Link href={werte ? `/darlehen/tilgungsplan?darlehen=${werte.id}` : "/darlehen/tilgungsplan"} prefetch={false} className="rounded-md border border-neutral-700 px-4 py-2 text-sm text-white hover:bg-neutral-900">
+        <Link href={werte ? `/darlehen/tilgungsplan?darlehen=${werte.id}` : "/darlehen/tilgungsplan"} prefetch={false} className="rounded-md border border-neutral-700 px-4 h-10 text-sm text-white hover:bg-neutral-900">
           Abbrechen
         </Link>
       </div>

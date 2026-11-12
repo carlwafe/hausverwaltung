@@ -62,13 +62,13 @@ export function KontenabgleichVerifikationForm({
               value={eingabe}
               onChange={(e) => setEingabe(e.target.value)}
               placeholder="z.B. 42000.00"
-              className="w-44 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+              className="w-44 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm text-white outline-none focus:border-neutral-400"
             />
           </div>
           <button
             type="submit"
             disabled={pending || eingabe.trim() === ""}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-40"
+            className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-40"
           >
             {pending ? "Speichere…" : "Speichern"}
           </button>

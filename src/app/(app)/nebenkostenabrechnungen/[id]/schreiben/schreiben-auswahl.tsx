@@ -17,7 +17,7 @@ export type SchreibenZeile = {
 };
 
 const euro = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
-const knopf = "rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900";
+const knopf = "rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900";
 
 export function SchreibenAuswahl({
   abrechnungId,

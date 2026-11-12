@@ -13,7 +13,7 @@ function pad2(v: string) {
 }
 
 const segmentBase = "min-w-0 rounded-md border border-neutral-700 bg-transparent text-center outline-none focus:border-neutral-400 disabled:opacity-50";
-const segmentSize = { md: "px-1 py-2 text-sm", sm: "px-1 py-1.5 text-sm" } as const;
+const segmentSize = { md: "h-10 px-1 text-sm", sm: "px-1 py-1.5 text-sm" } as const;
 
 function zerlege(iso: string | undefined): [string, string, string] {
   const [j, m, t] = (iso ?? "").split("-");

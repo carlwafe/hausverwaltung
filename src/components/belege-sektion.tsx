@@ -223,12 +223,12 @@ export function BelegeSektion({
           name="file"
           required
           onChange={pruefeDateigroessen}
-          className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:py-1.5 file:text-sm file:text-white"
+          className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:h-10 file:text-sm file:text-white"
         />
         <button
           type="submit"
           disabled={pending || groessenFehler !== null}
-          className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+          className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
         >
           {pending ? "Lädt hoch…" : "Hochladen"}
         </button>

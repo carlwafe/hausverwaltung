@@ -12,7 +12,7 @@ const monatLang = (jahr: number, monat: number) =>
 const monatKurz = (jahr: number, monat: number) =>
   new Intl.DateTimeFormat("de-DE", { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(jahr, monat - 1, 1)));
 
-const feld = "h-9 rounded-md border border-neutral-700 bg-transparent px-2 text-sm text-white outline-none focus:border-neutral-400";
+const feld = "h-10 rounded-md border border-neutral-700 bg-transparent px-2 text-sm text-white outline-none focus:border-neutral-400";
 const betragFarbe = (v: number) => (v < 0 ? "text-red-400" : v > 0 ? "text-green-400" : "text-neutral-500");
 
 type Suche = { monate?: string; weiterleitung?: string; nk?: string; verwaltung?: string; reparaturen?: string; sonstige?: string; vorschlag?: string };
@@ -116,7 +116,7 @@ export default async function KontoprognosePage({ searchParams }: { searchParams
           </Link>{" "}
           (und gleich berechnen)
         </div>
-        <button type="submit" className="h-9 rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200">
+        <button type="submit" className="h-10 rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200">
           {angefordert ? "Neu berechnen" : "Prognose berechnen"}
         </button>
       </form>

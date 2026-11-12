@@ -128,7 +128,7 @@ export function QmAbweichungen({
             required
             value={kreis}
             onChange={(e) => setKreis(e.target.value)}
-            className="rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
+            className="rounded-md border border-neutral-700 bg-neutral-950 px-2 h-10 text-sm text-white outline-none focus:border-neutral-400"
           >
             <option value="" disabled>
               Bitte wählen…
@@ -152,13 +152,13 @@ export function QmAbweichungen({
             min="0"
             required
             placeholder={echt ? String(echt) : "z.B. 489,466"}
-            className="w-44 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+            className="w-44 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm outline-none focus:border-neutral-400"
           />
         </div>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+          className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
         >
           {pending ? "Speichere…" : "Speichern"}
         </button>

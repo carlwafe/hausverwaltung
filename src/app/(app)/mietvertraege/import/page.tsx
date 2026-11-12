@@ -121,7 +121,7 @@ export default function MietvertraegeImportPage() {
                 onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
-              <div className="pointer-events-none inline-flex items-center gap-2 rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white">
+              <div className="pointer-events-none inline-flex items-center gap-2 rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white">
                 {fileName ?? "Datei auswählen…"}
               </div>
             </div>
@@ -129,7 +129,7 @@ export default function MietvertraegeImportPage() {
           <button
             type="submit"
             disabled={previewPending}
-            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+            className="rounded-md bg-white px-4 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
           >
             {previewPending ? "Analysiere…" : "Datei analysieren"}
           </button>
@@ -282,7 +282,7 @@ export default function MietvertraegeImportPage() {
             <button
               type="submit"
               disabled={commitPending || importierbareRows.length === 0}
-              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+              className="rounded-md bg-white px-4 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
             >
               {commitPending ? "Importiere…" : `${importierbareRows.length} Mietverträge importieren`}
             </button>

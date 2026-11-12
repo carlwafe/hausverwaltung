@@ -148,7 +148,7 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
           multiple
           required
           onChange={pruefeDateien}
-          className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:py-2 file:text-sm file:text-white"
+          className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:h-10 file:text-sm file:text-white"
         />
         <div>
           <label className="mb-1 block text-xs text-neutral-400">Typ vorab (optional)</label>

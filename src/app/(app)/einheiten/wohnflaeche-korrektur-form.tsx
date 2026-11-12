@@ -18,7 +18,7 @@ export function WohnflaecheKorrekturForm({ einheitId }: { einheitId: string }) {
           name="bisJahr"
           required
           defaultValue={new Date().getFullYear() - 1}
-          className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+          className="mt-1 w-24 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
         />
       </div>
       <div>
@@ -29,7 +29,7 @@ export function WohnflaecheKorrekturForm({ einheitId }: { einheitId: string }) {
           min="0.01"
           name="wohnflaecheQm"
           required
-          className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+          className="mt-1 w-28 rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
         />
       </div>
       <div className="flex-1">
@@ -38,13 +38,13 @@ export function WohnflaecheKorrekturForm({ einheitId }: { einheitId: string }) {
           type="text"
           name="notizen"
           placeholder="z.B. Grund der Korrektur"
-          className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+          className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 h-10 text-sm text-white"
         />
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+        className="rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
       >
         {pending ? "Speichere…" : "+ Korrektur erfassen"}
       </button>

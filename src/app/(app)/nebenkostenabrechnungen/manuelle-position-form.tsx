@@ -47,7 +47,7 @@ export function ManuellePositionForm({
       <button
         type="button"
         onClick={() => setOffen(true)}
-        className="mt-4 rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+        className="mt-4 rounded-md border border-neutral-700 px-3 h-10 text-sm font-medium text-white hover:bg-neutral-900"
       >
         Position manuell hinzufügen…
       </button>
@@ -102,7 +102,7 @@ export function ManuellePositionForm({
               value={kostenanteil}
               onChange={(e) => setKostenanteil(e.target.value)}
               placeholder="0,00"
-              className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm outline-none focus:border-neutral-400"
             />
           </div>
           <div>
@@ -115,7 +115,7 @@ export function ManuellePositionForm({
               value={vorauszahlung}
               onChange={(e) => setVorauszahlung(e.target.value)}
               placeholder="0,00"
-              className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="w-28 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm outline-none focus:border-neutral-400"
             />
           </div>
           <div>
@@ -132,14 +132,14 @@ export function ManuellePositionForm({
           <button
             type="submit"
             disabled={pending || !mietvertragId}
-            className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-40"
+            className="rounded-md bg-white px-3 h-10 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-40"
           >
             {pending ? "Speichere…" : "Position speichern"}
           </button>
           <button
             type="button"
             onClick={() => setOffen(false)}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
+            className="rounded-md border border-neutral-700 px-3 h-10 text-sm text-neutral-300 hover:bg-neutral-900"
           >
             Abbrechen
           </button>
