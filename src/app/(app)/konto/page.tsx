@@ -21,6 +21,21 @@ export default function KontoPage() {
         <ThemeSchalter />
         <p className="mt-2 text-sm text-neutral-500">Gilt für diesen Browser.</p>
       </div>
+      <h2 className="mb-4 text-lg font-medium">App auf dem Handy</h2>
+      <div className="mb-8 max-w-md text-sm text-neutral-300">
+        <p>Die Mietverwaltung lässt sich wie eine App auf den Home-Bildschirm legen und öffnet dann im Vollbild.</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            <span className="font-medium text-white">iPhone:</span> in Safari öffnen, Teilen-Symbol antippen, dann
+            „Zum Home-Bildschirm“.
+          </li>
+          <li>
+            <span className="font-medium text-white">Android:</span> in Chrome öffnen, Menü ⋮ antippen, dann „Zum
+            Startbildschirm hinzufügen“.
+          </li>
+        </ul>
+        <p className="mt-2 text-neutral-500">Danach die App vom Home-Bildschirm starten und einmal anmelden.</p>
+      </div>
       <h2 className="mb-4 text-lg font-medium">Passwort ändern</h2>
       <form ref={formRef} action={formAction} className="max-w-md space-y-4">
         <div>

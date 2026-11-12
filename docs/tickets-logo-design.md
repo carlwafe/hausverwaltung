@@ -32,6 +32,7 @@ Die Seite lässt sich als App installieren (iPhone: Safari → Teilen → „Zum
 - **Kein `viewport-fit=cover`, keine Safe-Area-Abstände:** Es gibt keine am Bildschirmrand fixierten Leisten (die Navigation scrollt mit). Mit `cover` läge der Inhalt im Querformat unter der Kerbe. Erst wenn eine unten fixierte Leiste dazukommt, braucht sie `cover` plus `env(safe-area-inset-bottom)`.
 - **Kein Service Worker, kein Offline-Betrieb:** Alle Seiten sind dynamisch und zeigen Finanzdaten. Ein Zwischenspeicher könnte veraltete Salden und Buchungen anzeigen, und schreiben geht ohne Netz ohnehin nicht. iOS braucht für „Zum Home-Bildschirm“ keinen Service Worker.
 - **Anmeldung:** Die installierte App hat auf dem iPhone einen eigenen Speicher, getrennt von Safari — beim ersten Öffnen einmal anmelden.
+- **Anleitung in der App:** „Mein Konto“ → „App auf dem Handy“ (`src/app/(app)/konto/page.tsx`) erklärt die Installation für iPhone und Android in zwei Zeilen.
 - **Änderungen an Name oder Icon** übernimmt iOS nicht nachträglich: App vom Home-Bildschirm löschen und neu hinzufügen (bei neuen Icons zusätzlich neue Dateinamen, siehe Logo).
 
 ## Design hell/dunkel
