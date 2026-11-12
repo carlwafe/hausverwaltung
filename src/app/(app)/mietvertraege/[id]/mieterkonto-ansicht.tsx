@@ -157,17 +157,15 @@ export function MieterkontoAnsicht({
         </table>
       )}
       <div className="mt-2 space-y-0.5 text-xs italic text-neutral-500">
-        <p>Hinweis: Der Endsaldo (Spalte &bdquo;Saldo kumuliert&ldquo;) ist der Saldo-Übertrag für das Folgejahr. Die Zeile &bdquo;Gutschrift/Belastung NK-Vorauszahlung&ldquo; gehört dazu und steht am Versanddatum der Nebenkostenabrechnung: Eine nicht gezahlte NK-Vorauszahlung steht im Soll als Rückstand und ist erst nach dem Versand der Abrechnung nicht mehr geschuldet (das Datum wird an der Abrechnung unter &bdquo;Als versendet markieren&ldquo; gepflegt). Die Abrechnung selbst (Nachzahlung/Guthaben) fließt nur unter &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo; ein (wie in der Jahresübersicht).</p>
-        <p>Positiver Saldo = Guthaben des Mieters. Negativer Saldo = Mietrückstand.</p>
+        <p>Positiver Saldo = Guthaben des Mieters, negativer Saldo = Mietrückstand. Der Endsaldo ist der Übertrag ins Folgejahr.</p>
         <p>
-          Bei Teilzahlungen ab 2025 steht in der Bemerkung, wie die Zahlung auf Nebenkosten und Kaltmiete aufgeteilt ist
-          (anteilig, NK-Anteil auf volle Euro gerundet — so rechnet auch die Nebenkostenabrechnung). Das Konto und der Saldo
-          rechnen weiter mit dem Gesamtbetrag.
+          „Gutschrift/Belastung NK-Vorauszahlung“ steht am Versanddatum der Abrechnung (unter „Als versendet markieren“
+          gepflegt); die Abrechnung selbst fließt nur in „Saldo inkl. offener Nebenkostenabrechnung“ ein.
         </p>
         <p>
-          Orange Zeilen = Sonderbuchungen (z.B. Rücklastschriftgebühr und die Zahlung darauf, im Monat des
-          Buchungsdatums). Mietzahlungen stehen im Monat der Mietperiode, für die sie gezahlt wurden — wie in der
-          Jahresübersicht.
+          Bei Teilzahlungen ab 2025 zeigt die Bemerkung die Aufteilung auf Nebenkosten und Kaltmiete; der Saldo rechnet mit
+          dem Gesamtbetrag. Orange Zeilen = Sonderbuchungen (Monat des Buchungsdatums), Mietzahlungen stehen in ihrer
+          Mietperiode.
         </p>
       </div>
     </div>
