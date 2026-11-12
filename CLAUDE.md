@@ -27,7 +27,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/kontoauszug-import.md` | Klassifizierung, Mahngebühren, CAMT-Import, Doppelzahlungs-Prüfung, Vollständigkeits-Check, Import-Verwaltung, KI-Prüfung. |
 | `docs/kosten-dienstleister.md` | Stadtwerke-Salden, Dienstleister-Stammdaten, Anwaltskosten, Grundsteuer-Rate, Winterdienst/Hauswart, Heizungswartung, Leerstand-Seite. |
 | `docs/dokumente.md` | Ablage und Hauptordner, Bezüge, Dokumenttyp/Labels, Erkennung (Regeln/KI, Sammel-PDFs, Versorger-Salden), Zuordnung, Belegprüfung und Belegpflicht. |
-| `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, App auf dem Home-Bildschirm (PWA), Darstellung hell/dunkel, gleich große Felder/Knöpfe in Formularzeilen. |
+| `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, App auf dem Home-Bildschirm (PWA), Darstellung hell/dunkel, mobiles Menü, Kartenansicht für Tabellen auf dem Handy, gleich große Felder/Knöpfe in Formularzeilen. |
 | `docs/abgleich-vorverwalter.md` | Altdaten vor Buchhaltungsbeginn, PDF→CSV der PowerHaus-Berichte, Quartalsvergleich App ↔ PDF, Kostenabgleich. |
 
 ## Befehle
@@ -47,7 +47,7 @@ Es gibt keine Testsuite. Verifiziert wird über `tsc`, `eslint`, `next build` un
 - `tsx` lädt keine `.env`-Dateien selbst: vorher `set -a; . ./.env; set +a` (lokale DB `mietverwaltung_eutin`) bzw. `. ./.env.prod-admin.local` (Produktion, Neon) sourcen.
 - Die `.env*`-Dateien (`.env`, `.env.local`, `.env.prod-admin.local`) sind git-ignoriert und liegen im Hauptordner `/Users/felixwaller/Claude Projects/Neuer Ordner/`; nur `.env.example` ist eingecheckt. `.worktreeinclude` kopiert die drei Dateien in neue Worktrees (auch die Produktions-Zugangsdaten); fehlen sie, per absolutem Pfad sourcen, z.B. `set -a; . "/Users/felixwaller/Claude Projects/Neuer Ordner/.env.prod-admin.local"; set +a`. Der Ordner `/Users/felixwaller/qwer/Neuer Ordner` ist kein Repo — im Hauptordner arbeiten.
 - Temporäre Skripte gehören nach `scripts-tmp/` (in `.gitignore`). Gleiche Skriptnamen überschreiben sich zwischen parallelen Chats (z.B. `testnutzer.ts`): eigene Namen mit Präfix verwenden und vor dem Aufruf kurz lesen, was die Datei tut.
-- Lokal im Browser prüfen und Testdaten entfernen: `docs/lokal-testen.md`.
+- Lokal im Browser prüfen und Testdaten entfernen: `docs/lokal-testen.md` (dort auch: Seite lädt im Dev-Modus endlos neu).
 
 ## Git bei parallelen Chats
 
@@ -94,7 +94,7 @@ Push auf `main` → Vercel baut und veröffentlicht automatisch (Repo `carlwafe/
 - Meldungen für den Nutzer nie mit `throw new Error` (Produktion überträgt nur den Digest), sondern `throw new AktionsFehler("…")` bzw. `throw zodFehler(parsed.error)` (`src/lib/aktion.ts`) in einer Aktion `export const x = mitMeldung(async function x(…) { … })`. Nur Aktionen umschließen, deren Rückgabewert ausgewertet wird (`runFormAction`, `useActionState`) — bei `<form action>`/Buttons ohne Auswertung würde die Meldung verschluckt.
 - Viele Einzel-Updates in einer `prisma.$transaction` überschreiten über Neon das 5-s-Limit (P2028, alles zurückgerollt) — nach Zielwert gruppieren und per `updateMany` schreiben (Beispiel `speichereAnreden` in `mieter/actions.ts`).
 - **Felder und Knöpfe in einer Zeile immer gleich hoch (`h-10`) und gleich breit** (Details und Begründung: `docs/tickets-logo-design.md`) — bei neuen und angefassten Formularen mit beachten.
-- Wiederverwendbare UI: `DataTable` (Sortierung/Suche/Filter/Auswahl), `DateInput`, `SubmitButton`, `DeleteButton` (ist selbst ein `<form>` — nicht schachteln), `MietvertragAuswahl` (Suchauswahl für `{id,label}`-Listen). Suchauswahl: Das Panel darf bei Scroll/Resize nicht schließen, sondern muss sich neu positionieren (Handy-Tastatur löst beides aus); eine vorgefilterte Liste gehört in `defaultKandidaten`, `kandidaten` bleibt die volle Liste (sonst findet die Namenssuche nichts außerhalb der Vorauswahl).
+- Wiederverwendbare UI: `DataTable` (Sortierung/Suche/Filter/Auswahl; mit `mobileCard` auf dem Handy Karten statt Tabelle, siehe `docs/tickets-logo-design.md`), `DateInput`, `SubmitButton`, `DeleteButton` (ist selbst ein `<form>` — nicht schachteln), `MietvertragAuswahl` (Suchauswahl für `{id,label}`-Listen). Suchauswahl: Das Panel darf bei Scroll/Resize nicht schließen, sondern muss sich neu positionieren (Handy-Tastatur löst beides aus); eine vorgefilterte Liste gehört in `defaultKandidaten`, `kandidaten` bleibt die volle Liste (sonst findet die Namenssuche nichts außerhalb der Vorauswahl).
 - Client-Komponenten dürfen nichts importieren, was Prisma zieht (Turbopack liefert sonst nur „ENOENT build-manifest.json“) — Anzeige-Helfer stehen deshalb in eigenen Dateien ohne Prisma (z.B. `dokumente-anzeige.ts`, `beleg-anzeige.ts`).
 - Auth-Schutz für alle Routen über `src/proxy.ts` (NextAuth-Middleware).
 - Tab-Titel setzt `NavBar` clientseitig aus `SEITENTITEL` in `src/components/nav-bar.tsx` (längster passender Pfad, kein Next-`metadata`) — **neue Seiten dort eintragen**. Next setzt den Titel bei jeder Navigation (auch bei Suchparametern) neu; `NavBar` zieht ihn deshalb per `MutationObserver` auf `document.head` nach.
