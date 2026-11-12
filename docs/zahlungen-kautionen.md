@@ -89,6 +89,8 @@ Frühere Zeilen derselben Datei zählen mit (Verarbeitung nach Datum). Abweichen
 
 ## Gebühren und Rücklastschriften
 
+**Erfassen.** Gebühren (Rücklastschrift-/Mahngebühren) und Zahlungen werden über denselben Knopf „+ Zahlung / Gebühr erfassen“ im Mieterkonto und dasselbe Formular (`/zahlungen/neu?mietvertragId=…`) erfasst; die Zahlungsart (Mietzahlung, Gebühr, NK-Verrechnung) wählt man im Formular. Einen eigenen Gebühr-Knopf auf der Mietvertragsseite gibt es nicht; der offene Betrag steht nur in der Saldo-Kachel („inkl. Sonderforderung“).
+
 **Monat von Gebühren im Mieterkonto.** Gebühren-Forderungen (`MAHNGEBUEHR`, außer NK-Verrechnung) und Gebühren-Zahlungen (`SONDERZAHLUNG`) stehen im Mieterkonto im Monat ihres Datums, optional in einem anderen Monat: `periodeJahr/periodeMonat` als **Monat im Mieterkonto** (nur Anzeige, `sonderMonat` in `src/lib/mieterkonto.ts`).
 - Beim Aufteilen übernimmt die Gebühr automatisch den Monat des ersten Mietteils (änderbar); bestehende Gebühren ändert man auf ihrer Detailseite unter „Im Mieterkonto unter“ (`aendereGebuehrMonat`: Storno + Neuanlage mit gleichem Bezug; „nach Datum“ setzt zurück).
 - Saldo, offene Gebühren (`ladeSonderforderungSalden`), Jahresübersicht und EÜR rechnen weiter nach dem Datum; deshalb gilt der Monat nur im Jahr des Datums. Abfragen nach Mietperiode filtern auf `MIETZAHLUNG`.
