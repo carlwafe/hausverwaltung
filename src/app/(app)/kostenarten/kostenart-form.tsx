@@ -208,13 +208,10 @@ export function KostenartForm({
           <option value="SONSTIGE_EINNAHMEN">Sonstige Einnahme (z.B. Waschgeld, Gebühren)</option>
         </select>
         <p className="mt-1 text-xs text-neutral-500">
-          Die Aufstellung weist Instandhaltung separat aus, die übrigen Kosten nach umlagefähig / nicht
-          umlagefähig. Ohne Auswahl gilt ein Vorschlag (Reparaturen = Instandhaltung, sonst nach der
-          Umlagefähigkeit). Anschaffung / Herstellung (z.B. Einbauküche, Modernisierung, Sanierung) zählt ab
-          dem Berichtsjahr 2026 nicht zu den Kosten, sondern steht gesondert als Grundlage der Abschreibung
-          (AfA); frühere Jahre bleiben unverändert. Schuldzinsen sind der Zinsanteil einer Darlehensrate: eigene
-          Zeile in der Aufstellung, nie umlagefähig; die Tilgung wird dagegen nicht als Kostenart, sondern als
-          Buchungsart „Darlehenstilgung“ erfasst (siehe Kontoauszug-Import).
+          Ohne Auswahl gilt ein Vorschlag (Reparaturen = Instandhaltung, sonst nach Umlagefähigkeit). Anschaffung / Herstellung
+          zählt ab Berichtsjahr 2026 nicht zu den Kosten, sondern steht gesondert als Grundlage der AfA. Schuldzinsen sind der
+          Zinsanteil einer Darlehensrate (nie umlagefähig); die Tilgung ist keine Kostenart, sondern die Buchungsart
+          „Darlehenstilgung“.
         </p>
       </div>
 
@@ -229,9 +226,8 @@ export function KostenartForm({
           Einzelbeleg erforderlich
         </label>
         <p className="mt-1 text-xs text-neutral-500">
-          Für das Finanzamt (und bei umlagefähigen Kosten für den Mieter) braucht jede Kostenposition einen Beleg. Häkchen
-          nur entfernen, wenn der Kontoauszug bzw. die interne Forderung genügt (z.B. Bankgebühren, Mahngebühren). Techem-Kostenarten
-          bleiben beleg-pflichtig: die Techem-Abrechnung als gemeinsamen Beleg anhängen.
+          Jede Kostenposition braucht einen Beleg. Häkchen nur entfernen, wenn der Kontoauszug bzw. die interne Forderung
+          genügt (z.B. Bank-, Mahngebühren). Techem bleibt beleg-pflichtig: Abrechnung als gemeinsamen Beleg anhängen.
         </p>
       </div>
 

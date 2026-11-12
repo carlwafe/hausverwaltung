@@ -69,13 +69,10 @@ export function VersendetFeld({
       </form>
       {fehler && <p className="mt-1 text-xs text-red-400">{fehler}</p>}
       <p className="mt-1.5 text-xs text-neutral-500">
-        Erst ab dem Versanddatum zählt die Gutschrift der nicht gezahlten NK-Vorauszahlung im Mietsaldo (Mieterkonto,
-        Jahres-/Quartalsübersicht, Offene Posten, Dashboard) und bei berechneten Abrechnungen auch die Nachzahlung/das
-        Guthaben der Abrechnung in der Jahresübersicht — vorher besteht der Rückstand tatsächlich noch. Unabhängig vom
-        Status Entwurf/Final. Das Datum bei einem späteren Versand oder Zugang beim Mieter nachtragen bzw. ändern.
-        Manuelle Positionen mit eingetragener Vorauszahlung &gt; 0 bekommen die Gutschrift ab dem Versand ebenfalls
-        (Soll minus eingetragene Vorauszahlung) — vor dem Markieren prüfen, ob dieser Betrag der tatsächlich gezahlten
-        Vorauszahlung entspricht (bei Beträgen des Vorverwalters meist nicht).
+        Ab dem Versanddatum zählt die Gutschrift der nicht gezahlten NK-Vorauszahlung im Mietsaldo und (bei berechneten
+        Abrechnungen) die Nachzahlung/das Guthaben in der Jahresübersicht; vorher besteht der Rückstand noch. Unabhängig vom
+        Status Entwurf/Final. Datum bei späterem Zugang beim Mieter nachtragen. Bei manuellen Positionen mit Vorauszahlung &gt; 0
+        wird die Gutschrift als Soll minus eingetragene Vorauszahlung gerechnet — vor dem Markieren prüfen, ob das stimmt.
       </p>
     </div>
   );

@@ -188,14 +188,11 @@ export function AufteilenForm({
     <div className="mt-4 rounded-lg border border-neutral-800 p-4">
       <p className="mb-3 text-sm font-medium text-white">Zahlung ({betragGesamt.toFixed(2)} €) aufteilen</p>
       <p className="mb-3 text-xs text-neutral-500">
-        Ersetzt diese Zahlung durch die unten angegebenen — z.B. eine Überweisung, die Miete für
-        Wohnung und Garage in einer Summe zahlt, eine Zahlung, die teilweise eine
-        Kostenerstattung (z.B. eine Mahngebühr) statt Miete ist, oder erste Miete und Kaution in
-        einer Summe (Teil &quot;Kaution&quot; = Einzahlung Mieter aufs Kautionskonto des Vertrags). Bei einer geplatzten Lastschrift:
-        Mietteil negativ mit dem Mietmonat der geplatzten Zahlung, die Bankgebühr als Kosten &bdquo;Nebenkosten des
-        Geldverkehrs&ldquo; mit negativem Betrag und &quot;dem Mieter berechnen&quot; (legt die Forderung an) — nicht als
-        negative Gebühren-Zahlung. Eine negative Gebühren-Zahlung nur, wenn eine Gebührenzahlung des Mieters zurückgebucht
-        wird. Gebühren stehen im Mieterkonto unter dem Monat des Mietteils (änderbar).
+        Ersetzt diese Zahlung durch die unten angegebenen Teile — z.B. Miete für Wohnung und Garage in einer Summe, ein Teil
+        Mahngebühr statt Miete oder erste Miete plus Kaution (Teil &quot;Kaution&quot; = Einzahlung aufs Kautionskonto).
+        Bei einer geplatzten Lastschrift: Mietteil negativ mit dem Mietmonat der geplatzten Zahlung, die Bankgebühr als Kosten
+        &bdquo;Nebenkosten des Geldverkehrs&ldquo; mit negativem Betrag und &quot;dem Mieter berechnen&quot;. Eine negative
+        Gebühren-Zahlung nur, wenn eine Gebührenzahlung des Mieters zurückgebucht wird.
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
