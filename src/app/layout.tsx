@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
@@ -26,7 +26,34 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/icons/logo-v2-apple.png", sizes: "180x180", type: "image/png" }],
   },
+  // Installierte App (iPhone: „Zum Home-Bildschirm“). Das Manifest kommt aus src/app/manifest.ts.
+  // statusBarStyle "default": Die Seite beginnt unter der Statusleiste, deren Schrift dem Gerät
+  // folgt. Bei "black-translucent" läge die Navigation unter der Uhr und die Schrift wäre immer
+  // weiß (im hellen Design unlesbar).
+  appleWebApp: {
+    capable: true,
+    title: "Mietverwaltung",
+    statusBarStyle: "default",
+  },
 };
+
+const FARBE_HELL = "#ffffff";
+const FARBE_DUNKEL = "#0a0a0a";
+
+// Farbe der Statusleiste/Browserleiste passend zum Design: fest gewählt (Cookie "theme") genau
+// diese Farbe, bei „System“ je nach Modus des Geräts. Bewusst kein viewportFit "cover": Es gibt
+// keine am Rand fixierten Leisten, und mit "cover" läge der Inhalt im Querformat unter der Kerbe.
+export async function generateViewport(): Promise<Viewport> {
+  const theme = (await cookies()).get("theme")?.value;
+  if (theme === "dark") return { themeColor: FARBE_DUNKEL };
+  if (theme === "light") return { themeColor: FARBE_HELL };
+  return {
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: FARBE_HELL },
+      { media: "(prefers-color-scheme: dark)", color: FARBE_DUNKEL },
+    ],
+  };
+}
 
 // Setzt vor dem ersten Zeichnen das Design und folgt bei „System“ dem Modus des Geräts.
 const THEME_SKRIPT = `(function(){try{var q=matchMedia("(prefers-color-scheme: dark)");function a(){var m=document.cookie.match(/(?:^|; )theme=(\\w+)/),p=m?m[1]:"system";document.documentElement.dataset.theme=p==="dark"||(p!=="light"&&q.matches)?"dark":"light"}a();q.addEventListener("change",a)}catch(e){}})();`;
