@@ -21,6 +21,7 @@ function formatDatum(iso: string | null) {
 export function DoppelzahlungPruefen() {
   const [paare, setPaare] = useState<DoppelzahlungPaar[] | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [zeigeErledigte, setZeigeErledigte] = useState(false);
   const [pending, start] = useTransition();
 
   const pruefen = () =>
@@ -34,6 +35,9 @@ export function DoppelzahlungPruefen() {
     });
 
   const offen = paare?.filter((p) => !p.rueckzahlung).length ?? 0;
+  const erledigt = (paare?.length ?? 0) - offen;
+  // Schon per Rückzahlung korrigierte Paare sind erledigt und stehen nur auf Wunsch in der Liste.
+  const sichtbar = paare?.filter((p) => zeigeErledigte || !p.rueckzahlung) ?? [];
 
   return (
     <div className="mb-6">
@@ -59,9 +63,25 @@ export function DoppelzahlungPruefen() {
           ) : (
             <>
               <p className="mb-2 text-sm text-neutral-300">
-                {paare.length} mögliche Doppelzahlung{paare.length === 1 ? "" : "en"}, davon {offen} ohne gebuchte
-                Rückzahlung.
+                {offen === 0
+                  ? "Keine offenen Doppelzahlungen."
+                  : `${offen} mögliche Doppelzahlung${offen === 1 ? "" : "en"} ohne gebuchte Rückzahlung.`}
+                {erledigt > 0 && (
+                  <>
+                    {" "}
+                    {erledigt} bereits durch Rückzahlung korrigiert{" "}
+                    <button
+                      type="button"
+                      onClick={() => setZeigeErledigte((v) => !v)}
+                      className="text-neutral-400 underline hover:text-neutral-200"
+                    >
+                      ({zeigeErledigte ? "ausblenden" : "anzeigen"})
+                    </button>
+                    .
+                  </>
+                )}
               </p>
+              {sichtbar.length > 0 && (
               <div className="overflow-x-auto rounded-lg border border-neutral-800">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-neutral-900 text-xs uppercase text-neutral-400">
@@ -74,7 +94,7 @@ export function DoppelzahlungPruefen() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paare.map((p) => (
+                    {sichtbar.map((p) => (
                       <tr key={p.a.id + p.b.id} className={`border-t border-neutral-800 ${p.rueckzahlung ? "opacity-60" : ""}`}>
                         <td className="px-3 py-1.5">
                           <div className="text-white">{p.empfaenger || "–"}</div>
@@ -103,6 +123,7 @@ export function DoppelzahlungPruefen() {
                   </tbody>
                 </table>
               </div>
+              )}
               <p className="mt-2 max-w-2xl text-xs text-neutral-500">
                 Bei einer echten Doppelzahlung die Rückzahlung als negative Kostenposition derselben Kostenart
                 mit demselben Gebäude bzw. derselben Wohnung buchen (Kosten → Neue Kostenposition oder per
