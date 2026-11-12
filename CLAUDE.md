@@ -23,6 +23,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/sepa-lastschrift.md` | Gläubiger-ID, Mandate, Mandatsseite, Einzugsdatei pain.008, Auszug lesen. |
 | `docs/berichte-steuer.md` | Jahres-/Quartalsübersicht, Aufstellung für die Steuererklärung, Jahresbericht Kontoführung (PDF), Anschaffung/AfA, Kontenrahmen. |
 | `docs/darlehen.md` | Zins/Tilgung-Buchung, Zuordnung zum Darlehen, Tilgungsplan-Rechnung, Soll/Ist-Darlehenskonto, Jahreswerte „Zinsen von anderen Konten“. |
+| `docs/kontoprognose.md` | Kontoprognose: Bedienung, Annahmen (Miete, Kosten, Darlehensraten, Weiterleitung, Nebenkostenausgleich), Mindestbestand. |
 | `docs/kontoauszug-import.md` | Klassifizierung, Mahngebühren, CAMT-Import, Doppelzahlungs-Prüfung, Vollständigkeits-Check, Import-Verwaltung, KI-Prüfung. |
 | `docs/kosten-dienstleister.md` | Stadtwerke-Salden, Dienstleister-Stammdaten, Anwaltskosten, Grundsteuer-Rate, Winterdienst/Hauswart, Heizungswartung, Leerstand-Seite. |
 | `docs/dokumente.md` | Ablage und Hauptordner, Bezüge, Dokumenttyp/Labels, Erkennung (Regeln/KI, Sammel-PDFs, Versorger-Salden), Zuordnung, Belegprüfung und Belegpflicht. |

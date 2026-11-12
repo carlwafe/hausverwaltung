@@ -35,6 +35,7 @@ const FINANZEN: NavLink[] = [
   { href: "/darlehen", label: "Darlehen" },
   { href: "/nebenkostenausgleich", label: "Nebenkostenausgleich" },
   { href: "/kontostand", label: "Kontostand" },
+  { href: "/kontoprognose", label: "Kontoprognose" },
 ];
 
 const ABRECHNUNG: NavLink[] = [
