@@ -77,45 +77,40 @@ export default function KontoauszugImportPage() {
         einer Tabelle mit einer vorgeschlagenen Buchungsart (Miete, Kosten, Mietweiterleitung,
         Kaution, Nebenkostenausgleich, …), die du pro Zeile bestätigen oder ändern kannst.
       </p>
-      <p className="mb-2 max-w-2xl text-xs text-neutral-500">
-        CAMT (camt.052 Tagesumsätze oder camt.053 Kontoauszug, Version 001.08; 001.02 geht auch): bei
-        Tagesdateien alle Dateien des Zeitraums auf einmal markieren. Die App prüft dabei die Kontostände
-        der Bank (Anfangssaldo + Buchungen = Endsaldo, lückenlos von Tag zu Tag) und erkennt bereits
-        importierte Buchungen auch an der eindeutigen Umsatz-ID der Bank.
-      </p>
-      <p className="mb-2 max-w-2xl text-xs text-neutral-500">
-        Für unsichere Zeilen gibt es &bdquo;Offene Zeilen mit KI prüfen&ldquo;: Claude macht pro Zeile einen
-        Vorschlag mit kurzer Begründung (Spalte &bdquo;KI-Einschätzung&ldquo;). Es wird nur auf Knopfdruck
-        geprüft, IBANs werden nicht übertragen, und nichts wird automatisch zum Import ausgewählt.
-        &bdquo;Ausgewählte mit KI prüfen&ldquo; schickt alle zum Import ausgewählten Zeilen samt Zuordnung und
-        Mietmonat (mit den bisherigen Zahlungen des Mieters) zur Kontrolle: bestätigte Zeilen bleiben ausgewählt,
-        Zeilen mit Widerspruch werden abgewählt und zeigen den Vorschlag zum Übernehmen (Filter &bdquo;KI-Widerspruch&ldquo;).
-      </p>
-      <p className="mb-2 max-w-2xl text-xs text-neutral-500">
-        Mietmonat: Nennt der Verwendungszweck einen Monat (&bdquo;Miete Januar&ldquo;, &bdquo;11.26&ldquo;), gilt
-        dieser. Zahlungen ab dem 25. gelten als Miete für den Folgemonat (bei Mietern, die bisher am Monatsende
-        vorauszahlen, z.B. Jobcenter, schon ab dem 20.) — außer der laufende Monat ist noch unbezahlt. Sonst gilt der
-        Eingangsmonat. Abweichungen sind gelb markiert (Filter &bdquo;Mietmonat ≠ Eingangsmonat&ldquo;).
-      </p>
-      <p className="mb-6 max-w-2xl text-xs text-neutral-500">
-        Stadtwerke-Zahlungen sind pro Haus ein Saldo aus Schlussrechnung und neuen Abschlägen; der
-        Verwendungszweck nennt oft die falsche Sparte (&bdquo;Allgemeinstrom + Wasser&ldquo;, &bdquo;Wasser +
-        Gas&ldquo;). Kostenart am Betrag prüfen und die Kostenposition danach unter Kosten aufteilen.
-      </p>
-      <p className="mb-2 max-w-2xl text-xs text-neutral-500">
-        &bdquo;M&ouml;gliche Doppelzahlung&ldquo; (Spalte Hinweis): Dieselbe Rechnungsnummer wurde bei
-        gleichem Empf&auml;nger und Betrag schon gebucht oder steht zweimal in der Datei (h&ouml;chstens
-        120 Tage auseinander). Nur ein Hinweis, nichts wird gesperrt: Bei einer echten Doppelzahlung
-        die zweite Zeile nicht importieren (oder importieren und die R&uuml;ckzahlung sp&auml;ter als
-        negative Kostenposition derselben Kostenart buchen). Abschl&auml;ge, Raten und Serien mit drei
-        oder mehr gleichen Zahlungen werden nicht gemeldet; ohne Rechnungsnummer im Text wird
-        nichts gepr&uuml;ft.
-      </p>
-      <p className="mb-6 max-w-2xl text-xs text-neutral-500">
-        Von Hand prüfen: Die Rauchmelder-Wartung von Techem (Rechnung im Januar) gehört zum Vorjahr,
-        der Verwendungszweck nennt aber keine Jahreszahl &mdash; Kostenjahr auf das Vorjahr setzen und
-        die Kostengruppe je Haus-Gruppe wählen.
-      </p>
+      <details className="mb-6 max-w-2xl">
+        <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">Hinweise zum Import</summary>
+        <div className="mt-2 space-y-2 text-xs text-neutral-500">
+          <p>
+            CAMT (camt.052 Tagesumsätze oder camt.053 Kontoauszug): bei Tagesdateien alle Dateien des Zeitraums auf einmal
+            markieren. Die App prüft die Kontostände der Bank (Anfangssaldo + Buchungen = Endsaldo, lückenlos) und erkennt
+            bereits importierte Buchungen an der Umsatz-ID.
+          </p>
+          <p>
+            &bdquo;Offene Zeilen mit KI prüfen&ldquo;: Claude schlägt pro unsicherer Zeile eine Buchung mit Begründung vor
+            (nur auf Knopfdruck, ohne IBANs, nichts wird automatisch ausgewählt). &bdquo;Ausgewählte mit KI prüfen&ldquo;
+            kontrolliert die zum Import ausgewählten Zeilen; bei Widerspruch wird die Zeile abgewählt und der Vorschlag
+            angezeigt (Filter &bdquo;KI-Widerspruch&ldquo;).
+          </p>
+          <p>
+            Mietmonat: Nennt der Verwendungszweck einen Monat (&bdquo;Miete Januar&ldquo;, &bdquo;11.26&ldquo;), gilt dieser.
+            Zahlungen ab dem 25. gelten als Miete für den Folgemonat (bei Vorauszahlern wie dem Jobcenter ab dem 20.),
+            außer der laufende Monat ist noch unbezahlt. Sonst gilt der Eingangsmonat. Abweichungen sind gelb markiert.
+          </p>
+          <p>
+            &bdquo;M&ouml;gliche Doppelzahlung&ldquo;: Dieselbe Rechnungsnummer mit gleichem Empf&auml;nger und Betrag wurde
+            schon gebucht oder steht zweimal in der Datei. Nur ein Hinweis; bei einer echten Doppelzahlung die zweite Zeile
+            nicht importieren. Abschl&auml;ge, Raten und Serien werden nicht gemeldet.
+          </p>
+          <p>
+            Stadtwerke: Pro Haus ein Saldo aus Schlussrechnung und Abschl&auml;gen, der Verwendungszweck nennt oft die falsche
+            Sparte. Kostenart am Betrag prüfen und die Kostenposition danach unter Kosten aufteilen.
+          </p>
+          <p>
+            Von Hand pr&uuml;fen: Die Rauchmelder-Wartung von Techem (Rechnung im Januar) geh&ouml;rt zum Vorjahr &mdash;
+            Kostenjahr auf das Vorjahr setzen und die Kostengruppe je Haus-Gruppe w&auml;hlen.
+          </p>
+        </div>
+      </details>
 
       {!hasPreview && (
         <form action={previewAction} className="mb-8 flex items-end gap-4">

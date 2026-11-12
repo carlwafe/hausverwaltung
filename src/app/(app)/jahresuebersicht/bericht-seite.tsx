@@ -586,10 +586,8 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">{istQuartal ? "Jahresübersicht – Quartal" : "Jahresübersicht"}</h1>
         <p className="text-sm text-neutral-400">
-          Mieteinnahmen ./. Ausgaben nach dem Zuflussprinzip (Anlage V) — Einnahmen nach
-          tatsächlichem Zahlungseingang,{" "}
-          Kosten nach Abbuchungsdatum (Abflussprinzip, auch wenn sie ein anderes Kostenjahr betreffen —
-          z.B. Abfallbescheid des Vorjahres im Januar; die 10-Tage-Regel gilt nur für die Mieten der Aufstellung für die Steuererklärung).
+          Mieteinnahmen ./. Ausgaben nach dem Zuflussprinzip (Anlage V): Einnahmen nach Zahlungseingang, Kosten nach
+          Abbuchungsdatum (auch bei anderem Kostenjahr).
           {istQuartal
             ? " Zum Abgleich mit den Quartalsberichten des früheren Verwalters."
             : " Kostenpositionen ohne Datum zählen im Kostenjahr."}
@@ -618,51 +616,32 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           </summary>
           <div className="mt-3">
           <p className="mb-3 text-sm text-neutral-400">
-            Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Nebenkostenabrechnung offen (Vorjahr), wobei Soll =
-            Soll Kaltmiete + Soll Nebenkosten (letztere Spalte zeigt bei Garagen die Mehrwertsteuer
-            statt Nebenkosten). Negativer Saldo = Rückstand, positiver Saldo = Guthaben/
-            Vorauszahlung. &bdquo;Nebenkostenabrechnung
-            offen (Vorjahr)&ldquo; zeigt den offenen Saldo der {jahr - 1}er-Abrechnung (eine
-            Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen, fließt daher erst
-            in Saldo neu ein, nicht in Saldo alt): positiv = noch auszuzahlendes Guthaben, negativ =
-            noch einzuziehende Nachzahlung. Die Spalte &bdquo;Gutschrift unbezahlte NK-Vorauszahlung&ldquo;
-            gleicht den unbezahlten Teil der Vorauszahlung aus: Er steht schon als
-            Rückstand in Soll/Saldo alt, die Abrechnung vergleicht die Kosten aber nur mit der
-            tatsächlich gezahlten Vorauszahlung. Sie zählt ab dem Versanddatum der Abrechnung (Nebenkostenabrechnung →
-            &bdquo;Als versendet markieren&ldquo;), im Zeitraum des Versands als Spalte, danach in Saldo alt; eine nicht
-            versendete berechnete Abrechnung zählt weder mit Nachzahlung/Guthaben noch mit Gutschrift. Im Mieterkonto des Mietvertrags steht Saldo neu als
-            &bdquo;Saldo inkl. offener Nebenkostenabrechnung&ldquo;.
+            Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Nebenkostenabrechnung offen (Vorjahr).
+            Soll = Kaltmiete + Nebenkosten (bei Garagen: Mehrwertsteuer statt Nebenkosten). Negativ = Rückstand, positiv = Guthaben.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;: offener Saldo der {jahr - 1}er-Abrechnung (positiv = Guthaben,
+            negativ = Nachzahlung), fließt erst in Saldo neu ein. &bdquo;Gutschrift unbezahlte NK-Vorauszahlung&ldquo; gleicht
+            den unbezahlten Teil der Vorauszahlung aus (steht schon als Rückstand im Soll) und zählt ab dem Versanddatum
+            der Abrechnung; eine nicht versendete Abrechnung zählt gar nicht.
           </p>
           {!zeitraum.mitNkOffen && (
             <p className="mb-3 text-sm text-neutral-400">
-              In {label} ist die Nebenkostenabrechnung des Vorjahres noch nicht berücksichtigt (sie
-              liegt meist erst im 3. Quartal vor): Saldo neu = Saldo alt − Soll + Miete
-              (+ Gebühren/Sonderforderungen), ohne Spalte &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;.
-              Wurde eine Abrechnung schon im Quartal versendet, zählt ihre Gutschrift der unbezahlten
-              NK-Vorauszahlung ab dem Versanddatum mit (eigene Spalte).
+              In {label} ist die Abrechnung des Vorjahres noch nicht berücksichtigt: Saldo neu = Saldo alt − Soll + Miete
+              (+ Gebühren/Sonderforderungen). Bereits versendete Abrechnungen zählen ab dem Versanddatum mit (eigene Spalte).
             </p>
           )}
           <p className="mb-3 text-sm text-neutral-400">
-            Miete sowie Saldo alt/neu zählen nach der{" "}
+            Miete und Saldo zählen nach der{" "}
             <Link href="/zahlungen" className="underline hover:text-white">
               zugeordneten Periode
             </Link>{" "}
-            einer Zahlung, nicht nach ihrem tatsächlichen Buchungsdatum — eine z.B. Ende Dezember
-            schon für Januar überwiesene Miete zählt so korrekt zum Folgejahr, statt das laufende
-            Jahr künstlich ins Plus zu ziehen.
+            einer Zahlung, nicht nach dem Buchungsdatum.
           </p>
           <p className="mb-3 text-sm text-neutral-400">
-            Soll, Miete und Saldo rechnen ab dem Buchhaltungs-Stichtag des Objekts. Einzelne Mietverträge
-            können einen früheren eigenen Stichtag haben (Mietvertrag bearbeiten → „Buchhaltung ab“), wenn
-            ab diesem Datum alle Zahlungen vollständig erfasst sind; sie sind in der Tabelle mit „Stichtag …“
-            gekennzeichnet und rechnen auch ihre früheren Jahre. Die Summenzeile mischt dann
-            unterschiedliche Stichtage.
-          </p>
-          <p className="mb-3 text-sm text-neutral-400">
-            Mieter ohne Bewegung und mit Saldo 0 werden ausgeblendet — außer sie haben einen
-            Kommentar: Diese Zeilen bleiben sichtbar, damit der Kommentar zum Abgleich mit dem früheren
-            Verwalter erhalten bleibt (z.B. ein dort noch offener Rückstand, der in der App längst
-            beglichen ist).
+            Gerechnet wird ab dem Buchhaltungs-Stichtag des Objekts; Mietverträge mit früherem eigenen Stichtag
+            („Buchhaltung ab“) sind mit „Stichtag …“ gekennzeichnet, die Summenzeile mischt dann Stichtage.
+            Mieter ohne Bewegung und mit Saldo 0 sind ausgeblendet, außer sie haben einen Kommentar.
           </p>
           </div>
         </details>
@@ -1012,11 +991,9 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
     <div className="mb-6">
       <h2 className="mb-3 text-lg font-medium text-white">Aufstellung für die Steuererklärung {jahr}</h2>
       <p className="mb-3 max-w-3xl text-sm text-neutral-400">
-        Dasselbe Ergebnis wie oben, gegliedert für die Anlage V: tatsächlich vereinnahmte Mieten und
-        Nebenkosten getrennt, Instandhaltung separat, übrige Kosten nach umlagefähig / nicht umlagefähig.
-        Ausgezahlte NK-Guthaben mindern die Nebenkosten-Einnahmen (Anlage V, Z. 13). AfA ist hier nicht
-        enthalten; Schuldzinsen = über das Mietkonto gezahlte plus die Jahreswerte von anderen Konten (Seite „Darlehen“); Anschaffungs- und Herstellungskosten (Kostenarten mit Einordnung
-        „Anschaffung / Herstellung“, ab 2026) stehen gesondert als Grundlage der Abschreibung.
+        Wie oben, gegliedert für die Anlage V: vereinnahmte Mieten und Nebenkosten getrennt, Instandhaltung separat,
+        übrige Kosten nach umlagefähig / nicht umlagefähig. Nicht enthalten: AfA (Anschaffungs- und Herstellungskosten
+        stehen gesondert darunter); Schuldzinsen = Mietkonto plus Jahreswerte anderer Konten (Seite „Darlehen“).
       </p>
       <div className="grid grid-cols-2 gap-6">
         {tabelle("Einnahmen", einnahmen)}
@@ -1118,45 +1095,31 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         </summary>
         <div className="mt-3 max-w-3xl space-y-2 text-sm text-neutral-400">
           <p>
-            Grundlage ist die Rückmeldung des Steuerberaters: Ein Jahresbericht mit Einnahmen und Ausgaben
-            genügt (keine Einzelbuchungen); wichtig sind tatsächlich vereinnahmte Mieten und Nebenkosten,
-            separat ausgewiesene Instandhaltung und die Unterteilung der Kosten in umlagefähig / nicht
-            umlagefähig. Eine weitere Gliederung der laufenden Betriebskosten ist nicht nötig.
+            Grundlage ist die Rückmeldung des Steuerberaters: Ein Jahresbericht genügt; wichtig sind vereinnahmte Mieten und
+            Nebenkosten, separate Instandhaltung und die Unterteilung der Kosten in umlagefähig / nicht umlagefähig.
           </p>
           <p>
-            Mieten und Nebenkosten: Jede Mietzahlung wird je Mietmonat auf die NK-Vorauszahlung angerechnet
-            (höchstens das NK-Soll, § 366 Abs. 2 BGB — wie in der Nebenkostenabrechnung), der Rest ist
-            Kaltmiete. Zahlt der Mieter weniger als das Soll, gilt ab Mietjahr 2025 die anteilige Aufteilung
-            (z.B. 380 € bei 340 € Kaltmiete + 280 € NK = 172 € Nebenkosten + 208 € Kaltmiete, NK-Anteil auf volle
-            Euro gerundet), bis 2024 zuerst die NK (280 € + 100 €). Maßgeblich für den
-            Zeitraum ist das Zahlungsdatum, für die Aufteilung der Mietmonat. Ausgezahlte NK-Guthaben mindern
-            die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie (wie Anlage V, Z. 13); im Bericht oben stehen
-            sie dagegen als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.
+            Mieten und Nebenkosten: Jede Mietzahlung wird je Mietmonat zuerst auf die NK-Vorauszahlung angerechnet (höchstens
+            das NK-Soll, § 366 Abs. 2 BGB), der Rest ist Kaltmiete; bei Teilzahlungen gilt ab Mietjahr 2025 die anteilige
+            Aufteilung (NK-Anteil auf volle Euro gerundet), bis 2024 zuerst die NK. Der Zeitraum richtet sich nach dem
+            Zahlungsdatum, die Aufteilung nach dem Mietmonat. NK-Guthaben mindern die Nebenkosten-Einnahmen, Nachzahlungen
+            erhöhen sie (Anlage V, Z. 13); im Bericht oben stehen sie als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.
           </p>
           <p>
-            10-Tage-Regel (§ 11 Abs. 1 Satz 2 EStG): Eine im Voraus gezahlte Januarmiete, die ab dem 22.12.
-            eingeht, zählt zum neuen Jahr (Fälligkeit im Januar, Mietperiode Januar). Die Mieten und Nebenkosten
-            der Aufstellung sind danach zugeordnet; der Bericht oben und der Kontenabgleich zählen dagegen nach
-            Zahlungsdatum — die Zeilen unter der Tabelle leiten über. Eine im Januar gezahlte Dezembermiete ist
-            nicht betroffen (war schon im Dezember fällig). Für Kosten ist die Regel nicht umgesetzt. Greift nur,
-            wenn die Mietperiode der Zahlung stimmt.
+            10-Tage-Regel (§ 11 Abs. 1 Satz 2 EStG): Eine im Voraus gezahlte Januarmiete, die ab dem 22.12. eingeht, zählt
+            zum neuen Jahr; die Zeilen unter der Tabelle leiten vom Bericht oben (nach Zahlungsdatum) über. Für Kosten nicht
+            umgesetzt; greift nur, wenn die Mietperiode der Zahlung stimmt.
           </p>
           <p>
-            Umsatzsteuer: Garagenmieten enthalten Umsatzsteuer (Vertragsfeld „Mehrwertsteuer“); sie ist anteilig aus
-            den Zahlungen herausgerechnet und steht als eigene Zeile, nicht in der Kaltmiete und nicht bei den
-            Nebenkosten. Ob und wie sie an das Finanzamt abgeführt wird, ist in der App nicht erfasst.
+            Umsatzsteuer: Garagenmieten enthalten Umsatzsteuer; sie steht als eigene Zeile, nicht in Kaltmiete oder
+            Nebenkosten. Die Abführung ans Finanzamt ist in der App nicht erfasst.
           </p>
           <p>
-            Nicht enthalten: AfA, der Überschuss gilt daher vor ihr. Schuldzinsen der Darlehen = die über das
-            Mietkonto gebuchten Zinsen plus die Jahreswerte von anderen Konten, die unter Darlehen laut
-            Bankbescheinigung erfasst werden (ohne diese Jahreswerte fehlen die Zinsen aus der Zeit vor dem Wechsel
-            der Darlehen auf das Mietkonto, der Steuerberater ergänzt sie dann); die Tilgung ist keine Ausgabe und steht nirgends in der Aufstellung. Anschaffungs- und Herstellungskosten (z.B. Einbauküche, Modernisierung, Sanierung)
-            sind nicht sofort abziehbar: Kostenarten mit der Einordnung „Anschaffung / Herstellung“ zählen ab dem
-            Berichtsjahr 2026 nicht mehr zu den Kosten, sondern stehen mit ihren Einzelposten gesondert; die
-            Abschreibung (Nutzungsdauer, Gebäude oder bewegliches Wirtschaftsgut) bestimmt der Steuerberater. Im
-            Jahresbericht darüber bleiben sie als Ausgabe (Abfluss, passend zum Kontoauszug), der Überschuss der
-            Aufstellung weicht deshalb genau um diese Summe ab. Ob Sanierung/Modernisierung
-            Instandhaltung oder Herstellungskosten sind, ist mit dem Steuerberater zu klären.
+            Nicht enthalten: AfA (der Überschuss gilt vor ihr) und Tilgung (keine Ausgabe). Ohne die Jahreswerte von anderen
+            Konten fehlen Zinsen aus der Zeit vor dem Wechsel der Darlehen auf das Mietkonto. Kostenarten mit der Einordnung
+            „Anschaffung / Herstellung“ stehen ab 2026 gesondert (die Abschreibung bestimmt der Steuerberater); im Jahresbericht
+            oben bleiben sie als Ausgabe, der Überschuss weicht um diese Summe ab. Ob Sanierung Instandhaltung oder
+            Herstellung ist, klärt der Steuerberater.
           </p>
         </div>
         <h3 className="mb-2 mt-4 text-sm font-medium text-neutral-300">Zuordnung der Kostenarten</h3>
