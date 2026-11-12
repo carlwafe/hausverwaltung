@@ -41,6 +41,14 @@ Die Seite lässt sich als App installieren (iPhone: Safari → Teilen → „Zum
 - Alle Seiten sind mit den dunklen Tailwind-Klassen gebaut (`neutral-*`, `text-white`, `bg-white text-black` für Hauptknöpfe). Das helle Design kehrt in `globals.css` nur die Farbvariablen um (weiß ↔ schwarz, Neutral-Skala gespiegelt, Signalfarben wie `red-400` abgedunkelt). Neue Seiten nutzen einfach die vorhandenen Klassen.
 - Stolperfallen: Hauptknöpfe (`.bg-white`) hätten durch die Umkehrung tiefschwarz — dafür gibt es eine Sonderregel (hellgrau). Das Schreiben `.druckbereich` ist Papier und setzt die Farbvariablen zurück. Farben außerhalb der Skala (Hex, `amber-700` u.ä.) werden nicht umgekehrt und müssen bei Bedarf einzeln in `globals.css` ergänzt werden.
 
+## Mobiles Menü
+
+Unter `md` zeigt `NavBar` statt der Dropdowns das Menü hinter dem ☰-Knopf (`MobilesMenue` in `src/components/nav-bar.tsx`).
+
+- **Tippflächen:** Jede Zeile geht über die ganze Breite und ist mindestens 48 px hoch (`min-h-12`, `text-base`), der Menüknopf 44 × 44 px. Neue Einträge übernehmen das über `mobilZeile()`.
+- **Gruppen zum Aufklappen** (Stammdaten, Finanzen, Abrechnung, Verwaltung); Dashboard und Tickets stehen direkt darüber. Beim Öffnen ist die Gruppe der aktuellen Seite aufgeklappt. Verworfen: alle Punkte untereinander, weil das über 30 Zeilen und viel Scrollen ergibt.
+- **Aktuelle Seite:** markiert wird der Menüpunkt mit dem längsten passenden Pfad (`aktiverHref`), also auch auf Unterseiten.
+
 ## Formularzeilen: Felder und Knöpfe gleich groß
 
 Dem Eigentümer wichtig, gilt für **jede neue und jede angefasste Seite**: Stehen Auswahlfelder, Eingabefelder und Knöpfe nebeneinander (Filter-/Anzeigezeilen, Formulare mit „Anzeigen“/„Speichern“), haben sie **dieselbe Höhe** (`h-10`) und, bei gleichartigen Feldern bzw. dem Knopf daneben, dieselbe Breite (z.B. `w-32`). Nicht über `py-*` steuern: Felder haben einen Rahmen (+2 px), Hauptknöpfe (`bg-white`) keinen — mit gleichem `py-2` ist der Knopf 2 px niedriger als das Feld. Muster: `src/app/(app)/jahresuebersicht/jahr-filter-form.tsx`.

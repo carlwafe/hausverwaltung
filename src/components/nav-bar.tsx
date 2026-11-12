@@ -117,11 +117,131 @@ function seitenTitel(pathname: string): string {
   return treffer ? `${treffer.label} · Mietverwaltung Eutin` : "Mietverwaltung Eutin";
 }
 
-const NAV_GRUPPEN: { label: string; links: NavLink[] }[] = [
+const NAV_GRUPPEN: NavGruppe[] = [
   { label: "Stammdaten", links: STAMMDATEN },
   { label: "Finanzen", links: FINANZEN },
   { label: "Abrechnung", links: ABRECHNUNG },
 ];
+
+type NavGruppe = { label: string; links: NavLink[] };
+
+// Der Menüpunkt zur aktuellen Seite: längster passender Pfad, damit auch Unterseiten
+// (/mietvertraege/123) ihren Punkt markieren und /mietvertraege/nk-anpassung nicht „Mietverträge“.
+function aktiverHref(pathname: string, links: NavLink[]): string | null {
+  let treffer: string | null = null;
+  for (const l of links) {
+    if ((pathname === l.href || pathname.startsWith(l.href + "/")) && l.href.length > (treffer?.length ?? 0)) {
+      treffer = l.href;
+    }
+  }
+  return treffer;
+}
+
+// Zeile im mobilen Menü: ganze Breite tippbar und mindestens 48 px hoch (Finger statt Maus).
+const MOBIL_ZEILE = "flex min-h-12 w-full items-center rounded-md px-3 text-base";
+
+function mobilZeile(aktiv: boolean): string {
+  return `${MOBIL_ZEILE} ${aktiv ? "bg-neutral-900 font-medium text-white" : "text-neutral-300 active:bg-neutral-900"}`;
+}
+
+// Mobiles Menü (unter md): Dashboard und Tickets direkt, die Gruppen zum Aufklappen — sonst
+// wären es über 30 Zeilen untereinander. Beim Öffnen ist die Gruppe der aktuellen Seite offen.
+function MobilesMenue({
+  gruppen,
+  pathname,
+  kontoLabel,
+  schliessen,
+}: {
+  gruppen: NavGruppe[];
+  pathname: string;
+  kontoLabel: string;
+  schliessen: () => void;
+}) {
+  const aktiv = aktiverHref(pathname, [
+    ...gruppen.flatMap((g) => g.links),
+    { href: "/tickets", label: "Tickets" },
+    { href: "/konto", label: "Konto" },
+  ]);
+  const [offen, setOffen] = useState<ReadonlySet<string>>(
+    () => new Set(gruppen.filter((g) => g.links.some((l) => l.href === aktiv)).map((g) => g.label)),
+  );
+
+  function umschalten(label: string) {
+    setOffen((alt) => {
+      const neu = new Set(alt);
+      if (!neu.delete(label)) neu.add(label);
+      return neu;
+    });
+  }
+
+  return (
+    <div className="border-t border-neutral-800 px-1 py-2 md:hidden">
+      <nav className="flex flex-col gap-0.5">
+        <Link prefetch={false} href="/" onClick={schliessen} className={mobilZeile(pathname === "/")}>
+          Dashboard
+        </Link>
+        <Link prefetch={false} href="/tickets" onClick={schliessen} className={mobilZeile(aktiv === "/tickets")}>
+          Tickets
+        </Link>
+        {gruppen.map((gruppe) => {
+          const istOffen = offen.has(gruppe.label);
+          const enthaeltAktiv = gruppe.links.some((l) => l.href === aktiv);
+          return (
+            <div key={gruppe.label}>
+              <button
+                type="button"
+                onClick={() => umschalten(gruppe.label)}
+                aria-expanded={istOffen}
+                className={`${MOBIL_ZEILE} justify-between active:bg-neutral-900 ${
+                  enthaeltAktiv ? "font-medium text-white" : "text-neutral-300"
+                }`}
+              >
+                {gruppe.label}
+                <span aria-hidden className={`text-sm text-neutral-500 transition-transform ${istOffen ? "rotate-180" : ""}`}>
+                  ▾
+                </span>
+              </button>
+              {istOffen && (
+                <div className="mb-1 ml-3 flex flex-col gap-0.5 border-l border-neutral-800 pl-1">
+                  {gruppe.links.map((link) => (
+                    <Link
+                      prefetch={false}
+                      key={link.href}
+                      href={link.href}
+                      onClick={schliessen}
+                      className={mobilZeile(link.href === aktiv)}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+      <div className="mx-3 mt-2 grid grid-cols-2 gap-2 border-t border-neutral-800 pb-1 pt-3">
+        <Link
+          prefetch={false}
+          href="/konto"
+          onClick={schliessen}
+          className={`flex h-12 min-w-0 items-center justify-center rounded-md border border-neutral-800 px-3 text-sm ${
+            aktiv === "/konto" ? "bg-neutral-900 font-medium text-white" : "text-neutral-300 active:bg-neutral-900"
+          }`}
+        >
+          <span className="truncate">{kontoLabel}</span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex h-12 items-center justify-center rounded-md border border-neutral-800 px-3 text-sm text-neutral-300 active:bg-neutral-900"
+        >
+          Abmelden
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function NavBar({
   user,
@@ -204,73 +324,19 @@ export function NavBar({
           onClick={() => setMobileOpen((o) => !o)}
           aria-label={mobileOpen ? "Menü schließen" : "Menü öffnen"}
           aria-expanded={mobileOpen}
-          className="shrink-0 rounded-md border border-neutral-800 px-2.5 py-1.5 text-sm text-neutral-300 md:hidden"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-neutral-800 text-lg text-neutral-300 active:bg-neutral-900 md:hidden"
         >
           {mobileOpen ? "✕" : "☰"}
         </button>
       </div>
 
       {mobileOpen && (
-        <div className="border-t border-neutral-800 px-4 py-4 md:hidden">
-          <nav className="flex flex-col gap-4">
-            <Link prefetch={false}
-              href="/"
-              onClick={() => setMobileOpen(false)}
-              className={`text-sm ${
-                pathname === "/" ? "font-medium text-white" : "text-neutral-300"
-              }`}
-            >
-              Dashboard
-            </Link>
-            <Link prefetch={false}
-              href="/tickets"
-              onClick={() => setMobileOpen(false)}
-              className={`text-sm ${
-                pathname.startsWith("/tickets") ? "font-medium text-white" : "text-neutral-300"
-              }`}
-            >
-              Tickets
-            </Link>
-            {gruppen.map((gruppe) => (
-              <div key={gruppe.label}>
-                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                  {gruppe.label}
-                </p>
-                <div className="flex flex-col gap-2">
-                  {gruppe.links.map((link) => (
-                    <Link prefetch={false}
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`text-sm ${
-                        pathname === link.href ? "font-medium text-white" : "text-neutral-300"
-                      }`}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
-          <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-4">
-            <Link prefetch={false}
-              href="/konto"
-              onClick={() => setMobileOpen(false)}
-              className={`text-sm ${
-                pathname === "/konto" ? "font-medium text-white" : "text-neutral-300"
-              }`}
-            >
-              {user.name ?? user.email}
-            </Link>
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="text-sm text-neutral-400 hover:text-white"
-            >
-              Abmelden
-            </button>
-          </div>
-        </div>
+        <MobilesMenue
+          gruppen={gruppen}
+          pathname={pathname}
+          kontoLabel={user.name ?? user.email ?? "Konto"}
+          schliessen={() => setMobileOpen(false)}
+        />
       )}
     </header>
   );
