@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { speichereKautionNotiz } from "./actions";
 
 function formatEuro(value: number) {
@@ -109,7 +109,7 @@ const columns: Column<KautionRow>[] = [
     searchValue: (r) => r.einheitBezeichnung,
     render: (r) => (
       <span className="inline-flex items-center gap-1">
-        <Link prefetch={false} href={`/mietvertraege/${r.mietvertragId}`} className="font-medium hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${r.mietvertragId}`} className={TABELLEN_LINK}>
           {r.einheitBezeichnung}
         </Link>
         {r.warnung && (
@@ -223,6 +223,7 @@ const columns: Column<KautionRow>[] = [
 export function KautionenTable({ rows }: { rows: KautionRow[] }) {
   return (
     <DataTable
+      rowHref={(r) => `/mietvertraege/${r.mietvertragId}`}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Kautionen erfasst."

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { setzeVerwaltungInformiert } from "./actions";
 
 export type DienstleisterRow = {
@@ -64,7 +64,7 @@ const columns: Column<DienstleisterRow>[] = [
     sortValue: (d) => d.name,
     searchValue: (d) => `${d.name} ${d.ansprechpartner} ${d.suchbegriffe} ${d.kostenarten} ${d.adresse}`,
     render: (d) => (
-      <Link prefetch={false} href={`/dienstleister/${d.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/dienstleister/${d.id}`} className={TABELLEN_LINK}>
         {d.name}
       </Link>
     ),
@@ -126,6 +126,7 @@ const columns: Column<DienstleisterRow>[] = [
 export function DienstleisterTable({ rows }: { rows: DienstleisterRow[] }) {
   return (
     <DataTable
+      rowHref={(d) => `/dienstleister/${d.id}`}
       columns={columns}
       rows={rows}
       rowClassName={(d) => (d.aktiv ? "" : "bg-neutral-900/60 text-neutral-500")}

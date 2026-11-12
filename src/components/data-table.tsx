@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DateInput } from "@/components/date-input";
 
 /** Wird an render() gereicht, für Spalten, die einen Auf-/Zuklapp-Bereich unter der Zeile steuern
@@ -21,6 +22,15 @@ export type Column<T> = {
   title?: string;
 };
 
+/** Darstellung des Haupt-Links einer Zeile (z.B. Einheit, Mieter, Datum). Bewusst ruhig (kein Blau,
+ * Unterstreichung erst beim Überfahren): dass die Zeile klickbar ist, zeigen Mauszeiger,
+ * Hervorhebung und der Pfeil am Zeilenende (`rowHref`). Der Link bleibt für Tastatur und
+ * Screenreader. */
+export const TABELLEN_LINK = "font-medium hover:underline";
+
+// Klicks auf diese Elemente innerhalb einer Zeile gehören dem Element selbst, nicht dem Zeilenklick.
+const INTERAKTIV = "a, button, input, select, textarea, label, summary, [role='button']";
+
 function normalize(s: string): string {
   return s
     .toLowerCase()
@@ -37,6 +47,7 @@ export function DataTable<T extends { id: string }>({
   onSelectionChange,
   rowClassName,
   rowId,
+  rowHref,
   renderExpanded,
   renderBelow,
   dateValue,
@@ -59,6 +70,11 @@ export function DataTable<T extends { id: string }>({
   /** Optionale DOM-`id` fürs `<tr>` (z.B. für einen `#anchor`-Link von einer anderen Seite auf
    * eine bestimmte Zeile). */
   rowId?: (row: T) => string;
+  /** Zielseite einer Zeile: macht die ganze Zeile klickbar (Mauszeiger, Hervorhebung) und hängt am
+   * Zeilenende einen Pfeil „›“ an. Links und Knöpfe in der Zeile behalten ihre eigene Wirkung;
+   * Strg/Cmd-Klick öffnet in neuem Tab. `null` = diese Zeile hat kein Ziel. Die Hauptspalte
+   * zeigt weiterhin einen echten Link (mit `TABELLEN_LINK`) für Tastatur und Screenreader. */
+  rowHref?: (row: T) => string | null;
   /** Zusätzliche volle Tabellenzeile direkt unter einer aufgeklappten Zeile (z.B. Rohdaten) —
    * eine Spalte steuert das Auf-/Zuklappen über den `ctx`-Parameter ihres render(). Immer nur
    * eine Zeile gleichzeitig aufgeklappt. Element muss selbst ein <tr> sein; colSpan (die
@@ -110,6 +126,17 @@ export function DataTable<T extends { id: string }>({
   const [sortDir, setSortDir] = useState<"asc" | "desc">(defaultSort?.dir ?? "asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const router = useRouter();
+  const extraSpalten = (selectable ? 1 : 0) + (rowHref ? 1 : 0);
+
+  function zeilenKlick(e: React.MouseEvent, href: string) {
+    if (e.button !== 0 || e.defaultPrevented) return;
+    if ((e.target as HTMLElement).closest(INTERAKTIV)) return;
+    // Beim Markieren von Text (z.B. zum Kopieren) nicht wegnavigieren.
+    if (window.getSelection()?.toString()) return;
+    if (e.metaKey || e.ctrlKey) window.open(href, "_blank");
+    else router.push(href);
+  }
 
   const hatSuche = columns.some((c) => c.searchValue);
 
@@ -280,6 +307,7 @@ export function DataTable<T extends { id: string }>({
                   )}
                 </th>
               ))}
+              {rowHref && <th className="w-8 px-2 py-2" aria-hidden="true" />}
             </tr>
           </thead>
           <tbody>
@@ -289,11 +317,13 @@ export function DataTable<T extends { id: string }>({
                 expanded,
                 toggleExpanded: () => setExpandedId((id) => (id === row.id ? null : row.id)),
               };
+              const href = rowHref?.(row) ?? null;
               return (
                 <Fragment key={row.id}>
                   <tr
                     id={rowId?.(row)}
-                    className={`border-t border-neutral-800 hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
+                    onClick={href ? (e) => zeilenKlick(e, href) : undefined}
+                    className={`group border-t border-neutral-800 ${href ? "cursor-pointer" : ""} hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
                   >
                     {selectable && (
                       <td className="px-4 py-2">
@@ -313,16 +343,21 @@ export function DataTable<T extends { id: string }>({
                         {c.render(row, ctx)}
                       </td>
                     ))}
+                    {rowHref && (
+                      <td className="w-8 px-2 py-2 text-center text-lg leading-none text-neutral-500 group-hover:text-white" aria-hidden="true">
+                        {href ? "›" : ""}
+                      </td>
+                    )}
                   </tr>
-                  {expanded && renderExpanded && renderExpanded(row, columns.length + (selectable ? 1 : 0))}
-                  {renderBelow && renderBelow(row, columns.length + (selectable ? 1 : 0))}
+                  {expanded && renderExpanded && renderExpanded(row, columns.length + extraSpalten)}
+                  {renderBelow && renderBelow(row, columns.length + extraSpalten)}
                 </Fragment>
               );
             })}
             {sortiert.length === 0 && (
               <tr>
                 <td
-                  colSpan={columns.length + (selectable ? 1 : 0)}
+                  colSpan={columns.length + extraSpalten}
                   className="px-4 py-8 text-center text-neutral-500"
                 >
                   {rows.length === 0 ? emptyMessage : "Keine Treffer für diese Suche."}
@@ -331,7 +366,7 @@ export function DataTable<T extends { id: string }>({
             )}
           </tbody>
           {renderFooter && sortiert.length > 0 && (
-            <tfoot>{renderFooter(sortiert, columns.length + (selectable ? 1 : 0))}</tfoot>
+            <tfoot>{renderFooter(sortiert, columns.length + extraSpalten)}</tfoot>
           )}
         </table>
       </div>

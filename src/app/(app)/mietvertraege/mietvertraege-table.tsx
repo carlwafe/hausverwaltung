@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 
 function formatEuro(value: number) {
@@ -66,7 +66,7 @@ const columns: Column<VertragRow>[] = [
     searchValue: (v) => v.einheitBezeichnung,
     className: "whitespace-nowrap",
     render: (v) => (
-      <Link prefetch={false} href={`/mietvertraege/${v.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/mietvertraege/${v.id}`} className={TABELLEN_LINK}>
         {v.einheitBezeichnung}
       </Link>
     ),
@@ -163,6 +163,7 @@ export function MietvertraegeTable({ rows }: { rows: VertragRow[] }) {
           statusFilter === "ALLE" ? "Noch keine Mietverträge angelegt." : "Keine Mietverträge mit diesem Status."
         }
         searchPlaceholder="Mietverträge durchsuchen…"
+        rowHref={(v) => `/mietvertraege/${v.id}`}
       />
     </div>
   );

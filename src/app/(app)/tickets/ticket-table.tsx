@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { TICKET_KATEGORIE, TICKET_PRIORITAET, TICKET_STATUS } from "@/lib/ticket";
 
 export type TicketRow = {
@@ -36,7 +36,7 @@ const columns: Column<TicketRow>[] = [
     sortValue: (t) => t.titel,
     searchValue: (t) => t.titel,
     render: (t) => (
-      <Link prefetch={false} href={`/tickets/${t.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/tickets/${t.id}`} className={TABELLEN_LINK}>
         {t.titel}
       </Link>
     ),
@@ -110,6 +110,7 @@ export function TicketTable({
   const einzeln = optionen.length === 1;
   return (
     <DataTable
+      rowHref={(t) => `/tickets/${t.id}`}
       columns={einzeln ? columns.filter((c) => c.key !== "kategorie") : columns}
       rows={rows}
       emptyMessage={emptyMessage}

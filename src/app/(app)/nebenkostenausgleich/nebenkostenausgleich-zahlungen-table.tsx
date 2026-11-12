@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import { deleteNebenkostenausgleichZahlungen } from "./actions";
 import {
@@ -45,7 +45,7 @@ const columns: Column<NebenkostenausgleichZahlungRow>[] = [
     className: "whitespace-nowrap",
     render: (b) => (
       <span>
-        <Link prefetch={false} href={`/nebenkostenausgleich/${b.id}`} className="hover:underline">
+        <Link prefetch={false} href={`/nebenkostenausgleich/${b.id}`} className={TABELLEN_LINK}>
           {formatDate(b.datum)}
         </Link>
         {b.aufteilungGruppeId && (
@@ -174,6 +174,7 @@ export function NebenkostenausgleichZahlungenTable({ rows }: { rows: Nebenkosten
         </div>
       )}
       <DataTable
+        rowHref={(b) => `/nebenkostenausgleich/${b.id}`}
         columns={columns}
         rows={rows}
         emptyMessage="Noch keine Nebenkostenausgleich-Zahlungen erfasst."

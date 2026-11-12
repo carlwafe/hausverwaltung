@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { BelegBadge } from "@/components/beleg-badge";
 import type { BelegStatus } from "@/lib/beleg-anzeige";
 import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
@@ -59,7 +59,7 @@ const columns: Column<KostenpositionRow>[] = [
     label: "Datum",
     sortValue: (k) => k.datum ?? "",
     render: (k) => (
-      <Link prefetch={false} href={`/kosten/${k.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/kosten/${k.id}`} className={TABELLEN_LINK}>
         {formatDate(k.datum)}
       </Link>
     ),
@@ -213,6 +213,7 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         emptyMessage="Noch keine Kostenpositionen erfasst."
         searchPlaceholder="Kosten durchsuchen…"
         selectable
+        rowHref={(k) => `/kosten/${k.id}`}
         onSelectionChange={setAusgewaehlt}
         dateValue={(k) => k.datum}
         selectFilter={{

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { mandatsreferenz } from "@/lib/sepa-mandat";
 import type { MandatZeile } from "@/lib/mandat-laden";
 
@@ -15,7 +15,7 @@ const columns: Column<MandatZeile>[] = [
     key: "einheit",
     label: "Einheit",
     render: (z) => (
-      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium text-white hover:underline">
+      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
         {z.einheit}
       </Link>
     ),
@@ -161,6 +161,7 @@ export function MandateTabelle({ alle }: { alle: MandatZeile[] }) {
         )}
       </div>
       <DataTable
+        rowHref={(z) => `/mietvertraege/${z.id}`}
         columns={columns}
         rows={rows}
         selectable

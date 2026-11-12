@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { KOSTENGRUPPE_LABEL, kostengruppeFuer, type AnlageVZeile } from "@/lib/anlage-v";
 
 const VERTEILERSCHLUESSEL_LABEL: Record<string, string> = {
@@ -33,7 +33,7 @@ const columns: Column<KostenartRow>[] = [
     sortValue: (k) => k.name,
     searchValue: (k) => k.name,
     render: (k) => (
-      <Link prefetch={false} href={`/kostenarten/${k.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/kostenarten/${k.id}`} className={TABELLEN_LINK}>
         {k.name}
       </Link>
     ),
@@ -105,6 +105,7 @@ const columns: Column<KostenartRow>[] = [
 export function KostenartenTable({ rows }: { rows: KostenartRow[] }) {
   return (
     <DataTable
+      rowHref={(k) => `/kostenarten/${k.id}`}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Kostenarten angelegt."

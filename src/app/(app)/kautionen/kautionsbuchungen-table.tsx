@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
 import {
   aktualisiereKautionsbuchungKategorie,
@@ -203,7 +203,7 @@ const columns: Column<KautionsbuchungRow>[] = [
         {k.einbehalt ? (
           formatEuro(k.betrag)
         ) : (
-          <Link prefetch={false} href={`/kautionen/buchung/${k.id}`} className="font-medium hover:underline">
+          <Link prefetch={false} href={`/kautionen/buchung/${k.id}`} className={TABELLEN_LINK}>
             {formatEuro(k.betrag)}
           </Link>
         )}
@@ -313,6 +313,7 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
         </div>
       )}
       <DataTable
+        rowHref={(k) => `/kautionen/buchung/${k.id}`}
         columns={columns}
         rows={rows}
         emptyMessage="Noch keine Kautionsbuchungen aus Kontoauszug importiert."

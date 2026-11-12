@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { mieterName } from "@/lib/mieter-name";
 
 export type MieterRow = {
@@ -33,7 +33,7 @@ const columns: Column<MieterRow>[] = [
     sortValue: (m) => `${m.nachname} ${m.vorname}`,
     searchValue: (m) => mieterName(m),
     render: (m) => (
-      <Link prefetch={false} href={`/mieter/${m.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/mieter/${m.id}`} className={TABELLEN_LINK}>
         {mieterName(m)}
       </Link>
     ),
@@ -133,6 +133,7 @@ export function MieterTable({
         rows={angezeigteRows}
         emptyMessage="Noch keine Mieter angelegt."
         searchPlaceholder="Mieter durchsuchen…"
+        rowHref={(m) => `/mieter/${m.id}`}
         rowClassName={(m) => (m.amtZahlt ? "bg-blue-500/10" : "")}
       />
     </div>

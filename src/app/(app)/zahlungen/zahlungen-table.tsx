@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
 import { deleteZahlungen } from "./actions";
 import {
@@ -69,7 +69,7 @@ const columns: Column<ZahlungRow>[] = [
     label: "Datum",
     sortValue: (z) => z.datum,
     render: (z) => (
-      <Link prefetch={false} href={`/zahlungen/${z.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/zahlungen/${z.id}`} className={TABELLEN_LINK}>
         {formatDate(z.datum)}
       </Link>
     ),
@@ -247,6 +247,7 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         emptyMessage="Noch keine Zahlungen erfasst."
         searchPlaceholder="Zahlungen durchsuchen…"
         selectable
+        rowHref={(z) => `/zahlungen/${z.id}`}
         onSelectionChange={setAusgewaehlt}
         dateValue={(z) => z.datum}
         renderExpanded={(z, colSpan) =>

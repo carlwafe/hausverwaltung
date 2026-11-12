@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -33,7 +33,7 @@ const columns: Column<OffenePostenRow>[] = [
     searchValue: (z) => z.einheit,
     render: (z) => (
       <>
-        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
+        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
           {z.einheit}
         </Link>
         {z.eigenerStichtag && (
@@ -135,6 +135,7 @@ const columns: Column<OffenePostenRow>[] = [
 export function OffenePostenTable({ rows }: { rows: OffenePostenRow[] }) {
   return (
     <DataTable
+      rowHref={(z) => `/mietvertraege/${z.id}`}
       columns={columns}
       rows={rows}
       emptyMessage="Keine aktiven oder beendeten Mietverträge vorhanden."

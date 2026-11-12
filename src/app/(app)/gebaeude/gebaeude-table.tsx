@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 
 export type GebaeudeRow = {
   id: string;
@@ -19,7 +19,7 @@ const columns: Column<GebaeudeRow>[] = [
     sortValue: (g) => g.strasse,
     searchValue: (g) => g.strasse,
     render: (g) => (
-      <Link prefetch={false} href={`/gebaeude/${g.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/gebaeude/${g.id}`} className={TABELLEN_LINK}>
         {g.strasse}
       </Link>
     ),
@@ -56,6 +56,7 @@ const columns: Column<GebaeudeRow>[] = [
 export function GebaeudeTable({ rows }: { rows: GebaeudeRow[] }) {
   return (
     <DataTable
+      rowHref={(g) => `/gebaeude/${g.id}`}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Gebäude angelegt."

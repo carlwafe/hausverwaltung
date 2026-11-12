@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { VerifikationsStern } from "./verifikations-stern";
 import { KommentarFeld } from "./kommentar-feld";
 
@@ -77,7 +77,7 @@ export function MieterTabelle({
       searchValue: (z) => z.einheit,
       render: (z) => (
         <>
-          <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium hover:underline">
+          <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
             {z.einheit}
           </Link>
           {z.eigenerStichtag && (
@@ -172,6 +172,7 @@ export function MieterTabelle({
 
   return (
     <DataTable
+      rowHref={(z) => `/mietvertraege/${z.id}`}
       columns={columns}
       rows={zeilen}
       emptyMessage={`Keine Mietverträge mit Bewegung in ${label}.`}

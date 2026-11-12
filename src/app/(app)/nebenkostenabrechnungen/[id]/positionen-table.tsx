@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 import { PositionBearbeitenForm } from "../position-bearbeiten-form";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
@@ -122,7 +122,7 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
           <Link
             prefetch={false}
             href={p.mietvertragId ? `/mietvertraege/${p.mietvertragId}` : `/einheiten/${p.einheitId}`}
-            className="font-medium hover:underline"
+            className={TABELLEN_LINK}
           >
             {p.einheitBezeichnung}
           </Link>
@@ -358,6 +358,7 @@ export function PositionenTable({ rows, vergleichName }: { rows: PositionRow[]; 
   const spalten = useMemo(() => baueSpalten(vergleichName), [vergleichName]);
   return (
     <DataTable
+      rowHref={(p) => (p.mietvertragId ? `/mietvertraege/${p.mietvertragId}` : `/einheiten/${p.einheitId}`)}
       columns={spalten}
       rows={rows}
       emptyMessage="Keine Positionen vorhanden."

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 
 export type ErhoehungZeile = {
   id: string; // Mietvertrag-ID
@@ -34,7 +34,7 @@ const columns: Column<ErhoehungZeile>[] = [
     key: "einheit",
     label: "Einheit",
     render: (z) => (
-      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className="font-medium text-white hover:underline">
+      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
         {z.einheitBezeichnung}
       </Link>
     ),
@@ -214,6 +214,7 @@ export function ErhoehungenTabelle({ alle }: { alle: ErhoehungZeile[] }) {
         )}
       </div>
       <DataTable
+        rowHref={(z) => `/mietvertraege/${z.id}`}
         columns={columns}
         rows={rows}
       emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit bekanntem Mietbeginn."}

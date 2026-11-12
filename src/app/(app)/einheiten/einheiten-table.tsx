@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DataTable, type Column } from "@/components/data-table";
+import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { mieterName } from "@/lib/mieter-name";
 
 const typLabel: Record<string, string> = {
@@ -55,7 +55,7 @@ const columns: Column<EinheitRow>[] = [
     sortValue: (e) => e.bezeichnung,
     searchValue: (e) => e.bezeichnung,
     render: (e) => (
-      <Link prefetch={false} href={`/einheiten/${e.id}`} className="font-medium hover:underline">
+      <Link prefetch={false} href={`/einheiten/${e.id}`} className={TABELLEN_LINK}>
         {e.bezeichnung}
       </Link>
     ),
@@ -109,6 +109,7 @@ const columns: Column<EinheitRow>[] = [
 export function EinheitenTable({ rows }: { rows: EinheitRow[] }) {
   return (
     <DataTable
+      rowHref={(e) => `/einheiten/${e.id}`}
       columns={columns}
       rows={rows}
       emptyMessage="Noch keine Einheiten angelegt."
