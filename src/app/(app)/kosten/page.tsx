@@ -31,7 +31,7 @@ export default async function KostenPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Kosten</h1>
           <p className="mb-1 text-sm text-neutral-400">{kosten.length} Kostenpositionen erfasst</p>
@@ -48,7 +48,7 @@ export default async function KostenPage() {
             (z.B. Bankgebühren); Techem-Positionen brauchen die Techem-Abrechnung als Beleg.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             href="/kostenarten"
             className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
@@ -79,7 +79,7 @@ export default async function KostenPage() {
         einheiten={einheiten}
       />
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Gesamtkosten</p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(summe)}</p>

@@ -54,9 +54,13 @@ Unter `md` zeigt `NavBar` statt der Dropdowns das Menü hinter dem ☰-Knopf (`M
 
 Breite Tabellen sind auf dem Handy schwer lesbar. `DataTable` kann deshalb unter `md` statt der Tabelle eine Kartenliste zeigen: Prop `mobileCard={(row) => …}` liefert den Inhalt einer Karte; Rahmen, Abstand und der Link um die ganze Karte (aus `rowHref`) kommen von `DataTable`.
 
-- **Im Einsatz:** Tickets (`TicketKarte` in `src/app/(app)/tickets/ticket-table.tsx`): Titel groß, darunter Status/Priorität/Fälligkeit, dann Bezug und klein Kategorie/Zuständigkeit.
-- Suche, Filter und die Reihenfolge gelten wie in der Tabelle; Spaltenköpfe zum Umsortieren gibt es in der Kartenansicht nicht.
-- **Grenzen:** Auswahl-Checkboxen, aufklappbare Zeilen und Fußzeilen (Summen) gibt es in den Karten nicht. Beide Ansichten stehen im HTML (Umschaltung per CSS) — für kurze Listen gedacht, nicht für Tabellen mit Hunderten Zeilen.
+- **Im Einsatz:** Tickets (`TicketKarte` in `src/app/(app)/tickets/ticket-table.tsx`), Zahlungen (`ZahlungKarte`) und Kosten (`KostenKarte`, auch in den Kostenlisten der Gebäude-, Haus- und Einheitenseiten).
+- **Aufbau einer Karte:** oben links die Hauptangabe (Titel, Einheit, Kostenart), oben rechts Nummer bzw. Betrag; darunter die zweite Angabe (Mieter, Empfänger), dann eine Zeile mit Datum und Kennzeichen, zuletzt klein und einzeilig abgeschnitten der Freitext. Kennzeichen nur zeigen, wenn sie etwas aussagen (Kosten: „umlagefähig“ nur wenn zutreffend, kein Kennzeichen = nicht umlagefähig).
+- **Keine Links oder Knöpfe in der Karte** — die ganze Karte ist bereits der Link zur Detailseite.
+- **Lange Listen:** Es erscheinen zunächst 50 Karten, „Weitere anzeigen“ lädt je 50 nach. Suche und Filter durchsuchen immer alle Zeilen.
+- **Sortieren:** Spaltenköpfe gibt es in der Kartenansicht nicht. Prop `mobileSort` zeigt stattdessen ein Auswahlfeld „Sortierung“ mit wenigen, je Seite ausgewählten Reihenfolgen (z.B. älteste zuerst, höchster Betrag); ohne Auswahl gilt die Reihenfolge der Tabelle.
+- **Grenzen:** Auswahl-Checkboxen (CSV-Export, mehrere löschen), aufklappbare Zeilen (Rohdaten) und Fußzeilen (Summen) gibt es in den Karten nicht — dafür die Desktop-Ansicht nutzen. Beide Ansichten stehen im HTML (Umschaltung per CSS).
+- **Seitenkopf:** Überschrift und Knöpfe („Neu“, „Importieren“) stehen unter `md` untereinander (`flex-col … md:flex-row`), die Knöpfe brechen um (`flex-wrap`) — sonst quetscht die Knopfreihe den Text zusammen oder ragt über den Rand.
 - Suchfeld und Filter der `DataTable` sind unter `sm` so breit wie die Seite.
 
 ## Formularzeilen: Felder und Knöpfe gleich groß

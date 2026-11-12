@@ -29,6 +29,9 @@ export type Column<T> = {
  * Screenreader. */
 export const TABELLEN_LINK = "font-medium hover:underline";
 
+// So viele Karten zeigt die Kartenansicht zunächst und je Klick auf „Weitere anzeigen“ zusätzlich.
+const KARTEN_SCHRITT = 50;
+
 // Klicks auf diese Elemente innerhalb einer Zeile gehören dem Element selbst, nicht dem Zeilenklick.
 const INTERAKTIV = "a, button, input, select, textarea, label, summary, [role='button']";
 
@@ -57,6 +60,7 @@ export function DataTable<T extends { id: string }>({
   defaultSort,
   renderFooter,
   mobileCard,
+  mobileSort,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -122,8 +126,17 @@ export function DataTable<T extends { id: string }>({
    * kommen von DataTable). Suche, Filter und die aktuelle Sortierung gelten weiter; Spaltenköpfe
    * zum Umsortieren gibt es dort nicht. Nicht unterstützt in der Kartenansicht: `selectable`,
    * `renderExpanded`, `renderBelow`, `renderFooter`, `rowId`. Beide Ansichten stehen im HTML
-   * (Umschaltung per CSS) — für kurze Listen gedacht, nicht für Tabellen mit Hunderten Zeilen. */
+   * (Umschaltung per CSS). Bei langen Listen erscheinen zunächst nur die ersten 50 Karten, weitere
+   * per Knopf „Weitere anzeigen“ — die Suche und die Filter durchsuchen trotzdem alle Zeilen.
+   * Der Karteninhalt darf keine Links oder Knöpfe enthalten (die ganze Karte ist schon der Link). */
   mobileCard?: (row: T) => React.ReactNode;
+  /** Auswahlfeld „Sortierung“ über der Kartenansicht (Ersatz für die Spaltenköpfe, nur unter `md`).
+   * `standardLabel` benennt die Reihenfolge ohne Auswahl (die der übergebenen Zeilen bzw.
+   * `defaultSort`), `optionen` verweisen auf Spalten mit `sortValue`. */
+  mobileSort?: {
+    standardLabel: string;
+    optionen: { label: string; key: string; dir: "asc" | "desc" }[];
+  };
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
@@ -135,6 +148,7 @@ export function DataTable<T extends { id: string }>({
   const [sortDir, setSortDir] = useState<"asc" | "desc">(defaultSort?.dir ?? "asc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [kartenAnzahl, setKartenAnzahl] = useState(KARTEN_SCHRITT);
   const router = useRouter();
   const extraSpalten = (selectable ? 1 : 0) + (rowHref ? 1 : 0);
 
@@ -198,6 +212,17 @@ export function DataTable<T extends { id: string }>({
     }
   }
 
+  // Auswahlfeld der Kartenansicht: Index der Option, die zur aktuellen Sortierung passt ("" = Standard).
+  const mobileSortIndex = mobileSort?.optionen.findIndex((o) => o.key === sortKey && o.dir === sortDir) ?? -1;
+  const mobileSortWert = mobileSortIndex >= 0 ? String(mobileSortIndex) : "";
+
+  function setzeMobileSort(wert: string) {
+    const option = wert === "" ? null : mobileSort?.optionen[Number(wert)];
+    setSortKey(option?.key ?? defaultSort?.key ?? null);
+    setSortDir(option?.dir ?? defaultSort?.dir ?? "asc");
+    setKartenAnzahl(KARTEN_SCHRITT);
+  }
+
   function updateSelection(next: Set<string>) {
     setSelectedIds(next);
     onSelectionChange?.(rows.filter((r) => next.has(r.id)));
@@ -225,7 +250,7 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div>
-      {(hatSuche || dateValue || selectFilter || selectFilter2) && (
+      {(hatSuche || dateValue || selectFilter || selectFilter2 || (mobileCard && mobileSort)) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {hatSuche && (
             <input
@@ -252,14 +277,23 @@ export function DataTable<T extends { id: string }>({
               options={selectFilter2.options}
             />
           )}
+          {mobileCard && mobileSort && (
+            <FilterSelect
+              value={mobileSortWert}
+              onChange={setzeMobileSort}
+              placeholder={`Sortierung: ${mobileSort.standardLabel}`}
+              options={mobileSort.optionen.map((o, i) => ({ value: String(i), label: `Sortierung: ${o.label}` }))}
+              className="md:hidden"
+            />
+          )}
           {dateValue && (
-            <div className="flex items-center gap-2 text-sm text-neutral-400">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
               <div className="flex items-center gap-1.5">
-                von
+                <span className="w-7 sm:w-auto">von</span>
                 <DateInput key={`von-${datumResetZaehler}`} value={von} onChange={setVon} size="sm" />
               </div>
               <div className="flex items-center gap-1.5">
-                bis
+                <span className="w-7 sm:w-auto">bis</span>
                 <DateInput key={`bis-${datumResetZaehler}`} value={bis} onChange={setBis} size="sm" />
               </div>
               {(von || bis) && (
@@ -282,7 +316,7 @@ export function DataTable<T extends { id: string }>({
 
       {mobileCard && (
         <ul className="flex flex-col gap-2 md:hidden">
-          {sortiert.map((row) => {
+          {sortiert.slice(0, kartenAnzahl).map((row) => {
             const href = rowHref?.(row) ?? null;
             const klasse = `block rounded-lg border border-neutral-800 px-4 py-3 ${rowClassName?.(row) ?? ""}`;
             return (
@@ -300,6 +334,17 @@ export function DataTable<T extends { id: string }>({
           {sortiert.length === 0 && (
             <li className="rounded-lg border border-neutral-800 px-4 py-8 text-center text-sm text-neutral-500">
               {rows.length === 0 ? emptyMessage : "Keine Treffer für diese Suche."}
+            </li>
+          )}
+          {sortiert.length > kartenAnzahl && (
+            <li>
+              <button
+                type="button"
+                onClick={() => setKartenAnzahl((n) => n + KARTEN_SCHRITT)}
+                className="h-10 w-full rounded-lg border border-neutral-700 text-sm font-medium text-neutral-200 active:bg-neutral-900"
+              >
+                Weitere anzeigen ({kartenAnzahl} von {sortiert.length})
+              </button>
             </li>
           )}
         </ul>
@@ -418,14 +463,16 @@ function FilterSelect({
   onChange,
   placeholder,
   options,
+  className = "",
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   options: { value: string; label: string }[];
+  className?: string;
 }) {
   return (
-    <div className="relative w-full sm:w-72">
+    <div className={`relative w-full sm:w-72 ${className}`}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}

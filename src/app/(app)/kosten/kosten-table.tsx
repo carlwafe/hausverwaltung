@@ -146,6 +146,50 @@ const columns: Column<KostenpositionRow>[] = [
   },
 ];
 
+// Karte fürs Handy (unter md statt der Tabellenzeile, siehe `mobileCard` an DataTable): Kostenart und
+// Betrag groß, darunter Empfänger, dann Datum/Gebäude/Umlage/Beleg und klein die Beschreibung. Ohne
+// Links und Knöpfe — die ganze Karte führt zur Kostenposition. „Umlagefähig“ erscheint nur, wenn es
+// zutrifft; ohne Kennzeichen ist die Position nicht umlagefähig.
+function KostenKarte({ k }: { k: KostenpositionRow }) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-base font-medium leading-snug text-white">
+          {k.kostenartName}
+          {k.aufteilungGruppeId && (
+            <span className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400">✂</span>
+          )}
+          {k.virtuelleKautionBuchungId && (
+            <span className="ml-1.5 inline-block rounded-full bg-purple-500/10 px-1.5 text-xs text-purple-400">V</span>
+          )}
+        </span>
+        <span className="shrink-0 whitespace-nowrap text-base font-medium tabular-nums text-white">
+          {formatEuro(k.betrag)}
+        </span>
+      </div>
+      {k.empfaenger && <div className="mt-0.5 text-sm text-neutral-300">{k.empfaenger}</div>}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-400">
+        <span>
+          {k.datum ? formatDate(k.datum) : k.jahr} · {k.gebaeudeLabel}
+        </span>
+        {k.umlagefaehig && (
+          <span className="whitespace-nowrap rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">
+            umlagefähig
+          </span>
+        )}
+        {k.belegStatus === "FEHLT" ? (
+          <span className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
+            ⚠ Beleg fehlt
+          </span>
+        ) : (
+          k.belegStatus !== "ENTFAELLT" && <BelegBadge status={k.belegStatus} />
+        )}
+      </div>
+      {k.beschreibung && <div className="mt-1 truncate text-xs text-neutral-500">{k.beschreibung}</div>}
+    </>
+  );
+}
+
 const csvSpalten: CsvSpalte<KostenpositionRow>[] = [
   { label: "Datum", wert: (k) => formatDatumFuerCsv(k.datum) },
   { label: "Gebäude", wert: (k) => k.gebaeudeLabel },
@@ -214,6 +258,17 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         searchPlaceholder="Kosten durchsuchen…"
         selectable
         rowHref={(k) => `/kosten/${k.id}`}
+        mobileCard={(k) => <KostenKarte k={k} />}
+        mobileSort={{
+          standardLabel: "neueste zuerst",
+          optionen: [
+            { label: "älteste zuerst", key: "datum", dir: "asc" },
+            { label: "höchster Betrag", key: "betrag", dir: "desc" },
+            { label: "niedrigster Betrag", key: "betrag", dir: "asc" },
+            { label: "Kostenart A–Z", key: "kostenart", dir: "asc" },
+            { label: "Empfänger A–Z", key: "empfaenger", dir: "asc" },
+          ],
+        }}
         onSelectionChange={setAusgewaehlt}
         dateValue={(k) => k.datum}
         selectFilter={{

@@ -63,6 +63,45 @@ function artText(z: ZahlungRow) {
   return z.art === "SONDERZAHLUNG" ? "Gebühr (Zahlung)" : z.art === "MAHNGEBUEHR" ? "Gebühr (Forderung)" : "Miete";
 }
 
+function periodeText(z: ZahlungRow) {
+  return z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : null;
+}
+
+// Kennzeichen der Buchungsart (Tabellenspalte „Art“ und Karte fürs Handy).
+function ArtKennzeichen({ z }: { z: ZahlungRow }) {
+  if (z.art === "SONDERZAHLUNG") {
+    return (
+      <span
+        title="Zahlung des Mieters auf Gebühren (Sonderforderung), keine Miete"
+        className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
+      >
+        Gebühr
+      </span>
+    );
+  }
+  if (z.nkJahr !== null) {
+    return (
+      <span
+        title="Nebenkostenabrechnung aufs Mieterkonto verrechnet — ohne Geldfluss, nicht EUR-relevant"
+        className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400"
+      >
+        NK-Verrechnung {z.nkJahr}
+      </span>
+    );
+  }
+  if (z.art === "MAHNGEBUEHR") {
+    return (
+      <span
+        title="Gebühr, dem Mieter berechnet — reine Forderung ohne Geldfluss, nicht EUR-relevant"
+        className="rounded-full bg-neutral-700/50 px-2 py-0.5 text-xs text-neutral-300"
+      >
+        Forderung
+      </span>
+    );
+  }
+  return <span className="text-xs text-neutral-500">Miete</span>;
+}
+
 const columns: Column<ZahlungRow>[] = [
   {
     key: "datum",
@@ -107,7 +146,7 @@ const columns: Column<ZahlungRow>[] = [
     key: "periode",
     label: "Für Periode",
     sortValue: (z) => (z.periodeJahr ?? 0) * 12 + (z.periodeMonat ?? 0),
-    render: (z) => (z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : "–"),
+    render: (z) => periodeText(z) ?? "–",
   },
   {
     key: "art",
@@ -121,39 +160,7 @@ const columns: Column<ZahlungRow>[] = [
           : z.art === "MAHNGEBUEHR"
             ? "Gebühr Forderung nicht eur-relevant"
             : "Miete",
-    render: (z) => {
-      if (z.art === "SONDERZAHLUNG") {
-        return (
-          <span
-            title="Zahlung des Mieters auf Gebühren (Sonderforderung), keine Miete"
-            className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400"
-          >
-            Gebühr
-          </span>
-        );
-      }
-      if (z.nkJahr !== null) {
-        return (
-          <span
-            title="Nebenkostenabrechnung aufs Mieterkonto verrechnet — ohne Geldfluss, nicht EUR-relevant"
-            className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400"
-          >
-            NK-Verrechnung {z.nkJahr}
-          </span>
-        );
-      }
-      if (z.art === "MAHNGEBUEHR") {
-        return (
-          <span
-            title="Gebühr, dem Mieter berechnet — reine Forderung ohne Geldfluss, nicht EUR-relevant"
-            className="rounded-full bg-neutral-700/50 px-2 py-0.5 text-xs text-neutral-300"
-          >
-            Forderung
-          </span>
-        );
-      }
-      return <span className="text-xs text-neutral-500">Miete</span>;
-    },
+    render: (z) => <ArtKennzeichen z={z} />,
   },
   {
     key: "betrag",
@@ -187,6 +194,37 @@ const columns: Column<ZahlungRow>[] = [
   },
 ];
 
+// Karte fürs Handy (unter md statt der Tabellenzeile, siehe `mobileCard` an DataTable): Einheit und
+// Betrag groß, darunter Mieter, dann Datum/Periode/Art und klein der Verwendungszweck. Ohne Links
+// und Knöpfe — die ganze Karte führt zur Zahlung.
+function ZahlungKarte({ z }: { z: ZahlungRow }) {
+  const periode = periodeText(z);
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-base font-medium leading-snug text-white">
+          {z.einheitBezeichnung}
+          {z.aufteilungGruppeId && (
+            <span className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400">✂</span>
+          )}
+        </span>
+        <span className="shrink-0 whitespace-nowrap text-base font-medium tabular-nums text-white">
+          {formatEuro(z.betrag)}
+        </span>
+      </div>
+      <div className="mt-0.5 text-sm text-neutral-300">{z.mieterNamen}</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-400">
+        <span>
+          {formatDate(z.datum)}
+          {periode && ` · für ${periode}`}
+        </span>
+        <ArtKennzeichen z={z} />
+      </div>
+      {z.verwendungszweck && <div className="mt-1 truncate text-xs text-neutral-500">{z.verwendungszweck}</div>}
+    </>
+  );
+}
+
 const csvSpalten: CsvSpalte<ZahlungRow>[] = [
   { label: "Datum", wert: (z) => formatDatumFuerCsv(z.datum) },
   { label: "Einheit", wert: (z) => z.einheitBezeichnung },
@@ -194,7 +232,7 @@ const csvSpalten: CsvSpalte<ZahlungRow>[] = [
   { label: "Art", wert: artText },
   {
     label: "Für Periode",
-    wert: (z) => (z.periodeMonat && z.periodeJahr ? `${MONATE_KURZ[z.periodeMonat - 1]} ${z.periodeJahr}` : ""),
+    wert: (z) => periodeText(z) ?? "",
   },
   { label: "Betrag", wert: (z) => formatEuroFuerCsv(z.betrag) },
   { label: "Verwendungszweck", wert: (z) => z.verwendungszweck ?? "" },
@@ -248,6 +286,16 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         searchPlaceholder="Zahlungen durchsuchen…"
         selectable
         rowHref={(z) => `/zahlungen/${z.id}`}
+        mobileCard={(z) => <ZahlungKarte z={z} />}
+        mobileSort={{
+          standardLabel: "neueste zuerst",
+          optionen: [
+            { label: "älteste zuerst", key: "datum", dir: "asc" },
+            { label: "höchster Betrag", key: "betrag", dir: "desc" },
+            { label: "niedrigster Betrag", key: "betrag", dir: "asc" },
+            { label: "Mieter A–Z", key: "mieter", dir: "asc" },
+          ],
+        }}
         onSelectionChange={setAusgewaehlt}
         dateValue={(z) => z.datum}
         renderExpanded={(z, colSpan) =>
