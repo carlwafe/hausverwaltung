@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { NK_AUSGLEICH_ODER_VERRECHNUNG, NK_VERRECHNUNG_BEZUG, nkBegleichung } from "@/lib/nk-verrechnung";
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { EckdatenSektion } from "../eckdaten-sektion";
 import { uploadDokument } from "../../dokumente/actions";
@@ -439,24 +438,6 @@ export default async function MietvertragDetailPage({
           mietbeginn: vertrag.beginn,
         }}
       />
-
-      {/* Sonderforderungen (Rücklastschrift-/Mahngebühren) werden seit kurzem unter /zahlungen
-          erfasst (Zahlungsart "Gebühr") statt hier separat — sie stehen bereits als amber
-          hervorgehobene Sonderbuchung im Mieterkonto oben, hier nur noch ein kurzer Verweis. */}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-800 p-4">
-        <p className="text-xs text-neutral-500">
-          Sonderforderungen (Gebühren) stehen als Sonderbuchung im Mieterkonto oben. Offen:{" "}
-          <span className={sonderOffenImSaldo > 0.005 ? "text-amber-400" : "text-green-400"}>
-            {formatEuro(Math.round(sonderOffenImSaldo * 100) / 100)}
-          </span>
-        </p>
-        <Link
-          href={`/zahlungen/neu?mietvertragId=${vertrag.id}`}
-          className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-        >
-          + Gebühr erfassen
-        </Link>
-      </div>
 
       <div className="mt-6">
         <BelegeSektion

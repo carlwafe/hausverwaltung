@@ -42,7 +42,7 @@ export function MieterkontoAnsicht({
           href={`/zahlungen/neu?mietvertragId=${mietvertragId}`}
           className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
         >
-          + Zahlung erfassen
+          + Zahlung / Gebühr erfassen
         </Link>
       </div>
 
