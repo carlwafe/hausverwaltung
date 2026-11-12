@@ -8,7 +8,7 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
   const jahre: number[] = [];
   for (let j = bis; j >= von; j--) jahre.push(j);
   const selectCls =
-    "rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-400";
+    "h-10 w-32 rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm outline-none focus:border-neutral-400";
 
   return (
     <form method="GET" className="flex items-end gap-3">
@@ -20,7 +20,7 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
           id="jahr"
           name="jahr"
           defaultValue={jahr}
-          className={`w-28 ${selectCls}`}
+          className={selectCls}
         >
           {jahre.map((j) => (
             <option key={j} value={j}>
@@ -37,7 +37,7 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
           id="quartal"
           name="quartal"
           defaultValue={quartal}
-          className={`w-28 ${selectCls}`}
+          className={selectCls}
         >
           <option value={0}>Gesamtjahr</option>
           {[1, 2, 3, 4].map((q) => (
@@ -49,7 +49,7 @@ export function JahrFilterForm({ jahr, quartal }: { jahr: number; quartal: numbe
       </div>
       <button
         type="submit"
-        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200"
+        className="h-10 w-32 rounded-md bg-white px-4 text-sm font-medium text-black hover:bg-neutral-200"
       >
         Anzeigen
       </button>
