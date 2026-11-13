@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useActionState, useEffect, useState } from "react";
+import { Fragment, useActionState, useEffect, useState, useSyncExternalStore } from "react";
 import { commitBuchungen, type BuchungsartKandidat, type BuchungCommitRow } from "./actions";
 import {
   ermittleBuchungsartGruppe,
@@ -312,6 +312,17 @@ function toBuchungEditRow(r: VereinheitlichteZeile, sets: BestehendeSets): Buchu
   return row;
 }
 
+const MOBIL_QUERY = "(max-width: 767px)";
+function abonniereMobil(cb: () => void) {
+  const mq = window.matchMedia(MOBIL_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+/** Unter `md` Kartenliste statt Tabelle (nur eine der beiden Ansichten wird gerendert, die Zeilen sind schwer). */
+function useMobil() {
+  return useSyncExternalStore(abonniereMobil, () => window.matchMedia(MOBIL_QUERY).matches, () => false);
+}
+
 export function BuchungenTabelle({
   zeilen,
   buchungsarten,
@@ -348,6 +359,7 @@ export function BuchungenTabelle({
   periodenKontext: PeriodenKontext;
   onCommitted: () => void;
 }) {
+  const mobil = useMobil();
   const [commitMessage, commitAction, commitPending] = useActionState(commitBuchungen, null);
   const bestehendeSets = zuBestehendeSets(bestehendeImportSets, bestehendeNichtZugeordnetListe);
   const bestehendeNichtZugeordnet = new Set(bestehendeNichtZugeordnetListe);
@@ -756,114 +768,17 @@ export function BuchungenTabelle({
     );
   }
 
-  return (
-    <div>
-      {commitMessage && (
-        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
-          {commitMessage}
-        </div>
-      )}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-medium text-white">
-          Buchungen ({editRows.length} Zeile{editRows.length === 1 ? "" : "n"})
-        </h2>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={() => runKiPruefung("offen")}
-            disabled={kiPending !== null || kiKandidaten.length === 0}
-            title="Schickt nur unsichere, noch nicht importierte Zeilen (ohne IBAN) an Claude. Ergebnis sind Vorschläge mit Begründung."
-            className="h-10 w-full whitespace-nowrap rounded-md border border-violet-500/60 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40 sm:w-auto"
-          >
-            {kiPending === "offen" ? "KI prüft…" : `Offene Zeilen mit KI prüfen (${kiKandidaten.length})`}
-          </button>
-          <button
-            type="button"
-            onClick={() => runKiPruefung("ausgewaehlt")}
-            disabled={kiPending !== null || kiAusgewaehlt.length === 0 || kiAusgewaehlt.length > 250}
-            title={
-              kiAusgewaehlt.length > 250
-                ? "Höchstens 250 Zeilen auf einmal — Auswahl verkleinern."
-                : "Schickt alle zum Import ausgewählten Zeilen (ohne IBAN) samt Buchungsart, Mietvertrag, Mietmonat bzw. Kostenart an Claude. Zeilen, denen die KI widerspricht, werden abgewählt und zeigen ihren Vorschlag."
-            }
-            className="h-10 w-full whitespace-nowrap rounded-md border border-violet-500/60 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40 sm:w-auto"
-          >
-            {kiPending === "ausgewaehlt" ? "KI prüft…" : `Ausgewählte mit KI prüfen (${kiAusgewaehlt.length})`}
-          </button>
-          <select
-            value={hinweisFilter}
-            onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
-            className="rounded-md border border-neutral-700 bg-transparent h-10 w-full px-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-48"
-          >
-            {HINWEIS_OPTIONEN.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={familieFilter}
-            onChange={(e) => setFamilieFilter(e.target.value as "alle" | BuchungsartGruppe)}
-            className="rounded-md border border-neutral-700 bg-transparent h-10 w-full px-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-48"
-          >
-            {FAMILIE_OPTIONEN.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      {kiMeldung && <p className="mb-2 text-sm text-violet-300">{kiMeldung}</p>}
-      <p className="mb-3 text-sm text-neutral-300">
-        {importierbareRows.length} werden importiert.{" "}
-        {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
-      </p>
-
-      <div className="mb-4 max-h-[560px] overflow-auto rounded-lg border border-neutral-800 pb-32">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-3 py-2">
-                <input
-                  type="checkbox"
-                  checked={alleAusgewaehlt}
-                  ref={(el) => {
-                    if (el) el.indeterminate = teilweiseAusgewaehlt;
-                  }}
-                  disabled={auswaehlbareRows.length === 0}
-                  onChange={(e) => toggleAll(e.target.checked)}
-                  title="Alle sichtbaren, noch nicht importierten Zeilen aus-/abwählen"
-                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
-                />
-              </th>
-              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <SortableTh label="Verwendungszweck / Name" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <th className="min-w-[160px] px-3 py-2">Buchungsart</th>
-              <th className="min-w-[220px] px-3 py-2">Details</th>
-              <th className="px-3 py-2">Hinweis</th>
-              <th className="min-w-[200px] px-3 py-2">KI-Einschätzung</th>
-              <th className="px-3 py-2">Rohdaten</th>
-              <th className="px-3 py-2">Aktion</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortierteRows.map((r) => {
+  const zeilenJsx = sortierteRows.map((r) => {
               const gruppe = ermittleBuchungsartGruppe(r.buchungsartCode);
               const bereitsImportiert = istBereitsImportiert(gruppe, r, bestehendeSets);
               const bereitsGemerkt = istBereitsGemerkt(r, bestehendeNichtZugeordnet);
               const auswaehlbar = kannAuswaehlen(r);
               const expanded = expandedRow === r.rowNumber;
-              return (
-                <Fragment key={r.rowNumber}>
-                  <tr
-                    className={`border-t border-neutral-800 ${
-                      // Zeilen mit KI-Widerspruch sind abgewählt, sollen aber auffallen statt ausgegraut zu sein.
-                      r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt && r.ki?.passt !== false ? "opacity-50" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-1.5">
+              const zeilenKlasse =
+                // Zeilen mit KI-Widerspruch sind abgewählt, sollen aber auffallen statt ausgegraut zu sein.
+                r.errors.length > 0 ? "bg-red-950/40" : !r.ausgewaehlt && r.ki?.passt !== false ? "opacity-50" : "";
+              const checkboxFeld = (
+                <>
                       <input
                         type="checkbox"
                         checked={r.ausgewaehlt}
@@ -871,16 +786,10 @@ export function BuchungenTabelle({
                         onChange={(e) => updateRow(r.rowNumber, { ausgewaehlt: e.target.checked })}
                         className="h-4 w-4 rounded border-neutral-700 bg-transparent disabled:opacity-30"
                       />
-                    </td>
-                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
-                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
-                    <td
-                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
-                      title={`${r.verwendungszweck} ${r.name}`}
-                    >
-                      {r.verwendungszweck || r.name || "–"}
-                    </td>
-                    <td className="px-3 py-1.5">
+                </>
+              );
+              const artFelder = (
+                <>
                       <div className="flex flex-col gap-1">
                         <select
                           value={gruppe ?? ""}
@@ -927,8 +836,10 @@ export function BuchungenTabelle({
                           </select>
                         )}
                       </div>
-                    </td>
-                    <td className="px-3 py-1.5">
+                </>
+              );
+              const detailFelder = (
+                <>
                       {gruppe === "MIETE" && (
                         <div className="flex flex-col gap-1">
                           <MietvertragAuswahl
@@ -1234,8 +1145,10 @@ export function BuchungenTabelle({
                       })()}
                       {gruppe === "MIETWEITERLEITUNG" && <span className="text-xs text-neutral-500">–</span>}
                       {!gruppe && <span className="text-xs text-neutral-500">Buchungsart wählen</span>}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs">
+                </>
+              );
+              const hinweisFeld = (
+                <>
                       {r.errors.length > 0 ? (
                         <span className="text-red-400">{r.errors.join("; ")}</span>
                       ) : (
@@ -1256,8 +1169,10 @@ export function BuchungenTabelle({
                       {r.errors.length === 0 && !bereitsImportiert && r.doppelzahlungHinweis && (
                         <div className="mt-1 text-amber-400">{r.doppelzahlungHinweis}</div>
                       )}
-                    </td>
-                    <td className="max-w-[260px] px-3 py-1.5 text-xs">
+                </>
+              );
+              const kiFeld = (
+                <>
                       {r.ki?.passt === true ? (
                         <span title={r.ki.kommentar} className="text-green-400">
                           <span className="mr-1 font-medium">✓ KI bestätigt:</span>
@@ -1298,11 +1213,15 @@ export function BuchungenTabelle({
                       ) : (
                         <span className="text-neutral-600">–</span>
                       )}
-                    </td>
-                    <td className="px-3 py-1.5">
+                </>
+              );
+              const rohdatenKnopf = (
+                <>
                       <RohdatenToggleButton expanded={expanded} onClick={() => setExpandedRow(expanded ? null : r.rowNumber)} />
-                    </td>
-                    <td className="px-3 py-1.5">
+                </>
+              );
+              const aktionKnopf = (
+                <>
                       <NichtKategorisiertButton
                         datum={r.datum}
                         betrag={r.betrag}
@@ -1314,12 +1233,190 @@ export function BuchungenTabelle({
                         bereitsGemerkt={bereitsGemerkt}
                         onParked={onCommitted}
                       />
+                </>
+              );
+              if (mobil) {
+                return (
+                  <div
+                    key={r.rowNumber}
+                    className={`space-y-2 rounded-lg border border-neutral-800 p-3 [&_input[type=number]]:h-10 [&_input[type=text]]:h-10 [&_select]:h-10 [&_select]:text-sm ${zeilenKlasse}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 shrink-0 [&_input]:h-5 [&_input]:w-5">{checkboxFeld}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-sm text-neutral-400">{r.datum ?? "–"}</span>
+                          <span className="whitespace-nowrap text-base font-medium tabular-nums text-white">
+                            {r.betrag !== null ? formatEuro(r.betrag) : "–"}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 line-clamp-3 text-sm text-neutral-200 [overflow-wrap:anywhere]">
+                          {r.verwendungszweck || r.name || "–"}
+                        </p>
+                      </div>
+                    </div>
+                    <div>{artFelder}</div>
+                    <div>{detailFelder}</div>
+                    <div className="text-xs">{hinweisFeld}</div>
+                    {r.ki && <div className="text-xs">{kiFeld}</div>}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {rohdatenKnopf}
+                      {aktionKnopf}
+                    </div>
+                    {expanded && (
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md bg-neutral-900/50 p-2 text-xs">
+                        {Object.entries(r.rohdaten)
+                          .filter(([, v]) => v)
+                          .map(([k, v]) => (
+                            <div key={k} className="min-w-0">
+                              <dt className="text-neutral-500">{k}</dt>
+                              <dd className="break-words text-neutral-200">{v}</dd>
+                            </div>
+                          ))}
+                      </dl>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <Fragment key={r.rowNumber}>
+                  <tr className={`border-t border-neutral-800 ${zeilenKlasse}`}>
+                    <td className="px-3 py-1.5">{checkboxFeld}</td>
+                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
+                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
+                    <td
+                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
+                      title={`${r.verwendungszweck} ${r.name}`}
+                    >
+                      {r.verwendungszweck || r.name || "–"}
                     </td>
+                    <td className="px-3 py-1.5">{artFelder}</td>
+                    <td className="px-3 py-1.5">{detailFelder}</td>
+                    <td className="px-3 py-1.5 text-xs">{hinweisFeld}</td>
+                    <td className="max-w-[260px] px-3 py-1.5 text-xs">{kiFeld}</td>
+                    <td className="px-3 py-1.5">{rohdatenKnopf}</td>
+                    <td className="px-3 py-1.5">{aktionKnopf}</td>
                   </tr>
                   {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={10} />}
                 </Fragment>
               );
-            })}
+  });
+
+  return (
+    <div>
+      {commitMessage && (
+        <div className="mb-3 rounded-md border border-green-900 bg-green-950/30 px-4 py-2 text-sm text-green-400">
+          {commitMessage}
+        </div>
+      )}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-medium text-white">
+          Buchungen ({editRows.length} Zeile{editRows.length === 1 ? "" : "n"})
+        </h2>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => runKiPruefung("offen")}
+            disabled={kiPending !== null || kiKandidaten.length === 0}
+            title="Schickt nur unsichere, noch nicht importierte Zeilen (ohne IBAN) an Claude. Ergebnis sind Vorschläge mit Begründung."
+            className="h-10 w-full whitespace-nowrap rounded-md border border-violet-500/60 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40 sm:w-auto"
+          >
+            {kiPending === "offen" ? "KI prüft…" : `Offene Zeilen mit KI prüfen (${kiKandidaten.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => runKiPruefung("ausgewaehlt")}
+            disabled={kiPending !== null || kiAusgewaehlt.length === 0 || kiAusgewaehlt.length > 250}
+            title={
+              kiAusgewaehlt.length > 250
+                ? "Höchstens 250 Zeilen auf einmal — Auswahl verkleinern."
+                : "Schickt alle zum Import ausgewählten Zeilen (ohne IBAN) samt Buchungsart, Mietvertrag, Mietmonat bzw. Kostenart an Claude. Zeilen, denen die KI widerspricht, werden abgewählt und zeigen ihren Vorschlag."
+            }
+            className="h-10 w-full whitespace-nowrap rounded-md border border-violet-500/60 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40 sm:w-auto"
+          >
+            {kiPending === "ausgewaehlt" ? "KI prüft…" : `Ausgewählte mit KI prüfen (${kiAusgewaehlt.length})`}
+          </button>
+          <select
+            value={hinweisFilter}
+            onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
+            className="rounded-md border border-neutral-700 bg-transparent h-10 w-full px-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-48"
+          >
+            {HINWEIS_OPTIONEN.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={familieFilter}
+            onChange={(e) => setFamilieFilter(e.target.value as "alle" | BuchungsartGruppe)}
+            className="rounded-md border border-neutral-700 bg-transparent h-10 w-full px-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-48"
+          >
+            {FAMILIE_OPTIONEN.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {kiMeldung && <p className="mb-2 text-sm text-violet-300">{kiMeldung}</p>}
+      <p className="mb-3 text-sm text-neutral-300">
+        {importierbareRows.length} werden importiert.{" "}
+        {gefilterteRows.length !== editRows.length && `${gefilterteRows.length} davon nach Filter angezeigt.`}
+      </p>
+
+      {mobil ? (
+        <div className="mb-4 space-y-3">
+          <label className="flex items-center gap-3 text-sm text-neutral-300">
+            <input
+              type="checkbox"
+              checked={alleAusgewaehlt}
+              ref={(el) => {
+                if (el) el.indeterminate = teilweiseAusgewaehlt;
+              }}
+              disabled={auswaehlbareRows.length === 0}
+              onChange={(e) => toggleAll(e.target.checked)}
+              className="h-5 w-5 rounded border-neutral-700 bg-transparent"
+            />
+            Alle sichtbaren, noch nicht importierten Zeilen auswählen
+          </label>
+          {zeilenJsx}
+          {gefilterteRows.length === 0 && (
+            <p className="py-8 text-center text-neutral-500">Keine Buchungen für diesen Filter.</p>
+          )}
+        </div>
+      ) : (
+      <div className="mb-4 max-h-[560px] overflow-auto rounded-lg border border-neutral-800 pb-32">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+            <tr>
+              <th className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={alleAusgewaehlt}
+                  ref={(el) => {
+                    if (el) el.indeterminate = teilweiseAusgewaehlt;
+                  }}
+                  disabled={auswaehlbareRows.length === 0}
+                  onChange={(e) => toggleAll(e.target.checked)}
+                  title="Alle sichtbaren, noch nicht importierten Zeilen aus-/abwählen"
+                  className="h-4 w-4 rounded border-neutral-700 bg-transparent"
+                />
+              </th>
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <SortableTh label="Verwendungszweck / Name" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <th className="min-w-[160px] px-3 py-2">Buchungsart</th>
+              <th className="min-w-[220px] px-3 py-2">Details</th>
+              <th className="px-3 py-2">Hinweis</th>
+              <th className="min-w-[200px] px-3 py-2">KI-Einschätzung</th>
+              <th className="px-3 py-2">Rohdaten</th>
+              <th className="px-3 py-2">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {zeilenJsx}
             {gefilterteRows.length === 0 && (
               <tr>
                 <td colSpan={10} className="px-3 py-8 text-center text-neutral-500">
@@ -1330,6 +1427,7 @@ export function BuchungenTabelle({
           </tbody>
         </table>
       </div>
+      )}
 
       <form action={commitAction}>
         <input type="hidden" name="rows" value={JSON.stringify(rowsForCommit)} />
@@ -1337,7 +1435,7 @@ export function BuchungenTabelle({
         <button
           type="submit"
           disabled={commitPending || importierbareRows.length === 0}
-          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+          className="h-10 w-full rounded-md bg-white px-4 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50 sm:w-auto"
         >
           {commitPending ? "Importiere…" : `${importierbareRows.length} Buchungen importieren`}
         </button>
