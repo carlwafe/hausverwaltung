@@ -27,7 +27,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/kontoauszug-import.md` | Klassifizierung, Mahngebühren, CAMT-Import, Doppelzahlungs-Prüfung, Vollständigkeits-Check, Import-Verwaltung, KI-Prüfung. |
 | `docs/kosten-dienstleister.md` | Stadtwerke-Salden, Dienstleister-Stammdaten, Anwaltskosten, Grundsteuer-Rate, Winterdienst/Hauswart, Heizungswartung, Leerstand-Seite. |
 | `docs/dokumente.md` | Ablage und Hauptordner, Bezüge, Dokumenttyp/Labels, Erkennung (Regeln/KI, Sammel-PDFs, Versorger-Salden), Zuordnung, Belegprüfung und Belegpflicht. |
-| `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, App auf dem Home-Bildschirm (PWA), Darstellung hell/dunkel, mobiles Menü, Kartenansicht für Tabellen auf dem Handy, gleich große Felder/Knöpfe in Formularzeilen. |
+| `docs/tickets-logo-design.md` | Ticket-System, Logo und Icons, App auf dem Home-Bildschirm (PWA), Darstellung hell/dunkel, mobiles Menü, Kartenansicht für Tabellen auf dem Handy, breite Tabellen am Computer, gleich große Felder/Knöpfe in Formularzeilen. |
 | `docs/abgleich-vorverwalter.md` | Altdaten vor Buchhaltungsbeginn, PDF→CSV der PowerHaus-Berichte, Quartalsvergleich App ↔ PDF, Kostenabgleich. |
 
 ## Befehle

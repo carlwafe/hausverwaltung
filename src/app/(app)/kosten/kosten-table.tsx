@@ -69,45 +69,66 @@ const columns: Column<KostenpositionRow>[] = [
     label: "Gebäude",
     sortValue: (k) => k.gebaeudeLabel,
     searchValue: (k) => k.gebaeudeLabel,
-    render: (k) => k.gebaeudeLabel,
+    // Feste Breite; der Zusatz hinter „ — “ (die Einheit, siehe gebaeudeOderHausLabel) steht klein darunter.
+    render: (k) => {
+      const [haupt, ...rest] = k.gebaeudeLabel.split(" — ");
+      const zusatz = rest.join(" — ");
+      return (
+        <div className="w-36">
+          {haupt}
+          {zusatz && (
+            <div title={zusatz} className="truncate text-xs text-neutral-400">
+              {zusatz}
+            </div>
+          )}
+        </div>
+      );
+    },
   },
   {
     key: "kostenart",
     label: "Kostenart",
     sortValue: (k) => k.kostenartName,
     searchValue: (k) => k.kostenartName,
-    render: (k) => (
-      <span>
-        {k.kostenartName}
-        {k.aufteilungGruppeId && (
-          <span
-            title="Teil einer aufgeteilten Buchung"
-            className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400"
-          >
-            ✂
-          </span>
-        )}
-        {k.virtuelleKautionBuchungId && (
-          <span
-            title="Virtuelle Gutschrift — keine eigene Kontobewegung, verrechnet mit einer Kaution"
-            className="ml-1.5 inline-block rounded-full bg-purple-500/10 px-1.5 text-xs text-purple-400"
-          >
-            V
-          </span>
-        )}
-      </span>
-    ),
+    // Feste Breite; ein Klammerzusatz im Namen („… (über Techem verrechnet)“) steht klein darunter.
+    render: (k) => {
+      const klammer = k.kostenartName.match(/^(.+?)\s*\((.+)\)$/);
+      return (
+        <div className="w-40">
+          {klammer ? klammer[1] : k.kostenartName}
+          {k.aufteilungGruppeId && (
+            <span
+              title="Teil einer aufgeteilten Buchung"
+              className="ml-1.5 inline-block rounded-full bg-blue-500/10 px-1.5 text-xs text-blue-400"
+            >
+              ✂
+            </span>
+          )}
+          {k.virtuelleKautionBuchungId && (
+            <span
+              title="Virtuelle Gutschrift — keine eigene Kontobewegung, verrechnet mit einer Kaution"
+              className="ml-1.5 inline-block rounded-full bg-purple-500/10 px-1.5 text-xs text-purple-400"
+            >
+              V
+            </span>
+          )}
+          {klammer && <div className="text-xs text-neutral-400">{klammer[2]}</div>}
+        </div>
+      );
+    },
   },
   {
+    // Wie auf der Handy-Karte: nur ein Kennzeichen, wenn es zutrifft — leer = nicht umlagefähig.
     key: "umlagefaehig",
-    label: "Umlagefähig",
+    label: "Uml.",
+    title: "Umlagefähig (Kostenart wird in der Nebenkostenabrechnung auf die Mieter umgelegt)",
     sortValue: (k) => (k.umlagefaehig ? 1 : 0),
     render: (k) =>
       k.umlagefaehig ? (
-        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Ja</span>
-      ) : (
-        <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">Nein</span>
-      ),
+        <span title="Umlagefähig" className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">
+          Ja
+        </span>
+      ) : null,
   },
   {
     key: "beleg",
@@ -118,30 +139,45 @@ const columns: Column<KostenpositionRow>[] = [
   {
     key: "betrag",
     label: "Betrag",
+    align: "right",
+    className: "whitespace-nowrap tabular-nums",
     sortValue: (k) => k.betrag,
     render: (k) => formatEuro(k.betrag),
   },
   {
+    // Empfänger und Beschreibung teilen sich die Füllspalte (je eine Zeile, abgeschnitten): Zwei eigene
+    // Freitext-Spalten machten die Tabelle breiter als die Seite und die Zeilen drei bis vier Textzeilen
+    // hoch. Der volle Text steht im Tooltip und in der aufgeklappten Bankzeile.
     key: "empfaenger",
-    label: "Empfänger",
+    label: "Empfänger · Beschreibung",
+    title: "Sortiert nach Empfänger",
+    fuellend: true,
     sortValue: (k) => k.empfaenger ?? "",
-    searchValue: (k) => k.empfaenger ?? "",
-    render: (k) => k.empfaenger || "–",
-  },
-  {
-    key: "beschreibung",
-    label: "Beschreibung",
-    searchValue: (k) => k.beschreibung ?? "",
-    render: (k) => k.beschreibung || "–",
+    searchValue: (k) => `${k.empfaenger ?? ""} ${k.beschreibung ?? ""}`,
+    render: (k) => (
+      <>
+        <div title={k.empfaenger ?? undefined} className="truncate">
+          {k.empfaenger || "–"}
+        </div>
+        {k.beschreibung && (
+          <div title={k.beschreibung} className="truncate text-xs text-neutral-400">
+            {k.beschreibung}
+          </div>
+        )}
+      </>
+    ),
   },
   {
     key: "quelle",
-    label: "Quelle",
+    label: "",
+    title: "Bankzeile (Rohdaten)",
     render: (k, { expanded, toggleExpanded }) =>
       k.hatRohdaten ? (
-        <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
+        <RohdatenToggleButton symbol expanded={expanded} onClick={toggleExpanded} />
       ) : (
-        <span className="text-xs text-neutral-600">manuell</span>
+        <span title="Manuell erfasst — keine Bankzeile" className="flex h-7 w-7 items-center justify-center text-xs text-neutral-600">
+          –
+        </span>
       ),
   },
 ];
@@ -257,6 +293,7 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         emptyMessage="Noch keine Kostenpositionen erfasst."
         searchPlaceholder="Kosten durchsuchen…"
         selectable
+        kompakt
         rowHref={(k) => `/kosten/${k.id}`}
         mobileCard={(k) => <KostenKarte k={k} />}
         mobileSort={{

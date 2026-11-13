@@ -6,9 +6,12 @@ import { ladeBuchungRohdaten } from "@/app/(app)/buchungen/rohdaten-action";
 export function RohdatenToggleButton({
   expanded,
   onClick,
+  symbol = false,
 }: {
   expanded: boolean;
   onClick: () => void;
+  /** Nur ein Symbol statt des Textes „Rohdaten“ — für Tabellen, in denen die Spalte schmal bleiben soll. */
+  symbol?: boolean;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -31,6 +34,26 @@ export function RohdatenToggleButton({
       const delta = nachher - vorher;
       if (delta !== 0) window.scrollBy(0, delta);
     });
+  }
+
+  if (symbol) {
+    const text = expanded ? "Bankzeile ausblenden" : "Bankzeile (Rohdaten) anzeigen";
+    return (
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleClick}
+        onMouseDown={(e) => e.preventDefault()}
+        title={text}
+        aria-label={text}
+        aria-expanded={expanded}
+        className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-neutral-800 hover:text-white ${expanded ? "bg-neutral-800 text-white" : "text-neutral-400"}`}
+      >
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4">
+          <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h8" strokeLinecap="round" />
+        </svg>
+      </button>
+    );
   }
 
   return (

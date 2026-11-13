@@ -76,6 +76,21 @@ Breite Tabellen sind auf dem Handy schwer lesbar. `DataTable` kann deshalb unter
 - **Noch nicht umgestellt** (scrollen auf dem Handy seitlich in ihrem Kasten): Benutzer, Buchungsarten, Darlehen und Tilgungsplan, „Kontostand prüfen“, Vorschläge auf der Dienstleister-Seite, Mieterhöhungen im Formular „Mietvertrag bearbeiten“, die Eingabetabellen der Nebenkostenabrechnung (Gesamtabrechnung).
 - Suchfeld und Filter der `DataTable` sind unter `sm` so breit wie die Seite.
 
+## Tabellen am Computer: nie breiter als die Seite
+
+Der Seiteninhalt ist höchstens 1152 px breit (`max-w-6xl` im Layout), auch auf großen Bildschirmen. Eine Tabelle mit vielen Spalten ragt sonst rechts hinaus und muss seitlich gescrollt werden. Regeln, umgesetzt zuerst auf der Kosten-Tabelle (`kosten/kosten-table.tsx`, Muster für weitere Seiten):
+
+- **Zwei Freitext-Spalten teilen sich eine Füllspalte** (`fuellend: true` an der Spalte): oben die Hauptangabe (Empfänger), darunter klein und grau der Freitext (Beschreibung), beide einzeilig abgeschnitten (`truncate`), voller Text im `title` und — wo vorhanden — in der aufgeklappten Bankzeile. Die Füllspalte nimmt die Breite, die die anderen Spalten übrig lassen (mindestens 208 px), und macht die Tabelle nie breiter. Höchstens eine je Tabelle; die Suche durchsucht beide Texte.
+- **Ja/Nein-Spalten werden Kennzeichen:** kurze Überschrift mit Tooltip („Uml.“), Kennzeichen nur wenn es zutrifft (wie auf der Karte). Die Spalte bleibt sortierbar.
+- **Aktions-Spalten ohne Text:** Symbol-Knopf mit `title`/`aria-label` statt Wort (Rohdaten: `<RohdatenToggleButton symbol />`), Spaltenüberschrift leer.
+- **Spalten mit Bezeichnungen bekommen eine feste Breite** über ein `<div className="w-…">` in der Zelle (nicht über die Zelle selbst) und brechen darin um; ein Zusatz (Einheit hinter der Adresse, Klammerzusatz der Kostenart) steht klein darunter. Ohne feste Breite drückt die Füllspalte sie auf ihr längstes Wort zusammen.
+- **Beträge rechtsbündig** (`align: "right"`, `className: "whitespace-nowrap tabular-nums"`); der Sortierpfeil steht dann vor der Überschrift.
+- **`kompakt`** an der `DataTable` verringert den Spaltenabstand (`px-3` statt `px-4`).
+- **Ziel:** ab etwa 1080 px Fensterbreite kein seitliches Scrollen; Zeilen höchstens zwei Textzeilen hoch. Darunter (bis `md`) scrollt die Tabelle weiter in ihrem Kasten.
+- **Prüfen:** im Browser bei 1440 px `scrollWidth − clientWidth` des Tabellen-Kastens messen (muss 0 sein), siehe `docs/lokal-testen.md`.
+- Verworfen: Spalten ein-/ausblendbar machen (zusätzliche Bedienung, Zustand müsste gespeichert werden); kleinere Schrift.
+- Offen: breitere Seite auf großen Bildschirmen (die Begrenzung gilt für alle Seiten; Formulare und Texte sollen nicht mitwachsen).
+
 ## Formularzeilen: Felder und Knöpfe gleich groß
 
 Dem Eigentümer wichtig, gilt für **jede neue und jede angefasste Seite**: Stehen Auswahlfelder, Eingabefelder und Knöpfe nebeneinander (Filter-/Anzeigezeilen, Formulare mit „Anzeigen“/„Speichern“), haben sie **dieselbe Höhe** (`h-10`) und, bei gleichartigen Feldern bzw. dem Knopf daneben, dieselbe Breite (z.B. `w-32`). Nicht über `py-*` steuern: Felder haben einen Rahmen (+2 px), Hauptknöpfe (`bg-white`) keinen — mit gleichem `py-2` ist der Knopf 2 px niedriger als das Feld. Muster: `src/app/(app)/jahresuebersicht/jahr-filter-form.tsx`.

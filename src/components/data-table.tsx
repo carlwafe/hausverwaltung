@@ -21,6 +21,11 @@ export type Column<T> = {
   className?: string;
   /** Erklärung als Tooltip am Spaltenkopf. */
   title?: string;
+  /** Füllspalte für Freitext (Empfänger, Beschreibung): nimmt die Breite, die die anderen Spalten
+   * übrig lassen, und macht die Tabelle nie breiter — der Inhalt muss deshalb selbst abschneiden
+   * (`truncate` auf Block-Elementen). Höchstens eine je Tabelle. Siehe „Tabellen am Computer“ in
+   * docs/tickets-logo-design.md. */
+  fuellend?: boolean;
 };
 
 /** Darstellung des Haupt-Links einer Zeile (z.B. Einheit, Mieter, Datum). Bewusst ruhig (kein Blau,
@@ -64,6 +69,7 @@ export function DataTable<T extends { id: string }>({
   mobileCardInteraktiv = false,
   mobileSort,
   mobileSummary,
+  kompakt = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -150,6 +156,9 @@ export function DataTable<T extends { id: string }>({
     standardLabel: string;
     optionen: { label: string; key: string; dir: "asc" | "desc" }[];
   };
+  /** Engerer Abstand zwischen den Spalten — für Tabellen mit vielen Spalten, die am Computer ohne
+   * seitliches Scrollen in die Seitenbreite passen sollen. */
+  kompakt?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
@@ -164,6 +173,7 @@ export function DataTable<T extends { id: string }>({
   const [kartenAnzahl, setKartenAnzahl] = useState(KARTEN_SCHRITT);
   const router = useRouter();
   const extraSpalten = (selectable ? 1 : 0) + (rowHref ? 1 : 0);
+  const zellAbstand = kompakt ? "px-3" : "px-4";
 
   function zeilenKlick(e: React.MouseEvent, href: string) {
     if (e.button !== 0 || e.defaultPrevented) return;
@@ -378,7 +388,7 @@ export function DataTable<T extends { id: string }>({
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>
               {selectable && (
-                <th className="px-4 py-2">
+                <th className={`${zellAbstand} py-2`}>
                   <input
                     type="checkbox"
                     checked={alleSichtbarAusgewaehlt}
@@ -391,13 +401,14 @@ export function DataTable<T extends { id: string }>({
                 <th
                   key={c.key}
                   title={c.title}
-                  className={`px-4 py-2 ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}
+                  className={`${zellAbstand} py-2 ${c.align === "right" ? "text-right" : ""} ${c.fuellend ? "w-full" : ""} ${c.className ?? ""}`}
                 >
                   {c.sortValue ? (
+                    // Rechtsbündig steht der Sortierpfeil vor der Beschriftung, damit sie mit den Werten darunter abschließt.
                     <button
                       type="button"
                       onClick={() => toggleSort(c.key)}
-                      className="inline-flex items-center gap-1 uppercase text-neutral-400 hover:text-white"
+                      className={`inline-flex items-center gap-1 uppercase text-neutral-400 hover:text-white ${c.align === "right" ? "flex-row-reverse" : ""}`}
                     >
                       {c.label}
                       <span className="w-3 text-white">
@@ -407,6 +418,8 @@ export function DataTable<T extends { id: string }>({
                   ) : (
                     c.label
                   )}
+                  {/* Mindestbreite der Füllspalte: Die Zellen darunter zählen mit `max-w-0` nicht zur Breite. */}
+                  {c.fuellend && <div className="h-0 w-52" aria-hidden="true" />}
                 </th>
               ))}
               {rowHref && <th className="w-8 px-2 py-2" aria-hidden="true" />}
@@ -428,7 +441,7 @@ export function DataTable<T extends { id: string }>({
                     className={`group border-t border-neutral-800 ${href ? "cursor-pointer" : ""} hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
                   >
                     {selectable && (
-                      <td className="px-4 py-2">
+                      <td className={`${zellAbstand} py-2`}>
                         <input
                           type="checkbox"
                           checked={selectedIds.has(row.id)}
@@ -440,7 +453,7 @@ export function DataTable<T extends { id: string }>({
                     {columns.map((c) => (
                       <td
                         key={c.key}
-                        className={`px-4 py-2 text-white ${c.align === "right" ? "text-right" : ""} ${c.className ?? ""}`}
+                        className={`${zellAbstand} py-2 text-white ${c.align === "right" ? "text-right" : ""} ${c.fuellend ? "w-full max-w-0" : ""} ${c.className ?? ""}`}
                       >
                         {c.render(row, ctx)}
                       </td>
