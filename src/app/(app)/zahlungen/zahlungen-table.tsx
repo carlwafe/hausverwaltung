@@ -136,21 +136,17 @@ const columns: Column<ZahlungRow>[] = [
     ),
   },
   {
-    key: "mieter",
-    label: "Mieter",
-    sortValue: (z) => z.mieterNamen,
-    searchValue: (z) => z.mieterNamen,
-    render: (z) => z.mieterNamen,
-  },
-  {
     key: "periode",
-    label: "Für Periode",
+    label: "Periode",
+    title: "Für Periode: Mietmonat, für den die Zahlung gilt (bei Gebühren der Monat im Mieterkonto)",
+    className: "whitespace-nowrap",
     sortValue: (z) => (z.periodeJahr ?? 0) * 12 + (z.periodeMonat ?? 0),
     render: (z) => periodeText(z) ?? "–",
   },
   {
     key: "art",
     label: "Art",
+    className: "whitespace-nowrap",
     sortValue: (z) => z.art,
     searchValue: (z) =>
       z.nkJahr !== null
@@ -165,31 +161,45 @@ const columns: Column<ZahlungRow>[] = [
   {
     key: "betrag",
     label: "Betrag",
+    align: "right",
+    className: "whitespace-nowrap tabular-nums",
     sortValue: (z) => z.betrag,
     render: (z) => formatEuro(z.betrag),
   },
   {
-    key: "verwendungszweck",
-    label: "Verwendungszweck",
-    sortValue: (z) => z.verwendungszweck ?? "",
-    searchValue: (z) => z.verwendungszweck ?? "",
-    // Freitext, teils sehr lang — ohne Begrenzung drängt diese Spalte alle anderen (v.a. Einheit)
-    // beim Rendern aller Zahlungen zusammen. Volltext bleibt per title-Tooltip und auf der
-    // Zahlungs-Detailseite einsehbar.
+    // Mieter und Verwendungszweck teilen sich die Füllspalte (je eine Zeile, abgeschnitten), siehe
+    // „Tabellen am Computer“ in docs/tickets-logo-design.md. Der volle Text steht im Tooltip, in der
+    // aufgeklappten Bankzeile und auf der Detailseite der Zahlung.
+    key: "mieter",
+    label: "Mieter · Verwendungszweck",
+    title: "Sortiert nach Mieter",
+    fuellend: true,
+    sortValue: (z) => z.mieterNamen,
+    searchValue: (z) => `${z.mieterNamen} ${z.verwendungszweck ?? ""}`,
     render: (z) => (
-      <span className="block max-w-xs truncate" title={z.verwendungszweck ?? undefined}>
-        {z.verwendungszweck || "–"}
-      </span>
+      <>
+        <div title={z.mieterNamen} className="truncate">
+          {z.mieterNamen}
+        </div>
+        {z.verwendungszweck && (
+          <div title={z.verwendungszweck} className="truncate text-xs text-neutral-400">
+            {z.verwendungszweck}
+          </div>
+        )}
+      </>
     ),
   },
   {
     key: "quelle",
-    label: "Quelle",
+    label: "",
+    title: "Bankzeile (Rohdaten)",
     render: (z, { expanded, toggleExpanded }) =>
       z.hatRohdaten ? (
-        <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
+        <RohdatenToggleButton symbol expanded={expanded} onClick={toggleExpanded} />
       ) : (
-        <span className="text-xs text-neutral-600">manuell</span>
+        <span title="Manuell erfasst — keine Bankzeile" className="flex h-7 w-7 items-center justify-center text-xs text-neutral-600">
+          –
+        </span>
       ),
   },
 ];
@@ -285,6 +295,7 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         emptyMessage="Noch keine Zahlungen erfasst."
         searchPlaceholder="Zahlungen durchsuchen…"
         selectable
+        kompakt
         rowHref={(z) => `/zahlungen/${z.id}`}
         mobileCard={(z) => <ZahlungKarte z={z} />}
         mobileSort={{
