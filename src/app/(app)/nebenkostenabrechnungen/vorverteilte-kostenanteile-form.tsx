@@ -88,7 +88,7 @@ export function VorverteilteKostenanteileForm({
       <input type="hidden" name="jahr" value={jahr} />
       <input type="hidden" name="kostenartId" value={kostenartId} />
       <p className="mb-3 text-sm font-medium text-white">{kostenartName}</p>
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
+      <div className="overflow-x-auto rounded-lg border border-neutral-800">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>

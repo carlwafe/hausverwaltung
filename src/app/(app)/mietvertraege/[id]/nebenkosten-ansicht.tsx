@@ -98,24 +98,36 @@ function KostenBlock({
       <Abschnittstitel>{titel}</Abschnittstitel>
       {details.map((d, i) => (
         <tr key={i} className="border-t border-neutral-800">
-          <td className="px-4 py-2 text-white">{d.kostenartName}</td>
-          <td className="px-4 py-2 text-right text-neutral-200">
+          <td className="px-4 py-2 text-white">
+            {d.kostenartName}
+            {/* Handy: die Nebenspalten stehen unter der Kostenart (siehe docs/tickets-logo-design.md). */}
+            <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
+              {[
+                d.verteilerschluessel === "VORVERTEILT" ? null : `gesamt ${formatEuro(d.gesamtbetragPool)}`,
+                VERTEILUNG_LABEL[d.verteilerschluessel] ?? d.verteilerschluessel,
+                bemerkung(d, unterjaehrig),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </td>
+          <td className="hidden px-4 py-2 text-right text-neutral-200 md:table-cell">
             {d.verteilerschluessel === "VORVERTEILT" ? "" : formatEuro(d.gesamtbetragPool)}
           </td>
-          <td className="px-4 py-2 text-neutral-400">{VERTEILUNG_LABEL[d.verteilerschluessel] ?? d.verteilerschluessel}</td>
-          <td className="px-4 py-2 text-right text-neutral-300">{umlagefaktor(d)}</td>
-          <td className="px-4 py-2 text-right font-medium text-white">{formatEuro(d.anteilZeitraum)}</td>
-          <td className="max-w-[340px] truncate px-4 py-2 text-xs text-neutral-500" title={bemerkung(d, unterjaehrig)}>
+          <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">{VERTEILUNG_LABEL[d.verteilerschluessel] ?? d.verteilerschluessel}</td>
+          <td className="hidden px-4 py-2 text-right text-neutral-300 md:table-cell">{umlagefaktor(d)}</td>
+          <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-white">{formatEuro(d.anteilZeitraum)}</td>
+          <td className="hidden max-w-[340px] truncate px-4 py-2 text-xs text-neutral-500 md:table-cell" title={bemerkung(d, unterjaehrig)}>
             {bemerkung(d, unterjaehrig)}
           </td>
         </tr>
       ))}
       <tr className="border-t border-neutral-700 font-medium">
         <td className="px-4 py-2 text-white">{summeText}</td>
-        <td className="px-4 py-2 text-right text-white">{formatEuro(summeGesamt)}</td>
-        <td colSpan={2} />
-        <td className="px-4 py-2 text-right text-white">{formatEuro(summeAnteil)}</td>
-        <td />
+        <td className="hidden px-4 py-2 text-right text-white md:table-cell">{formatEuro(summeGesamt)}</td>
+        <td colSpan={2} className="hidden md:table-cell" />
+        <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(summeAnteil)}</td>
+        <td className="hidden md:table-cell" />
       </tr>
     </>
   );
@@ -178,22 +190,22 @@ export function NebenkostenAnsicht({
         </Link>
       </div>
 
-      <table className="mb-4 text-sm">
+      <table className="mb-4 w-full text-sm md:w-auto">
         <tbody>
           <tr>
-            <td className="py-0.5 pr-8 text-neutral-400">Mieter:</td>
+            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Mieter:</td>
             <td className="py-0.5 text-white">{kopf.mieter}</td>
           </tr>
           <tr>
-            <td className="py-0.5 pr-8 text-neutral-400">Einheit:</td>
+            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Einheit:</td>
             <td className="py-0.5 text-white">{kopf.einheit}</td>
           </tr>
           <tr>
-            <td className="py-0.5 pr-8 text-neutral-400">Wohnfläche Mieter (m²):</td>
+            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Wohnfläche Mieter (m²):</td>
             <td className="py-0.5 text-white">{formatZahl(kopf.wohnflaeche)}</td>
           </tr>
           <tr>
-            <td className="py-0.5 pr-8 text-neutral-400">Nutzungszeitraum:</td>
+            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Nutzungszeitraum:</td>
             <td className="py-0.5 text-white">
               {formatDate(daten.zeitraumVon)} – {formatDate(daten.zeitraumBis)}
               {unterjaehrig && (
@@ -208,15 +220,15 @@ export function NebenkostenAnsicht({
       </table>
 
       <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full min-w-[1000px] text-sm">
+        <table className="w-full text-sm md:min-w-[1000px]">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
               <th className="px-4 py-2.5">Kostenart</th>
-              <th className="px-4 py-2.5 text-right">Gesamtkosten Objekt</th>
-              <th className="px-4 py-2.5">Verteilerschlüssel</th>
-              <th className="px-4 py-2.5 text-right">Umlagefaktor</th>
+              <th className="hidden px-4 py-2.5 text-right md:table-cell">Gesamtkosten Objekt</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Verteilerschlüssel</th>
+              <th className="hidden px-4 py-2.5 text-right md:table-cell">Umlagefaktor</th>
               <th className="px-4 py-2.5 text-right">Anteil Mieter (€)</th>
-              <th className="px-4 py-2.5">Bemerkung</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Bemerkung</th>
             </tr>
           </thead>
           <tbody>
@@ -241,32 +253,33 @@ export function NebenkostenAnsicht({
             )}
             <Abschnittstitel>Abrechnung &amp; Saldo</Abschnittstitel>
             <tr className="border-t border-neutral-800">
-              <td colSpan={4} className="px-4 py-2 text-neutral-300">
-                Gesamtkosten (Anteil Mieter)
-              </td>
-              <td className="px-4 py-2 text-right text-white">{formatEuro(daten.kostenanteilGesamt)}</td>
-              <td />
+              <td className="px-4 py-2 text-neutral-300">Gesamtkosten (Anteil Mieter)</td>
+              <td colSpan={3} className="hidden md:table-cell" />
+              <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(daten.kostenanteilGesamt)}</td>
+              <td className="hidden md:table-cell" />
             </tr>
             <tr className="border-t border-neutral-800">
-              <td colSpan={4} className="px-4 py-2 text-neutral-300">
+              <td className="px-4 py-2 text-neutral-300">
                 abzgl. geleistete NK-Vorauszahlungen
+                <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
+                  tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die NK, ab 2025 anteilig NK : Kaltmiete
+                </span>
               </td>
-              <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(daten.vorauszahlungGesamt)}</td>
-              <td className="px-4 py-2 text-xs text-neutral-500">
+              <td colSpan={3} className="hidden md:table-cell" />
+              <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-200">{formatEuro(daten.vorauszahlungGesamt)}</td>
+              <td className="hidden px-4 py-2 text-xs text-neutral-500 md:table-cell">
                 tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die NK, ab 2025 anteilig NK : Kaltmiete (§ 366 Abs. 2 BGB)
               </td>
             </tr>
             <tr className="border-t border-neutral-700 font-medium">
-              <td colSpan={4} className="px-4 py-2 text-white">
-                Saldo (Nachzahlung + / Guthaben −)
-              </td>
-              <td className={`px-4 py-2 text-right ${nachzahlung ? "text-red-400" : "text-green-400"}`}>{formatEuro(saldoMuster)}</td>
-              <td />
+              <td className="px-4 py-2 text-white">Saldo (Nachzahlung + / Guthaben −)</td>
+              <td colSpan={3} className="hidden md:table-cell" />
+              <td className={`whitespace-nowrap px-4 py-2 text-right ${nachzahlung ? "text-red-400" : "text-green-400"}`}>{formatEuro(saldoMuster)}</td>
+              <td className="hidden md:table-cell" />
             </tr>
             <tr className="border-t border-neutral-700 bg-neutral-900 font-semibold">
-              <td colSpan={4} className="px-4 py-2.5 text-white">
-                Ergebnis
-              </td>
+              <td className="px-4 py-2.5 text-white">Ergebnis</td>
+              <td colSpan={3} className="hidden md:table-cell" />
               <td colSpan={2} className={`px-4 py-2.5 ${nachzahlung ? "text-red-400" : "text-green-400"}`}>
                 {Math.abs(saldoMuster) < 0.005 ? "ausgeglichen" : nachzahlung ? "Nachzahlung durch Mieter" : "Guthaben an Mieter"}
               </td>
@@ -287,28 +300,33 @@ export function NebenkostenAnsicht({
 
       <h3 className="mb-2 mt-6 text-sm font-medium text-white">Erledigung des Saldos</h3>
       <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full min-w-[800px] text-sm">
+        <table className="w-full text-sm md:min-w-[800px]">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
               <th className="px-4 py-2.5 text-right">Betrag</th>
-              <th className="px-4 py-2.5">Datum</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Datum</th>
               <th className="px-4 py-2.5">Art der Erledigung</th>
-              <th className="px-4 py-2.5">Verrechnet mit / Auszahlungsweg</th>
-              <th className="px-4 py-2.5">Status</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Verrechnet mit / Auszahlungsweg</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Status</th>
             </tr>
           </thead>
           <tbody>
             {daten.erledigungen.map((e, i) => (
               <tr key={i} className="border-t border-neutral-800">
-                <td className="px-4 py-2 text-right text-white">{formatEuro(Math.abs(e.betrag))}</td>
-                <td className="px-4 py-2 text-neutral-200">{e.datum ? formatDate(e.datum) : "–"}</td>
-                <td className="px-4 py-2 text-neutral-200">{e.art}</td>
-                <td className="px-4 py-2 text-neutral-400">{e.weg}</td>
-                <td className="px-4 py-2 text-green-400">gebucht</td>
+                <td className="whitespace-nowrap px-4 py-2 text-right align-top text-white">{formatEuro(Math.abs(e.betrag))}</td>
+                <td className="hidden px-4 py-2 text-neutral-200 md:table-cell">{e.datum ? formatDate(e.datum) : "–"}</td>
+                <td className="px-4 py-2 text-neutral-200">
+                  {e.art}
+                  <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
+                    {[e.datum ? formatDate(e.datum) : null, e.weg, "gebucht"].filter(Boolean).join(" · ")}
+                  </span>
+                </td>
+                <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">{e.weg}</td>
+                <td className="hidden px-4 py-2 text-green-400 md:table-cell">gebucht</td>
               </tr>
             ))}
             <tr className="border-t border-neutral-700 font-medium">
-              <td className={`px-4 py-2 text-right ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
+              <td className={`whitespace-nowrap px-4 py-2 text-right align-top ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
                 {formatEuro(Math.abs(offen))}
               </td>
               <td colSpan={3} className="px-4 py-2 text-neutral-300">
@@ -318,7 +336,7 @@ export function NebenkostenAnsicht({
                     ? "noch an den Mieter auszuzahlen oder mit der Miete zu verrechnen"
                     : "noch vom Mieter zu zahlen"}
               </td>
-              <td className={`px-4 py-2 ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
+              <td className={`hidden px-4 py-2 md:table-cell ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
                 {offen === 0 ? "erledigt" : "offen"}
               </td>
             </tr>
@@ -336,7 +354,7 @@ export function NebenkostenAnsicht({
           <table className="text-sm">
             <tbody>
               <tr>
-                <td className="py-0.5 pr-8 text-neutral-400">NK-Vorauszahlung (mtl.)</td>
+                <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">NK-Vorauszahlung (mtl.)</td>
                 <td className="py-0.5 text-right text-white">{formatEuro(daten.neueVorauszahlung.betrag)}</td>
               </tr>
               <tr>

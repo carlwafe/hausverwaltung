@@ -62,8 +62,8 @@ export default async function MieterDetailPage({
             <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
               <tr>
                 <th className="px-4 py-2">Einheit</th>
-                <th className="px-4 py-2">Zeitraum</th>
-                <th className="px-4 py-2">Miete gesamt</th>
+                <th className="hidden px-4 py-2 md:table-cell">Zeitraum</th>
+                <th className="hidden px-4 py-2 md:table-cell">Miete gesamt</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2" />
               </tr>
@@ -75,12 +75,21 @@ export default async function MieterDetailPage({
                     <Link href={`/einheiten/${v.einheitId}`} className="hover:underline">
                       {v.einheit.bezeichnung}
                     </Link>
+                    {/* Handy: Zeitraum und Miete stehen unter der Einheit. */}
+                    <span className="mt-0.5 block text-xs text-neutral-400 md:hidden">
+                      {v.beginn ? formatDate(v.beginn) : "unbekannt"} – {v.ende ? formatDate(v.ende) : "laufend"} ·{" "}
+                      {formatEuro(
+                        Number(v.kaltmiete) +
+                          Number(v.nebenkostenVorauszahlung) +
+                          (v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0),
+                      )}
+                    </span>
                   </td>
-                  <td className="px-4 py-2 text-white">
+                  <td className="hidden px-4 py-2 text-white md:table-cell">
                     {v.beginn ? formatDate(v.beginn) : "unbekannt"} –{" "}
                     {v.ende ? formatDate(v.ende) : "laufend"}
                   </td>
-                  <td className="px-4 py-2 text-white">
+                  <td className="hidden px-4 py-2 text-white md:table-cell">
                     {formatEuro(
                       Number(v.kaltmiete) +
                         Number(v.nebenkostenVorauszahlung) +

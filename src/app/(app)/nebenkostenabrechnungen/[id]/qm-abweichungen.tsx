@@ -87,6 +87,7 @@ export function QmAbweichungen({
       )}
 
       {abweichungen.length > 0 && (
+        <div className="overflow-x-auto">
         <table className="mb-3 w-full max-w-2xl text-sm">
           <thead className="text-left text-xs uppercase text-neutral-500">
             <tr>
@@ -115,6 +116,7 @@ export function QmAbweichungen({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <form action={formAction} className="flex flex-wrap items-end gap-3">

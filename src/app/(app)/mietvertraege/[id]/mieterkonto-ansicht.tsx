@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { MieterkontoJahr } from "@/lib/mieterkonto";
+import { KarteKopf, KarteMeta, KarteWerte } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -53,7 +54,82 @@ export function MieterkontoAnsicht({
         </p>
       )}
 
-      <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
+      {/* Handy: je Zeile eine Karte statt der zehnspaltigen Tabelle (siehe docs/tickets-logo-design.md). */}
+      <ul className="flex flex-col gap-2 md:hidden">
+        {konto.zeilen.map((z, i) => (
+          <li
+            key={i}
+            className={`rounded-lg border border-neutral-800 px-4 py-3 ${z.sonderbuchung ? "bg-amber-500/10" : ""}`}
+          >
+            <KarteKopf
+              titel={
+                <span className={z.sonderbuchung ? "text-amber-300" : ""}>
+                  {z.monat || (z.sonderbuchung ? "Sonderbuchung" : z.buchungsart || "–")}
+                </span>
+              }
+              wert={formatEuro(z.saldo)}
+              wertKlasse={farbeSaldo(z.saldo)}
+              wertLabel="Saldo"
+            />
+            {(z.buchungsart || z.datum) && (
+              <KarteMeta>
+                <span>
+                  {z.href ? (
+                    <Link href={z.href} className="underline">
+                      {z.buchungsart}
+                    </Link>
+                  ) : (
+                    z.buchungsart
+                  )}
+                  {z.datum && `${z.buchungsart ? " · " : ""}${formatDate(z.datum)}`}
+                </span>
+              </KarteMeta>
+            )}
+            <KarteWerte
+              werte={[
+                z.sollGesamt !== null && { label: "Soll", wert: formatEuro(z.sollGesamt) },
+                z.betrag !== null && { label: "Gezahlt", wert: formatEuro(z.betrag) },
+                {
+                  label: "Differenz",
+                  wert: formatEuro(z.differenz),
+                  klasse: z.differenz < -0.005 ? "text-red-400" : z.differenz > 0.005 ? "text-green-400" : "text-neutral-400",
+                },
+              ]}
+            />
+            {z.sollKaltmiete !== null && z.sollNebenkosten !== null && (
+              <div className="mt-1.5 text-xs text-neutral-500">
+                Soll: Kaltmiete {formatEuro(z.sollKaltmiete)} + NK-Vorauszahlung {formatEuro(z.sollNebenkosten)}
+              </div>
+            )}
+            {z.bemerkung && <div className="mt-1 text-xs italic text-neutral-500">{z.bemerkung}</div>}
+          </li>
+        ))}
+        {konto.zeilen.length === 0 && (
+          <li className="rounded-lg border border-neutral-800 px-4 py-8 text-center text-sm text-neutral-500">
+            Für {konto.jahr} gibt es keine Buchungen.
+          </li>
+        )}
+        <li className="rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3">
+          <KarteKopf
+            titel={`Summe ${konto.jahr}`}
+            wert={formatEuro(konto.summe.saldo)}
+            wertKlasse={farbeSaldo(konto.summe.saldo)}
+            wertLabel="Saldo"
+          />
+          <KarteWerte
+            werte={[
+              { label: "Soll", wert: formatEuro(konto.summe.sollGesamt) },
+              { label: "Gezahlt", wert: formatEuro(konto.summe.betrag) },
+              { label: "Differenz", wert: formatEuro(konto.summe.differenz) },
+            ]}
+          />
+          <div className="mt-1.5 text-xs text-neutral-500">
+            Soll: Kaltmiete {formatEuro(konto.summe.sollKaltmiete)} + NK-Vorauszahlung {formatEuro(konto.summe.sollNebenkosten)}
+          </div>
+        </li>
+      </ul>
+
+      <div className="hidden w-full overflow-x-auto rounded-lg border border-neutral-800 md:block">
         <table className="w-full min-w-[1100px] text-sm">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
@@ -131,25 +207,25 @@ export function MieterkontoAnsicht({
         </table>
       </div>
       {konto.nebenkostenabrechnungOffen !== null && (
-        <table className="ml-auto mt-3 text-sm">
+        <table className="mt-3 w-full text-sm md:ml-auto md:w-auto">
           <tbody>
             {/* Die Gegenrechnung der unbezahlten NK-Vorauszahlung steht als Zeile in der Tabelle (Teil des
                 Saldos); hier bleibt die Abrechnung selbst (Kosten ./. gezahlte Vorauszahlung, abzüglich
                 Auszahlung/Verrechnung). */}
             <tr>
-              <td className="py-0.5 pr-8 text-neutral-300">
+              <td className="py-0.5 pr-4 text-neutral-300 md:pr-8">
                 Nebenkostenabrechnung {konto.jahr - 1} offen{" "}
                 <span className="text-xs text-neutral-500">
                   ({konto.nebenkostenabrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
                 </span>
               </td>
-              <td className={`py-0.5 text-right ${farbeSaldo(konto.nebenkostenabrechnungOffen)}`}>
+              <td className={`whitespace-nowrap py-0.5 text-right ${farbeSaldo(konto.nebenkostenabrechnungOffen)}`}>
                 {formatEuro(konto.nebenkostenabrechnungOffen)}
               </td>
             </tr>
             <tr className="border-t border-neutral-700 font-medium">
-              <td className="py-1 pr-8 text-white">Saldo inkl. offener Nebenkostenabrechnung</td>
-              <td className={`py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>
+              <td className="py-1 pr-4 text-white md:pr-8">Saldo inkl. offener Nebenkostenabrechnung</td>
+              <td className={`whitespace-nowrap py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>
                 {formatEuro(konto.saldoInklNebenkostenabrechnung)}
               </td>
             </tr>

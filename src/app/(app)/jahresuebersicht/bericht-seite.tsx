@@ -673,7 +673,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
         />
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Einnahmen {label}</p>
           <p className="mt-1 text-xl font-semibold text-green-400">{formatEuro(daten.einnahmen)}</p>
@@ -692,7 +692,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-6">
+      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
           <h2 className="mb-3 text-lg font-medium text-white">Einnahmen</h2>
           <div className="rounded-lg border border-neutral-800">
@@ -704,7 +704,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                       Mieteinnahmen (Zahlungen)
                     </Link>
                   </td>
-                  <td className="px-4 py-2 text-right text-white">
+                  <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                     {formatEuro(daten.mieteinnahmen)}
                   </td>
                 </tr>
@@ -715,7 +715,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                         Nebenkosten-Nachzahlungen eingezogen
                       </Link>
                     </td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(daten.nachzahlungenEingezogen)}
                     </td>
                   </tr>
@@ -727,7 +727,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                         Kaution-Einbehalte (unstrittig/bestätigt)
                       </Link>
                     </td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(daten.kautionEinbehalte)}
                     </td>
                   </tr>
@@ -735,14 +735,14 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                 {daten.sonderzahlungen !== 0 && (
                   <tr className="border-b border-neutral-800">
                     <td className="px-4 py-2 text-white">Gebühren-Zahlungen von Mietern (Sonderforderungen)</td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(daten.sonderzahlungen)}
                     </td>
                   </tr>
                 )}
                 <tr>
                   <td className="px-4 py-2 font-medium text-white">Summe</td>
-                  <td className="px-4 py-2 text-right font-medium text-white">
+                  <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-white">
                     {formatEuro(daten.einnahmen)}
                   </td>
                 </tr>
@@ -764,7 +764,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                         <span className="ml-2 text-xs text-neutral-500">(nicht umlagefähig)</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-right text-white">{formatEuro(k.summe)}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(k.summe)}</td>
                   </tr>
                 ))}
                 {daten.kostenNachArt.length === 0 && (
@@ -781,14 +781,14 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                         Nebenkosten-Guthaben ausgezahlt
                       </Link>
                     </td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(daten.guthabenAusgezahlt)}
                     </td>
                   </tr>
                 )}
                 <tr>
                   <td className="px-4 py-2 font-medium text-white">Summe</td>
-                  <td className="px-4 py-2 text-right font-medium text-white">
+                  <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-white">
                     {formatEuro(daten.ausgaben)}
                   </td>
                 </tr>
@@ -829,31 +829,31 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                 <tbody>
                   <tr className="border-b border-neutral-800">
                     <td className="px-4 py-2 text-white">Kontostand am {zeitraum.anfangText}</td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(kontenabgleich.kontostandAnfang)}
                     </td>
                   </tr>
                   <tr className="border-b border-neutral-800">
                     <td className="px-4 py-2 text-white">+ eur-relevante Bewegung (Ergebnis)</td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(kontenabgleich.eurRelevanteBewegung)}
                     </td>
                   </tr>
                   <tr className="border-b border-neutral-800">
-                    <td className="px-4 py-2 text-white">+ durchlaufende Posten (Kaution/Mietweiterleitung/Darlehenstilgung)</td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="px-4 py-2 text-white">+ durchlaufende Posten (Kaution / Mietweiterleitung / Darlehenstilgung)</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(kontenabgleich.durchlaufendeBewegung)}
                     </td>
                   </tr>
                   <tr className="border-b border-neutral-800">
                     <td className="px-4 py-2 text-white">+ nicht kategorisierte Buchungen</td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(kontenabgleich.nichtKategorisierteBewegung)}
                     </td>
                   </tr>
                   <tr className="border-b border-neutral-800 font-medium">
                     <td className="px-4 py-2 text-white">= Kontostand am {zeitraum.endeText} (berechnet)</td>
-                    <td className="px-4 py-2 text-right text-white">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">
                       {formatEuro(kontenabgleich.kontostandEndeBerechnet)}
                     </td>
                   </tr>
@@ -861,14 +861,14 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                     <td className="px-4 py-2 text-neutral-400">
                       Kontostand am {zeitraum.endeText} (Kontostand-Verlauf, unabhängig berechnet)
                     </td>
-                    <td className="px-4 py-2 text-right text-neutral-400">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-400">
                       {formatEuro(kontenabgleich.kontostandEndeVerlauf)}
                     </td>
                   </tr>
                   <tr>
                     <td className="px-4 py-2 font-medium text-white">Differenz</td>
                     <td
-                      className={`px-4 py-2 text-right font-medium ${kontenabgleich.differenz === 0 ? "text-green-400" : "text-red-400"}`}
+                      className={`whitespace-nowrap px-4 py-2 text-right font-medium ${kontenabgleich.differenz === 0 ? "text-green-400" : "text-red-400"}`}
                     >
                       {formatEuro(kontenabgleich.differenz)}
                     </td>
@@ -995,7 +995,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         übrige Kosten nach umlagefähig / nicht umlagefähig. Nicht enthalten: AfA (Anschaffungs- und Herstellungskosten
         stehen gesondert darunter); Schuldzinsen = Mietkonto plus Jahreswerte anderer Konten (Seite „Darlehen“).
       </p>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {tabelle("Einnahmen", einnahmen)}
         {tabelle("Kosten", kosten)}
       </div>
@@ -1009,8 +1009,9 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
               <tbody>
                 {afa.map((e, i) => (
                   <tr key={i} className="border-b border-neutral-800 align-top">
-                    <td className="whitespace-nowrap px-4 py-2 text-neutral-400">{e.datum}</td>
+                    <td className="hidden whitespace-nowrap px-4 py-2 text-neutral-400 sm:table-cell">{e.datum}</td>
                     <td className="px-4 py-2 text-white">
+                      <span className="block text-xs text-neutral-400 sm:hidden">{e.datum}</span>
                       {e.objekt}
                       <span className={`ml-2 text-xs ${e.bezugsbereit ? "text-neutral-400" : "text-amber-400"}`}>
                         ({e.bezugsbereit || "bezugsbereit ab: fehlt — Kostenposition bearbeiten"}
@@ -1025,9 +1026,8 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
                   </tr>
                 ))}
                 <tr>
-                  <td className="px-4 py-2 font-medium text-white" colSpan={2}>
-                    Summe Anschaffung / Herstellung
-                  </td>
+                  <td className="hidden sm:table-cell" />
+                  <td className="px-4 py-2 font-medium text-white">Summe Anschaffung / Herstellung</td>
                   <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-white">{formatEuro(st.anschaffung)}</td>
                 </tr>
               </tbody>
@@ -1128,12 +1128,18 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             <tbody>
               {daten.steuerKosten.map((k) => (
                 <tr key={k.name} className="border-b border-neutral-800">
-                  <td className="px-4 py-2 text-white">{k.name}</td>
-                  <td className="px-4 py-2 text-neutral-400">
+                  <td className="px-4 py-2 text-white">
+                    {k.name}
+                    <span className="mt-0.5 block text-xs text-neutral-500 sm:hidden">
+                      {KOSTENGRUPPE_LABEL[k.gruppe]}
+                      {k.automatisch && " (automatisch)"}
+                    </span>
+                  </td>
+                  <td className="hidden px-4 py-2 text-neutral-400 sm:table-cell">
                     {KOSTENGRUPPE_LABEL[k.gruppe]}
                     {k.automatisch && <span className="ml-1 text-xs text-neutral-500">(automatisch)</span>}
                   </td>
-                  <td className="px-4 py-2 text-right text-white">{formatEuro(k.summe)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(k.summe)}</td>
                 </tr>
               ))}
             </tbody>

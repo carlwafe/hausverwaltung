@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Kautionskonto } from "@/lib/kautionskonto";
+import { KarteKopf, KarteMeta, KarteWerte } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -99,7 +100,30 @@ export function KautionAnsicht({
           Kautionsbuchungen verwalten →
         </Link>
       </div>
-      <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
+      {/* Handy: je Bewegung eine Karte statt der Tabelle. */}
+      <ul className="flex flex-col gap-2 md:hidden">
+        {konto.zeilen.map((z) => (
+          <li key={z.id} className={`rounded-lg border border-neutral-800 px-4 py-3 ${ZEILEN_FARBE[z.art]}`}>
+            <KarteKopf titel={z.vorgang} wert={formatEuro(z.stand)} wertLabel="Guthaben" />
+            <KarteMeta>
+              <span>{z.datum ? formatDate(z.datum) : "ohne Datum"}</span>
+            </KarteMeta>
+            <KarteWerte
+              werte={[
+                z.buchungsbetrag !== null && { label: "Buchungsbetrag", wert: formatEuro(z.buchungsbetrag) },
+                z.wirkung !== 0 && { label: "Veränderung", wert: formatEuro(z.wirkung), klasse: farbe(z.wirkung) },
+              ]}
+            />
+            {z.bemerkung && <div className="mt-1 text-xs italic text-neutral-500">{z.bemerkung}</div>}
+          </li>
+        ))}
+        {konto.zeilen.length === 0 && (
+          <li className="rounded-lg border border-neutral-800 px-4 py-8 text-center text-sm text-neutral-500">
+            Keine Kautionsbewegungen gebucht.
+          </li>
+        )}
+      </ul>
+      <div className="hidden w-full overflow-x-auto rounded-lg border border-neutral-800 md:block">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
@@ -190,28 +214,35 @@ export function KautionAnsicht({
 
           <Block titel="Einbehalte / Verrechnung mit der Kaution">
             <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full text-sm md:min-w-[900px]">
                 <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
                   <tr>
                     <th className="px-4 py-2.5">Position</th>
-                    <th className="px-4 py-2.5">Bezug / Beleg</th>
+                    <th className="hidden px-4 py-2.5 md:table-cell">Bezug / Beleg</th>
                     <th className="px-4 py-2.5 text-right">Betrag</th>
-                    <th className="px-4 py-2.5">unstrittig?</th>
-                    <th className="px-4 py-2.5 text-right">sofort verrechenbar (unstrittig)</th>
-                    <th className="px-4 py-2.5 text-right">zurückbehalten bis Klärung (strittig)</th>
+                    <th className="hidden px-4 py-2.5 md:table-cell">unstrittig?</th>
+                    <th className="hidden px-4 py-2.5 text-right md:table-cell">sofort verrechenbar (unstrittig)</th>
+                    <th className="hidden px-4 py-2.5 text-right md:table-cell">zurückbehalten bis Klärung (strittig)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {a.einbehaltePositionen.map((e, i) => (
                     <tr key={i} className={`border-t border-neutral-800 ${e.unstrittig ? "" : "bg-amber-500/10"}`}>
-                      <td className="px-4 py-2 text-white">{e.text}</td>
-                      <td className="px-4 py-2 text-xs text-neutral-400">{e.bezug}</td>
-                      <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(e.betrag)}</td>
-                      <td className={`px-4 py-2 ${e.unstrittig ? "text-neutral-200" : "text-amber-300"}`}>
+                      <td className="px-4 py-2 text-white">
+                        {e.text}
+                        {/* Handy: die Nebenspalten stehen unter der Position. */}
+                        {e.bezug && <span className="mt-0.5 block text-xs text-neutral-400 md:hidden">{e.bezug}</span>}
+                        <span className={`mt-0.5 block text-xs md:hidden ${e.unstrittig ? "text-neutral-500" : "text-amber-300"}`}>
+                          {e.unstrittig ? "unstrittig — sofort verrechenbar" : "strittig — zurückbehalten bis Klärung"} ({e.statusText})
+                        </span>
+                      </td>
+                      <td className="hidden px-4 py-2 text-xs text-neutral-400 md:table-cell">{e.bezug}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right align-top text-neutral-200">{formatEuro(e.betrag)}</td>
+                      <td className={`hidden px-4 py-2 md:table-cell ${e.unstrittig ? "text-neutral-200" : "text-amber-300"}`}>
                         {e.unstrittig ? "ja" : "nein"} <span className="text-xs text-neutral-500">({e.statusText})</span>
                       </td>
-                      <td className="px-4 py-2 text-right text-neutral-200">{e.unstrittig ? formatEuro(e.betrag) : ""}</td>
-                      <td className="px-4 py-2 text-right text-amber-300">{e.unstrittig ? "" : formatEuro(e.betrag)}</td>
+                      <td className="hidden px-4 py-2 text-right text-neutral-200 md:table-cell">{e.unstrittig ? formatEuro(e.betrag) : ""}</td>
+                      <td className="hidden px-4 py-2 text-right text-amber-300 md:table-cell">{e.unstrittig ? "" : formatEuro(e.betrag)}</td>
                     </tr>
                   ))}
                   {a.einbehaltePositionen.length === 0 && (
@@ -222,13 +253,20 @@ export function KautionAnsicht({
                     </tr>
                   )}
                   <tr className="border-t-2 border-neutral-700 bg-neutral-900 font-medium">
-                    <td colSpan={2} className="px-4 py-2 text-white">
-                      Summe Einbehalte
-                    </td>
-                    <td className="px-4 py-2 text-right text-white">{formatEuro(a.einbehalteSumme + a.strittigOffenSumme)}</td>
-                    <td />
-                    <td className="px-4 py-2 text-right text-white">{formatEuro(a.einbehalteSumme)}</td>
-                    <td className="px-4 py-2 text-right text-white">{formatEuro(a.strittigOffenSumme)}</td>
+                    <td className="px-4 py-2 text-white">Summe Einbehalte</td>
+                    <td className="hidden md:table-cell" />
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-white">{formatEuro(a.einbehalteSumme + a.strittigOffenSumme)}</td>
+                    <td className="hidden md:table-cell" />
+                    <td className="hidden px-4 py-2 text-right text-white md:table-cell">{formatEuro(a.einbehalteSumme)}</td>
+                    <td className="hidden px-4 py-2 text-right text-white md:table-cell">{formatEuro(a.strittigOffenSumme)}</td>
+                  </tr>
+                  <tr className="bg-neutral-900 text-xs md:hidden">
+                    <td className="px-4 pb-1 text-neutral-400">davon sofort verrechenbar (unstrittig)</td>
+                    <td className="whitespace-nowrap px-4 pb-1 text-right text-neutral-300">{formatEuro(a.einbehalteSumme)}</td>
+                  </tr>
+                  <tr className="bg-neutral-900 text-xs md:hidden">
+                    <td className="px-4 pb-2 text-neutral-400">davon zurückbehalten bis Klärung (strittig)</td>
+                    <td className="whitespace-nowrap px-4 pb-2 text-right text-amber-300">{formatEuro(a.strittigOffenSumme)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -271,8 +309,8 @@ export function KautionAnsicht({
                   <tr>
                     <th className="px-4 py-2.5">Vorgang</th>
                     <th className="px-4 py-2.5 text-right">Betrag</th>
-                    <th className="px-4 py-2.5">Datum</th>
-                    <th className="px-4 py-2.5">Ergebnis / Status</th>
+                    <th className="hidden px-4 py-2.5 md:table-cell">Datum</th>
+                    <th className="hidden px-4 py-2.5 md:table-cell">Ergebnis / Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,20 +319,39 @@ export function KautionAnsicht({
                       <td className="px-4 py-2 text-white">
                         {p.text}
                         {p.hinweis && <span className="ml-2 text-xs text-neutral-500">{p.hinweis}</span>}
+                        <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
+                          {p.datum ? `${formatDate(p.datum)} · ` : ""}gebucht
+                        </span>
                       </td>
-                      <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(p.betrag)}</td>
-                      <td className="px-4 py-2 text-neutral-200">{p.datum ? formatDate(p.datum) : "–"}</td>
-                      <td className="px-4 py-2 text-green-400">gebucht</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right align-top text-neutral-200">{formatEuro(p.betrag)}</td>
+                      <td className="hidden px-4 py-2 text-neutral-200 md:table-cell">{p.datum ? formatDate(p.datum) : "–"}</td>
+                      <td className="hidden px-4 py-2 text-green-400 md:table-cell">gebucht</td>
                     </tr>
                   ))}
                   <tr className="border-t border-neutral-700 font-medium">
-                    <td className="px-4 py-2 text-white">Restbetrag an Mieter</td>
-                    <td className="px-4 py-2 text-right text-white">{formatEuro(a.restbetrag)}</td>
-                    <td className="px-4 py-2 text-neutral-400">
+                    <td className="px-4 py-2 text-white">
+                      Restbetrag an Mieter
+                      <span
+                        className={`mt-0.5 block text-xs font-normal md:hidden ${
+                          Math.abs(a.nochOffen) < 0.005 ? "text-green-400" : a.nochOffen > 0 ? "text-amber-400" : "text-red-400"
+                        }`}
+                      >
+                        {a.ausgezahlt.length > 0 && `ausgezahlt ${formatEuro(a.ausgezahltSumme)} · `}
+                        {Math.abs(a.nochOffen) < 0.005
+                          ? "erledigt"
+                          : a.nochOffen > 0
+                            ? `offen: noch ${formatEuro(a.nochOffen)} auszuzahlen`
+                            : a.ausgezahltSumme > 0
+                              ? `${formatEuro(-a.nochOffen)} mehr ausgezahlt als Restbetrag`
+                              : `Einbehalte übersteigen die Kaution um ${formatEuro(-a.nochOffen)} — vom Mieter nachzufordern`}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right align-top text-white">{formatEuro(a.restbetrag)}</td>
+                    <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">
                       {a.ausgezahlt.length > 0 ? `ausgezahlt ${formatEuro(a.ausgezahltSumme)}` : "–"}
                     </td>
                     <td
-                      className={`px-4 py-2 ${
+                      className={`hidden px-4 py-2 md:table-cell ${
                         Math.abs(a.nochOffen) < 0.005 ? "text-green-400" : a.nochOffen > 0 ? "text-amber-400" : "text-red-400"
                       }`}
                     >
@@ -311,10 +368,15 @@ export function KautionAnsicht({
                     .filter((e) => !e.unstrittig)
                     .map((e, i) => (
                       <tr key={`s${i}`} className="border-t border-neutral-800 bg-amber-500/10">
-                        <td className="px-4 py-2 text-white">Strittiger Teil ({e.text})</td>
-                        <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(e.betrag)}</td>
-                        <td className="px-4 py-2 text-neutral-400">offen</td>
-                        <td className="px-4 py-2 text-amber-300">noch nicht endgültig verrechnet oder ausgezahlt</td>
+                        <td className="px-4 py-2 text-white">
+                          Strittiger Teil ({e.text})
+                          <span className="mt-0.5 block text-xs text-amber-300 md:hidden">
+                            offen — noch nicht endgültig verrechnet oder ausgezahlt
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2 text-right align-top text-neutral-200">{formatEuro(e.betrag)}</td>
+                        <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">offen</td>
+                        <td className="hidden px-4 py-2 text-amber-300 md:table-cell">noch nicht endgültig verrechnet oder ausgezahlt</td>
                       </tr>
                     ))}
                 </tbody>

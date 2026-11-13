@@ -32,7 +32,7 @@ export function AnredeListe({ zeilen }: { zeilen: Zeile[] }) {
           <input type="checkbox" checked={nurOhne} onChange={(e) => setNurOhne(e.target.checked)} className="h-4 w-4" />
           nur Mieter ohne Anrede zeigen
         </label>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {meldung && <p className="text-sm text-neutral-300">{meldung}</p>}
           <button
             type="submit"
@@ -48,7 +48,7 @@ export function AnredeListe({ zeilen }: { zeilen: Zeile[] }) {
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
               <th className="px-4 py-2.5">Name</th>
-              <th className="px-4 py-2.5">Einheit (aktiv)</th>
+              <th className="hidden px-4 py-2.5 md:table-cell">Einheit (aktiv)</th>
               <th className="px-4 py-2.5">Anrede</th>
             </tr>
           </thead>
@@ -57,8 +57,11 @@ export function AnredeListe({ zeilen }: { zeilen: Zeile[] }) {
               <tr key={z.id} className={`border-t border-neutral-800 ${nurOhne && z.anrede !== null ? "hidden" : ""}`}>
                 <td className="px-4 py-2 text-white">
                   {mieterNameNachnameZuerst(z)}
+                  {z.einheiten.length > 0 && (
+                    <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">{z.einheiten.join(", ")}</span>
+                  )}
                 </td>
-                <td className="px-4 py-2 text-neutral-400">{z.einheiten.join(", ") || "–"}</td>
+                <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">{z.einheiten.join(", ") || "–"}</td>
                 <td className="px-4 py-1.5">
                   <div className="flex gap-1" role="radiogroup" aria-label={`Anrede ${mieterName(z)}`}>
                     {[

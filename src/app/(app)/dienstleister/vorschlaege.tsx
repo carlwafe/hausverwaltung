@@ -38,7 +38,7 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
 
   return (
     <section className="mt-8 rounded-md border border-neutral-800 p-4">
-      <div className="mb-3 flex items-start justify-between gap-4">
+      <div className="mb-3 flex flex-col items-start gap-3 md:flex-row md:justify-between md:gap-4">
         <div>
           <h2 className="text-lg font-semibold text-white">Vorschläge aus dem Import-Verlauf</h2>
           <p className="text-sm text-neutral-400">
