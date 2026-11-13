@@ -767,13 +767,13 @@ export function BuchungenTabelle({
         <h2 className="text-lg font-medium text-white">
           Buchungen ({editRows.length} Zeile{editRows.length === 1 ? "" : "n"})
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
           <button
             type="button"
             onClick={() => runKiPruefung("offen")}
             disabled={kiPending !== null || kiKandidaten.length === 0}
             title="Schickt nur unsichere, noch nicht importierte Zeilen (ohne IBAN) an Claude. Ergebnis sind Vorschläge mit Begründung."
-            className="rounded-md border border-violet-500/60 h-10 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40"
+            className="h-10 w-full whitespace-nowrap rounded-md border border-violet-500/60 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40 sm:w-auto"
           >
             {kiPending === "offen" ? "KI prüft…" : `Offene Zeilen mit KI prüfen (${kiKandidaten.length})`}
           </button>
@@ -786,14 +786,14 @@ export function BuchungenTabelle({
                 ? "Höchstens 250 Zeilen auf einmal — Auswahl verkleinern."
                 : "Schickt alle zum Import ausgewählten Zeilen (ohne IBAN) samt Buchungsart, Mietvertrag, Mietmonat bzw. Kostenart an Claude. Zeilen, denen die KI widerspricht, werden abgewählt und zeigen ihren Vorschlag."
             }
-            className="rounded-md border border-violet-500/60 h-10 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40"
+            className="h-10 w-full whitespace-nowrap rounded-md border border-violet-500/60 px-4 text-sm text-violet-300 hover:bg-violet-950/40 disabled:opacity-40 sm:w-auto"
           >
             {kiPending === "ausgewaehlt" ? "KI prüft…" : `Ausgewählte mit KI prüfen (${kiAusgewaehlt.length})`}
           </button>
           <select
             value={hinweisFilter}
             onChange={(e) => setHinweisFilter(e.target.value as HinweisFilter)}
-            className="rounded-md border border-neutral-700 bg-transparent h-10 w-48 px-2 text-sm text-white outline-none focus:border-neutral-400"
+            className="rounded-md border border-neutral-700 bg-transparent h-10 w-full px-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-48"
           >
             {HINWEIS_OPTIONEN.map((o) => (
               <option key={o.value} value={o.value}>
@@ -804,7 +804,7 @@ export function BuchungenTabelle({
           <select
             value={familieFilter}
             onChange={(e) => setFamilieFilter(e.target.value as "alle" | BuchungsartGruppe)}
-            className="rounded-md border border-neutral-700 bg-transparent h-10 w-48 px-2 text-sm text-white outline-none focus:border-neutral-400"
+            className="rounded-md border border-neutral-700 bg-transparent h-10 w-full px-2 text-sm text-white outline-none focus:border-neutral-400 sm:w-48"
           >
             {FAMILIE_OPTIONEN.map((o) => (
               <option key={o.value} value={o.value}>
