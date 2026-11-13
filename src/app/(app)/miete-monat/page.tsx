@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { sollAufschluesselung, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
+import { mietnachlaesseFuerSoll } from "@/lib/soll-ist";
+import { berechneMieteMonat } from "@/lib/miete-monat";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
@@ -54,7 +55,6 @@ export default async function MieteMonatPage({
   const alleAnzeigen = alle === "1";
 
   const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
-  const monatsEnde = new Date(jahr, monat, 0);
 
   const vertraege = await prisma.mietvertrag.findMany({
     where: { status: { in: ["AKTIV", "BEENDET"] } },
@@ -75,13 +75,12 @@ export default async function MieteMonatPage({
     },
     select: { mietvertragId: true, datum: true, betrag: true, periodeMonat: true, periodeJahr: true },
   });
-  const gezahlt = new Map<string, number>();
+  const zahlungenJeVertrag = new Map<string, typeof zahlungen>();
   for (const z of zahlungen) {
-    if (!z.mietvertragId || !z.datum) continue;
-    const pJahr = z.periodeJahr && z.periodeMonat ? z.periodeJahr : z.datum.getFullYear();
-    const pMonat = z.periodeJahr && z.periodeMonat ? z.periodeMonat : z.datum.getMonth() + 1;
-    if (pJahr !== jahr || pMonat !== monat) continue;
-    gezahlt.set(z.mietvertragId, (gezahlt.get(z.mietvertragId) ?? 0) + Number(z.betrag));
+    if (!z.mietvertragId) continue;
+    const liste = zahlungenJeVertrag.get(z.mietvertragId) ?? [];
+    liste.push(z);
+    zahlungenJeVertrag.set(z.mietvertragId, liste);
   }
 
   const einheitRang = new Map(
@@ -94,7 +93,7 @@ export default async function MieteMonatPage({
   for (const v of vertraege) {
     // Stichtag je Vertrag: eigener (früherer) oder der des Objekts.
     const buchhaltungAb = effektiverStichtag(v, objekt);
-    const sollZeile = sollAufschluesselung(
+    const ergebnis = berechneMieteMonat(
       {
         beginn: v.beginn,
         ende: v.ende,
@@ -108,17 +107,13 @@ export default async function MieteMonatPage({
         })),
         mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
       },
-      monatsEnde,
       buchhaltungAb,
-    ).find((z) => z.jahr === jahr && z.monat === monat);
-    if (!sollZeile || sollZeile.betrag <= 0) continue;
-
-    const ist = gezahlt.get(v.id) ?? 0;
-    const offen = Math.round((sollZeile.betrag - ist) * 100) / 100;
-    const faelligAm = sollZeile.faelligAm;
-    const faellig = !istAktuellerMonat || heute >= faelligAm;
-    const status: MieteMonatRow["status"] =
-      offen <= 0 ? "bezahlt" : !faellig ? "nichtFaellig" : ist > 0 ? "teilweise" : "offen";
+      (zahlungenJeVertrag.get(v.id) ?? []).map((z) => ({ ...z, betrag: Number(z.betrag) })),
+      jahr,
+      monat,
+      heute,
+    );
+    if (!ergebnis) continue;
 
     alleZeilen.push({
       id: v.id,
@@ -126,11 +121,11 @@ export default async function MieteMonatPage({
       einheitRang: einheitRang.get(v.id) ?? 0,
       mieter: v.mieter.map((m) => mieterName(m)).join(" & "),
       zahlungsweg: v.zahlungsweg === "LASTSCHRIFT" ? "Lastschrift" : v.zahlungsweg === "UEBERWEISUNG" ? "Überweisung" : v.zahlungsweg === "BEHOERDE" ? "Amt" : "",
-      faelligAm: formatDatum(faelligAm),
-      soll: sollZeile.betrag,
-      ist,
-      offen,
-      status,
+      faelligAm: formatDatum(ergebnis.faelligAm),
+      soll: ergebnis.soll,
+      ist: ergebnis.ist,
+      offen: ergebnis.offen,
+      status: ergebnis.status,
     });
   }
   alleZeilen.sort((a, b) => a.einheitRang - b.einheitRang);

@@ -4,10 +4,16 @@ import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete, mietnachla
 import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
 import { ladeNkGegenrechnungen } from "@/lib/nk-gegenrechnung";
 import { gegenrechnungBis } from "@/lib/nk-saldo";
+import { berechneMieteMonat } from "@/lib/miete-monat";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc, sichtbareTickets } from "@/lib/ticket";
 import { requireUser } from "@/lib/session";
+
+const MONATSNAMEN = [
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember",
+];
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -128,6 +134,25 @@ export default async function DashboardPage() {
     return sum + Math.min(saldo, 0);
   }, 0);
 
+  // Mieten des laufenden Monats (wie /miete-monat): wer hat Kaltmiete + NK-Vorauszahlung voll gezahlt?
+  const mietenMonat = abrechenbareVertraege
+    .map((v) =>
+      berechneMieteMonat(
+        sollIstDaten(v),
+        effektiverStichtag(v, objekt),
+        v.buchungen.map((z) => ({ ...z, betrag: Number(z.betrag) })),
+        heute.getFullYear(),
+        heute.getMonth() + 1,
+        heute,
+      ),
+    )
+    .filter((e) => e !== null);
+  const mietenBezahlt = mietenMonat.filter((e) => e.status === "bezahlt").length;
+  const mietenUnbezahlt = mietenMonat.filter((e) => e.status === "offen" || e.status === "teilweise");
+  const mietenOffenBetrag = mietenUnbezahlt.reduce((sum, e) => sum + e.offen, 0);
+  const mietenEingegangen = mietenMonat.reduce((sum, e) => sum + Math.min(e.ist, e.soll), 0);
+  const mietenSoll = mietenMonat.reduce((sum, e) => sum + e.soll, 0);
+
   const kacheln = [
     { label: "Gebäude", value: gebaeudeGruppen.length.toString() },
     { label: "Einheiten gesamt", value: einheitenCount.toString() },
@@ -151,6 +176,24 @@ export default async function DashboardPage() {
             <p className="mt-1 text-xl font-semibold text-white">{k.value}</p>
           </div>
         ))}
+        <Link href="/miete-monat" className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900">
+          <p className="text-xs text-neutral-400">
+            Mieten {MONATSNAMEN[heute.getMonth()]} {heute.getFullYear()}
+          </p>
+          <p className="mt-1 text-xl font-semibold text-white">
+            {mietenBezahlt} von {mietenMonat.length} bezahlt
+          </p>
+          <p className="text-xs text-neutral-400">
+            {formatEuro(mietenEingegangen)} von {formatEuro(mietenSoll)} eingegangen
+          </p>
+          {mietenUnbezahlt.length > 0 ? (
+            <p className="text-xs text-red-400">
+              {mietenUnbezahlt.length} fällig offen · {formatEuro(mietenOffenBetrag)}
+            </p>
+          ) : (
+            <p className="text-xs text-green-400">Nichts fällig offen</p>
+          )}
+        </Link>
         <Link
           href="/offene-posten"
           className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900"
