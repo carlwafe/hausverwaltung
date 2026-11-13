@@ -9,6 +9,7 @@ import { TICKET_KATEGORIE, TICKET_PRIORITAET, TICKET_STATUS } from "@/lib/ticket
 type Option = { id: string; label: string };
 
 export type TicketFormWerte = {
+  privat: boolean;
   titel: string;
   beschreibung: string;
   status: string;
@@ -25,6 +26,7 @@ export type TicketFormWerte = {
 
 const inputClass =
   "w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
+const selectClass = `${inputClass} h-10`;
 const labelClass = "mb-1 block text-sm font-medium";
 
 const GESPEICHERT = "__gespeichert";
@@ -40,7 +42,8 @@ function WachsendesTextfeld({
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    // scrollHeight enthält den Rahmen nicht — bei border-box fehlen sonst 2 px und das Feld ist niedriger als die übrigen (h-10).
+    el.style.height = `${el.scrollHeight + (el.offsetHeight - el.clientHeight)}px`;
   }
   useLayoutEffect(anpassen, []);
   return (
@@ -73,6 +76,7 @@ export function TicketForm({
   optionen,
   action,
   bearbeiten = false,
+  kannPrivatAendern = true,
 }: {
   initial: TicketFormWerte;
   optionen: {
@@ -85,7 +89,10 @@ export function TicketForm({
   };
   action: FormAktion;
   bearbeiten?: boolean;
+  /** Nur der Ersteller (bzw. jeder bei Altbestand ohne Ersteller) darf „Privat“ umstellen. */
+  kannPrivatAendern?: boolean;
 }) {
+  const [privat, setPrivat] = useState(initial.privat);
   const [einheitId, setEinheitId] = useState(initial.einheitId);
   const [mietvertragId, setMietvertragId] = useState(initial.mietvertragId);
   const [status, setStatus] = useState(initial.status);
@@ -113,6 +120,22 @@ export function TicketForm({
 
   return (
     <form action={formAction} className="max-w-2xl space-y-4">
+      {kannPrivatAendern && (
+        <label className="flex h-10 cursor-pointer items-center gap-3 rounded-lg border border-neutral-800 px-3 text-sm">
+          <input
+            type="checkbox"
+            name="privat"
+            checked={privat}
+            onChange={(e) => setPrivat(e.target.checked)}
+            className="h-5 w-5 shrink-0"
+          />
+          <span>
+            <span className="font-medium">Privat</span>
+            <span className="text-neutral-400"> (nur du siehst dieses Ticket)</span>
+          </span>
+        </label>
+      )}
+
       <div>
         <label className={labelClass} htmlFor="titel">
           Titel
@@ -125,7 +148,7 @@ export function TicketForm({
           required
           defaultValue={initial.titel}
           placeholder="z.B. Wasserhahn tropft im Bad"
-          className={inputClass}
+          className={`${inputClass} min-h-10`}
         />
       </div>
 
@@ -136,12 +159,12 @@ export function TicketForm({
         <WachsendesTextfeld id="beschreibung" name="beschreibung" rows={4} defaultValue={initial.beschreibung} className={inputClass} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="col-span-2 sm:col-span-1">
           <label className={labelClass} htmlFor="kategorie">
             Kategorie
           </label>
-          <select id="kategorie" name="kategorie" defaultValue={initial.kategorie} className={inputClass}>
+          <select id="kategorie" name="kategorie" defaultValue={initial.kategorie} className={selectClass}>
             {TICKET_KATEGORIE.map((k) => (
               <option key={k.value} value={k.value} className="bg-neutral-900">
                 {k.label}
@@ -153,7 +176,7 @@ export function TicketForm({
           <label className={labelClass} htmlFor="prioritaet">
             Priorität
           </label>
-          <select id="prioritaet" name="prioritaet" defaultValue={initial.prioritaet} className={inputClass}>
+          <select id="prioritaet" name="prioritaet" defaultValue={initial.prioritaet} className={selectClass}>
             {TICKET_PRIORITAET.map((p) => (
               <option key={p.value} value={p.value} className="bg-neutral-900">
                 {p.label}
@@ -170,7 +193,7 @@ export function TicketForm({
             name="status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className={inputClass}
+            className={selectClass}
           >
             {TICKET_STATUS.map((s) => (
               <option key={s.value} value={s.value} className="bg-neutral-900">
@@ -190,7 +213,13 @@ export function TicketForm({
           <label className={labelClass} htmlFor="zugewiesenAnId">
             Zuständig (optional)
           </label>
-          <select id="zugewiesenAnId" name="zugewiesenAnId" defaultValue={initial.zugewiesenAnId} className={inputClass}>
+          <select
+            id="zugewiesenAnId"
+            name="zugewiesenAnId"
+            defaultValue={initial.zugewiesenAnId}
+            disabled={privat}
+            className={`${selectClass} disabled:opacity-50`}
+          >
             <option value="" className="bg-neutral-900">
               –
             </option>
@@ -233,7 +262,7 @@ export function TicketForm({
             <label className={labelClass} htmlFor="hausId">
               Gebäude (z.B. Dach, Fassade)
             </label>
-            <select id="hausId" name="hausId" defaultValue={initial.hausId} className={inputClass}>
+            <select id="hausId" name="hausId" defaultValue={initial.hausId} className={selectClass}>
               <option value="" className="bg-neutral-900">
                 –
               </option>
@@ -248,7 +277,7 @@ export function TicketForm({
             <label className={labelClass} htmlFor="gebaeudeId">
               Hausnummer (z.B. Treppenhaus, Eingang)
             </label>
-            <select id="gebaeudeId" name="gebaeudeId" defaultValue={initial.gebaeudeId} className={inputClass}>
+            <select id="gebaeudeId" name="gebaeudeId" defaultValue={initial.gebaeudeId} className={selectClass}>
               <option value="" className="bg-neutral-900">
                 –
               </option>
@@ -263,7 +292,7 @@ export function TicketForm({
             <label className={labelClass} htmlFor="dienstleisterId">
               Dienstleister
             </label>
-            <select id="dienstleisterId" name="dienstleisterId" defaultValue={initial.dienstleisterId} className={inputClass}>
+            <select id="dienstleisterId" name="dienstleisterId" defaultValue={initial.dienstleisterId} className={selectClass}>
               <option value="" className="bg-neutral-900">
                 –
               </option>
@@ -283,7 +312,7 @@ export function TicketForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+        className="h-10 w-full rounded-md bg-white px-4 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50 sm:w-auto"
       >
         {pending ? "Speichern…" : bearbeiten ? "Speichern" : "Ticket anlegen"}
       </button>

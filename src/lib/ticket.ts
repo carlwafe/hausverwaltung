@@ -36,3 +36,13 @@ export function heuteUtc(): Date {
 export function istUeberfaellig(t: { status: TicketStatus; faelligAm: Date | null }): boolean {
   return t.status !== "ERLEDIGT" && t.faelligAm !== null && t.faelligAm < heuteUtc();
 }
+
+/** Prisma-Filter: Tickets, die der Nutzer sehen darf — alle nicht privaten und die eigenen privaten. */
+export function sichtbareTickets(userId: string): { OR: ({ privat: false } | { erstelltVonId: string })[] } {
+  return { OR: [{ privat: false }, { erstelltVonId: userId }] };
+}
+
+/** Prisma-Filter für Dokumente: Anhänge privater Tickets anderer Nutzer sind nicht sichtbar. */
+export function sichtbareTicketDokumente(userId: string) {
+  return { OR: [{ ticketId: null }, { ticket: sichtbareTickets(userId) }] };
+}

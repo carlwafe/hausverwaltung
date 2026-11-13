@@ -10,7 +10,8 @@ import { BelegeSektion } from "@/components/belege-sektion";
 import { DeleteButton } from "@/components/delete-button";
 import { uploadDokument } from "../../dokumente/actions";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
-import { TICKET_STATUS } from "@/lib/ticket";
+import { TICKET_STATUS, sichtbareTickets } from "@/lib/ticket";
+import { requireUser } from "@/lib/session";
 
 const formatDatumZeit = (d: Date) =>
   new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(d);
@@ -19,8 +20,9 @@ const isoTag = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
 export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ticket = await prisma.ticket.findUnique({
-    where: { id },
+  const user = await requireUser();
+  const ticket = await prisma.ticket.findFirst({
+    where: { id, ...sichtbareTickets(user.id) },
     include: {
       kommentare: { orderBy: { createdAt: "asc" } },
       dokumente: true,
@@ -49,6 +51,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             <span className={`rounded-full px-2 py-0.5 text-xs ${status?.farbe}`}>{status?.label}</span>
             {" · "}erstellt {formatDatumZeit(ticket.createdAt)}
             {ersteller && ` von ${ersteller}`}
+            {ticket.privat && " · 🔒 privat (nur für dich sichtbar)"}
             {ticket.erledigtAm && ` · erledigt ${formatDatumZeit(ticket.erledigtAm)}`}
           </p>
         </div>
@@ -62,7 +65,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         bearbeiten
         optionen={optionen}
         action={updateTicket.bind(null, id)}
+        kannPrivatAendern={ticket.erstelltVonId === null || ticket.erstelltVonId === user.id}
         initial={{
+          privat: ticket.privat,
           titel: ticket.titel,
           beschreibung: ticket.beschreibung ?? "",
           status: ticket.status,

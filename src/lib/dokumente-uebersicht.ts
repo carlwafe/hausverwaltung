@@ -5,6 +5,8 @@ import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { KOSTEN_ARTEN, OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
+import { requireUser } from "@/lib/session";
+import { sichtbareTickets, sichtbareTicketDokumente } from "@/lib/ticket";
 
 // Die Dokument-Tabelle hat bewusst keine eigene Ordnerstruktur: ein Dokument kann mehrere Bezüge haben
 // (Kostenposition, Mietvertrag, Einheit, Gebäude, Dienstleister, Ticket) oder keinen (= „Unkategorisiert“,
@@ -96,9 +98,16 @@ function filterWhere(f: DokumentFilter): Prisma.DokumentWhereInput {
 const GEBAEUDE_MIT_HAUS = { include: { haus: { include: { gebaeude: true } } } } as const;
 
 async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: string): Promise<DokumentZeile[]> {
+  const user = await requireUser();
   const dokumente = await prisma.dokument.findMany({
     // Ausgeblendete Kostenbelege (Löschsperre) tauchen in der Ablage nicht auf, nur auf ihrer Detailseite.
-    where: einzelneId ? { id: einzelneId } : { ausgeblendetAm: null, ...(filter ? filterWhere(filter) : {}) },
+    // Anhänge privater Tickets anderer Nutzer nie.
+    where: {
+      AND: [
+        sichtbareTicketDokumente(user.id),
+        einzelneId ? { id: einzelneId } : { ausgeblendetAm: null, ...(filter ? filterWhere(filter) : {}) },
+      ],
+    },
     include: {
       mietvertrag: { include: { mieter: true, einheit: { include: { gebaeude: GEBAEUDE_MIT_HAUS } } } },
       einheit: { include: { gebaeude: GEBAEUDE_MIT_HAUS } },
@@ -256,8 +265,9 @@ export type DokumentIndexEintrag = {
  * geöffnet wird (Vercel-CPU, siehe CLAUDE.md).
  */
 export async function ladeDokumentIndex(): Promise<DokumentIndexEintrag[]> {
+  const user = await requireUser();
   const dokumente = await prisma.dokument.findMany({
-    where: { ausgeblendetAm: null },
+    where: { ausgeblendetAm: null, ...sichtbareTicketDokumente(user.id) },
     select: {
       art: true,
       groesseBytes: true,
@@ -336,6 +346,7 @@ export type BezugOption = { id: string; label: string };
 
 /** Auswahllisten für „Bezug hinzufügen“ (ohne Kostenpositionen — die hängen vom Dokument ab, siehe dokument-zuordnung.ts). */
 export async function ladeBezugOptionen(): Promise<Record<Exclude<BezugTyp, "kosten">, BezugOption[]>> {
+  const user = await requireUser();
   const [einheiten, gebaeude, haeuser, mietvertraege, dienstleister, tickets] = await Promise.all([
     prisma.einheit.findMany({ include: { gebaeude: GEBAEUDE_MIT_HAUS } }),
     prisma.gebaeude.findMany({ include: { haus: { include: { gebaeude: true } } } }),
@@ -344,7 +355,7 @@ export async function ladeBezugOptionen(): Promise<Record<Exclude<BezugTyp, "kos
       include: { mieter: true, einheit: { include: { gebaeude: GEBAEUDE_MIT_HAUS } } },
     }),
     prisma.dienstleister.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.ticket.findMany({ orderBy: { nummer: "desc" }, select: { id: true, nummer: true, titel: true } }),
+    prisma.ticket.findMany({ where: sichtbareTickets(user.id), orderBy: { nummer: "desc" }, select: { id: true, nummer: true, titel: true } }),
   ]);
 
   return {

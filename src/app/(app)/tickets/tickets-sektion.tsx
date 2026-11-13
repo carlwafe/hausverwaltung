@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { TICKET_PRIORITAET, TICKET_STATUS, istUeberfaellig } from "@/lib/ticket";
+import { TICKET_PRIORITAET, TICKET_STATUS, istUeberfaellig, sichtbareTickets } from "@/lib/ticket";
+import { requireUser } from "@/lib/session";
 
 // Kleine Liste offener Tickets zu einer Einheit/einem Mietvertrag/Dienstleister mit Einstieg
 // "Ticket anlegen" (Bezug vorbelegt) — eingebettet in die jeweiligen Detailseiten.
@@ -12,8 +13,9 @@ export async function TicketsSektion({
   where: Prisma.TicketWhereInput;
   neuQuery: Record<string, string>;
 }) {
+  const user = await requireUser();
   const tickets = await prisma.ticket.findMany({
-    where: { ...where, status: { not: "ERLEDIGT" } },
+    where: { AND: [where, sichtbareTickets(user.id)], status: { not: "ERLEDIGT" } },
     orderBy: [{ prioritaet: "desc" }, { nummer: "desc" }],
   });
   const neuHref = `/tickets/neu?${new URLSearchParams(neuQuery).toString()}`;

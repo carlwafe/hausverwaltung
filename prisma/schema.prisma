@@ -1241,6 +1241,8 @@ model Ticket {
   erstelltVonId   String?
   zugewiesenAn    User?            @relation("TicketZustaendig", fields: [zugewiesenAnId], references: [id], onDelete: SetNull)
   zugewiesenAnId  String?
+  // Privat: nur der Ersteller sieht das Ticket (Liste, Detail, Anhänge, Zähler).
+  privat          Boolean          @default(false)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 

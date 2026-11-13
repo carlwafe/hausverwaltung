@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sichtbareTicketDokumente } from "@/lib/ticket";
 import { requireUser } from "@/lib/session";
 import { leseDatei } from "@/lib/storage";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
 
-  const dokument = await prisma.dokument.findUnique({ where: { id } });
+  const dokument = await prisma.dokument.findFirst({ where: { id, ...sichtbareTicketDokumente(user.id) } });
   if (!dokument) {
     return NextResponse.json({ error: "Dokument nicht gefunden." }, { status: 404 });
   }

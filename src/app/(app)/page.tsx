@@ -6,13 +6,15 @@ import { ladeNkGegenrechnungen } from "@/lib/nk-gegenrechnung";
 import { gegenrechnungBis } from "@/lib/nk-saldo";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { heuteUtc } from "@/lib/ticket";
+import { heuteUtc, sichtbareTickets } from "@/lib/ticket";
+import { requireUser } from "@/lib/session";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
 export default async function DashboardPage() {
+  const user = await requireUser();
   const [
     objekt,
     gebaeudeGruppen,
@@ -59,8 +61,8 @@ export default async function DashboardPage() {
         },
       }),
       prisma.kaution.findMany({ where: { status: "AKTIV" }, select: { betrag: true } }),
-      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" } } }),
-      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" }, faelligAm: { lt: heuteUtc() } } }),
+      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" }, ...sichtbareTickets(user.id) } }),
+      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" }, faelligAm: { lt: heuteUtc() }, ...sichtbareTickets(user.id) } }),
     ]);
 
   const summeKautionen = aktiveKautionen.reduce((sum, k) => sum + Number(k.betrag), 0);

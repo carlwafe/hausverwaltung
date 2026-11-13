@@ -18,7 +18,9 @@ export default async function NeuesTicketPage({
       <TicketForm
         optionen={optionen}
         action={createTicket}
+        kannPrivatAendern
         initial={{
+          privat: false,
           titel: "",
           beschreibung: "",
           status: "OFFEN",

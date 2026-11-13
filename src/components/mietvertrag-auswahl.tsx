@@ -123,7 +123,7 @@ export function MietvertragAuswahl({
         }}
         placeholder="Suchen…"
         className={`w-full rounded-md border border-neutral-700 bg-transparent outline-none focus:border-neutral-400 ${
-          size === "md" ? "px-3 py-2 text-sm" : "px-2 py-1 text-xs"
+          size === "md" ? "h-10 px-3 text-sm" : "px-2 py-1 text-xs"
         } ${value ? "text-white" : "text-neutral-500"}`}
       />
       {offen &&

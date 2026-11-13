@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/session";
 import { loescheDatei } from "@/lib/storage";
 import { optionalesDatum } from "@/lib/zod-datum";
-import { kategorieLabel, prioritaetLabel, statusLabel } from "@/lib/ticket";
+import { kategorieLabel, prioritaetLabel, sichtbareTickets, statusLabel } from "@/lib/ticket";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 
 const leerAlsNull = (v: FormDataEntryValue | null) => (typeof v === "string" && v !== "" ? v : null);
@@ -64,6 +64,12 @@ async function parseForm(formData: FormData) {
   };
 }
 
+/** Wirft, wenn das Ticket nicht existiert oder ein privates Ticket eines anderen Nutzers ist. */
+async function pruefeTicketSichtbar(ticketId: string, userId: string) {
+  const vorhanden = await prisma.ticket.findFirst({ where: { id: ticketId, ...sichtbareTickets(userId) }, select: { id: true } });
+  if (!vorhanden) throw new AktionsFehler("Ticket nicht gefunden");
+}
+
 const benutzerName = (u: { name: string | null; email: string } | null | undefined) =>
   u ? (u.name ?? u.email) : "niemand";
 
@@ -78,8 +84,10 @@ function revalidiere(bezuege: { einheitId?: string | null; mietvertragId?: strin
 export const createTicket = mitMeldung(async function createTicket(formData: FormData) {
   const user = await requireEditor();
   const data = await parseForm(formData);
+  const privat = formData.get("privat") === "on";
   const ticket = await prisma.ticket.create({
-    data: { ...data, erstelltVonId: user.id },
+    // Ein privates Ticket hat keine Zuständigkeit (der Zuständige sähe es nicht).
+    data: { ...data, privat, zugewiesenAnId: privat ? null : data.zugewiesenAnId, erstelltVonId: user.id },
   });
   revalidiere(data);
   redirect(`/tickets/${ticket.id}`);
@@ -87,12 +95,17 @@ export const createTicket = mitMeldung(async function createTicket(formData: For
 
 export const updateTicket = mitMeldung(async function updateTicket(id: string, formData: FormData) {
   const user = await requireEditor();
-  const data = await parseForm(formData);
-  const alt = await prisma.ticket.findUnique({
-    where: { id },
+  const parsed = await parseForm(formData);
+  const alt = await prisma.ticket.findFirst({
+    where: { id, ...sichtbareTickets(user.id) },
     include: { zugewiesenAn: { select: { name: true, email: true } } },
   });
   if (!alt) throw new AktionsFehler("Ticket nicht gefunden");
+
+  // „Privat“ darf nur der Ersteller umstellen (bei Altbestand ohne Ersteller jeder, er wird dann Ersteller).
+  const darfPrivatAendern = alt.erstelltVonId === null || alt.erstelltVonId === user.id;
+  const privat = darfPrivatAendern ? formData.get("privat") === "on" : alt.privat;
+  const data = { ...parsed, zugewiesenAnId: privat ? null : parsed.zugewiesenAnId };
 
   // Ein bereits erledigtes Ticket behält sein ursprüngliches Erledigt-Datum.
   const erledigtAm = data.status === "ERLEDIGT" ? (alt.erledigtAm ?? new Date()) : null;
@@ -118,6 +131,8 @@ export const updateTicket = mitMeldung(async function updateTicket(id: string, f
     where: { id },
     data: {
       ...data,
+      privat,
+      erstelltVonId: alt.erstelltVonId ?? (privat ? user.id : undefined),
       erledigtAm,
       kommentare: {
         create: eintraege.map((text) => ({ text, system: true, autor: user.name ?? user.email ?? null })),
@@ -129,8 +144,8 @@ export const updateTicket = mitMeldung(async function updateTicket(id: string, f
 });
 
 export async function deleteTicket(id: string) {
-  await requireEditor();
-  const ticket = await prisma.ticket.findUnique({ where: { id }, include: { dokumente: true } });
+  const user = await requireEditor();
+  const ticket = await prisma.ticket.findFirst({ where: { id, ...sichtbareTickets(user.id) }, include: { dokumente: true } });
   if (!ticket) redirect("/tickets");
   await prisma.ticket.delete({ where: { id } });
   for (const d of ticket.dokumente) await loescheDatei(d.speicherpfad);
@@ -141,7 +156,8 @@ export async function deleteTicket(id: string) {
 // Kosten (KOSTENPOSITION-Buchungen) mit einem Ticket verknüpfen bzw. wieder lösen. Die Buchung selbst
 // bleibt unangetastet (unveränderlich) — die Verknüpfung liegt in ticket_kosten.
 export const verknuepfeKosten = mitMeldung(async function verknuepfeKosten(ticketId: string, buchungId: string): Promise<string | null> {
-  await requireEditor();
+  const user = await requireEditor();
+  await pruefeTicketSichtbar(ticketId, user.id);
   if (!buchungId) return "Bitte eine Kostenposition auswählen.";
   const buchung = await prisma.buchung.findUnique({
     where: { id: buchungId },
@@ -158,7 +174,8 @@ export const verknuepfeKosten = mitMeldung(async function verknuepfeKosten(ticke
 });
 
 export async function loeseKosten(ticketId: string, buchungId: string): Promise<void> {
-  await requireEditor();
+  const user = await requireEditor();
+  await pruefeTicketSichtbar(ticketId, user.id);
   await prisma.ticketKosten.deleteMany({ where: { ticketId, buchungId } });
   revalidatePath(`/tickets/${ticketId}`);
 }
@@ -167,6 +184,7 @@ export const addKommentar = mitMeldung(async function addKommentar(ticketId: str
   const user = await requireEditor();
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return "Bitte einen Text eingeben.";
+  await pruefeTicketSichtbar(ticketId, user.id);
   await prisma.ticketKommentar.create({
     data: { ticketId, text, autor: user.name ?? user.email ?? null },
   });

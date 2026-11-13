@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TicketTable } from "./ticket-table";
-import { TICKET_KATEGORIE } from "@/lib/ticket";
+import { TICKET_KATEGORIE, sichtbareTickets } from "@/lib/ticket";
+import { requireUser } from "@/lib/session";
 import { TICKET_ZEILE_INCLUDE, ticketZeile } from "./ticket-zeilen";
 
 export default async function TicketsPage({ searchParams }: { searchParams: Promise<{ alle?: string }> }) {
   const { alle } = await searchParams;
   const zeigeErledigte = alle === "1";
+  const user = await requireUser();
 
   const tickets = await prisma.ticket.findMany({
-    where: zeigeErledigte ? {} : { status: { not: "ERLEDIGT" } },
+    where: { ...sichtbareTickets(user.id), ...(zeigeErledigte ? {} : { status: { not: "ERLEDIGT" } }) },
     include: TICKET_ZEILE_INCLUDE,
     // Wichtigstes zuerst: dringend vor niedrig (Enum-Reihenfolge), dann nach Fälligkeit, neueste Nr. zuerst.
     orderBy: [{ prioritaet: "desc" }, { faelligAm: { sort: "asc", nulls: "last" } }, { nummer: "desc" }],

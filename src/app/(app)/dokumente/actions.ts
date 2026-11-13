@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { prisma } from "@/lib/prisma";
-import { benutzerLabel, requireEditor } from "@/lib/session";
+import { benutzerLabel, requireEditor, requireUser } from "@/lib/session";
+import { sichtbareTickets } from "@/lib/ticket";
 import { AktionsFehler, mitMeldung } from "@/lib/aktion";
 import { MAX_DOKUMENT_GROESSE_BYTES } from "@/lib/upload-limits";
 import { AUTOMATISCH_NICHT_LESEN, istGueltigeArt } from "@/lib/dokumente-anzeige";
@@ -188,6 +189,10 @@ async function legeDokumenteAn(ziel: UploadZiel, formData: FormData): Promise<{ 
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) {
     return { fehler: "Bitte eine Datei auswählen.", ids: [] };
+  }
+  if ("ticketId" in ziel) {
+    const sichtbar = await prisma.ticket.findFirst({ where: { id: ziel.ticketId, ...sichtbareTickets(user.id) }, select: { id: true } });
+    if (!sichtbar) return { fehler: "Ticket nicht gefunden.", ids: [] };
   }
 
   // Optionales Belegdatum (Datum des Belegs selbst), gilt für alle Dateien dieses Uploads.
@@ -589,7 +594,7 @@ async function pruefeZiel(ziel: ZuordnungsZiel, id: string): Promise<void> {
               ? await prisma.gebaeude.findUnique({ where: { id }, select })
             : ziel === "dienstleister"
               ? await prisma.dienstleister.findUnique({ where: { id }, select })
-              : await prisma.ticket.findUnique({ where: { id }, select });
+              : await prisma.ticket.findFirst({ where: { id, ...sichtbareTickets((await requireUser()).id) }, select });
   if (!vorhanden) {
     throw new AktionsFehler(ziel === "buchung" ? "Die Kostenposition existiert nicht mehr oder ist storniert." : `${ZIEL_NAME[ziel]}: Die Auswahl existiert nicht mehr.`);
   }
