@@ -150,8 +150,6 @@ export default async function DashboardPage() {
   const mietenBezahlt = mietenMonat.filter((e) => e.status === "bezahlt").length;
   const mietenUnbezahlt = mietenMonat.filter((e) => e.status === "offen" || e.status === "teilweise");
   const mietenOffenBetrag = mietenUnbezahlt.reduce((sum, e) => sum + e.offen, 0);
-  const mietenEingegangen = mietenMonat.reduce((sum, e) => sum + Math.min(e.ist, e.soll), 0);
-  const mietenSoll = mietenMonat.reduce((sum, e) => sum + e.soll, 0);
 
   const kacheln = [
     { label: "Gebäude", value: gebaeudeGruppen.length.toString() },
@@ -183,15 +181,12 @@ export default async function DashboardPage() {
           <p className="mt-1 text-xl font-semibold text-white">
             {mietenBezahlt} von {mietenMonat.length} bezahlt
           </p>
-          <p className="text-xs text-neutral-400">
-            {formatEuro(mietenEingegangen)} von {formatEuro(mietenSoll)} eingegangen
-          </p>
           {mietenUnbezahlt.length > 0 ? (
             <p className="text-xs text-red-400">
-              {mietenUnbezahlt.length} fällig offen · {formatEuro(mietenOffenBetrag)}
+              {mietenUnbezahlt.length} offen · {formatEuro(mietenOffenBetrag)}
             </p>
           ) : (
-            <p className="text-xs text-green-400">Nichts fällig offen</p>
+            <p className="text-xs text-green-400">Alles bezahlt</p>
           )}
         </Link>
         <Link
