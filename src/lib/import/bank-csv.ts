@@ -24,6 +24,9 @@ const MOJIBAKE_MUSTER: [RegExp, string][] = [
   [/ﬂ/g, "ß"],
   [/¸/g, "ü"],
   [/‹/g, "Ü"],
+  // "Straße" → "StraØe": „Ø" nur zwischen Buchstaben und nur vor Kleinbuchstaben, damit echte „Ø" in
+  // Namen (z.B. dänisch, meist am Wortanfang oder vor Großbuchstaben) unberührt bleiben.
+  [/(?<=[a-zäöüA-Z])Ø(?=[a-zäöü])/g, "ß"],
 ];
 
 export function repariereMojibake(s: string): string {
