@@ -9,6 +9,7 @@ import { KontostandKontrolleForm } from "./kontostand-kontrolle-form";
 import { loescheKontostandKontrolle } from "./actions";
 import { KontostandTable, type KontostandRow } from "./kontostand-table";
 import { KontostandAnsicht, type AnsichtTab } from "./kontostand-ansicht";
+import { KontostandChart } from "./kontostand-chart";
 import { SaldenTable, type SaldoRow } from "./salden-table";
 import { SaldenEinlesenForm } from "./salden-einlesen-form";
 import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteNotiz, KarteWerte } from "@/components/karte";
@@ -139,6 +140,13 @@ export default async function KontostandPage({
             inhalt: <SaldenTable rows={abweichungen} />,
           },
           {
+            key: "diagramm",
+            label: "Diagramm",
+            mitZeitraum: true,
+            hinweis: zeitraumHinweis(tageImZeitraum.length, saldoZeilen.length, "Tagen"),
+            inhalt: <KontostandChart punkte={tageImZeitraum.map((z) => ({ datum: z.datum, bank: z.bank, app: z.app, neu: z.neu }))} />,
+          },
+          {
             key: "tage",
             label: "Tagesstände Bank",
             anzahl: tageImZeitraum.length,
@@ -157,8 +165,8 @@ export default async function KontostandPage({
       inhalt: <KontostandTable rows={rows} />,
     },
   ];
-  // Beim Öffnen zuerst die Abweichungen, wenn es welche gibt; sonst die Tagesstände (bzw. der Verlauf ohne Bank-Salden).
-  const start = ansichtParam ?? (abweichungen.length > 0 ? "abweichungen" : saldoZeilen.length > 0 ? "tage" : "buchungen");
+  // Beim Öffnen zuerst die Abweichungen, wenn es welche gibt; sonst das Diagramm (bzw. der Verlauf ohne Bank-Salden).
+  const start = ansichtParam ?? (abweichungen.length > 0 ? "abweichungen" : saldoZeilen.length > 0 ? "diagramm" : "buchungen");
 
   const aktuellerStand = kontostandAmStichtag(eintraege, anker, new Date(8.64e15));
   const stimmtAktuell = letzterTag ? Math.abs(letzterTag.differenz) < 0.005 : null;
