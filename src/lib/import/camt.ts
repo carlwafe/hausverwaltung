@@ -320,8 +320,10 @@ export function parseCamtDateien(dateien: CamtDatei[]): CamtErgebnis {
           const dbtrKonto = kontoKennung(pfad(parteien, "DbtrAcct"));
           const cdtrKonto = kontoKennung(pfad(parteien, "CdtrAcct"));
           let gegenseiteIstSchuldner: boolean;
-          if (iban && dbtrKonto === iban) gegenseiteIstSchuldner = false;
-          else if (iban && cdtrKonto === iban) gegenseiteIstSchuldner = true;
+          // Bei einer Überweisung zwischen eigenen Konten tragen beide Seiten unsere IBAN: dann zählt die
+          // Richtung (Gutschrift → Absender, wie in der CSV; Belastung → Empfänger).
+          if (iban && dbtrKonto === iban && cdtrKonto !== iban) gegenseiteIstSchuldner = false;
+          else if (iban && cdtrKonto === iban && dbtrKonto !== iban) gegenseiteIstSchuldner = true;
           else gegenseiteIstSchuldner = richtung === "CRDT";
           const gegenPartei = pfad(parteien, gegenseiteIstSchuldner ? "Dbtr" : "Cdtr");
           const gegenKonto = gegenseiteIstSchuldner ? dbtrKonto : cdtrKonto;

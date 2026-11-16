@@ -33,6 +33,8 @@ const MOJIBAKE_MUSTER: [RegExp, string][] = [
   [/(?<=[a-zA-Z])ı/g, "ä"],
   [/(?<=[a-zA-Z])‰/g, "ä"],
   [/(?<=[a-zA-Z])˜/g, "ö"],
+  // „Überzahlung" → „_berzahlung": nur ein „_" am Wortanfang vor „ber…".
+  [/(?<![A-Za-z0-9_])_(?=ber[a-z])/g, "Ü"],
 ];
 
 export function repariereMojibake(s: string): string {
