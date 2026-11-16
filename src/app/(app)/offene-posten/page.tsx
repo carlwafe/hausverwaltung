@@ -126,9 +126,8 @@ export default async function OffenePostenPage() {
           , gerechnet bis {formatDatum(bis)}) im Vergleich zu den{" "}
           {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
           = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
-          sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen. Ebenso die
-          Gegenrechnung der BK-Vorauszahlung versendeter Betriebskostenabrechnungen (Spalte &bdquo;davon
-          BK-Gegenrechnung&ldquo;): Eine nicht gezahlte BK-Vorauszahlung steht zwar als Rückstand im Soll, ist
+          sind im Saldo enthalten und in der Spalte &bdquo;Sonderford.&ldquo; ausgewiesen. Ebenso die
+          Gegenrechnung der BK-Vorauszahlung versendeter Betriebskostenabrechnungen (Spalte &bdquo;BK-Gegenr.&ldquo;): Eine nicht gezahlte BK-Vorauszahlung steht zwar als Rückstand im Soll, ist
           nach dem Versand der Abrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) steht
           nicht im Saldo.
         </p>

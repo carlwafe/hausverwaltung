@@ -26,6 +26,10 @@ export type OffenePostenRow = {
   eigenerStichtag: string | null;
 };
 
+const BETRAG = { align: "right", className: "whitespace-nowrap tabular-nums" } as const;
+
+// Am Computer darf die Tabelle nicht breiter als die Seite sein (siehe „Tabellen am Computer“ in
+// docs/tickets-logo-design.md): Einheit mit fester Breite, Mieter als Füllspalte, kurze Überschriften.
 const columns: Column<OffenePostenRow>[] = [
   {
     key: "einheit",
@@ -33,7 +37,8 @@ const columns: Column<OffenePostenRow>[] = [
     sortValue: (z) => z.einheitRang,
     searchValue: (z) => z.einheit,
     render: (z) => (
-      <>
+      // Feste Breite über das div (nicht die Zelle), sonst drückt die Füllspalte die Spalte zusammen.
+      <div className="w-24">
         <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
           {z.einheit}
         </Link>
@@ -45,16 +50,20 @@ const columns: Column<OffenePostenRow>[] = [
             Stichtag {z.eigenerStichtag}
           </span>
         )}
-      </>
+      </div>
     ),
   },
   {
     key: "mieter",
     label: "Mieter",
-    className: "max-w-[140px]",
+    fuellend: true,
     sortValue: (z) => z.mieter,
     searchValue: (z) => z.mieter,
-    render: (z) => <div className="whitespace-normal break-words">{z.mieter}</div>,
+    render: (z) => (
+      <div title={z.mieter} className="truncate">
+        {z.mieter}
+      </div>
+    ),
   },
   {
     key: "status",
@@ -68,18 +77,22 @@ const columns: Column<OffenePostenRow>[] = [
   {
     key: "soll",
     label: "Soll",
+    ...BETRAG,
     sortValue: (z) => z.soll,
     render: (z) => formatEuro(z.soll),
   },
   {
     key: "ist",
     label: "Ist",
+    ...BETRAG,
     sortValue: (z) => z.ist,
     render: (z) => formatEuro(z.ist),
   },
   {
     key: "saldovortrag",
-    label: "Saldovortrag",
+    label: "Vortrag",
+    title: "Saldovortrag",
+    ...BETRAG,
     sortValue: (z) => z.saldovortrag,
     render: (z) =>
       z.saldovortrag === 0 ? (
@@ -93,6 +106,7 @@ const columns: Column<OffenePostenRow>[] = [
   {
     key: "saldo",
     label: "Saldo",
+    ...BETRAG,
     sortValue: (z) => z.saldo,
     render: (z) => (
       <span
@@ -104,7 +118,9 @@ const columns: Column<OffenePostenRow>[] = [
   },
   {
     key: "sonderforderung",
-    label: "davon Sonderforderung",
+    label: "Sonderford.",
+    title: "Davon Sonderforderung: offene Sonderforderungen (z.B. Rücklastschriftgebühren), im Saldo enthalten",
+    ...BETRAG,
     sortValue: (z) => z.sonderforderung,
     render: (z) =>
       z.sonderforderung === 0 ? (
@@ -117,7 +133,9 @@ const columns: Column<OffenePostenRow>[] = [
   },
   {
     key: "nkGegenrechnung",
-    label: "davon BK-Gegenrechnung",
+    label: "BK-Gegenr.",
+    title: "Davon BK-Gegenrechnung: Gegenrechnung der BK-Vorauszahlung versendeter Abrechnungen, im Saldo enthalten",
+    ...BETRAG,
     sortValue: (z) => z.nkGegenrechnung,
     render: (z) =>
       z.nkGegenrechnung === 0 ? (
@@ -182,6 +200,7 @@ export function OffenePostenTable({ rows }: { rows: OffenePostenRow[] }) {
       }}
       columns={columns}
       rows={rows}
+      kompakt
       emptyMessage="Keine aktiven oder beendeten Mietverträge vorhanden."
       searchPlaceholder="Offene Posten durchsuchen…"
     />
