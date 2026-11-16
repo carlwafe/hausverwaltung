@@ -78,7 +78,7 @@ export function SchreibenAuswahl({
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs text-neutral-400">
             <tr>
-              <th className="w-8 px-3 py-2">
+              <th className="w-8 px-2 py-2 md:px-3">
                 <input
                   type="checkbox"
                   aria-label="Alle auswählen"
@@ -86,18 +86,18 @@ export function SchreibenAuswahl({
                   onChange={(e) => setAuswahl(e.target.checked ? new Set(moegliche.map((z) => z.mietvertragId)) : new Set())}
                 />
               </th>
-              <th className="px-3 py-2">Wohnung</th>
-              <th className="hidden px-3 py-2 md:table-cell">Mieter</th>
-              <th className="hidden px-3 py-2 text-right md:table-cell">Kostenanteil</th>
-              <th className="hidden px-3 py-2 text-right md:table-cell">Vorauszahlung</th>
-              <th className="px-3 py-2 text-right">Ergebnis</th>
-              <th className="px-3 py-2" />
+              <th className="px-2 py-2 md:px-3">Wohnung</th>
+              <th className="hidden px-2 py-2 md:px-3 md:table-cell">Mieter</th>
+              <th className="hidden px-2 py-2 md:px-3 text-right md:table-cell">Kostenanteil</th>
+              <th className="hidden px-2 py-2 md:px-3 text-right md:table-cell">Vorauszahlung</th>
+              <th className="px-2 py-2 md:px-3 text-right">Ergebnis</th>
+              <th className="px-2 py-2 md:px-3" />
             </tr>
           </thead>
           <tbody>
             {zeilen.map((z) => (
               <tr key={z.mietvertragId} className={`border-t border-neutral-800 ${z.moeglich ? "" : "opacity-50"}`}>
-                <td className="px-3 py-2">
+                <td className="px-2 py-2 md:px-3">
                   <input
                     type="checkbox"
                     aria-label={`${z.wohnung} auswählen`}
@@ -106,7 +106,7 @@ export function SchreibenAuswahl({
                     onChange={() => umschalten(z.mietvertragId)}
                   />
                 </td>
-                <td className="px-3 py-2 text-neutral-300 md:whitespace-nowrap">
+                <td className="px-2 py-2 md:px-3 text-neutral-300 md:whitespace-nowrap">
                   {z.wohnung}
                   {/* Handy: Mieter und Beträge stehen unter der Wohnung (die Auswahl-Kästchen gibt es nur einmal). */}
                   <span className="mt-0.5 block text-xs text-white md:hidden">
@@ -117,16 +117,16 @@ export function SchreibenAuswahl({
                     Kosten {euro(z.kostenanteil)} · Vorauszahlung {euro(z.vorauszahlung)}
                   </span>
                 </td>
-                <td className="hidden px-3 py-2 text-white md:table-cell">
+                <td className="hidden px-2 py-2 md:px-3 text-white md:table-cell">
                   {z.mieter}
                   {z.beendet && <span className="ml-2 text-xs text-amber-400">ausgezogen – Anschrift ergänzen</span>}
                 </td>
-                <td className="hidden px-3 py-2 text-right text-neutral-300 md:table-cell">{euro(z.kostenanteil)}</td>
-                <td className="hidden px-3 py-2 text-right text-neutral-300 md:table-cell">{euro(z.vorauszahlung)}</td>
-                <td className={`px-3 py-2 text-right md:whitespace-nowrap ${z.saldo < -0.005 ? "text-red-400" : "text-green-400"}`}>
+                <td className="hidden px-2 py-2 md:px-3 text-right text-neutral-300 md:table-cell">{euro(z.kostenanteil)}</td>
+                <td className="hidden px-2 py-2 md:px-3 text-right text-neutral-300 md:table-cell">{euro(z.vorauszahlung)}</td>
+                <td className={`px-2 py-2 md:px-3 text-right md:whitespace-nowrap ${z.saldo < -0.005 ? "text-red-400" : "text-green-400"}`}>
                   {Math.abs(z.saldo) < 0.005 ? "ausgeglichen" : z.saldo < 0 ? `Nachzahlung ${euro(-z.saldo)}` : `Guthaben ${euro(z.saldo)}`}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-2 py-2 md:px-3 text-right">
                   {z.moeglich ? (
                     <a href={url([z.mietvertragId])} target="_blank" rel="noreferrer" className="text-neutral-300 underline hover:text-white">
                       PDF

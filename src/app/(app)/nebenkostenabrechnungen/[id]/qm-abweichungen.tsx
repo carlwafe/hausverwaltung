@@ -92,7 +92,7 @@ export function QmAbweichungen({
           <thead className="text-left text-xs uppercase text-neutral-500">
             <tr>
               <th className="py-1 pr-3">Kostenkreis</th>
-              <th className="py-1 pr-3 text-right">Unsere Fläche</th>
+              <th className="hidden py-1 pr-3 text-right md:table-cell">Unsere Fläche</th>
               <th className="py-1 pr-3 text-right">Fläche Verwalter</th>
               <th />
             </tr>
@@ -100,11 +100,17 @@ export function QmAbweichungen({
           <tbody>
             {abweichungen.map((a) => (
               <tr key={a.id} className="border-t border-neutral-800">
-                <td className="py-1.5 pr-3 text-white">{a.label}</td>
-                <td className="whitespace-nowrap py-1.5 pr-3 text-right text-neutral-400">
+                <td className="py-1.5 pr-3 text-white">
+                  {a.label}
+                  {/* Handy: unsere Fläche steht unter dem Kostenkreis. */}
+                  <span className="block text-xs text-neutral-400 md:hidden">
+                    unsere Fläche: {a.qmEcht !== null ? formatQm(a.qmEcht) : "–"}
+                  </span>
+                </td>
+                <td className="hidden whitespace-nowrap py-1.5 pr-3 text-right text-neutral-400 md:table-cell">
                   {a.qmEcht !== null ? formatQm(a.qmEcht) : "–"}
                 </td>
-                <td className="whitespace-nowrap py-1.5 pr-3 text-right text-amber-400">{formatQm(a.qmVerwalter)}</td>
+                <td className="whitespace-nowrap py-1.5 pr-3 text-right align-top text-amber-400">{formatQm(a.qmVerwalter)}</td>
                 <td className="py-1.5 text-right">
                   <DeleteButton
                     action={loescheQmAbweichung.bind(null, a.id, abrechnungId)}
