@@ -11,7 +11,7 @@ export default async function LastschriftMandatePage() {
         <p className="text-sm text-neutral-400">
           Hier lassen sich SEPA-Lastschriftmandate zum Ausdrucken erstellen (Mieter und Mietobjekt sind eingetragen;
           Kontoinhaber, Bank, IBAN, Datum und Unterschrift füllt der Mieter aus). Gläubigerin ist die Vermieterin;
-          Gläubiger, Anschrift und Gläubiger-ID stehen beim Objekt (Verwaltung → Objekt → SEPA-Lastschrift). Es wird
+          Gläubiger, Anschrift und Gläubiger-ID stehen beim Objekt (Einstellungen → Objekt → SEPA-Lastschrift). Es wird
           nichts gespeichert — das unterschriebene Mandat als Scan in der Mieterakte ablegen (Dokumente). Bei einem
           neuen Mandat die Mandatsreferenz je Einheit hochzählen.
         </p>

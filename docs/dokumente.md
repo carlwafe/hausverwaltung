@@ -116,7 +116,7 @@ Die Jahresabrechnung (z.B. Wasser-Rechnung + Abwasser-Bescheid in einem PDF) nen
 
 ## Kostenbelege
 
-**Löschsperre:** Dokumente mit `buchungId` (Nachweis für Finanzamt und Nebenkostenabrechnung; keine GoBD-Pflicht, aber Beweislast) werden **nicht gelöscht, sondern ausgeblendet** (`Dokument.ausgeblendetAm/ausgeblendetVon`, `blendeDokumentAus`/`stelleDokumentWiederHer`; `deleteDokument` lehnt sie ab). Ausgeblendete fehlen in allen Listen der Ablage und erscheinen nur auf der Kostenposition unter „Ausgeblendete Belege“ mit „Wiederherstellen“. Andere Dokumente bleiben löschbar; ob Mieterakten ebenfalls gesperrt werden, ist offen.
+**Löschsperre:** Dokumente mit `buchungId` (Nachweis für Finanzamt und Betriebskostenabrechnung; keine GoBD-Pflicht, aber Beweislast) werden **nicht gelöscht, sondern ausgeblendet** (`Dokument.ausgeblendetAm/ausgeblendetVon`, `blendeDokumentAus`/`stelleDokumentWiederHer`; `deleteDokument` lehnt sie ab). Ausgeblendete fehlen in allen Listen der Ablage und erscheinen nur auf der Kostenposition unter „Ausgeblendete Belege“ mit „Wiederherstellen“. Andere Dokumente bleiben löschbar; ob Mieterakten ebenfalls gesperrt werden, ist offen.
 - Beim Ersetzen einer Kostenposition per Storno wandern die Belege mit (Checkliste in `CLAUDE.md` → „Storno statt Ändern“). Eine bloß stornierte Position behält ihre Belege.
 
 **Ein Beleg für mehrere Kostenpositionen** (`DokumentBuchung`, Tabelle `dokument_buchungen`): Bei laufenden Abschlägen (Allgemeinstrom, Wasser, Versicherungsraten) gehört **eine** Jahresrechnung oder ein Abschlagsplan zu allen Positionen des Jahres.
@@ -127,7 +127,7 @@ Die Jahresabrechnung (z.B. Wasser-Rechnung + Abwasser-Bescheid in einem PDF) nen
 
 ## Belegprüfung und Belegpflicht
 
-**Belegprüfung der Nebenkostenabrechnung** (`src/lib/beleg-status.ts`, `beleg-pruefung.ts`): Der Mieter darf die Belege einsehen, deshalb soll jede umlagefähige Kostenposition ein Dokument haben (`Dokument.buchungId` oder `dokument_buchungen`, nicht ausgeblendet).
+**Belegprüfung der Betriebskostenabrechnung** (`src/lib/beleg-status.ts`, `beleg-pruefung.ts`): Der Mieter darf die Belege einsehen, deshalb soll jede umlagefähige Kostenposition ein Dokument haben (`Dokument.buchungId` oder `dokument_buchungen`, nicht ausgeblendet).
 - **Status je Position** (`ladeBelegStatus`, drei schmale Abfragen): BELEGT / AUSNAHME („Kein Beleg nötig“) / FEHLT / ENTFAELLT. **Aufgeteilte Positionen** (`aufteilungGruppeId`): ein Beleg an irgendeinem Teil deckt die ganze Gruppe.
 - **„Kein Beleg nötig“** (Pauschale, Gutschrift ohne Dokument) braucht eine Begründung und liegt in `buchung_beleg_ausnahmen`; beim Ersetzen per Storno wandert sie mit (`uebernehmeBelegAusnahme`).
 - **Wo:** Seite `/nebenkostenabrechnungen/[id]/belege` (Zähler, Liste ohne Beleg, Auswertung nach Kostenart; nur lesend, rechnet beim Aufruf); Spalte „Beleg“ + Filter „Umlage / Beleg“ in der Kosten-Liste (`KostenpositionRow.belegStatus`; zweites Filterfeld der `DataTable`, `selectFilter2` mit Prädikat `matches`, weil eine Zeile zu mehreren Optionen passen kann); Box „Beleg“ auf `/kosten/[id]` (`BelegAusnahme`); Hinweiszeile auf der Abrechnungsseite und eine **Bestätigungsfrage** vor „Als versendet markieren“, wenn Belege fehlen — bewusst **kein Sperren**.

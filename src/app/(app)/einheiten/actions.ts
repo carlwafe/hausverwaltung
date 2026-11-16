@@ -77,7 +77,7 @@ const wohnflaecheKorrekturSchema = z.object({
   notizen: z.string().optional(),
 });
 
-// Rückwirkende Korrektur für Jahre, in denen die Nebenkostenabrechnung mit einer anderen (z.B.
+// Rückwirkende Korrektur für Jahre, in denen die Betriebskostenabrechnung mit einer anderen (z.B.
 // historisch falsch eingetragenen) Wohnfläche gerechnet wurde als der heute in Einheit.wohnflaecheQm
 // hinterlegte, korrekte Wert — siehe WohnflaecheKorrektur und ladeBerechnungsdaten in
 // nebenkostenabrechnungen/actions.ts.

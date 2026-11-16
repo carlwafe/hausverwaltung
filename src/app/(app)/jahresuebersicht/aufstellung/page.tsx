@@ -86,13 +86,13 @@ export default async function AufstellungDruckPage({ searchParams }: { searchPar
             <Tabelle titel="Überschuss" zeilen={z.ueberschuss} />
             {z.zehnTage.length > 0 && <Tabelle titel="Hinweis: 10-Tage-Regel" zeilen={z.zehnTage} />}
             <p className="mt-6 text-[8.5pt] leading-snug text-neutral-700">
-              Grundlage: Mieten und Nebenkosten nach tatsächlichem Zahlungseingang (Zuflussprinzip), Kosten nach
+              Grundlage: Mieten und Betriebskosten nach tatsächlichem Zahlungseingang (Zuflussprinzip), Kosten nach
               Abbuchungsdatum. Zahlungen ab dem 22.12. für die Januarmiete des Folgejahres sind nach der
               10-Tage-Regel (§ 11 Abs. 1 Satz 2 EStG) dem Folgejahr zugeordnet, entsprechende Zahlungen des
               Vorjahres diesem Jahr. Die Umsatzsteuer auf Garagenmieten ist von der Kaltmiete getrennt
-              ausgewiesen; ihre Abführung an das Finanzamt ist hier nicht enthalten. Mieten und Nebenkosten: Zahlungen sind je Monat zuerst auf die
-              Nebenkosten-Vorauszahlung angerechnet, der Rest ist Kaltmiete. Ausgezahlte Nebenkosten-Guthaben
-              mindern die Nebenkosten-Einnahmen, Nachzahlungen erhöhen sie. Nicht enthalten: Absetzung für
+              ausgewiesen; ihre Abführung an das Finanzamt ist hier nicht enthalten. Mieten und Betriebskosten: Zahlungen sind je Monat zuerst auf die
+              Betriebskosten-Vorauszahlung angerechnet, der Rest ist Kaltmiete. Ausgezahlte Betriebskosten-Guthaben
+              mindern die Betriebskosten-Einnahmen, Nachzahlungen erhöhen sie. Nicht enthalten: Absetzung für
               Abnutzung. Schuldzinsen sind {daten.steuer.schuldzinsenAndere !== 0 ? "über das Mietkonto gezahlte Zinsen plus die Zinsen von anderen Konten laut Bankbescheinigung" : "nur enthalten, soweit die Darlehensraten über das Mietkonto gebucht wurden"}; die Tilgung ist keine Ausgabe.
               {z.anschaffung.length > 0 &&
                 " Anschaffungs- und Herstellungskosten (z. B. Einbauküchen, Modernisierung) sind nicht in den Kosten enthalten, sondern gesondert ausgewiesen; die Abschreibung bestimmt der Steuerberater."}

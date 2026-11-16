@@ -762,7 +762,7 @@ export function WeitereKostenBox({ id, zeilen, bearbeitbar }: { id: string; zeil
       <h2 className="mb-1 text-lg font-medium text-white">Weitere Kostenpositionen{zeilen.length > 0 ? ` (${zeilen.length})` : ""}</h2>
       <p className="mb-3 text-xs text-neutral-500">
         Dasselbe Dokument ist der Beleg für mehrere Kostenpositionen, z.B. eine Jahresrechnung für zwölf Abschläge. Diese Positionen gelten in der
-        Belegprüfung der Nebenkostenabrechnung als belegt und zeigen den Beleg auf ihrer Seite. Die Zuordnung lässt sich jederzeit lösen.
+        Belegprüfung der Betriebskostenabrechnung als belegt und zeigen den Beleg auf ihrer Seite. Die Zuordnung lässt sich jederzeit lösen.
       </p>
       {zeilen.length > 0 && (
         <ul className="mb-4 divide-y divide-neutral-800 rounded-md border border-neutral-800 text-sm">

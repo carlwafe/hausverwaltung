@@ -112,7 +112,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
             Jahressummen; hier steht jede Rate mit Zins- und Tilgungsanteil, gerechnet aus Restschuld, Zinssatz und Rate
             (Zins = Restschuld × Satz ÷ 12). Die Rechnung gibt den Plan der Bank auf den Cent wieder, ersetzt aber nicht
             die Bescheinigung: Nach Ende der Zinsbindung oder bei Sondertilgungen den neuen Stand eintragen. Gebuchte
-            Raten stehen unter Finanzen → Darlehen.
+            Raten stehen unter Geld → Darlehen.
           </p>
         </div>
         {kannBearbeiten && (

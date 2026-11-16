@@ -100,13 +100,13 @@ const kautionAufteilungSchema = z.object({
 });
 
 /**
- * Teilt eine Kautionsbuchung, deren Überweisung zugleich ein ausgezahltes Nebenkosten-Guthaben
+ * Teilt eine Kautionsbuchung, deren Überweisung zugleich ein ausgezahltes Betriebskosten-Guthaben
  * enthält (Sammelüberweisung, z.B. "Guthaben BK-Abr 2023 + Kaution"), in den Kautionsanteil (gleiche Kategorie) und
  * einen NEBENKOSTENAUSGLEICH fürs angegebene Abrechnungsjahr auf. Beide Teile behalten Bankvorzeichen,
  * Rohdaten und Import-Bezug und teilen sich die aufteilungGruppeId (= Id des stornierten Originals),
  * damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
- * Eine mit der Kaution verrechnete Nachzahlung (positiver Nebenkostenanteil) wird nicht aufgeteilt,
- * sondern als Einbehalt "Verrechnung mit Nebenkostenabrechnung" gebucht.
+ * Eine mit der Kaution verrechnete Nachzahlung (positiver Betriebskostenanteil) wird nicht aufgeteilt,
+ * sondern als Einbehalt "Verrechnung mit Betriebskostenabrechnung" gebucht.
  */
 export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbuchungAuf(id: string, _prev: string | null, formData: FormData): Promise<string | null> {
   const user = await requireEditor();
@@ -131,11 +131,11 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
 
   const gesamt = Number(original.betrag);
   const nkBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
-  // Ein positiver Nebenkostenanteil wäre eine mit der Kaution verrechnete Nachzahlung (z.B. Kaution
+  // Ein positiver Betriebskostenanteil wäre eine mit der Kaution verrechnete Nachzahlung (z.B. Kaution
   // -100 €, Nachzahlung +67,34 €, überwiesen -32,66 €): die Bankzeile bleibt dann 1:1 die Auszahlung,
   // die Verrechnung ist ein Einbehalt (Kautionen → Einbehalt erfassen → Verrechnung mit NK-Abrechnung).
   if (nkBetrag > 0.005 && gesamt < 0)
-    return "Eine mit der Kaution verrechnete Nachzahlung wird nicht aufgeteilt: Auszahlung unverändert lassen und die Verrechnung als Einbehalt \"Verrechnung mit Nebenkostenabrechnung\" erfassen.";
+    return "Eine mit der Kaution verrechnete Nachzahlung wird nicht aufgeteilt: Auszahlung unverändert lassen und die Verrechnung als Einbehalt \"Verrechnung mit Betriebskostenabrechnung\" erfassen.";
   if (Math.abs(nkBetrag) < 0.005)
     return `Der Kautionsanteil entspricht der ganzen Buchung (${gesamt.toFixed(2)} €) — dann gibt es nichts aufzuteilen.`;
 
@@ -174,7 +174,7 @@ function revalidiereKautionAufteilung(mietvertragId: string | null) {
 
 /**
  * Macht die Aufteilung einer Kautionsbuchung rückgängig: alle aktiven Teile (Kaution,
- * Nebenkostenausgleich, Gebühren-Zahlung) werden storniert und zu einer einzigen Kautionsbuchung
+ * Betriebskostenausgleich, Gebühren-Zahlung) werden storniert und zu einer einzigen Kautionsbuchung
  * (Betrag = Summe, Bankvorzeichen) zusammengeführt.
  */
 export async function hebeKautionAufteilungAuf(id: string) {
@@ -233,7 +233,7 @@ const kautionsbuchungSchema = z.object({
 });
 
 // Für Fälle, die sich nicht aus einer einzelnen Kontobuchung ergeben (z.B. ein einbehaltener
-// Kautionsrest, der teils für eine Reparatur verwendet und teils in einer Nebenkostenabrechnung
+// Kautionsrest, der teils für eine Reparatur verwendet und teils in einer Betriebskostenabrechnung
 // verrechnet wurde, ohne dass dafür je eine als "Kaution" erkennbare Auszahlung überwiesen
 // wurde) — legt eine Kautionsbuchung ohne Rohdaten/Import-Bezug an, damit sich Einbehalten/Status
 // auf der Kautionen-Seite trotzdem korrekt berechnen, siehe kautionsbuchungen-table.tsx
@@ -271,7 +271,7 @@ export const erstelleKautionsbuchung = mitMeldung(async function erstelleKaution
       } else {
         // Die bezahlte Rechnung selbst wurde gewählt (z.B. Reparatur, mit der Kaution verrechnet):
         // die Gutschrift als Gegenbuchung legt das System an, die Rechnung bleibt unverändert. So
-        // hebt sich die Ausgabe in Kontostand, Jahresübersicht und Nebenkostenabrechnung auf.
+        // hebt sich die Ausgabe in Kontostand, Jahresübersicht und Betriebskostenabrechnung auf.
         const gutschriftBetrag = Math.abs(betrag);
         if (gutschriftBetrag > Number(kosten.betrag) + 0.005) {
           throw new AktionsFehler("Der Kautionsbetrag ist größer als die gewählte Rechnung.");
@@ -317,7 +317,7 @@ const einbehaltSchema = z.object({
   betrag: z.coerce.number().positive("Betrag muss größer als 0 sein"),
   status: z.enum(EINBEHALT_STATUS_WERTE),
   // Optional: Datum, an dem der Einbehalt wirksam wurde (sonst heute), und das Abrechnungsjahr der
-  // Nebenkostenabrechnung, mit der er verrechnet wurde (deckt deren Nachzahlung).
+  // Betriebskostenabrechnung, mit der er verrechnet wurde (deckt deren Nachzahlung).
   datum: z.string().optional(),
   nkJahr: z.coerce.number().int().min(2000).max(2100).optional(),
   pauschal: z.boolean().optional(),

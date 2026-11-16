@@ -49,7 +49,7 @@ export type Zeitraum = {
   von: Date;
   bis: Date;
   bisExklusiv: Date;
-  // Q1/Q2: offene Nebenkostenabrechnung des Vorjahres bleibt außen vor (Abrechnung meist erst in Q3).
+  // Q1/Q2: offene Betriebskostenabrechnung des Vorjahres bleibt außen vor (Abrechnung meist erst in Q3).
   mitNkOffen: boolean;
   label: string;
   anfangText: string;
@@ -99,7 +99,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
       where: {
         buchungsart: { eurRelevant: true, code: "KOSTENPOSITION" },
         // Abflussprinzip: es zählt das Abbuchungsdatum, nicht das Kostenjahr (`jahr` gilt nur für
-        // die Nebenkostenabrechnung) — z.B. ein Abfallbescheid 2024, abgebucht am 2.1.2025, zählt
+        // die Betriebskostenabrechnung) — z.B. ein Abfallbescheid 2024, abgebucht am 2.1.2025, zählt
         // für 2025. Die 10-Tage-Regel (§ 11 Abs. 2 Satz 2 EStG) ist für Kosten bewusst nicht umgesetzt.
         // Positionen ohne Datum fallen aufs Kostenjahr zurück und sind keinem Quartal zuordenbar.
         OR: [
@@ -156,7 +156,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
       case "KAUTION_EINBEHALT":
         kautionEinbehalte += -betrag;
         // Für die Steuer-Aufstellung nach Art: Verrechnung mit Mieterkonto (Miete), mit der
-        // Nebenkostenabrechnung (Abrechnungsjahr gesetzt) oder pauschaler Einbehalt.
+        // Betriebskostenabrechnung (Abrechnungsjahr gesetzt) oder pauschaler Einbehalt.
         if (b.bezugTyp === MIETERKONTO_VERRECHNUNG_BEZUG) kautionMitMiete += -betrag;
         else if (b.jahr !== null) kautionMitNk += -betrag;
         else kautionPauschal += -betrag;
@@ -296,7 +296,7 @@ async function ladeMietAufteilung(zeitraum: Zeitraum) {
         datum: z.datum!,
         reihenfolge: z.erstelltAm.getTime(),
         betrag: Number(z.betrag),
-        // Ohne Mietperiode zählt der Monat des Buchungsdatums (wie in der Nebenkostenabrechnung).
+        // Ohne Mietperiode zählt der Monat des Buchungsdatums (wie in der Betriebskostenabrechnung).
         periodeJahr: z.periodeJahr ?? z.datum!.getFullYear(),
         periodeMonat: z.periodeMonat ?? z.datum!.getMonth() + 1,
       })),
@@ -426,7 +426,7 @@ export async function ladeMieterZeilen(zeitraum: Zeitraum) {
       select: { mietvertragId: true, periodeMonat: true, periodeJahr: true, betrag: true },
     }),
     // Tatsächlich gezahlte/erhaltene Summe je Mietvertrag+Abrechnungsjahr aus dem
-    // Nebenkostenausgleich-Journal (dieselbe Quelle wie die "Rückzahlung/Gutschrift"-Spalte auf
+    // Betriebskostenausgleich-Journal (dieselbe Quelle wie die "Rückzahlung/Gutschrift"-Spalte auf
     // der Abrechnungs-Detailseite) — ersetzt das frühere, direkt auf der Position gepflegte
     // beglichenBetrag.
     prisma.buchung.findMany({
@@ -616,11 +616,11 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           </summary>
           <div className="mt-3">
           <p className="mb-3 text-sm text-neutral-400">
-            Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Nebenkostenabrechnung offen (Vorjahr).
-            Soll = Kaltmiete + Nebenkosten (bei Garagen: Mehrwertsteuer statt Nebenkosten). Negativ = Rückstand, positiv = Guthaben.
+            Saldo neu = Saldo alt − Soll + Miete (+ Gebühren/Sonderforderungen) + Betriebskostenabrechnung offen (Vorjahr).
+            Soll = Kaltmiete + Betriebskosten (bei Garagen: Mehrwertsteuer statt Betriebskosten). Negativ = Rückstand, positiv = Guthaben.
           </p>
           <p className="mb-3 text-sm text-neutral-400">
-            &bdquo;Nebenkostenabrechnung offen (Vorjahr)&ldquo;: offener Saldo der {jahr - 1}er-Abrechnung (positiv = Guthaben,
+            &bdquo;Betriebskostenabrechnung offen (Vorjahr)&ldquo;: offener Saldo der {jahr - 1}er-Abrechnung (positiv = Guthaben,
             negativ = Nachzahlung), fließt erst in Saldo neu ein. &bdquo;Gutschrift unbezahlte NK-Vorauszahlung&ldquo; gleicht
             den unbezahlten Teil der Vorauszahlung aus (steht schon als Rückstand im Soll) und zählt ab dem Versanddatum
             der Abrechnung; eine nicht versendete Abrechnung zählt gar nicht.
@@ -712,7 +712,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                   <tr className="border-b border-neutral-800">
                     <td className="px-4 py-2 text-white">
                       <Link href="/nebenkostenabrechnungen" className="hover:underline">
-                        Nebenkosten-Nachzahlungen eingezogen
+                        Betriebskosten-Nachzahlungen eingezogen
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-white">
@@ -778,7 +778,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
                   <tr className="border-b border-neutral-800">
                     <td className="px-4 py-2 text-white">
                       <Link href="/nebenkostenabrechnungen" className="hover:underline">
-                        Nebenkosten-Guthaben ausgezahlt
+                        Betriebskosten-Guthaben ausgezahlt
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-white">
@@ -907,7 +907,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
 
 type JahresDaten = Awaited<ReturnType<typeof ladeJahresuebersicht>>;
 
-// Aufstellung für den Steuerberater (Anlage V): dasselbe Ergebnis wie oben, aber Mieten und Nebenkosten
+// Aufstellung für den Steuerberater (Anlage V): dasselbe Ergebnis wie oben, aber Mieten und Betriebskosten
 // getrennt, Instandhaltung separat und die übrigen Kosten nach umlagefähig / nicht umlagefähig.
 // AfA ist nicht im Journal — der Überschuss gilt vor ihr. Schuldzinsen: über das Mietkonto gebuchte plus die Jahreswerte
 // von anderen Konten (Seite „Darlehen“, laut Bankbescheinigung).
@@ -923,10 +923,10 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         (st.kautionMitMiete !== 0 ? `; darin ${formatEuro(st.kautionMitMiete)} mit Kaution verrechnet` : ""),
     },
     ...(st.umsatzsteuer !== 0
-      ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer, hinweis: "anteilig aus den Garagen-Zahlungen, keine Nebenkosten" }]
+      ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer, hinweis: "anteilig aus den Garagen-Zahlungen, keine Betriebskosten" }]
       : []),
     {
-      text: "Vereinnahmte Nebenkosten",
+      text: "Vereinnahmte Betriebskosten",
       betrag: st.nebenkosten,
       hinweis: "Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben",
     },
@@ -991,7 +991,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
     <div className="mb-6">
       <h2 className="mb-3 text-lg font-medium text-white">Aufstellung für die Steuererklärung {jahr}</h2>
       <p className="mb-3 max-w-3xl text-sm text-neutral-400">
-        Wie oben, gegliedert für die Anlage V: vereinnahmte Mieten und Nebenkosten getrennt, Instandhaltung separat,
+        Wie oben, gegliedert für die Anlage V: vereinnahmte Mieten und Betriebskosten getrennt, Instandhaltung separat,
         übrige Kosten nach umlagefähig / nicht umlagefähig. Nicht enthalten: AfA (Anschaffungs- und Herstellungskosten
         stehen gesondert darunter); Schuldzinsen = Mietkonto plus Jahreswerte anderer Konten (Seite „Darlehen“).
       </p>
@@ -1096,13 +1096,13 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
         <div className="mt-3 max-w-3xl space-y-2 text-sm text-neutral-400">
           <p>
             Grundlage ist die Rückmeldung des Steuerberaters: Ein Jahresbericht genügt; wichtig sind vereinnahmte Mieten und
-            Nebenkosten, separate Instandhaltung und die Unterteilung der Kosten in umlagefähig / nicht umlagefähig.
+            Betriebskosten, separate Instandhaltung und die Unterteilung der Kosten in umlagefähig / nicht umlagefähig.
           </p>
           <p>
-            Mieten und Nebenkosten: Jede Mietzahlung wird je Mietmonat zuerst auf die NK-Vorauszahlung angerechnet (höchstens
+            Mieten und Betriebskosten: Jede Mietzahlung wird je Mietmonat zuerst auf die NK-Vorauszahlung angerechnet (höchstens
             das NK-Soll, § 366 Abs. 2 BGB), der Rest ist Kaltmiete; bei Teilzahlungen gilt ab Mietjahr 2025 die anteilige
             Aufteilung (NK-Anteil auf volle Euro gerundet), bis 2024 zuerst die NK. Der Zeitraum richtet sich nach dem
-            Zahlungsdatum, die Aufteilung nach dem Mietmonat. NK-Guthaben mindern die Nebenkosten-Einnahmen, Nachzahlungen
+            Zahlungsdatum, die Aufteilung nach dem Mietmonat. NK-Guthaben mindern die Betriebskosten-Einnahmen, Nachzahlungen
             erhöhen sie (Anlage V, Z. 13); im Bericht oben stehen sie als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.
           </p>
           <p>
@@ -1112,7 +1112,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
           </p>
           <p>
             Umsatzsteuer: Garagenmieten enthalten Umsatzsteuer; sie steht als eigene Zeile, nicht in Kaltmiete oder
-            Nebenkosten. Die Abführung ans Finanzamt ist in der App nicht erfasst.
+            Betriebskosten. Die Abführung ans Finanzamt ist in der App nicht erfasst.
           </p>
           <p>
             Nicht enthalten: AfA (der Überschuss gilt vor ihr) und Tilgung (keine Ausgabe). Ohne die Jahreswerte von anderen

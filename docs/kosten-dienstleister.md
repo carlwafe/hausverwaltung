@@ -25,7 +25,7 @@ Die Stadt bucht je Haus-Gruppe eine Rate ab, die aus Grundsteuer und Straßenrei
 
 ## Heizungswartung über Techem
 
-Die Kostenart "Wartungsarbeiten Heizung (über Techem verrechnet)" ist **umlagefähig mit dem Schlüssel `IN_ABRECHNUNG_ENTHALTEN`** — bewusst: Techem verrechnet die Wartung in der Heizkostenabrechnung, die App erfasst sie nur als Kosten. Dadurch läuft sie nicht in die Nebenkostenabrechnung (dort nur der Hinweis „Bereits in der Techem-Abrechnung … enthalten“) und kann nicht doppelt umgelegt werden. Rechnungen des Heizungsbauers (Wartung + Reparatur) werden aufgeteilt: Wartungsanteil auf diese Kostenart, Reparatur auf "Reparaturen" (nicht umlagefähig). Der Vorverwalter bucht alles als nicht umlagefähig — Summe gleich, Aufteilung anders.
+Die Kostenart "Wartungsarbeiten Heizung (über Techem verrechnet)" ist **umlagefähig mit dem Schlüssel `IN_ABRECHNUNG_ENTHALTEN`** — bewusst: Techem verrechnet die Wartung in der Heizkostenabrechnung, die App erfasst sie nur als Kosten. Dadurch läuft sie nicht in die Betriebskostenabrechnung (dort nur der Hinweis „Bereits in der Techem-Abrechnung … enthalten“) und kann nicht doppelt umgelegt werden. Rechnungen des Heizungsbauers (Wartung + Reparatur) werden aufgeteilt: Wartungsanteil auf diese Kostenart, Reparatur auf "Reparaturen" (nicht umlagefähig). Der Vorverwalter bucht alles als nicht umlagefähig — Summe gleich, Aufteilung anders.
 
 ## Anwalts- und Gerichtskosten
 

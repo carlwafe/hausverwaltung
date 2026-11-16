@@ -1029,7 +1029,7 @@ export function BuchungenTabelle({
                               </select>
                             ) : (
                               <p className="text-[11px] text-amber-400">
-                                Noch kein Darlehen in den Stammdaten (Darlehen &amp; Tilgungspläne) — die Rate wird ohne Darlehen gebucht.
+                                Noch kein Darlehen angelegt (Geld → Tilgungspläne) — die Rate wird ohne Darlehen gebucht.
                               </p>
                             )}
                             <select
@@ -1105,7 +1105,7 @@ export function BuchungenTabelle({
                                 return (
                                   <p className="text-[11px] text-neutral-500">
                                     Keine Rate eines Tilgungsplans mit diesem Betrag und Datum — Zinsanteil von Hand eintragen (z.B. nach
-                                    Sondertilgung oder Zinsänderung; Tilgungspläne unter Stammdaten → Darlehen &amp; Tilgungspläne).
+                                    Sondertilgung oder Zinsänderung; Tilgungspläne unter Geld → Tilgungspläne).
                                   </p>
                                 );
                               }

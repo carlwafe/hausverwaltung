@@ -10,7 +10,7 @@ Das SEPA-Mandat (`mandat-blatt.tsx`) und die Steueraufstellung (`aufstellung/pag
 
 ## Indexmiete und Mieterhöhungen
 
-§ 557b BGB. Seiten: Liste `/mietvertraege/moegliche-erhoehungen` (Menü „Mieterhöhung“ unter Stammdaten; die Spalte heißt weiter „Mieterhöhung möglich ab“, die Spalten sind nur Vorschau), Pflege `/mietvertraege/vpi-werte`, Schreiben `/mietvertraege/[id]/indexerhoehung`; Regeln in `src/lib/indexmiete.ts`.
+§ 557b BGB. Seiten: Liste `/mietvertraege/moegliche-erhoehungen` (Menü „Mieterhöhung“ unter Vermietung; die Spalte heißt weiter „Mieterhöhung möglich ab“, die Spalten sind nur Vorschau), Pflege `/mietvertraege/vpi-werte`, Schreiben `/mietvertraege/[id]/indexerhoehung`; Regeln in `src/lib/indexmiete.ts`.
 
 **Vertrag:** Die Wohnungsverträge sehen eine Indexmiete vor (Garagen nicht, siehe `docs/mietvertraege-mieter.md`): Miete folgt dem VPI für Deutschland, mindestens ein Jahr unverändert (Erhöhungen nach §§ 559/560 ausgenommen), Erklärung in Textform mit Indexänderung und Geldbetrag, neue Miete ab dem übernächsten Monat nach Zugang.
 
@@ -29,7 +29,7 @@ Das SEPA-Mandat (`mandat-blatt.tsx`) und die Steueraufstellung (`aufstellung/pag
 
 ## Anpassung der NK-Vorauszahlung
 
-§ 560 Abs. 4 BGB. Liste „NK-Anpassung“ unter Stammdaten = `/mietvertraege/nk-anpassung` (alle aktiven Verträge mit Abrechnung: neueste Abrechnung, Kostenanteil (bei unterjähriger Nutzung „auf 12 Monate“ hochgerechnet) → Kosten/Monat, Vorauszahlung jetzt, Vorschlag, Änderung, „Angepasst“ = nach dem Abrechnungsjahr schon eine Mieterhöhung erfasst; Filter und Summenzeile, nichts gespeichert). „Erstellen“ öffnet `/mietvertraege/[id]/nk-anpassung`. Auf der Vertragsseite steht nur noch ein Link bei der neuesten Abrechnung (spart dort die Mandats-Abfrage).
+§ 560 Abs. 4 BGB. Liste „NK-Anpassung“ unter Vermietung = `/mietvertraege/nk-anpassung` (alle aktiven Verträge mit Abrechnung: neueste Abrechnung, Kostenanteil (bei unterjähriger Nutzung „auf 12 Monate“ hochgerechnet) → Kosten/Monat, Vorauszahlung jetzt, Vorschlag, Änderung, „Angepasst“ = nach dem Abrechnungsjahr schon eine Mieterhöhung erfasst; Filter und Summenzeile, nichts gespeichert). „Erstellen“ öffnet `/mietvertraege/[id]/nk-anpassung`. Auf der Vertragsseite steht nur noch ein Link bei der neuesten Abrechnung (spart dort die Mandats-Abfrage).
 
 - **Grundlage** ist immer die neueste Abrechnung. Endet der Vertrag bis zum Jahresende der Abrechnung, entfällt die Anpassung (Vertrag fehlt in der Liste, die Schreiben-Seite nennt den Grund). Ohne Kostenanteil (z.B. Platzhalter-Position) zeigt die Liste „–“ statt eines irreführenden Vorschlags von 0 €.
 - **Vorschlag** (`src/lib/vorauszahlung-vorschlag.ts`, `STANDARD_ZUSCHLAG_PROZENT`) = Kostenanteil (bei unterjähriger Nutzung über `details[].anteilJahr` auf 12 Monate hochgerechnet) ÷ 12 plus Zuschlag, aufgerundet auf volle Euro (z.B. 1.234,56 € → 102,88 € → mit 3 % → 106 €).

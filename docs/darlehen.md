@@ -21,7 +21,7 @@ Seit November 2026 werden die Darlehen der Vermieterin (für das Objekt aufgenom
 
 ## Zuordnung zum Darlehen und Seite „Darlehen“
 
-`/darlehen` (Menü Finanzen): je Jahr Raten, Zinsen, Tilgung und die einzelnen Raten; Löschen storniert beide Teile; Kontostand-Kategorie „Darlehenstilgung“.
+`/darlehen` (Menü Geld): je Jahr Raten, Zinsen, Tilgung und die einzelnen Raten; Löschen storniert beide Teile; Kontostand-Kategorie „Darlehenstilgung“.
 
 - **Darlehen je Rate** (Tabelle `darlehen_zuordnungen`, `DarlehenZuordnung`; eigene Tabelle, da Buchungen unveränderlich): Anker ist die **Tilgung**, bei reiner Zinsbuchung der Zins. `ordneDarlehenZu` setzt/ersetzt/entfernt, `legeDarlehensrateAn` legt sie beim Import an. Nachträglich über die Spalte „Darlehen“ (Dropdown, speichert sofort, `ordneDarlehensrateZu`); Raten ohne Darlehen sind amber markiert. Auch reine Zinsbuchungen (z.B. eine als Kosten importierte Rate) erscheinen dort und lassen sich löschen und neu als Darlehensrate erfassen.
 - Stolperfalle: Die Zuordnung hängt an der Buchung — wird nur die Zinsbuchung bearbeitet, bleibt sie an der Tilgung; nach dem Löschen einer Rate bleibt eine inaktive Zuordnungszeile stehen (zählt nirgends).
@@ -37,7 +37,7 @@ Raten, die vor dem Wechsel aufs Mietkonto von einem anderen Konto gezahlt wurden
 - In der Aufstellung für die Steuererklärung zählen sie zu den Kosten (`schuldzinsenAndere`, Anlage und CSV listen sie, `schuldzinsenAndereZeilen`), **nicht** im Jahresbericht, Kontostand oder Kontenabgleich — die Überleitung hat die Zeile „Abzüglich Schuldzinsen von anderen Konten“. Geladen nur im Gesamtjahr.
 - **Offen für 2026:** Jahreswerte je Darlehen eintragen (Zeiträume je nach Wechsel aufs Mietkonto) und im Januar 2027 gegen die Bescheinigungen der Bank prüfen.
 
-## Darlehen & Tilgungspläne (Stammdaten)
+## Darlehen & Tilgungspläne (Menü Geld → Tilgungspläne)
 
 `/darlehen/tilgungsplan`, Tabelle `darlehen`. Die Bank druckt im Zins- und Tilgungsplan nur die ersten Jahre einzeln, danach nur Jahressummen. Die Seite rechnet **jede Rate nach** (`berechneTilgungsplan`, `src/lib/tilgungsplan.ts`, reine Funktion):
 

@@ -7,51 +7,155 @@ import { Logo } from "@/components/logo";
 import { signOut } from "next-auth/react";
 
 type NavLink = { href: string; label: string };
+// Abschnitt = Zwischenüberschrift in einem Menü (ohne Titel: nur eine Liste).
+type NavAbschnitt = { titel?: string; links: NavLink[] };
+type NavGruppe = { label: string; abschnitte: NavAbschnitt[] };
 
-const STAMMDATEN: NavLink[] = [
-  { href: "/mietvertraege", label: "Mietverträge" },
-  { href: "/mieter", label: "Mieter" },
-  { href: "/mietvertraege/moegliche-erhoehungen", label: "Mieterhöhung" },
-  { href: "/mietvertraege/nk-anpassung", label: "NK-Anpassung" },
-  { href: "/mietvertraege/lastschrift-mandate", label: "Lastschrift-Mandate" },
-  { href: "/einheiten", label: "Einheiten" },
-  { href: "/einheiten/zeitachse", label: "Zeitachse" },
-  { href: "/leerstand", label: "Leerstand" },
-  { href: "/gebaeude", label: "Gebäude" },
-  { href: "/darlehen/tilgungsplan", label: "Darlehen & Tilgungspläne" },
-  { href: "/buchungsarten", label: "Buchungsarten" },
-  { href: "/dienstleister", label: "Handwerker & Dienstleister" },
+// Direkt in der Leiste (ohne Dropdown). Das Dashboard („/“) steht davor und wird gesondert geprüft.
+const DIREKT: NavLink[] = [
+  { href: "/tickets", label: "Tickets" },
   { href: "/dokumente", label: "Dokumente" },
 ];
 
-const FINANZEN: NavLink[] = [
-  { href: "/kontoauszug/import", label: "Importieren" },
-  { href: "/miete-monat", label: "Miete diesen Monat" },
-  { href: "/offene-posten", label: "Offene Posten" },
-  { href: "/zahlungen", label: "Zahlungen" },
-  { href: "/kosten", label: "Kosten" },
-  { href: "/kautionen", label: "Kautionen" },
-  { href: "/mietweiterleitungen", label: "Mietweiterleitungen" },
-  { href: "/darlehen", label: "Darlehen" },
-  { href: "/nebenkostenausgleich", label: "Nebenkostenausgleich" },
-  { href: "/kontostand", label: "Kontostand" },
-  { href: "/kontoprognose", label: "Kontoprognose" },
+// Gruppiert nach Aufgabe: Vermietung (alles am Mieter), Geld (laufender Zahlungsverkehr),
+// Objekt (Immobilie und Partner), Einstellungen (selten gebraucht, nur Admin).
+const VERMIETUNG: NavGruppe = {
+  label: "Vermietung",
+  abschnitte: [
+    {
+      titel: "Verträge",
+      links: [
+        { href: "/mietvertraege", label: "Mietverträge" },
+        { href: "/mieter", label: "Mieter" },
+        { href: "/kautionen", label: "Kautionen" },
+        { href: "/mietvertraege/lastschrift-mandate", label: "Lastschrift-Mandate" },
+      ],
+    },
+    {
+      titel: "Jährlich und Anpassungen",
+      links: [
+        { href: "/mietvertraege/moegliche-erhoehungen", label: "Mieterhöhung" },
+        { href: "/mietvertraege/nk-anpassung", label: "NK-Anpassung" },
+        { href: "/nebenkostenabrechnungen", label: "Nebenkostenabrechnung" },
+        { href: "/nebenkostenausgleich", label: "Nebenkostenausgleich" },
+      ],
+    },
+  ],
+};
+
+const GELD: NavGruppe = {
+  label: "Geld",
+  abschnitte: [
+    {
+      titel: "Laufend",
+      links: [
+        { href: "/kontoauszug/import", label: "Kontoauszug importieren" },
+        { href: "/miete-monat", label: "Miete diesen Monat" },
+        { href: "/offene-posten", label: "Offene Posten" },
+      ],
+    },
+    {
+      titel: "Buchungen",
+      links: [
+        { href: "/zahlungen", label: "Zahlungen" },
+        { href: "/kosten", label: "Kosten" },
+        { href: "/mietweiterleitungen", label: "Mietweiterleitungen" },
+      ],
+    },
+    {
+      titel: "Konto und Darlehen",
+      links: [
+        { href: "/kontostand", label: "Kontostand" },
+        { href: "/kontoprognose", label: "Kontoprognose" },
+        { href: "/darlehen", label: "Darlehen" },
+        { href: "/darlehen/tilgungsplan", label: "Tilgungspläne" },
+      ],
+    },
+    {
+      titel: "Auswertung",
+      links: [{ href: "/jahresuebersicht", label: "Jahresübersicht" }],
+    },
+  ],
+};
+
+const OBJEKT: NavGruppe = {
+  label: "Objekt",
+  abschnitte: [
+    {
+      links: [
+        { href: "/gebaeude", label: "Gebäude" },
+        { href: "/einheiten", label: "Einheiten" },
+        { href: "/einheiten/zeitachse", label: "Zeitachse" },
+        { href: "/leerstand", label: "Leerstand" },
+        { href: "/dienstleister", label: "Handwerker & Dienstleister" },
+      ],
+    },
+  ],
+};
+
+// Nur für Admins (die Seiten selbst prüfen die Rolle zusätzlich).
+const EINSTELLUNGEN: NavGruppe = {
+  label: "Einstellungen",
+  abschnitte: [
+    {
+      links: [
+        { href: "/objekt", label: "Objekt (Kontakt & Bank)" },
+        { href: "/buchungsarten", label: "Buchungsarten" },
+        { href: "/kostenarten", label: "Kostenarten" },
+        { href: "/mietvertraege/vpi-werte", label: "VPI-Werte" },
+        { href: "/benutzer", label: "Benutzer" },
+      ],
+    },
+  ],
+};
+
+const NAV_GRUPPEN: NavGruppe[] = [VERMIETUNG, GELD, OBJEKT];
+
+function gruppenLinks(gruppe: NavGruppe): NavLink[] {
+  return gruppe.abschnitte.flatMap((a) => a.links);
+}
+
+// Seiten, die nicht im Menü stehen, aber einen Tab-Titel bekommen (und beim aktiven Punkt
+// auf den passenden Menüpunkt verweisen können).
+const WEITERE_SEITEN: NavLink[] = [
+  { href: "/kontoauszug/importe", label: "Kontoauszug-Importe" },
+  { href: "/quartalsuebersicht", label: "Quartalsübersicht" },
+  { href: "/buchungen", label: "Buchungen" },
+  { href: "/haeuser", label: "Häuser" },
+  { href: "/konto", label: "Konto" },
 ];
 
-const ABRECHNUNG: NavLink[] = [
-  { href: "/nebenkostenabrechnungen", label: "Nebenkostenabrechnung" },
-  { href: "/jahresuebersicht", label: "Jahresübersicht" },
+const SEITENTITEL: NavLink[] = [
+  ...DIREKT,
+  ...[...NAV_GRUPPEN, EINSTELLUNGEN].flatMap(gruppenLinks),
+  ...WEITERE_SEITEN,
 ];
 
-const VERWALTUNG: NavLink[] = [
-  { href: "/objekt", label: "Objekt" },
-  { href: "/benutzer", label: "Benutzer" },
-];
+function seitenTitel(pathname: string): string {
+  const treffer = SEITENTITEL.filter((l) => pathname === l.href || pathname.startsWith(l.href + "/")).sort(
+    (a, b) => b.href.length - a.href.length,
+  )[0];
+  return treffer ? `${treffer.label} · Mietverwaltung Eutin` : "Mietverwaltung Eutin";
+}
 
-function NavDropdown({ label, links, pathname }: { label: string; links: NavLink[]; pathname: string }) {
+// Der Menüpunkt zur aktuellen Seite: längster passender Pfad, damit auch Unterseiten
+// (/mietvertraege/123) ihren Punkt markieren und /mietvertraege/nk-anpassung nicht „Mietverträge“.
+function aktiverHref(pathname: string, links: NavLink[]): string | null {
+  let treffer: string | null = null;
+  for (const l of links) {
+    if ((pathname === l.href || pathname.startsWith(l.href + "/")) && l.href.length > (treffer?.length ?? 0)) {
+      treffer = l.href;
+    }
+  }
+  return treffer;
+}
+
+// `rechts`: Menü endet bündig am rechten Rand des Knopfs — für die hinteren Gruppen, damit es auf
+// schmalen Desktop-Breiten (ab 768 px) nicht aus dem Fenster ragt.
+function NavDropdown({ gruppe, aktiv, rechts }: { gruppe: NavGruppe; aktiv: string | null; rechts: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const active = links.some((l) => l.href === pathname);
+  const active = gruppenLinks(gruppe).some((l) => l.href === aktiv);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -66,75 +170,44 @@ function NavDropdown({ label, links, pathname }: { label: string; links: NavLink
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm ${
           active ? "font-medium text-white" : "text-neutral-400 hover:text-white"
         }`}
       >
-        {label}
+        {gruppe.label}
         <span className="text-[10px]">▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-10 mt-2 w-48 rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg">
-          {links.map((link) => {
-            const linkActive = pathname === link.href;
-            return (
-              <Link prefetch={false}
-                key={link.href}
-                href={link.href}
-                onClick={() => setOpen(false)}
-                className={`block px-3 py-1.5 text-sm ${
-                  linkActive ? "font-medium text-white" : "text-neutral-400 hover:bg-neutral-900 hover:text-white"
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+        <div className={`absolute ${rechts ? "right-0" : "left-0"} top-full z-10 mt-2 w-60 rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg`}>
+          {gruppe.abschnitte.map((abschnitt, i) => (
+            <div key={abschnitt.titel ?? i} className={i > 0 ? "mt-1 border-t border-neutral-800 pt-1" : ""}>
+              {abschnitt.titel && (
+                <div className="px-3 pb-0.5 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                  {abschnitt.titel}
+                </div>
+              )}
+              {abschnitt.links.map((link) => (
+                <Link
+                  prefetch={false}
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className={`block px-3 py-1.5 text-sm ${
+                    link.href === aktiv
+                      ? "font-medium text-white"
+                      : "text-neutral-400 hover:bg-neutral-900 hover:text-white"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
-}
-
-const SEITENTITEL: NavLink[] = [
-  ...STAMMDATEN,
-  ...FINANZEN,
-  ...ABRECHNUNG,
-  ...VERWALTUNG,
-  { href: "/mietvertraege/vpi-werte", label: "VPI-Werte" },
-  { href: "/kontoauszug/importe", label: "Kontoauszug-Importe" },
-  { href: "/buchungen", label: "Buchungen" },
-  { href: "/haeuser", label: "Häuser" },
-  { href: "/kostenarten", label: "Kostenarten" },
-  { href: "/tickets", label: "Tickets" },
-  { href: "/konto", label: "Konto" },
-];
-
-function seitenTitel(pathname: string): string {
-  const treffer = SEITENTITEL.filter((l) => pathname === l.href || pathname.startsWith(l.href + "/")).sort(
-    (a, b) => b.href.length - a.href.length,
-  )[0];
-  return treffer ? `${treffer.label} · Mietverwaltung Eutin` : "Mietverwaltung Eutin";
-}
-
-const NAV_GRUPPEN: NavGruppe[] = [
-  { label: "Stammdaten", links: STAMMDATEN },
-  { label: "Finanzen", links: FINANZEN },
-  { label: "Abrechnung", links: ABRECHNUNG },
-];
-
-type NavGruppe = { label: string; links: NavLink[] };
-
-// Der Menüpunkt zur aktuellen Seite: längster passender Pfad, damit auch Unterseiten
-// (/mietvertraege/123) ihren Punkt markieren und /mietvertraege/nk-anpassung nicht „Mietverträge“.
-function aktiverHref(pathname: string, links: NavLink[]): string | null {
-  let treffer: string | null = null;
-  for (const l of links) {
-    if ((pathname === l.href || pathname.startsWith(l.href + "/")) && l.href.length > (treffer?.length ?? 0)) {
-      treffer = l.href;
-    }
-  }
-  return treffer;
 }
 
 // Zeile im mobilen Menü: ganze Breite tippbar und mindestens 48 px hoch (Finger statt Maus).
@@ -144,26 +217,23 @@ function mobilZeile(aktiv: boolean): string {
   return `${MOBIL_ZEILE} ${aktiv ? "bg-neutral-900 font-medium text-white" : "text-neutral-300 active:bg-neutral-900"}`;
 }
 
-// Mobiles Menü (unter md): Dashboard und Tickets direkt, die Gruppen zum Aufklappen — sonst
-// wären es über 30 Zeilen untereinander. Beim Öffnen ist die Gruppe der aktuellen Seite offen.
+// Mobiles Menü (unter md): Dashboard, Tickets und Dokumente direkt, die Gruppen zum Aufklappen —
+// sonst wären es über 30 Zeilen untereinander. Beim Öffnen ist die Gruppe der aktuellen Seite offen.
 function MobilesMenue({
   gruppen,
   pathname,
+  aktiv,
   kontoLabel,
   schliessen,
 }: {
   gruppen: NavGruppe[];
   pathname: string;
+  aktiv: string | null;
   kontoLabel: string;
   schliessen: () => void;
 }) {
-  const aktiv = aktiverHref(pathname, [
-    ...gruppen.flatMap((g) => g.links),
-    { href: "/tickets", label: "Tickets" },
-    { href: "/konto", label: "Konto" },
-  ]);
   const [offen, setOffen] = useState<ReadonlySet<string>>(
-    () => new Set(gruppen.filter((g) => g.links.some((l) => l.href === aktiv)).map((g) => g.label)),
+    () => new Set(gruppen.filter((g) => gruppenLinks(g).some((l) => l.href === aktiv)).map((g) => g.label)),
   );
 
   function umschalten(label: string) {
@@ -180,12 +250,20 @@ function MobilesMenue({
         <Link prefetch={false} href="/" onClick={schliessen} className={mobilZeile(pathname === "/")}>
           Dashboard
         </Link>
-        <Link prefetch={false} href="/tickets" onClick={schliessen} className={mobilZeile(aktiv === "/tickets")}>
-          Tickets
-        </Link>
+        {DIREKT.map((link) => (
+          <Link
+            prefetch={false}
+            key={link.href}
+            href={link.href}
+            onClick={schliessen}
+            className={mobilZeile(aktiv === link.href)}
+          >
+            {link.label}
+          </Link>
+        ))}
         {gruppen.map((gruppe) => {
           const istOffen = offen.has(gruppe.label);
-          const enthaeltAktiv = gruppe.links.some((l) => l.href === aktiv);
+          const enthaeltAktiv = gruppenLinks(gruppe).some((l) => l.href === aktiv);
           return (
             <div key={gruppe.label}>
               <button
@@ -203,16 +281,25 @@ function MobilesMenue({
               </button>
               {istOffen && (
                 <div className="mb-1 ml-3 flex flex-col gap-0.5 border-l border-neutral-800 pl-1">
-                  {gruppe.links.map((link) => (
-                    <Link
-                      prefetch={false}
-                      key={link.href}
-                      href={link.href}
-                      onClick={schliessen}
-                      className={mobilZeile(link.href === aktiv)}
-                    >
-                      {link.label}
-                    </Link>
+                  {gruppe.abschnitte.map((abschnitt, i) => (
+                    <div key={abschnitt.titel ?? i} className="flex flex-col gap-0.5">
+                      {abschnitt.titel && (
+                        <div className="px-3 pb-0.5 pt-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                          {abschnitt.titel}
+                        </div>
+                      )}
+                      {abschnitt.links.map((link) => (
+                        <Link
+                          prefetch={false}
+                          key={link.href}
+                          href={link.href}
+                          onClick={schliessen}
+                          className={mobilZeile(link.href === aktiv)}
+                        >
+                          {link.label}
+                        </Link>
+                      ))}
+                    </div>
                   ))}
                 </div>
               )}
@@ -265,7 +352,12 @@ export function NavBar({
     return () => beobachter.disconnect();
   }, [pathname]);
 
-  const gruppen = user.role === "ADMIN" ? [...NAV_GRUPPEN, { label: "Verwaltung", links: VERWALTUNG }] : NAV_GRUPPEN;
+  const gruppen = user.role === "ADMIN" ? [...NAV_GRUPPEN, EINSTELLUNGEN] : NAV_GRUPPEN;
+  const aktiv = aktiverHref(pathname, [
+    ...DIREKT,
+    ...gruppen.flatMap(gruppenLinks),
+    { href: "/konto", label: "Konto" },
+  ]);
 
   return (
     <header className="border-b border-neutral-800">
@@ -275,11 +367,11 @@ export function NavBar({
             <Logo size={26} className="text-white" />
             Mietverwaltung Eutin
           </span>
-          {/* Ab md nebeneinander mit Dropdowns (wie bisher) — darunter reicht die Breite nicht
-              für Titel + alle Menüpunkte + Konto/Abmelden in einer Zeile, siehe mobiles Menü
-              unten. */}
+          {/* Ab md nebeneinander mit Dropdowns — darunter reicht die Breite nicht für Titel + alle
+              Menüpunkte + Konto/Abmelden in einer Zeile, siehe mobiles Menü unten. */}
           <nav className="hidden items-center gap-6 md:flex">
-            <Link prefetch={false}
+            <Link
+              prefetch={false}
               href="/"
               className={`shrink-0 whitespace-nowrap text-sm ${
                 pathname === "/" ? "font-medium text-white" : "text-neutral-400 hover:text-white"
@@ -287,24 +379,26 @@ export function NavBar({
             >
               Dashboard
             </Link>
-            <Link prefetch={false}
-              href="/tickets"
-              className={`shrink-0 whitespace-nowrap text-sm ${
-                pathname.startsWith("/tickets") ? "font-medium text-white" : "text-neutral-400 hover:text-white"
-              }`}
-            >
-              Tickets
-            </Link>
-            <NavDropdown label="Stammdaten" links={STAMMDATEN} pathname={pathname} />
-            <NavDropdown label="Finanzen" links={FINANZEN} pathname={pathname} />
-            <NavDropdown label="Abrechnung" links={ABRECHNUNG} pathname={pathname} />
-            {user.role === "ADMIN" && (
-              <NavDropdown label="Verwaltung" links={VERWALTUNG} pathname={pathname} />
-            )}
+            {DIREKT.map((link) => (
+              <Link
+                prefetch={false}
+                key={link.href}
+                href={link.href}
+                className={`shrink-0 whitespace-nowrap text-sm ${
+                  aktiv === link.href ? "font-medium text-white" : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {gruppen.map((gruppe, i) => (
+              <NavDropdown key={gruppe.label} gruppe={gruppe} aktiv={aktiv} rechts={i >= 2} />
+            ))}
           </nav>
         </div>
         <div className="hidden shrink-0 items-center gap-4 md:flex">
-          <Link prefetch={false}
+          <Link
+            prefetch={false}
             href="/konto"
             className={`whitespace-nowrap text-sm ${
               pathname === "/konto" ? "font-medium text-white" : "text-neutral-400 hover:text-white"
@@ -334,6 +428,7 @@ export function NavBar({
         <MobilesMenue
           gruppen={gruppen}
           pathname={pathname}
+          aktiv={aktiv}
           kontoLabel={user.name ?? user.email ?? "Konto"}
           schliessen={() => setMobileOpen(false)}
         />

@@ -25,7 +25,7 @@ Spalten `Mietvertrag.mandatReferenz`, `mandatGlaeubigerId`, `mandatDatum` (Unter
 
 ## Seite „Lastschrift-Mandate“ (temporär)
 
-Stammdaten → `/mietvertraege/lastschrift-mandate`, Einzelmandat `/mietvertraege/[id]/lastschrift-mandat`, Sammeldruck `…/drucken?ids=…` (`src/components/mandat-blatt.tsx`, `mandat-seite.tsx`, `src/lib/sepa-mandat.ts`, `mandat-laden.ts`). Für neue Mandate (Überweiser, die umstellen, neue Verträge, geänderte Gläubigerin/Kontoverbindung). Entfällt, sobald Mandate in der App vollständig erfasst und gedruckt werden.
+Menü Vermietung → `/mietvertraege/lastschrift-mandate`, Einzelmandat `/mietvertraege/[id]/lastschrift-mandat`, Sammeldruck `…/drucken?ids=…` (`src/components/mandat-blatt.tsx`, `mandat-seite.tsx`, `src/lib/sepa-mandat.ts`, `mandat-laden.ts`). Für neue Mandate (Überweiser, die umstellen, neue Verträge, geänderte Gläubigerin/Kontoverbindung). Entfällt, sobald Mandate in der App vollständig erfasst und gedruckt werden.
 
 - Je Vertrag ein A4-Mandat mit Mieter und Mietobjekt vorausgefüllt (Kontoinhaber, Bank, IBAN, Datum, Unterschrift füllt der Mieter aus); mehrere Verträge in einem Druck (`break-after: page`, nur über den Druckdialog getestet). **Ausgedruckte Mandate werden nicht gespeichert**; das unterschriebene Mandat als Scan in der Mieterakte ablegen.
 - Gläubigerdaten kommen über `ladeGlaeubiger()` vom Objekt, sind für den einzelnen Ausdruck änderbar (nichts gespeichert); Drucken erst, wenn alle drei ausgefüllt sind.

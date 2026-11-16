@@ -49,7 +49,7 @@ export type AnpassungsschreibenProps = {
   zahlungsweg: "LASTSCHRIFT" | "UEBERWEISUNG" | "BEHOERDE" | null;
   // Mandatsreferenz/Gläubiger-ID aus der Bankzeile der letzten Lastschrift (null = keine gefunden).
   mandat: MandatDaten | null;
-  // Mietkonto des Objekts (Stammdaten → Objekt); null = nicht erfasst, dann nennt das Schreiben kein Konto.
+  // Mietkonto des Objekts (Einstellungen → Objekt); null = nicht erfasst, dann nennt das Schreiben kein Konto.
   mietkonto: { inhaber: string | null; iban: string; bic: string | null; bank: string | null } | null;
   kopien: SchreibenKopie[];
   // Seite, die nach dem Ablegen einer Kopie neu geladen wird.
@@ -464,8 +464,8 @@ export function Anpassungsschreiben({
             {zahlungsweg === "UEBERWEISUNG" && (
               <p className="mt-1 text-xs text-neutral-500">
                 {mietkonto
-                  ? "Das Mietkonto aus Stammdaten → Objekt steht im Schreiben."
-                  : "Im Objekt ist kein Mietkonto erfasst — das Schreiben nennt kein Konto (Stammdaten → Objekt → Bankverbindung Mietkonto)."}
+                  ? "Das Mietkonto aus Einstellungen → Objekt steht im Schreiben."
+                  : "Im Objekt ist kein Mietkonto erfasst — das Schreiben nennt kein Konto (Einstellungen → Objekt → Bankverbindung Mietkonto)."}
               </p>
             )}
           </div>

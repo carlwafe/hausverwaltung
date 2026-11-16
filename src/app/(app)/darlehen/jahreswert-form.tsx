@@ -93,7 +93,7 @@ export function JahreswertForm({ jahr, darlehen, standardBis }: { jahr: number; 
   if (darlehen.length === 0) {
     return (
       <p className="mt-3 text-sm text-amber-400">
-        Es gibt noch kein aktives Darlehen. Lege es zuerst in den Stammdaten an (Darlehen &amp; Tilgungspläne).
+        Es gibt noch kein aktives Darlehen. Lege es zuerst unter Geld → Tilgungspläne an.
       </p>
     );
   }

@@ -8,8 +8,8 @@ function formatEuro(value: number) {
 }
 
 /**
- * Teilt eine Kautionsbuchung in Kautionsanteil + Nebenkostenausgleich (z.B. eine Überweisung
- * "Guthaben BK-Abr 2023 + Kaution") — der Nebenkostenanteil ergibt sich als Rest.
+ * Teilt eine Kautionsbuchung in Kautionsanteil + Betriebskostenausgleich (z.B. eine Überweisung
+ * "Guthaben BK-Abr 2023 + Kaution") — der Betriebskostenanteil ergibt sich als Rest.
  */
 export function KautionAufteilenForm({
   id,
@@ -45,11 +45,11 @@ export function KautionAufteilenForm({
       <p className="mb-1 font-medium text-white">Kautionsbuchung ({formatEuro(betragGesamt)}) aufteilen</p>
       <p className="mb-3 text-xs text-neutral-500">
         Nur für Sammelüberweisungen: Kaution und ein zugleich ausgezahltes BK-Guthaben (Bankvorzeichen, ausgehend
-        negativ). Beispiel: −694,90 € = Kautionsanteil −273,10 € + Nebenkostenausgleich −421,80 €.
+        negativ). Beispiel: −694,90 € = Kautionsanteil −273,10 € + Betriebskostenausgleich −421,80 €.
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Eine mit der Kaution verrechnete Nachzahlung wird <strong>nicht</strong> aufgeteilt: Die Auszahlung bleibt der
-        Bankbetrag, die Verrechnung wird als Einbehalt &quot;Verrechnung mit Nebenkostenabrechnung&quot; erfasst
+        Bankbetrag, die Verrechnung wird als Einbehalt &quot;Verrechnung mit Betriebskostenabrechnung&quot; erfasst
         (z.B. Kaution 100 €, Nachzahlung 67,34 € → Auszahlung −32,66 € + Einbehalt 67,34 €).
       </p>
       <div className="flex flex-wrap items-end gap-3">
@@ -76,7 +76,7 @@ export function KautionAufteilenForm({
             className="mt-1 block w-24 rounded-md border border-neutral-700 bg-transparent px-2 h-10 text-sm text-white outline-none focus:border-neutral-400"
           />
         </label>
-        <span className="pb-2 text-neutral-300">= Nebenkostenausgleich {rest !== null ? formatEuro(rest) : "–"}</span>
+        <span className="pb-2 text-neutral-300">= Betriebskostenausgleich {rest !== null ? formatEuro(rest) : "–"}</span>
         <button
           type="submit"
           disabled={pending}

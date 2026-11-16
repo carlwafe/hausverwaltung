@@ -250,7 +250,7 @@ export function ObjektForm({ initial }: { initial: Objekt }) {
           </div>
         </div>
         <p className="mt-2 text-xs text-neutral-400">
-          Vorbelegung der Lastschriftmandate (Stammdaten → Lastschrift-Mandate). Gläubiger ist die Vermieterin, der die
+          Vorbelegung der Lastschriftmandate (Vermietung → Lastschrift-Mandate). Gläubiger ist die Vermieterin, der die
           Gläubiger-ID und das Mietkonto gehören. Die Gläubiger-ID wird auf Aufbau und Prüfziffer geprüft.
         </p>
       </div>

@@ -287,7 +287,7 @@ export async function deleteDokument(id: string, revalidatePathValue: string): P
 
   const dokument = await prisma.dokument.findUnique({ where: { id } });
   if (!dokument) return;
-  // Löschsperre: Belege an Kostenbuchungen (Nachweis für Finanzamt und Nebenkostenabrechnung) werden nur
+  // Löschsperre: Belege an Kostenbuchungen (Nachweis für Finanzamt und Betriebskostenabrechnung) werden nur
   // ausgeblendet. Die Oberfläche bietet dort kein „Löschen“ an; das hier schützt vor direkten Aufrufen.
   if (dokument.buchungId) throw new Error("Kostenbelege können nicht gelöscht, nur ausgeblendet werden.");
 

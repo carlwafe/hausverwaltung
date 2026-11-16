@@ -142,12 +142,12 @@ export default async function EinheitDetailPage({
 
       <div className="mt-8">
         <h2 className="mb-4 text-lg font-medium text-white">
-          Wohnfläche-Korrekturen (Nebenkostenabrechnung)
+          Wohnfläche-Korrekturen (Betriebskostenabrechnung)
         </h2>
         <p className="mb-3 text-sm text-neutral-400">
           Aktuelle Wohnfläche: {einheit.wohnflaecheQm.toString()} qm. Für Abrechnungsjahre bis
           einschließlich dem hier eingetragenen &bdquo;Bis Jahr&ldquo; wird stattdessen die hier
-          hinterlegte (historische) Wohnfläche für die Nebenkostenabrechnung verwendet.
+          hinterlegte (historische) Wohnfläche für die Betriebskostenabrechnung verwendet.
         </p>
         <div className="rounded-lg border border-neutral-800">
           <table className="w-full text-sm">
