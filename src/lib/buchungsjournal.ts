@@ -16,9 +16,9 @@ const KOSTEN_BUCHUNGSARTEN = new Set(["KOSTENPOSITION"]);
  * (kontostand/page.tsx) als auch für den Kontenabgleich auf jahresuebersicht/page.tsx, der den
  * Kontostand an zwei beliebigen Stichtagen (Jahresanfang/-ende) braucht, nicht den vollen Verlauf.
  */
-export async function ladeKontostandEintraege(): Promise<KontostandEintrag[]> {
+export async function ladeKontostandEintraege(ab?: Date): Promise<KontostandEintrag[]> {
   const buchungen = await prisma.buchung.findMany({
-    where: { buchungsart: { zahlungswirksam: true } },
+    where: { buchungsart: { zahlungswirksam: true }, ...(ab ? { datum: { gte: ab } } : {}) },
     select: {
       id: true,
       datum: true,
@@ -33,6 +33,7 @@ export async function ladeKontostandEintraege(): Promise<KontostandEintrag[]> {
   // mit Bankvorzeichen), nur ohne fachliche Zuordnung — sie müssen den Kontostand trotzdem
   // mitbewegen, sonst weicht er vom echten Kontoauszug ab.
   const nichtKategorisiert = await prisma.nichtZugeordneteBuchung.findMany({
+    where: ab ? { datum: { gte: ab } } : undefined,
     select: { id: true, datum: true, betrag: true, empfaenger: true, verwendungszweck: true },
   });
 
@@ -71,6 +72,33 @@ export async function ladeKontostandEintraege(): Promise<KontostandEintrag[]> {
     });
 
   return [...journal, ...geparkt];
+}
+
+/**
+ * Dieselben Bewegungen wie `ladeKontostandEintraege`, aber je Buchungstag zu **einem** Eintrag zusammengefasst
+ * (Summe mit Kontostand-Vorzeichen) — die Datenbank rechnet, statt dass alle Buchungen geladen werden. Für alles,
+ * was nur Stände an Tagen braucht (Anker, Tagesabgleich mit der Bank, Prüfwerte, Stand vor einem Zeitraum);
+ * `anzahl` = Zahl der zusammengefassten Buchungen. Gleiche Summen wie die Einzeleinträge, weil Anker, Stichtage
+ * und Zeitraum nur auf ganze Tage zeigen.
+ */
+export async function ladeKontostandTagessummen(): Promise<{ tage: KontostandEintrag[]; anzahl: number }> {
+  const [journal, geparkt] = await Promise.all([
+    prisma.$queryRaw<{ datum: Date; summe: string; n: number }[]>`
+      select b.datum, sum(case when a.code = 'KOSTENPOSITION' then -b.betrag else b.betrag end)::text as summe, count(*)::int as n
+      from buchungen b join buchungsarten a on a.id = b."buchungsartId"
+      where a.zahlungswirksam and b.datum is not null
+      group by b.datum`,
+    prisma.$queryRaw<{ datum: Date; summe: string; n: number }[]>`
+      select datum, sum(betrag)::text as summe, count(*)::int as n from nicht_zugeordnete_buchungen group by datum`,
+  ]);
+  const tage = [...journal, ...geparkt].map((z) => ({
+    id: `tag-${z.datum.toISOString().slice(0, 10)}`,
+    datum: z.datum,
+    betrag: Number(z.summe),
+    kategorie: "sonstige" as const,
+    beschreibung: "Tagessumme",
+  }));
+  return { tage, anzahl: [...journal, ...geparkt].reduce((summe, z) => summe + z.n, 0) };
 }
 
 /**

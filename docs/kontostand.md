@@ -24,7 +24,7 @@ Der **echte Kontostand** kommt aus den Salden (Anfangs-/Endsaldo) der CAMT-XML-D
 - Die Seite zeigt oben die Kopfkarten und die Lücken-Warnung, darunter drei Reiter: **Abweichungen** (nur Tage mit neuer Abweichung, über alle Zeiträume; beim Öffnen vorgewählt, wenn es welche gibt), **Tagesstände Bank** und **Buchungsverlauf**. Der Reiterwechsel läuft im Browser (kostet keine Serverzeit); gezeichnet wird nur der offene Reiter.
 - **Zeitraum** (30 Tage, 90 Tage — Standard —, 1 Jahr, Alles) gilt für Tagesstände und Buchungsverlauf und ist ein Link (`?zeitraum=…&ansicht=…`): Der Server schickt nur die Zeilen des Zeitraums, weil jede Zeile Ladezeit kostet. „Kontostand danach“ und die Differenz bleiben über den ganzen Verlauf gerechnet.
 - Beide Tabellen zeigen am Computer zunächst 50 Zeilen (`zeilenSchritt` an der `DataTable`) mit „Weitere anzeigen“/„Alle anzeigen“; Suche und Filter durchsuchen alle Zeilen des Zeitraums.
-- Offen: Der Server lädt für die Rechnung weiterhin alle Buchungen (`ladeKontostandEintraege`). Eine Summe für die Zeit vor dem Zeitraum statt der Einzelbuchungen würde das entlasten.
+- **Server:** Anker, Tagesabgleich, Prüfwerte und der Stand vor dem Zeitraum rechnet die Datenbank als **Tagessummen** (`ladeKontostandTagessummen`, ein Eintrag je Buchungstag); einzeln geladen werden nur die Buchungen des Zeitraums (`ladeKontostandEintraege(ab)`, `berechneKontostandVerlaufAb`). Das Ergebnis ist mit der Rechnung über alle Einzelbuchungen identisch, solange Anker, Stichtage und Zeitraum auf ganze Tage zeigen. Die Jahresübersicht nutzt weiter `ladeKontostandEintraege()` ohne Zeitraum.
 
 ## Von Hand eingetragene Prüfwerte
 

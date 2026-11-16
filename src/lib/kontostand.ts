@@ -40,6 +40,28 @@ export function berechneKontostandVerlauf(
 }
 
 /**
+ * Wie `berechneKontostandVerlauf`, liefert aber nur die Zeilen ab dem Tag `ab` (Mitternacht UTC): Die Buchungen
+ * davor gehen als Tagessummen ein (`tagessummen`, siehe `ladeKontostandTagessummen`), `eintraege` enthält nur die
+ * Buchungen ab `ab`. „Kontostand“ ist dasselbe wie im vollen Verlauf.
+ */
+export function berechneKontostandVerlaufAb(
+  tagessummen: KontostandEintrag[],
+  eintraege: KontostandEintrag[],
+  anker: { datum: Date; betrag: number },
+  ab: Date,
+): KontostandZeile[] {
+  const summeBisAnker = tagessummen.reduce((s, e) => s + (e.datum.getTime() <= anker.datum.getTime() ? e.betrag : 0), 0);
+  const summeVorAb = tagessummen.reduce((s, e) => s + (e.datum.getTime() < ab.getTime() ? e.betrag : 0), 0);
+  const offset = anker.betrag - summeBisAnker;
+  const sortiert = [...eintraege].sort((a, b) => a.datum.getTime() - b.datum.getTime());
+  let laufsumme = summeVorAb;
+  return sortiert.map((e) => {
+    laufsumme += e.betrag;
+    return { ...e, kontostand: offset + laufsumme };
+  });
+}
+
+/**
  * Kontostand an einem beliebigen Stichtag (nicht nur an einem tatsächlichen Buchungsdatum) —
  * für den Kontenabgleich auf /jahresuebersicht (Kontostand zu Jahresanfang/-ende). Rechnet direkt
  * aus den Rohbuchungen relativ zum Anker, statt einen Eintrag im bereits berechneten Verlauf zu

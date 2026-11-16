@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
-import { berechneKontostandVerlauf, kontostandAmStichtag } from "@/lib/kontostand";
+import { ladeKontostandEintraege, ladeKontostandTagessummen } from "@/lib/buchungsjournal";
+import { berechneKontostandVerlaufAb, kontostandAmStichtag } from "@/lib/kontostand";
 import { findeSaldoLuecken, ladeKontosalden, standAnTagen } from "@/lib/kontosalden";
 import { parseStrengesDatum } from "@/lib/zod-datum";
 import { DeleteButton } from "@/components/delete-button";
@@ -73,11 +73,15 @@ export default async function KontostandPage({
     );
   }
 
-  const [eintraege, kontrollen] = await Promise.all([
-    ladeKontostandEintraege(),
+  // Stände (Anker, Tagesabgleich, Prüfwerte, Stand vor dem Zeitraum) rechnet die Datenbank als Tagessummen; einzeln
+  // geladen werden nur die Buchungen des gewählten Zeitraums (siehe docs/kontostand.md → „Darstellung“).
+  const abDatum = ab === null ? null : parseStrengesDatum(ab)!;
+  const [{ tage: eintraege, anzahl: anzahlBuchungen }, zeitraumEintraege, kontrollen] = await Promise.all([
+    ladeKontostandTagessummen(),
+    ladeKontostandEintraege(abDatum ?? undefined),
     prisma.kontostandKontrolle.findMany({ orderBy: { datum: "desc" } }),
   ]);
-  const verlauf = berechneKontostandVerlauf(eintraege, anker);
+  const verlauf = berechneKontostandVerlaufAb(eintraege, zeitraumEintraege, anker, abDatum ?? new Date(0));
 
   // Tagesabgleich: Bankstand (XML) gegen den Stand, den die Buchungen der App ergeben.
   const appStaende = standAnTagen(eintraege, anker, salden.map((s) => s.datum));
@@ -109,7 +113,6 @@ export default async function KontostandPage({
   const rows: KontostandRow[] = verlauf
     .slice()
     .reverse()
-    .filter((z) => ab === null || z.datum.toISOString().slice(0, 10) >= ab)
     .map((z) => ({
       id: z.id,
       datum: z.datum.toISOString(),
@@ -150,14 +153,14 @@ export default async function KontostandPage({
       label: "Buchungsverlauf",
       anzahl: rows.length,
       mitZeitraum: true,
-      hinweis: zeitraumHinweis(rows.length, verlauf.length, "Buchungen"),
+      hinweis: zeitraumHinweis(rows.length, anzahlBuchungen, "Buchungen"),
       inhalt: <KontostandTable rows={rows} />,
     },
   ];
   // Beim Öffnen zuerst die Abweichungen, wenn es welche gibt; sonst die Tagesstände (bzw. der Verlauf ohne Bank-Salden).
   const start = ansichtParam ?? (abweichungen.length > 0 ? "abweichungen" : saldoZeilen.length > 0 ? "tage" : "buchungen");
 
-  const aktuellerStand = rows[0]?.kontostand ?? verlauf[verlauf.length - 1]?.kontostand ?? anker.betrag;
+  const aktuellerStand = kontostandAmStichtag(eintraege, anker, new Date(8.64e15));
   const stimmtAktuell = letzterTag ? Math.abs(letzterTag.differenz) < 0.005 : null;
 
   return (
