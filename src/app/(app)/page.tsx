@@ -9,6 +9,7 @@ import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc, sichtbareTickets } from "@/lib/ticket";
 import { requireUser } from "@/lib/session";
+import { GlobaleSuche } from "@/components/globale-suche";
 
 const MONATSNAMEN = [
   "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -166,6 +167,8 @@ export default async function DashboardPage() {
       <p className="mb-6 text-sm text-neutral-400">
         {objekt ? `${objekt.name} · ${objekt.strasse} ${objekt.hausnummer}, ${objekt.plz} ${objekt.ort}` : "Kein Objekt angelegt"}
       </p>
+
+      <GlobaleSuche />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {kacheln.map((k) => (
