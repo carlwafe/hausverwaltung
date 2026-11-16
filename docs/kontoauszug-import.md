@@ -18,6 +18,8 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“). Vor
 
 **Mietminderung** (ausgehend, `MIETMINDERUNG_PATTERN`): als `KOSTENPOSITION` der Kostenart „Mietminderung“, **nicht** als negative Mietzahlung (wie beim Vorverwalter; die Minderung steht nie als Gutschrift auf dem Mieterkonto). Die Kostenart ist **nicht umlagefähig** und ohne Verteilerschlüssel — sonst liefe sie in die NK-Abrechnung (Warnung „kein Verteilerschlüssel“, ein späterer Schlüssel würde sie umlegen).
 
+**Adresse im Verwendungszweck** (`ermittleGebaeudeVorschlag`, `kosten-import.ts`): Banken schreiben Umlaute um („KOENIGSBERGER STR. GARAGE“ für „Königsberger Straße“, Hausnummer „G“ = Garagen-Gebäude). Text und Straßennamen werden deshalb vor dem Vergleich mit `umschrift` vereinheitlicht (ä→ae, ö→oe, ü→ue, ß→ss). Ohne das fiel die Garagen-Grundsteuer auf die uneinheitliche Empfänger-Historie zurück und wurde „ganzes Objekt“ (kein Gebäude) vorgeschlagen. Zuordnung der Garagen-Rate: Kostenart „Straßenreinigung & Grundsteuer Garagen“, eine Position, Haus G.
+
 **Bewusst nicht korrigiert:** Abweichungen bei nicht umlagefähigen Positionen (Strom Garagen, Reparatur-Anteil).
 
 ## Mahngebühren
