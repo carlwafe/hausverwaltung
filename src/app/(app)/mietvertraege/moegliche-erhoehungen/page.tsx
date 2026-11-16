@@ -124,7 +124,7 @@ export default async function MoeglicheErhoehungenPage() {
           (nur die Miete in der Zwischenzeit ist verloren). Bei Jobcenter-Mietern vorher die Angemessenheitsgrenze
           prüfen. Die Schwelle ist eine Empfehlung, keine Vorgabe — der Filter ist nur eine Ansicht, nichts wird
           gespeichert. Verträge ohne Indexwert blenden die Filter aus.
-          Im Schreiben („Erstellen“) lässt sich per Häkchen auch die BK-Vorauszahlung anpassen — ein gemeinsames
+          Im Schreiben (Knopf „Schreiben“) lässt sich per Häkchen auch die BK-Vorauszahlung anpassen — ein gemeinsames
           Schreiben mit zwei getrennten Abschnitten.
         </p>
       </div>

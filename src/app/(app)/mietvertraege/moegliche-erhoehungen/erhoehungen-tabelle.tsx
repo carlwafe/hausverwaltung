@@ -30,123 +30,128 @@ const leer = <span className="text-neutral-600">–</span>;
 
 const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(new Date(iso));
 
+const BETRAG = { align: "right", className: "whitespace-nowrap tabular-nums" } as const;
+const KLEIN = "block text-xs text-neutral-500";
+
+// Am Computer darf die Tabelle nicht breiter als die Seite sein (siehe „Tabellen am Computer“ in
+// docs/tickets-logo-design.md): Einheit mit fester Breite, Mieter als Füllspalte mit der letzten Anpassung
+// darunter, Status unter dem Datum, Basis- und neuer Index in einer Spalte, Erhöhung unter der neuen Kaltmiete.
 const columns: Column<ErhoehungZeile>[] = [
   {
     key: "einheit",
     label: "Einheit",
     render: (z) => (
-      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
-        {z.einheitBezeichnung}
-      </Link>
+      // Feste Breite über das div (nicht die Zelle), sonst drückt die Füllspalte die Spalte zusammen.
+      <div className="w-24">
+        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
+          {z.einheitBezeichnung}
+        </Link>
+      </div>
     ),
     sortValue: (z) => z.einheitRang,
     searchValue: (z) => z.einheitBezeichnung,
   },
   {
     key: "mieter",
-    label: "Mieter",
-    render: (z) => <span className="text-neutral-300">{z.mieterNamen}</span>,
+    label: "Mieter · letzte Anpassung",
+    title: "Sortiert nach Mieter; darunter die letzte Anpassung der Kaltmiete bzw. der Mietbeginn",
+    fuellend: true,
+    render: (z) => (
+      <>
+        <div title={z.mieterNamen} className="truncate">
+          {z.mieterNamen}
+        </div>
+        <div className="truncate text-xs text-neutral-400">
+          {z.referenzQuelle === "Mietbeginn" ? "Mietbeginn" : "letzte Erhöhung"} {formatDate(z.referenzDatum)}
+        </div>
+      </>
+    ),
     sortValue: (z) => z.mieterNamen,
     searchValue: (z) => z.mieterNamen,
   },
   {
     key: "schreiben",
-    label: "Schreiben",
+    label: "",
     render: (z) => (
       <Link
         href={`/mietvertraege/${z.id}/indexerhoehung`}
         prefetch={false}
-        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
+        title="Schreiben zur Mieterhöhung erstellen"
+        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-1.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
       >
-        Erstellen
+        Schreiben
       </Link>
     ),
   },
   {
-    key: "letzte",
-    label: "Letzte Anpassung",
-    render: (z) => (
-      <span className="text-neutral-300">
-        {formatDate(z.referenzDatum)} <span className="text-xs text-neutral-500">({z.referenzQuelle})</span>
-      </span>
-    ),
-    sortValue: (z) => z.referenzDatum,
-  },
-  {
     key: "moeglichAb",
-    label: "Mieterhöhung möglich ab",
-    render: (z) => <span className="text-white">{formatDate(z.naechsteMoeglich)}</span>,
+    label: "Möglich ab",
+    title: "Mieterhöhung möglich ab; darunter, ob sie schon möglich ist",
+    className: "whitespace-nowrap",
+    render: (z) => (
+      <>
+        <div className="text-white">{formatDate(z.naechsteMoeglich)}</div>
+        {z.bereitsMoeglich ? (
+          <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">jetzt möglich</span>
+        ) : (
+          <span className="text-xs text-neutral-500">
+            noch {z.monateBis} Monat{z.monateBis === 1 ? "" : "e"}
+          </span>
+        )}
+      </>
+    ),
     sortValue: (z) => z.naechsteMoeglich,
   },
   {
-    key: "status",
-    label: "Status",
-    render: (z) =>
-      z.bereitsMoeglich ? (
-        <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">jetzt möglich</span>
-      ) : (
-        <span className="text-xs text-neutral-500">
-          noch {z.monateBis} Monat{z.monateBis === 1 ? "" : "e"}
-        </span>
-      ),
-    // Bereits mögliche zuerst (negativ), dann nach Restmonaten
-    sortValue: (z) => (z.bereitsMoeglich ? -1 : z.monateBis),
-  },
-  {
     key: "kalt",
-    label: "Kaltmiete jetzt",
-    align: "right",
+    label: "Kaltmiete",
+    title: "Kaltmiete jetzt",
+    ...BETRAG,
     render: (z) => <span className="text-neutral-300">{euro(z.aktuelleKalt)} €</span>,
     sortValue: (z) => z.aktuelleKalt,
   },
   {
     key: "basis",
-    label: "Basisindex",
-    align: "right",
-    title: "Bei der letzten Erhöhung zugrunde gelegter Index (falls erfasst), sonst VPI des Monats der letzten Kaltmieten-Änderung bzw. des Mietbeginns",
-    render: (z) =>
-      z.basisIndex === null ? (
-        <span title="Kein VPI-Wert für diesen Monat eingetragen">{leer}</span>
-      ) : (
-        <span className="text-neutral-300">
-          {zahl(z.basisIndex)} <span className="text-xs text-neutral-500">({z.basisMonat})</span>
-        </span>
-      ),
+    label: "Index",
+    ...BETRAG,
+    title:
+      "Oben der Basisindex: bei der letzten Erhöhung zugrunde gelegter Index (falls erfasst), sonst VPI des Monats der letzten Kaltmieten-Änderung bzw. des Mietbeginns. Darunter der neueste eingetragene VPI. Sortiert nach Basisindex.",
+    render: (z) => (
+      <>
+        {z.basisIndex === null ? (
+          <span title="Kein VPI-Wert für diesen Monat eingetragen">{leer}</span>
+        ) : (
+          <span className="text-neutral-300">
+            {zahl(z.basisIndex)} <span className="text-xs text-neutral-500">({z.basisMonat})</span>
+          </span>
+        )}
+        {z.neuerIndex !== null && (
+          <span className={KLEIN}>
+            → {zahl(z.neuerIndex)} ({z.neuerMonat})
+          </span>
+        )}
+      </>
+    ),
     sortValue: (z) => z.basisIndex ?? -1,
-  },
-  {
-    key: "neuerIndex",
-    label: "Neuer Index",
-    align: "right",
-    title: "Neuester eingetragener VPI",
-    render: (z) =>
-      z.neuerIndex === null ? (
-        leer
-      ) : (
-        <span className="text-neutral-300">
-          {zahl(z.neuerIndex)} <span className="text-xs text-neutral-500">({z.neuerMonat})</span>
-        </span>
-      ),
-    sortValue: (z) => z.neuerIndex ?? -1,
   },
   {
     key: "aenderung",
     label: "Änderung",
-    align: "right",
+    ...BETRAG,
     render: (z) => (z.aenderungProzent === null ? leer : <span className="text-white">{euro(z.aenderungProzent)} %</span>),
     sortValue: (z) => z.aenderungProzent ?? -999,
   },
   {
     key: "neueKalt",
     label: "Neue Kaltmiete",
-    align: "right",
-    title: "Kaltmiete jetzt × neuer Index ÷ Basisindex, auf volle Euro abgerundet (Vorschau, nicht gespeichert)",
+    ...BETRAG,
+    title: "Neue Kaltmiete: Kaltmiete jetzt × neuer Index ÷ Basisindex, auf volle Euro abgerundet (Vorschau, nicht gespeichert); darunter die Erhöhung",
     render: (z) =>
       z.neueKalt === null ? (
         leer
       ) : (
         <span className="text-white">
-          {euro(z.neueKalt)} € <span className="text-xs text-neutral-500">(+{euro(z.neueKalt - z.aktuelleKalt)})</span>
+          {euro(z.neueKalt)} €<span className={KLEIN}>+{euro(z.neueKalt - z.aktuelleKalt)} €</span>
         </span>
       ),
     sortValue: (z) => z.neueKalt ?? -1,
@@ -265,6 +270,7 @@ export function ErhoehungenTabelle({ alle }: { alle: ErhoehungZeile[] }) {
         rowHref={(z) => `/mietvertraege/${z.id}`}
         columns={columns}
         rows={rows}
+        kompakt
       emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit bekanntem Mietbeginn."}
       defaultSort={{ key: "moeglichAb" }}
       mobileCard={(z) => <ErhoehungKarte z={z} />}
@@ -309,18 +315,18 @@ export function ErhoehungenTabelle({ alle }: { alle: ErhoehungZeile[] }) {
         // "jetzt + Erhöhung = neu" aufgeht.
         const erhoehungSumme = mitNeu.reduce((s, z) => s + (z.neueKalt - z.aktuelleKalt), 0);
         const neuSumme = kaltJetzt + erhoehungSumme;
-        const td = "px-4 py-2 text-right font-medium";
+        const td = "px-3 py-2 text-right font-medium whitespace-nowrap tabular-nums";
         return (
           <tr className="border-t border-neutral-800">
-            <td colSpan={6} className="px-4 py-2 font-medium text-white">
+            <td colSpan={4} className="px-3 py-2 font-medium text-white">
               Summe <span className="text-xs font-normal text-neutral-500">({sichtbar.length} Verträge)</span>
             </td>
             <td className={`${td} text-neutral-300`}>{euro(kaltJetzt)} €</td>
-            <td colSpan={3} />
+            <td colSpan={2} />
             <td className={`${td} text-white`}>
-              {euro(neuSumme)} € <span className="text-xs font-normal text-neutral-500">(+{euro(erhoehungSumme)})</span>
+              {euro(neuSumme)} €<span className="block text-xs font-normal text-neutral-500">+{euro(erhoehungSumme)} €</span>
               {ohneNeu > 0 && (
-                <span className="block text-xs font-normal text-neutral-500">
+                <span className="block whitespace-normal text-xs font-normal text-neutral-500">
                   {ohneNeu} Vertr{ohneNeu === 1 ? "ag" : "äge"} ohne Indexwert unverändert angesetzt
                 </span>
               )}
