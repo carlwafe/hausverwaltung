@@ -50,9 +50,11 @@ export function DoppelzahlungPruefen() {
         >
           {pending ? "Prüfe…" : "Doppelzahlungen prüfen"}
         </button>
-        <p className="max-w-2xl text-xs text-neutral-500">
-          Sucht Rechnungen, die zweimal bezahlt wurden: gleiche Rechnungsnummer, gleicher Betrag, gleicher
-          Empfänger, höchstens 120 Tage auseinander. Abschläge und Raten zählen nicht.
+        <p
+          className="max-w-2xl text-xs text-neutral-500"
+          title="Gleiche Rechnungsnummer, gleicher Betrag, gleicher Empfänger, höchstens 120 Tage auseinander. Abschläge und Raten zählen nicht."
+        >
+          Sucht doppelt bezahlte Rechnungen.
         </p>
       </div>
       {fehler && <p className="mt-2 text-sm text-red-400">{fehler}</p>}

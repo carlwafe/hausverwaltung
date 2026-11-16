@@ -36,17 +36,19 @@ export default async function KostenPage() {
           <h1 className="text-2xl font-semibold text-white">Kosten</h1>
           <p className="mb-1 text-sm text-neutral-400">{kosten.length} Kostenpositionen erfasst</p>
           <BuchungsartInfo code="KOSTENPOSITION" />
-          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
-            Grundsteuer-Rate der Stadt: Jede Abbuchung besteht aus Grundsteuer und Straßenreinigung —
-            beide Teile aufteilen (Grundsteuer am Haus, Straßenreinigung ohne Gebäude für alle).
-            Ungeteilt würde die Straßenreinigung nur den Mietern des Hauses als Grundsteuer
-            angerechnet.
-          </p>
-          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
-            Beleg: Jede Kostenposition braucht einen Beleg (Mieter-Einsicht bei der Nebenkostenabrechnung, Prüfung durch das
-            Finanzamt) — Filter „Beleg fehlt“. Ausgenommen sind Kostenarten ohne Häkchen „Einzelbeleg erforderlich“
-            (z.B. Bankgebühren); Techem-Positionen brauchen die Techem-Abrechnung als Beleg.
-          </p>
+          <details className="max-w-2xl text-xs text-neutral-500">
+            <summary className="cursor-pointer hover:text-neutral-300">Hinweise zu Grundsteuer und Belegen</summary>
+            <p className="mt-1">
+              <span className="text-neutral-400">Grundsteuer-Rate der Stadt:</span> Jede Abbuchung enthält Grundsteuer
+              und Straßenreinigung — beide Teile aufteilen (Grundsteuer am Haus, Straßenreinigung ohne Gebäude für
+              alle), sonst zahlen die Mieter des Hauses die Straßenreinigung als Grundsteuer mit.
+            </p>
+            <p className="mt-1">
+              <span className="text-neutral-400">Beleg:</span> Jede Kostenposition braucht einen Beleg (Filter „Beleg
+              fehlt“). Ausgenommen: Kostenarten ohne „Einzelbeleg erforderlich“ (z.B. Bankgebühren). Techem-Positionen
+              brauchen die Techem-Abrechnung.
+            </p>
+          </details>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
