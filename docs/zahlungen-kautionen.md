@@ -28,6 +28,7 @@ Auf der Detailseite einer Zahlung (`/zahlungen/[id]`, alle drei Ansichten: Mietz
 - Übersicht: Offen = einbehalten − pauschal → erledigt / Rest offen / überzahlt.
 
 **Verrechnung mit Rechnung** (technisch `KAUTION_VIRTUELLE_AUSZAHLUNG`; Kautionen → Neu, mit Verknüpfung zur Kostenposition). Trägt der Mieter eine Rechnung über die Kaution (z.B. Schlossaustausch 71,40 €): Die Rechnung bleibt als `KOSTENPOSITION` stehen, die Kautionsbuchung legt automatisch eine Gegen-Kostenposition "Verrechnet mit Kaution" (−71,40 €) an — Kosten netto 0, die Kaution sinkt, die Verrechnung ist nicht EÜR-relevant.
+- Vorzeichen: Die Kautionsbuchung ist immer negativ (das Formular erzwingt es). Sie hebt sich im Kontostand mit der Gegen-Kostenposition auf; positiv gebucht weicht der Kontostand um den doppelten Betrag von der Bank ab.
 - Keine Auszahlung: Es gibt keinen Bankfluss, deshalb zählt sie in der Tabelle unter „Verrechnet“ (blaues „⇄“) und in `baueKautionskonto` als Einbehalt „mit bezahlter Rechnung verrechnet“ (Rechnungstext über `rechnungstext`). Übersteigen die Verrechnungen die Kaution, meldet die Abrechnung „vom Mieter nachzufordern“.
 - `storniereBuchung` storniert die aktive Gegen-Kostenposition (`bezugTyp` „Buchung“, `bezugId` = die Auszahlung) automatisch mit. Altlasten-Prüfung (aktive Buchungen mit `bezugTyp = 'Buchung'`, deren Ziel storniert ist, plus Einbehalte gegen `KautionEinbehalt`): Leseskript `scripts-tmp/orphan-check.ts`.
 

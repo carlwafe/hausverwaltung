@@ -252,7 +252,11 @@ export const erstelleKautionsbuchung = mitMeldung(async function erstelleKaution
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join(", ");
   }
-  const { mietvertragId, datum, betrag, kategorie, verwendungszweck, verknuepfteKostenpositionId } = parsed.data;
+  const { mietvertragId, datum, kategorie, verwendungszweck, verknuepfteKostenpositionId } = parsed.data;
+  // Verrechnung mit Rechnung ist immer negativ (Kaution sinkt), egal wie eingegeben: Sie hebt sich im Kontostand
+  // mit der Gegen-Kostenposition (−Betrag, wirkt dort +) auf. Positiv gebucht wichen Kontostand und Bank um den
+  // doppelten Betrag ab (am 29.05.2026 passiert, siehe docs/zahlungen-kautionen.md).
+  const betrag = kategorie === "VIRTUELLE_AUSZAHLUNG" ? -Math.abs(parsed.data.betrag) : parsed.data.betrag;
   const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: KATEGORIE_ZU_CODE[kategorie] } });
   const erstelltVon = benutzerLabel(user);
 
