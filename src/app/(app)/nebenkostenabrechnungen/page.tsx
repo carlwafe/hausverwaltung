@@ -1,69 +1,58 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { AbrechnungenTable, type AbrechnungZeile } from "./abrechnungen-table";
 import { NeueAbrechnungForm } from "./neue-abrechnung-form";
 
-function formatDate(d: Date) {
-  return new Intl.DateTimeFormat("de-DE").format(d);
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  ENTWURF: "Entwurf",
-  FINAL: "Final",
-};
+const DATUM = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin" });
 
 export default async function NebenkostenabrechnungenPage() {
-  const abrechnungen = await prisma.nebenkostenabrechnung.findMany({
-    orderBy: { jahr: "desc" },
-    include: { _count: { select: { positionen: true } } },
+  // Summen je Abrechnung in einer Abfrage statt alle Positionen zu laden.
+  const [abrechnungen, summen] = await Promise.all([
+    prisma.nebenkostenabrechnung.findMany({ orderBy: { jahr: "desc" } }),
+    prisma.nebenkostenabrechnungPosition.groupBy({
+      by: ["abrechnungId"],
+      _count: { _all: true },
+      _sum: { kostenanteilGesamt: true, vorauszahlungGesamt: true, saldo: true },
+    }),
+  ]);
+  const summeJeAbrechnung = new Map(summen.map((s) => [s.abrechnungId, s]));
+
+  const rows: AbrechnungZeile[] = abrechnungen.map((a) => {
+    const s = summeJeAbrechnung.get(a.id);
+    return {
+      id: a.id,
+      jahr: a.jahr,
+      status: a.status,
+      manuell: a.manuell,
+      versendetAm: a.versendetAm ? DATUM.format(a.versendetAm) : null,
+      erstelltAm: DATUM.format(a.erstelltAm),
+      positionen: s?._count._all ?? 0,
+      kostenanteil: Number(s?._sum.kostenanteilGesamt ?? 0),
+      vorauszahlung: Number(s?._sum.vorauszahlungGesamt ?? 0),
+      saldo: Number(s?._sum.saldo ?? 0),
+    };
   });
+
+  // Vorbelegung: das Vorjahr, solange es dafür noch keine Abrechnung gibt — sonst leer, damit der
+  // Knopf nicht sofort in „existiert bereits“ läuft.
+  const vorjahr = new Date().getFullYear() - 1;
+  const vorschlagJahr = abrechnungen.some((a) => a.jahr === vorjahr) ? null : vorjahr;
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Betriebskostenabrechnung</h1>
-        <p className="text-sm text-neutral-400">
-          Eine Abrechnung pro Jahr fürs ganze Objekt — verteilt die umlagefähigen Kosten nach
-          Verteilerschlüssel auf alle Einheiten.
+        <p className="mt-1 text-sm text-neutral-400">
+          Eine Abrechnung pro Jahr fürs ganze Objekt — verteilt die umlagefähigen Kosten nach Verteilerschlüssel auf
+          alle Einheiten.
         </p>
       </div>
 
-      <div className="mb-8 rounded-lg border border-neutral-800 p-4">
-        <NeueAbrechnungForm />
-      </div>
+      <AbrechnungenTable rows={rows} />
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2">Jahr</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Positionen</th>
-              <th className="px-4 py-2">Erstellt am</th>
-            </tr>
-          </thead>
-          <tbody>
-            {abrechnungen.map((a) => (
-              <tr key={a.id} className="border-t border-neutral-800 hover:bg-neutral-900">
-                <td className="px-4 py-2 text-white">
-                  <Link href={`/nebenkostenabrechnungen/${a.id}`} className="font-medium hover:underline">
-                    {a.jahr}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-white">{STATUS_LABEL[a.status] ?? a.status}</td>
-                <td className="px-4 py-2 text-white">{a._count.positionen}</td>
-                <td className="px-4 py-2 text-white">{formatDate(a.erstelltAm)}</td>
-              </tr>
-            ))}
-            {abrechnungen.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
-                  Noch keine Abrechnung erstellt.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <section className="mt-8 rounded-lg border border-neutral-800 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-white">Neue Abrechnung</h2>
+        <NeueAbrechnungForm vorschlagJahr={vorschlagJahr} />
+      </section>
     </div>
   );
 }
