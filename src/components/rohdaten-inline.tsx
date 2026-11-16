@@ -88,7 +88,7 @@ export function RohdatenZeile({
   return (
     <tr className="border-t border-neutral-800 bg-neutral-900/50">
       <td colSpan={colSpan} className="px-4 py-3">
-        <div className="max-w-3xl border-l-2 border-neutral-600 pl-4">
+        <div className="max-w-5xl border-l-2 border-neutral-600 pl-4">
           {downloadHref && (
             <a href={downloadHref} className="mb-3 block text-sm text-white underline">
               {downloadLabel}
