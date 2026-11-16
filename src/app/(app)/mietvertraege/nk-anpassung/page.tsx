@@ -107,7 +107,7 @@ export default async function NkAnpassungPage() {
           Rechenweg von links nach rechts: Kostenanteil des Abrechnungsjahres (bei unterjähriger Nutzung steht darunter
           „auf 12 Monate“, der hochgerechnete Jahreswert) → ÷ 12 = Kosten pro Monat → plus {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag,
           aufgerundet auf volle Euro = Vorschlag. Zuschlag, Betrag und Gültig-ab-Datum lassen
-          sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert). Im Schreiben („Erstellen“) lässt sich per Häkchen
+          sich im Schreiben je Mieter ändern; die Spalten hier sind nur eine Vorschau (nichts gespeichert). Im Schreiben (Knopf „Schreiben“) lässt sich per Häkchen
           auch die Indexerhöhung der Kaltmiete zuschalten — ein gemeinsames Schreiben mit zwei getrennten Abschnitten.
           „Angepasst“ heißt: Nach dem Abrechnungsjahr wurde schon eine Mieterhöhung erfasst (auch eine mit anderem
           Anlass) — dann Schreiben und Betrag im Vertrag prüfen. Verträge, die bis zum Jahresende der Abrechnung enden, fehlen in der Liste (nichts mehr

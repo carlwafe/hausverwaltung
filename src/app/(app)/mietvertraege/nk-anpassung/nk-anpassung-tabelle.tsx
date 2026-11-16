@@ -26,59 +26,71 @@ const leer = <span className="text-neutral-600">–</span>;
 const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone: "UTC" }).format(new Date(iso));
 const differenz = (z: NkAnpassungZeile) => (z.vorschlag === null ? null : z.vorschlag - z.bisher);
 
+const BETRAG = { align: "right", className: "whitespace-nowrap tabular-nums" } as const;
+
+// Am Computer darf die Tabelle nicht breiter als die Seite sein (siehe „Tabellen am Computer“ in
+// docs/tickets-logo-design.md): Einheit mit fester Breite, Mieter als Füllspalte mit dem Abrechnungsjahr
+// darunter, kurze Überschriften mit Tooltip.
 const columns: Column<NkAnpassungZeile>[] = [
   {
     key: "einheit",
     label: "Einheit",
     render: (z) => (
-      <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
-        {z.einheitBezeichnung}
-      </Link>
+      // Feste Breite über das div (nicht die Zelle), sonst drückt die Füllspalte die Spalte zusammen.
+      <div className="w-24">
+        <Link prefetch={false} href={`/mietvertraege/${z.id}`} className={TABELLEN_LINK}>
+          {z.einheitBezeichnung}
+        </Link>
+      </div>
     ),
     sortValue: (z) => z.einheitRang,
     searchValue: (z) => z.einheitBezeichnung,
   },
   {
     key: "mieter",
-    label: "Mieter",
-    render: (z) => <span className="text-neutral-300">{z.mieterNamen}</span>,
+    label: "Mieter · Abrechnung",
+    title: "Sortiert nach Mieter; darunter das Jahr der neuesten Betriebskostenabrechnung",
+    fuellend: true,
+    render: (z) => (
+      <>
+        <div title={z.mieterNamen} className="truncate">
+          {z.mieterNamen}
+        </div>
+        <div className="truncate text-xs text-neutral-400">
+          Abrechnung {z.jahr}
+          {z.entwurf && <span className="text-amber-400"> · Entwurf</span>}
+        </div>
+      </>
+    ),
     sortValue: (z) => z.mieterNamen,
     searchValue: (z) => z.mieterNamen,
   },
   {
     key: "schreiben",
-    label: "Schreiben",
+    label: "",
     render: (z) => (
       <Link
         href={`/mietvertraege/${z.id}/nk-anpassung`}
         prefetch={false}
-        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
+        title="Schreiben zur Anpassung der Vorauszahlung erstellen"
+        className="inline-block whitespace-nowrap rounded-md border border-neutral-600 px-1.5 py-1 text-xs font-medium text-white hover:bg-neutral-800"
       >
-        Erstellen
+        Schreiben
       </Link>
     ),
   },
   {
-    key: "jahr",
-    label: "Abrechnung",
-    render: (z) => (
-      <span className="text-neutral-300">
-        {z.jahr}
-        {z.entwurf && <span className="ml-1 text-xs text-amber-400">Entwurf</span>}
-      </span>
-    ),
-    sortValue: (z) => z.jahr,
-  },
-  {
     key: "kosten",
-    label: "Kostenanteil",
-    align: "right",
+    label: "Kosten",
+    ...BETRAG,
     title: "Kostenanteil des Mieters laut Abrechnung für den Nutzungszeitraum im Abrechnungsjahr; bei unterjähriger Nutzung darunter auf 12 Monate hochgerechnet",
     render: (z) => (
       <span className="text-neutral-300">
         {euro(z.kostenanteil)} €
         {z.hochgerechnet && z.jahreskosten !== null && (
-          <span className="block text-xs text-amber-400">(auf 12 Monate: {euro(z.jahreskosten)} €)</span>
+          <span title="Auf 12 Monate hochgerechnet" className="block text-xs text-amber-400">
+            Jahr {euro(z.jahreskosten)} €
+          </span>
         )}
       </span>
     ),
@@ -86,32 +98,33 @@ const columns: Column<NkAnpassungZeile>[] = [
   },
   {
     key: "monatlich",
-    label: "Kosten / Monat",
-    align: "right",
-    title: "Jahreskosten ÷ 12, noch ohne Zuschlag und ohne Aufrunden",
+    label: "je Monat",
+    ...BETRAG,
+    title: "Kosten pro Monat: Jahreskosten ÷ 12, noch ohne Zuschlag und ohne Aufrunden",
     render: (z) => (z.monatlich === null ? leer : <span className="text-neutral-300">{euro(z.monatlich)} €</span>),
     sortValue: (z) => z.monatlich ?? -1,
   },
   {
     key: "bisher",
-    label: "Vorauszahlung jetzt",
-    align: "right",
-    title: "Monatliche BK-Vorauszahlung, die vor dem vorgeschlagenen Gültig-ab-Datum gilt",
+    label: "Bisher",
+    ...BETRAG,
+    title: "Vorauszahlung jetzt: monatliche BK-Vorauszahlung, die vor dem vorgeschlagenen Gültig-ab-Datum gilt",
     render: (z) => <span className="text-neutral-300">{euro(z.bisher)} €</span>,
     sortValue: (z) => z.bisher,
   },
   {
     key: "vorschlag",
     label: "Vorschlag",
-    align: "right",
+    ...BETRAG,
     title: "Kosten pro Monat plus Standard-Zuschlag, auf volle Euro aufgerundet (Vorschau, nicht gespeichert)",
     render: (z) => (z.vorschlag === null ? <span title="Kein Kostenanteil in der Abrechnung">{leer}</span> : <span className="text-white">{euro(z.vorschlag)} €</span>),
     sortValue: (z) => z.vorschlag ?? -1,
   },
   {
     key: "differenz",
-    label: "Änderung / Monat",
-    align: "right",
+    label: "Änderung",
+    title: "Änderung der Vorauszahlung pro Monat (Vorschlag − bisher)",
+    ...BETRAG,
     render: (z) => {
       const d = differenz(z);
       if (d === null) return leer;
@@ -123,6 +136,7 @@ const columns: Column<NkAnpassungZeile>[] = [
   {
     key: "angepasst",
     label: "Angepasst",
+    className: "whitespace-nowrap",
     title: "Nach dem Abrechnungsjahr wurde schon eine Mieterhöhung erfasst",
     render: (z) =>
       z.angepasstAb ? <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-400">ab {formatDate(z.angepasstAb)}</span> : <span className="text-xs text-neutral-500">offen</span>,
@@ -231,6 +245,7 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
         rowHref={(z) => `/mietvertraege/${z.id}`}
         columns={columns}
         rows={rows}
+        kompakt
         emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit Betriebskostenabrechnung."}
         defaultSort={{ key: "einheit" }}
         mobileCard={(z) => <NkAnpassungKarte z={z} />}
@@ -268,10 +283,10 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
           const jetzt = mitVorschlag.reduce((s, z) => s + z.bisher, 0);
           const neu = mitVorschlag.reduce((s, z) => s + z.vorschlag, 0);
           const d = neu - jetzt;
-          const td = "px-4 py-2 text-right font-medium";
+          const td = "px-3 py-2 text-right font-medium whitespace-nowrap tabular-nums";
           return (
             <tr className="border-t border-neutral-800">
-              <td colSpan={5} className="px-4 py-2 font-medium text-white">
+              <td colSpan={4} className="px-3 py-2 font-medium text-white">
                 Summe <span className="text-xs font-normal text-neutral-500">({mitVorschlag.length} Verträge mit Vorschlag)</span>
               </td>
               <td className={`${td} text-neutral-300`}>{euro(monat)} €</td>
