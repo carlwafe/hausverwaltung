@@ -1002,6 +1002,26 @@ model KontostandKontrolle {
   @@map("kontostand_kontrollen")
 }
 
+// Kontostand laut Bank je Buchungstag, aus den Salden (Anfangs-/Endsaldo) der CAMT-XML-Dateien. Wird beim
+// Kontoauszug-Import (und über „Salden aus XML einlesen“ auf /kontostand) geschrieben; ein erneutes Einlesen
+// desselben Tages überschreibt den Wert. Tage ohne Umsätze haben keine Datei und damit keine Zeile — dort gilt
+// der Endsaldo des letzten Tages davor.
+model Kontosaldo {
+  id            String   @id @default(cuid())
+  datum         DateTime @unique @db.Date
+  iban          String?
+  anfangssaldo  Decimal? @db.Decimal(14, 2)
+  endsaldo      Decimal  @db.Decimal(14, 2)
+  // Anzahl und Summe der Umsätze der Datei — damit die Seite „Anfang + Umsätze = Ende“ ohne die XML zeigen kann.
+  anzahlUmsaetze Int     @default(0)
+  summeUmsaetze  Decimal @default(0) @db.Decimal(14, 2)
+  quelle        String?
+  erstelltAm    DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  @@map("kontosalden")
+}
+
 // Eine Abrechnung pro Jahr fürs ganze Objekt (nicht pro Gebäude) — Kosten liegen inzwischen auf
 // drei Ebenen (Objekt gesamt, Haus, einzelnes Gebäude), eine Abrechnung pro Gebäude müsste die
 // anteilig wieder zusammenrechnen. Die Berechnung selbst ordnet jeder Einheit intern korrekt zu,

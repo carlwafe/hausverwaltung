@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { ladeKontostandVerlauf, ladeKontostandEintraege } from "@/lib/buchungsjournal";
-import { kontostandAmStichtag } from "@/lib/kontostand";
+import { ladeKontostandEintraege } from "@/lib/buchungsjournal";
+import { berechneKontostandVerlauf, kontostandAmStichtag } from "@/lib/kontostand";
+import { findeSaldoLuecken, ladeKontosalden, standAnTagen } from "@/lib/kontosalden";
+import { parseStrengesDatum } from "@/lib/zod-datum";
 import { DeleteButton } from "@/components/delete-button";
 import { KontostandKontrolleForm } from "./kontostand-kontrolle-form";
 import { loescheKontostandKontrolle } from "./actions";
 import { KontostandTable, type KontostandRow } from "./kontostand-table";
+import { SaldenTable, type SaldoRow } from "./salden-table";
+import { SaldenEinlesenForm } from "./salden-einlesen-form";
 import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteNotiz, KarteWerte } from "@/components/karte";
 
 function formatEuro(value: number) {
@@ -17,40 +21,69 @@ function formatDate(d: Date) {
 }
 
 export default async function KontostandPage() {
-  const objekt = await prisma.objekt.findFirst({
-    select: { kontostandAnkerDatum: true, kontostandAnkerBetrag: true },
-  });
+  const [objekt, salden] = await Promise.all([
+    prisma.objekt.findFirst({ select: { kontostandAnkerDatum: true, kontostandAnkerBetrag: true } }),
+    ladeKontosalden(),
+  ]);
 
-  if (!objekt?.kontostandAnkerDatum || objekt.kontostandAnkerBetrag === null) {
+  // Von Hand gesetzter Anker (Objekt-Einstellungen) — nur noch Rückfall und Grundlage der von Hand eingetragenen Prüfwerte.
+  const manuellerAnker =
+    objekt?.kontostandAnkerDatum && objekt.kontostandAnkerBetrag !== null
+      ? { datum: objekt.kontostandAnkerDatum, betrag: Number(objekt.kontostandAnkerBetrag) }
+      : null;
+
+  // Mit XML-Salden ist der Bankstand des ersten Tages der Anker: Die Buchungen werden ab dort gegen die Bank gerechnet.
+  const anker =
+    salden.length > 0
+      ? { datum: parseStrengesDatum(salden[0].datum)!, betrag: salden[0].endsaldo }
+      : manuellerAnker;
+
+  if (!anker) {
     return (
       <div>
         <h1 className="mb-2 text-2xl font-semibold text-white">Kontostand</h1>
-        <p className="max-w-xl text-sm text-neutral-400">
-          Um den Kontostand-Verlauf zu simulieren, brauche ich einen Referenzpunkt — den echten
-          Kontostand an einem bestimmten Tag (z.B. von einem Kontoauszug abgelesen). Trag ihn unter{" "}
-          <Link href="/objekt" className="underline hover:text-white">
-            Objekt-Einstellungen
+        <p className="mb-4 max-w-xl text-sm text-neutral-400">
+          Der Kontostand kommt aus den Salden der CAMT-XML-Dateien. Sie werden beim{" "}
+          <Link href="/kontoauszug/import" className="underline hover:text-white">
+            Kontoauszug-Import
           </Link>{" "}
-          ein.
+          gespeichert; für schon importierte Auszüge lassen sie sich hier nachträglich einlesen.
         </p>
+        <div className="max-w-xl rounded-lg border border-neutral-800 p-4">
+          <SaldenEinlesenForm />
+        </div>
       </div>
     );
   }
 
-  const anker = {
-    datum: objekt.kontostandAnkerDatum,
-    betrag: Number(objekt.kontostandAnkerBetrag),
-  };
-
-  const [verlauf, eintraege, kontrollen] = await Promise.all([
-    ladeKontostandVerlauf(anker),
+  const [eintraege, kontrollen] = await Promise.all([
     ladeKontostandEintraege(),
     prisma.kontostandKontrolle.findMany({ orderBy: { datum: "desc" } }),
   ]);
+  const verlauf = berechneKontostandVerlauf(eintraege, anker);
 
-  // Simulierter Stand am Ende des Kontrolltags (Buchungen des Tages zählen mit) gegen den echten Stand.
+  // Tagesabgleich: Bankstand (XML) gegen den Stand, den die Buchungen der App ergeben.
+  const appStaende = standAnTagen(eintraege, anker, salden.map((s) => s.datum));
+  const differenzen = salden.map((s, i) => Math.round((appStaende[i] - s.endsaldo) * 100) / 100);
+  const saldoZeilen: SaldoRow[] = salden.map((s, i) => ({
+    id: s.datum,
+    datum: s.datum,
+    anfang: s.anfangssaldo,
+    umsatz: s.summeUmsaetze,
+    anzahl: s.anzahlUmsaetze,
+    bank: s.endsaldo,
+    app: appStaende[i],
+    differenz: differenzen[i],
+    neu: i > 0 && Math.abs(differenzen[i] - differenzen[i - 1]) >= 0.005,
+  }));
+  const letzterTag = saldoZeilen[saldoZeilen.length - 1] ?? null;
+  const luecken = findeSaldoLuecken(salden);
+  const abweichungen = saldoZeilen.filter((z) => z.neu);
+
+  // Von Hand eingetragene Prüfwerte: simulierter Stand am Ende des Kontrolltags (Buchungen des Tages zählen mit) gegen den echten Stand.
+  const kontrollAnker = manuellerAnker ?? anker;
   const kontrollZeilen = kontrollen.map((k) => {
-    const simuliert = kontostandAmStichtag(eintraege, anker, new Date(k.datum.getTime() + 24 * 60 * 60 * 1000 - 1));
+    const simuliert = kontostandAmStichtag(eintraege, kontrollAnker, new Date(k.datum.getTime() + 24 * 60 * 60 * 1000 - 1));
     const bank = Number(k.betrag);
     const differenz = Math.round((simuliert - bank) * 100) / 100;
     return { id: k.id, datum: k.datum, notiz: k.notiz, bank, simuliert, differenz };
@@ -69,32 +102,94 @@ export default async function KontostandPage() {
     }));
 
   const aktuellerStand = rows[0]?.kontostand ?? anker.betrag;
+  const stimmtAktuell = letzterTag ? Math.abs(letzterTag.differenz) < 0.005 : null;
 
   return (
     <div>
       <h1 className="mb-2 text-2xl font-semibold text-white">Kontostand</h1>
       <p className="mb-6 max-w-2xl text-sm text-neutral-400">
-        Simulierter Verlauf, aus allen erfassten Buchungen (Zahlungen, Kosten, Mietweiterleitungen,
-        Kautionsbuchungen, nicht kategorisierte Buchungen) relativ zum Anker am {formatDate(anker.datum)} (
-        {formatEuro(anker.betrag)}) berechnet. Die Genauigkeit hängt davon ab, dass alle Kontoauszüge
-        vollständig importiert sind —{" "}
-        <Link href="/kontoauszug/importe" className="underline hover:text-white">
-          dort lässt sich das je Importdatei prüfen
-        </Link>
-        .
+        {letzterTag ? (
+          <>
+            Der Kontostand kommt aus den Salden der CAMT-XML-Dateien, die beim Kontoauszug-Import gespeichert werden. Die
+            Buchungen der App werden ab dem ersten Bankstand ({formatDate(anker.datum)}, {formatEuro(anker.betrag)})
+            gegen die Bank gerechnet — wo die Differenz sich ändert, fehlt eine Buchung oder ist falsch erfasst.
+          </>
+        ) : (
+          <>
+            Es sind noch keine Bank-Salden gespeichert: Der Verlauf rechnet ab dem von Hand gesetzten Anker am{" "}
+            {formatDate(anker.datum)} ({formatEuro(anker.betrag)}). Import per XML oder „Salden einlesen“ unten liefert den
+            echten Stand.
+          </>
+        )}
       </p>
 
-      <div className="mb-6 rounded-lg border border-neutral-800 p-4">
-        <p className="text-xs text-neutral-400">Aktueller simulierter Kontostand</p>
-        <p className="mt-1 text-lg font-semibold text-white">{formatEuro(aktuellerStand)}</p>
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        {letzterTag && (
+          <>
+            <div className="rounded-lg border border-neutral-800 p-4">
+              <p className="text-xs text-neutral-400">Kontostand laut Bank</p>
+              <p className="mt-1 text-lg font-semibold text-white">{formatEuro(letzterTag.bank)}</p>
+              <p className="mt-0.5 text-xs text-neutral-500">Ende {formatDate(parseStrengesDatum(letzterTag.datum)!)}</p>
+            </div>
+            <div className="rounded-lg border border-neutral-800 p-4">
+              <p className="text-xs text-neutral-400">Abgleich mit den Buchungen</p>
+              <p className={`mt-1 text-lg font-semibold ${stimmtAktuell ? "text-green-400" : "text-red-400"}`}>
+                {stimmtAktuell ? "stimmt" : `${formatEuro(letzterTag.differenz)} Differenz`}
+              </p>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                {abweichungen.length === 0
+                  ? "an keinem Tag eine Abweichung"
+                  : `${abweichungen.length} Tag${abweichungen.length === 1 ? "" : "e"} mit neuer Abweichung`}
+              </p>
+            </div>
+          </>
+        )}
+        <div className="rounded-lg border border-neutral-800 p-4">
+          <p className="text-xs text-neutral-400">Laut Buchungen (alle erfassten)</p>
+          <p className="mt-1 text-lg font-semibold text-white">{formatEuro(aktuellerStand)}</p>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {letzterTag ? `${salden.length} Tage mit Bankstand, ${formatDate(anker.datum)} bis ${formatDate(parseStrengesDatum(letzterTag.datum)!)}` : "simuliert"}
+          </p>
+        </div>
       </div>
 
-      <div className="mb-6 rounded-lg border border-neutral-800 p-4">
-        <h2 className="mb-1 text-sm font-medium text-white">Kontostand prüfen</h2>
-        <p className="mb-3 text-xs text-neutral-500">
-          Trag den echten Kontostand von einem Kontoauszug ein (Stand am Ende des Tages). Er wird mit dem
+      {luecken.length > 0 && (
+        <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-300">
+          <p className="font-medium">Es fehlen Kontoauszug-Dateien</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
+            {luecken.map((l) => (
+              <li key={`${l.von}-${l.bis}`}>
+                Zwischen {formatDate(parseStrengesDatum(l.von)!)} (Endstand {formatEuro(l.endsaldo)}) und{" "}
+                {formatDate(parseStrengesDatum(l.bis)!)} (Anfangsstand {formatEuro(l.anfangssaldo)}) passen die Salden nicht
+                zusammen.
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {saldoZeilen.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 text-sm font-medium text-white">Tagesstände laut Bank</h2>
+          <SaldenTable rows={saldoZeilen} />
+        </div>
+      )}
+
+      <details className="mb-6 rounded-lg border border-neutral-800 p-4">
+        <summary className="cursor-pointer text-sm font-medium text-white">Salden aus XML-Dateien einlesen</summary>
+        <p className="mb-3 mt-2 text-xs text-neutral-500">
+          Für Auszüge, die schon importiert sind: Die Dateien werden nur gelesen, es wird nichts gebucht. Beim normalen
+          Import werden die Salden automatisch gespeichert.
+        </p>
+        <SaldenEinlesenForm />
+      </details>
+
+      <details className="mb-6 rounded-lg border border-neutral-800 p-4" open={kontrollZeilen.length > 0 && !letzterTag}>
+        <summary className="cursor-pointer text-sm font-medium text-white">Kontostand von Hand prüfen</summary>
+        <p className="mb-3 mt-2 text-xs text-neutral-500">
+          Ohne XML: Trag den echten Kontostand von einem Kontoauszug ein (Stand am Ende des Tages). Er wird mit dem
           simulierten Kontostand desselben Tages verglichen — eine Abweichung heißt, dass eine Buchung fehlt oder
-          falsch erfasst ist. Die Prüfwerte ändern den Verlauf nicht.
+          falsch erfasst ist. Die Prüfwerte ändern den Verlauf nicht und gehen in den Jahresbericht ein.
         </p>
         <KontostandKontrolleForm />
         {/* Handy: je Prüfwert eine Karte statt der Tabelle. */}
@@ -188,8 +283,9 @@ export default async function KontostandPage() {
             </table>
           </div>
         )}
-      </div>
+      </details>
 
+      <h2 className="mb-2 text-sm font-medium text-white">Buchungen und Stand laut App</h2>
       <KontostandTable rows={rows} />
     </div>
   );

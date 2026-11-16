@@ -15,6 +15,7 @@ import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { parseSpreadsheetFile } from "@/lib/import/spreadsheet";
 import { parseCamtDateien, zeilenAlsCsv, type CamtPruefung } from "@/lib/import/camt";
 import { speichereDatei } from "@/lib/storage";
+import { speichereKontosalden } from "@/lib/kontosalden";
 import { mapZahlungenRows, type MietvertragKandidat } from "@/lib/import/zahlungen-import";
 import { parseSuchbegriffe, type DienstleisterKandidat } from "@/lib/import/dienstleister";
 import { ermittleDoppelzahlungHinweise } from "@/lib/import/doppelzahlung";
@@ -448,6 +449,11 @@ export async function previewImport(
         user: { connect: { id: user.id } },
       },
     });
+    // Die Salden der XML-Dateien sind der echte Kontostand: für die Kontostand-Seite festhalten.
+    if (camtPruefung) {
+      await speichereKontosalden(camtPruefung, dateiname);
+      revalidatePath("/kontostand");
+    }
 
     const [
       vertraege,
