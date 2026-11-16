@@ -10,6 +10,7 @@ import {
 } from "@/lib/import/buchung-klassifizierung";
 import type { BestehendeImportSets } from "./actions";
 import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { RohdatenAnsicht } from "@/components/rohdaten-ansicht";
 import { useSpaltenSortierung, SortableTh } from "@/components/spalten-sortierung";
 import { gruppiereKostenarten } from "@/lib/kostenart-gruppen";
 import { gruppiereGebaeude, type EinheitMitAdresse } from "@/lib/gebaeude-gruppen";
@@ -1264,16 +1265,9 @@ export function BuchungenTabelle({
                       {aktionKnopf}
                     </div>
                     {expanded && (
-                      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md bg-neutral-900/50 p-2 text-xs">
-                        {Object.entries(r.rohdaten)
-                          .filter(([, v]) => v)
-                          .map(([k, v]) => (
-                            <div key={k} className="min-w-0">
-                              <dt className="text-neutral-500">{k}</dt>
-                              <dd className="break-words text-neutral-200">{v}</dd>
-                            </div>
-                          ))}
-                      </dl>
+                      <div className="rounded-md bg-neutral-900/50 p-3">
+                        <RohdatenAnsicht rohdaten={r.rohdaten} schmal />
+                      </div>
                     )}
                   </div>
                 );

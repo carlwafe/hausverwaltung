@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ladeBuchungRohdaten } from "@/app/(app)/buchungen/rohdaten-action";
+import { RohdatenAnsicht } from "@/components/rohdaten-ansicht";
 
 export function RohdatenToggleButton({
   expanded,
@@ -87,21 +88,14 @@ export function RohdatenZeile({
   return (
     <tr className="border-t border-neutral-800 bg-neutral-900/50">
       <td colSpan={colSpan} className="px-4 py-3">
-        {downloadHref && (
-          <a href={downloadHref} className="mb-2 block text-sm text-white underline">
-            {downloadLabel}
-          </a>
-        )}
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3 lg:grid-cols-4">
-          {Object.entries(rohdaten)
-            .filter(([, v]) => v)
-            .map(([key, value]) => (
-              <div key={key} className="min-w-0">
-                <dt className="text-neutral-500">{key}</dt>
-                <dd className="break-words text-neutral-200">{value}</dd>
-              </div>
-            ))}
-        </dl>
+        <div className="max-w-3xl border-l-2 border-neutral-600 pl-4">
+          {downloadHref && (
+            <a href={downloadHref} className="mb-3 block text-sm text-white underline">
+              {downloadLabel}
+            </a>
+          )}
+          <RohdatenAnsicht rohdaten={rohdaten} />
+        </div>
       </td>
     </tr>
   );

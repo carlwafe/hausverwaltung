@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { RohdatenAnsicht } from "@/components/rohdaten-ansicht";
 
 export function RohdatenDialog({
   rohdaten,
@@ -46,16 +47,9 @@ export function RohdatenDialog({
               {downloadLabel}
             </a>
           )}
-          <dl className="max-h-[60vh] space-y-2 overflow-y-auto text-xs">
-            {Object.entries(rohdaten)
-              .filter(([, v]) => v)
-              .map(([key, value]) => (
-                <div key={key}>
-                  <dt className="text-neutral-500">{key}</dt>
-                  <dd className="break-words text-neutral-200">{value}</dd>
-                </div>
-              ))}
-          </dl>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <RohdatenAnsicht rohdaten={rohdaten} schmal />
+          </div>
         </div>
       </dialog>
     </>
