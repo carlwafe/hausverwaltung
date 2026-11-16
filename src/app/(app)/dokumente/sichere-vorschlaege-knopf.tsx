@@ -10,9 +10,10 @@ export function SichereVorschlaegeKnopf() {
   const [meldung, setMeldung] = useState<string | null>(null);
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-neutral-800 p-3 text-sm">
+    <div className="flex flex-wrap items-center gap-2 text-sm">
       <button
         type="button"
+        title="„Sicher“ = Betrag stimmt und Rechnungsnummer (oder Aussteller/IBAN plus Zahlungsdatum) passt, nur bei genau einem Treffer. Alles andere ordnest du auf der Detailseite zu."
         disabled={pending}
         onClick={() => {
           if (!confirm("Alle Dokumente zuordnen, für die es genau eine sichere Kostenposition gibt?")) return;
@@ -22,14 +23,10 @@ export function SichereVorschlaegeKnopf() {
             setMeldung(typeof fehler === "string" ? fehler : "Fertig. Die zugeordneten Dokumente liegen jetzt an ihren Kostenpositionen.");
           });
         }}
-        className="rounded-md border border-neutral-700 px-3 py-2 font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+        className="h-10 rounded-md border border-neutral-700 px-3 font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
       >
         {pending ? "Ordnet zu…" : "Sichere Vorschläge übernehmen"}
       </button>
-      <span className="text-xs text-neutral-500">
-        „Sicher“ = Betrag stimmt und Rechnungsnummer (oder Aussteller/IBAN plus Zahlungsdatum) passt, nur bei genau einem Treffer.
-        Alles andere ordnest du auf der Detailseite zu.
-      </span>
       {meldung && <span className="text-xs text-neutral-300">{meldung}</span>}
     </div>
   );

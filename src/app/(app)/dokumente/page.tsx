@@ -28,20 +28,56 @@ const ABSCHNITT_TITEL: Record<BereichKey, string> = {
   allgemein: "Frei benannte Ordner (ohne Bezug)",
 };
 
-function Ordnerkarte({
+// Kurztext je Hauptordner (die ausführliche Fassung steht in `HAUPTORDNER.hinweis`).
+const HAUPT_KURZ: Record<string, string> = {
+  eingang: "Noch nicht abgelegt",
+  kosten: "Rechnungen, Bescheide, Abrechnungen",
+  mietverhaeltnisse: "Verträge, Schreiben, Protokolle",
+  objekt: "Häuser, Gebäude, Einheiten",
+  sonstiges: "Tickets und freie Ordner",
+};
+
+// Strich-Symbole der Hauptordner (24er Raster, `currentColor`) — je Ordner ein eigenes Motiv statt eines Ordner-Symbols.
+const HAUPT_SYMBOL: Record<string, string> = {
+  eingang: "M3 13l3-8h12l3 8v6H3v-6z M3 13h5l1 3h6l1-3h5",
+  kosten: "M6 3h12v18l-3-2-3 2-3-2-3 2V3z M9 8h6 M9 12h6",
+  mietverhaeltnisse: "M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z M5 20c0-3.5 3-6 7-6s7 2.5 7 6",
+  objekt: "M4 11l8-7 8 7 M6 10v10h12V10 M10 20v-6h4v6",
+  sonstiges: "M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z",
+};
+
+/** Große Kachel eines Hauptordners auf der Startseite: Symbol, Name, Kurztext, Anzahl. */
+function Hauptkachel({ href, schluessel, titel, anzahl, hervorgehoben }: { href: string; schluessel: string; titel: string; anzahl: number; hervorgehoben?: boolean }) {
+  return (
+    <Link href={href} className="group flex items-center gap-4 rounded-xl border border-neutral-800 p-5 hover:border-neutral-600 hover:bg-neutral-900">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-neutral-800 text-neutral-400 group-hover:text-white">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+          <path d={HAUPT_SYMBOL[schluessel]} />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-white">{titel}</span>
+        <span className="block truncate text-xs text-neutral-500">{hervorgehoben ? "Zu prüfen" : HAUPT_KURZ[schluessel]}</span>
+      </span>
+      <span className={`text-2xl font-semibold tabular-nums ${hervorgehoben ? "text-amber-400" : "text-white"}`}>{anzahl}</span>
+    </Link>
+  );
+}
+
+/** Zeile eines Unterordners: Name links, Anzahl der Dateien rechts — ohne Symbol und Zusatztext. */
+function Ordnerzeile({
   href,
   titel,
+  unter,
   anzahl,
-  groesse,
-  hinweis,
   gedimmt,
   badge,
 }: {
   href: string;
   titel: string;
+  /** Zweite, kleine Zeile (z.B. Mieter unter der Einheit). */
+  unter?: string;
   anzahl: number;
-  groesse: number;
-  hinweis?: string;
   /** Z.B. beendete Mietverträge: optisch zurückgenommen. */
   gedimmt?: boolean;
   badge?: string;
@@ -49,29 +85,29 @@ function Ordnerkarte({
   return (
     <Link
       href={href}
-      className={`rounded-lg border border-neutral-800 p-4 hover:border-neutral-600 hover:bg-neutral-900 ${gedimmt ? "opacity-60" : ""}`}
+      title={unter ? `${titel} (${unter})` : titel}
+      className={`flex items-center gap-3 rounded-lg border border-neutral-800 px-4 py-3 hover:border-neutral-600 hover:bg-neutral-900 ${gedimmt ? "opacity-60" : ""}`}
     >
-      <div className="flex items-start gap-3">
-        <span aria-hidden className="text-xl leading-none">📁</span>
-        <div className="min-w-0">
-          <div className="font-medium text-white [overflow-wrap:anywhere]">
-            {titel}
-            {badge && (
-              <span className="ml-2 rounded-full border border-neutral-700 px-2 py-0.5 align-middle text-[10px] font-normal uppercase text-neutral-400">
-                {badge}
-              </span>
-            )}
-          </div>
-          <div className="text-xs text-neutral-500">
-            {anzahl} {anzahl === 1 ? "Datei" : "Dateien"}
-            {groesse > 0 && ` · ${formatBytes(groesse)}`}
-            {hinweis && ` · ${hinweis}`}
-          </div>
-        </div>
-      </div>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-white">{titel}</span>
+        {unter && <span className="block truncate text-xs text-neutral-500">{unter}</span>}
+      </span>
+      {badge && <span className="shrink-0 rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] uppercase text-neutral-400">{badge}</span>}
+      <span className="shrink-0 text-sm tabular-nums text-neutral-500" title={`${anzahl} ${anzahl === 1 ? "Datei" : "Dateien"}`}>
+        {anzahl}
+      </span>
     </Link>
   );
 }
+
+/** „Einheit (Mieter)“ → Einheit als Titel, Mieter klein darunter; andere Namen bleiben einzeilig. */
+function zweizeilig(label: string): { titel: string; unter?: string } {
+  const m = label.match(/^(.*) \(([^()]+)\)$/);
+  return m ? { titel: m[1], unter: m[2] } : { titel: label };
+}
+
+const RASTER = "grid gap-2 sm:grid-cols-2 lg:grid-cols-3";
+const ABSCHNITT = "mb-2 text-xs font-medium uppercase text-neutral-500";
 
 // Die Regel-Erkennung läuft beim Hochladen in derselben Anfrage; die KI-Prüfung (Claude) per Knopf, bis zu 6 Dokumente pro Klick.
 export const maxDuration = 60;
@@ -156,20 +192,27 @@ export default async function DokumentePage({
 
   const gesamtGroesse = index.reduce((s, e) => s + (e.groesseBytes ?? 0), 0);
   const ordnerNamen = allgemeineOrdnerNamen(index);
-  const ansichtLink = (aktiv: boolean) => (aktiv ? "font-medium text-white" : LINK);
+  const ansichtLink = (aktiv: boolean) => `rounded-md px-3 py-1.5 ${aktiv ? "bg-neutral-800 font-medium text-white" : "text-neutral-400 hover:text-white"}`;
   const eingangAnzahl = index.filter((e) => e.bereiche.includes("eingang")).length;
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
-        <p className="text-sm text-neutral-400">
-          Alle hochgeladenen Dateien an einem Ort — {index.length} Dateien, {formatBytes(gesamtGroesse)}. Hochladen heißt nur
-          Datei wählen: die App liest PDFs zuerst per Regeln (lokal) und bestimmt Typ, Aussteller, Betrag usw.; was sie nicht sicher erkennt, prüft die KI auf Knopfdruck. Im <strong>Eingang</strong> bestätigst du die
-          vorgeschlagenen Bezüge (Kostenposition, Mietvertrag, Einheit, Haus, Gebäude, Dienstleister, Ticket). „Haus“ ist das ganze Bauwerk mit mehreren Hausnummern, „Gebäude“ eine einzelne Hausnummer. Ein Dokument kann mehrere
-          Bezüge haben und erscheint dann in jedem passenden Ordner (Kosten, Mietverhältnisse, Objekt, Sonstiges). Kostenbelege lassen sich nicht löschen, nur ausblenden. Die
-          Kontoauszug-Dateien der Importe stehen unter Kontoauszug → Importe.
-        </p>
+      <div className="mb-5">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-2xl font-semibold text-white">Dokumente</h1>
+          <span className="text-sm text-neutral-500">
+            {index.length} Dateien · {formatBytes(gesamtGroesse)}
+          </span>
+        </div>
+        <details className="mt-1 text-sm text-neutral-400">
+          <summary className="cursor-pointer text-xs text-neutral-500 hover:text-white">So funktioniert die Ablage</summary>
+          <ul className="mt-2 max-w-3xl list-disc space-y-1 pl-5">
+            <li>Hochladen heißt nur Datei wählen: Die App liest PDFs lokal per Regeln; was sie nicht sicher erkennt, prüft die KI auf Knopfdruck.</li>
+            <li>Im <strong>Eingang</strong> bestätigst du die vorgeschlagenen Bezüge. Ein Dokument mit mehreren Bezügen erscheint in jedem passenden Ordner.</li>
+            <li>„Haus“ ist das ganze Bauwerk mit mehreren Hausnummern, „Gebäude“ eine einzelne Hausnummer.</li>
+            <li>Kostenbelege lassen sich nicht löschen, nur ausblenden. Kontoauszug-Dateien stehen unter Geld → Kontoauszug importieren → Importe.</li>
+          </ul>
+        </details>
       </div>
 
       {editierbar && (
@@ -180,45 +223,44 @@ export default async function DokumentePage({
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <Link href="/dokumente" className={ansichtLink(!alleAnsicht && !typAnsicht)}>
-          Ordner
-        </Link>
-        <Link href="/dokumente?ansicht=typ" className={ansichtLink(typAnsicht)}>
-          Nach Typ
-        </Link>
-        <Link href="/dokumente?ansicht=alle" className={ansichtLink(alleAnsicht)}>
-          Alle Dokumente
-        </Link>
+        <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
+          <Link href="/dokumente" className={ansichtLink(!alleAnsicht && !typAnsicht)}>
+            Ordner
+          </Link>
+          <Link href="/dokumente?ansicht=typ" className={ansichtLink(typAnsicht)}>
+            Nach Typ
+          </Link>
+          <Link href="/dokumente?ansicht=alle" className={ansichtLink(alleAnsicht)}>
+            Alle
+          </Link>
+        </div>
         {!alleAnsicht && !typAnsicht && (gruppe || bereich) && (
           <span className="text-neutral-500">
             {gruppe ? (
-              <>/ <span className="text-neutral-300">{gruppe.label}</span></>
+              <span className="text-white">{gruppe.label}</span>
             ) : (
               bereich && (
                 <>
-                  /{" "}
-                  <Link href={hauptordner?.href ?? `/dokumente?bereich=${bereich.key}`} className={LINK}>
+                  <Link href={hauptordner?.href ?? `/dokumente?bereich=${bereich.key}`} className={ordner ? LINK : "text-white"}>
                     {hauptordner?.label ?? bereich.label}
                   </Link>
-                  {ordner && <> / <span className="text-neutral-300">{ordner.label}</span></>}
+                  {ordner && <> › <span className="text-white">{ordner.label}</span></>}
                 </>
               )
             )}
           </span>
         )}
         {artGewaehlt && (
-          <span className="text-neutral-500">
-            /{" "}
-            <Link href="/dokumente?ansicht=typ" className={LINK}>
-              Typen
-            </Link>{" "}
-            / <span className="text-neutral-300">{artGewaehlt === "_ohne" ? "Ohne Typ" : (ART_OPTIONEN.find((a) => a.key === artGewaehlt)?.label ?? artGewaehlt)}</span>
-          </span>
+          <span className="text-white">{artGewaehlt === "_ohne" ? "Ohne Typ" : (ART_OPTIONEN.find((a) => a.key === artGewaehlt)?.label ?? artGewaehlt)}</span>
         )}
       </div>
 
-      {eingangAnsicht && editierbar && kiOffen > 0 && <KiPruefungKnopf anzahl={kiOffen} />}
-      {eingangAnsicht && editierbar && sichtbar.length > 0 && <SichereVorschlaegeKnopf />}
+      {eingangAnsicht && editierbar && sichtbar.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <SichereVorschlaegeKnopf />
+          {kiOffen > 0 && <KiPruefungKnopf anzahl={kiOffen} />}
+        </div>
+      )}
 
       {alleAnsicht || eingangAnsicht || artGewaehlt || (bereich && ordner) ? (
         <DokumentTabelle rows={rows} zeigeBereich={alleAnsicht || !!artGewaehlt} ordnerNamen={ordnerNamen} editierbar={editierbar} />
@@ -227,15 +269,14 @@ export default async function DokumentePage({
           {/* Leere Abschnitte blenden wir aus (ist der ganze Hauptordner leer, steht er gar nicht erst auf der Startseite). */}
           {gruppenOrdner.filter(({ ordner: liste }) => liste.length > 0).map(({ bereich: b, ordner: liste }) => (
             <div key={b}>
-              <h2 className="mb-2 text-xs font-medium uppercase text-neutral-500">{ABSCHNITT_TITEL[b]}</h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <h2 className={ABSCHNITT}>{ABSCHNITT_TITEL[b]}</h2>
+              <div className={RASTER}>
                 {liste.map((o) => (
-                  <Ordnerkarte
+                  <Ordnerzeile
                     key={o.key}
                     href={`/dokumente?bereich=${b}&ordner=${encodeURIComponent(o.key)}`}
                     titel={o.label}
                     anzahl={o.anzahl}
-                    groesse={o.groesse}
                     gedimmt={o.vertragStatus === "BEENDET"}
                     badge={o.vertragStatus === "BEENDET" ? "beendet" : undefined}
                   />
@@ -245,13 +286,13 @@ export default async function DokumentePage({
           ))}
           {gruppe.arten.length > 0 && (
             <div>
-              <h2 className="mb-2 text-xs font-medium uppercase text-neutral-500">Nach Art</h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <h2 className={ABSCHNITT}>Nach Art</h2>
+              <div className={RASTER}>
                 {OBJEKT_ARTEN.map((art) => {
                   const dok = index.filter((e) => e.art === art && !e.bereiche.includes("eingang"));
                   if (dok.length === 0) return null;
                   return (
-                    <Ordnerkarte key={art} href={`/dokumente?ansicht=typ&art=${art}`} titel={artLabel(art)} anzahl={dok.length} groesse={dok.reduce((x, e) => x + (e.groesseBytes ?? 0), 0)} />
+                    <Ordnerzeile key={art} href={`/dokumente?ansicht=typ&art=${art}`} titel={artLabel(art)} anzahl={dok.length} />
                   );
                 })}
               </div>
@@ -263,19 +304,19 @@ export default async function DokumentePage({
           {[...ART_GRUPPEN, "Ohne Typ"].map((gruppe) => {
             const karten =
               gruppe === "Ohne Typ"
-                ? [{ key: "_ohne", label: "Ohne Typ", anzahl: index.filter((e) => !e.art).length, groesse: index.filter((e) => !e.art).reduce((s, e) => s + (e.groesseBytes ?? 0), 0) }]
+                ? [{ key: "_ohne", label: "Ohne Typ", anzahl: index.filter((e) => !e.art).length }]
                 : ART_OPTIONEN.filter((a) => a.gruppe === gruppe).map((a) => {
                     const dok = index.filter((e) => e.art === a.key);
-                    return { key: a.key as string, label: a.label as string, anzahl: dok.length, groesse: dok.reduce((s, e) => s + (e.groesseBytes ?? 0), 0) };
+                    return { key: a.key as string, label: a.label as string, anzahl: dok.length };
                   });
             const sichtbareKarten = karten.filter((k) => k.anzahl > 0);
             if (sichtbareKarten.length === 0) return null;
             return (
               <div key={gruppe}>
-                <h2 className="mb-2 text-xs font-medium uppercase text-neutral-500">{gruppe}</h2>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <h2 className={ABSCHNITT}>{gruppe}</h2>
+                <div className={RASTER}>
                   {sichtbareKarten.map((k) => (
-                    <Ordnerkarte key={k.key} href={`/dokumente?ansicht=typ&art=${k.key}`} titel={k.label} anzahl={k.anzahl} groesse={k.groesse} />
+                    <Ordnerzeile key={k.key} href={`/dokumente?ansicht=typ&art=${k.key}`} titel={k.label} anzahl={k.anzahl} />
                   ))}
                 </div>
               </div>
@@ -311,14 +352,13 @@ export default async function DokumentePage({
                 ))}
               </div>
             )}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={RASTER}>
               {sichtbareOrdner.map((o) => (
-                <Ordnerkarte
+                <Ordnerzeile
                   key={o.key}
                   href={`/dokumente?bereich=${bereich.key}&ordner=${encodeURIComponent(o.key)}`}
-                  titel={o.label}
+                  {...zweizeilig(o.label)}
                   anzahl={o.anzahl}
-                  groesse={o.groesse}
                   gedimmt={o.vertragStatus === "BEENDET"}
                   badge={o.vertragStatus === "BEENDET" ? "beendet" : o.vertragStatus === "GEPLANT" ? "geplant" : undefined}
                 />
@@ -333,15 +373,7 @@ export default async function DokumentePage({
             // Leere Hauptordner blenden wir aus.
             if (dok.length === 0) return null;
             return (
-              <Ordnerkarte
-                key={h.key}
-                href={h.href}
-                titel={h.label}
-                anzahl={dok.length}
-                groesse={dok.reduce((x, e) => x + (e.groesseBytes ?? 0), 0)}
-                hinweis={h.hinweis}
-                badge={h.key === "eingang" && eingangAnzahl > 0 ? "zu prüfen" : undefined}
-              />
+<Hauptkachel key={h.key} href={h.href} schluessel={h.key} titel={h.label} anzahl={dok.length} hervorgehoben={h.key === "eingang" && eingangAnzahl > 0} />
             );
           })}
         </div>

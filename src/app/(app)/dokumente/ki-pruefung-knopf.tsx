@@ -10,9 +10,10 @@ export function KiPruefungKnopf({ anzahl }: { anzahl: number }) {
   const [meldung, setMeldung] = useState<string | null>(null);
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-neutral-800 p-3 text-sm">
+    <div className="flex flex-wrap items-center gap-2 text-sm">
       <button
         type="button"
+        title="Die Regeln beim Hochladen haben diese Dokumente nicht sicher erkannt. Vertrag, Schreiben, Protokoll und Foto sind ausgenommen – die startest du am einzelnen Dokument."
         disabled={pending}
         onClick={() => {
           if (!confirm(`${anzahl} nicht erkannte Dokumente (höchstens 6 pro Klick) zum Lesen an die KI (Anthropic) senden?`)) return;
@@ -22,13 +23,10 @@ export function KiPruefungKnopf({ anzahl }: { anzahl: number }) {
             setMeldung(typeof fehler === "string" ? fehler : "Fertig.");
           });
         }}
-        className="rounded-md border border-neutral-700 px-3 py-2 font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+        className="h-10 rounded-md border border-neutral-700 px-3 font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
       >
         {pending ? "KI liest…" : `Nicht erkannte per KI prüfen (${anzahl})`}
       </button>
-      <span className="text-xs text-neutral-500">
-        Die Regeln beim Hochladen haben diese Dokumente nicht sicher erkannt. Vertrag, Schreiben, Protokoll und Foto sind ausgenommen — die startest du am einzelnen Dokument.
-      </span>
       {meldung && <span className="text-xs text-neutral-300">{meldung}</span>}
     </div>
   );

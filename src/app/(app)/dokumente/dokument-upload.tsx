@@ -8,8 +8,8 @@ import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/uploa
 import { ladeDirektAuswahl, uploadDokumentZentral } from "./actions";
 import { GroessenFehler } from "@/components/groessen-fehler";
 
-// Feste Höhe: native Auswahlfelder rendern sonst kleiner als Text- und Datumsfelder (38 px = Standard der App).
-const FELD = "h-[38px] rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white";
+// Feste Höhe: native Auswahlfelder rendern sonst kleiner als Text- und Datumsfelder (h-10 = Standard der App).
+const FELD = "h-10 rounded-md border border-neutral-700 bg-neutral-900 px-3 text-sm text-white";
 const MAX_DATEIEN = 4;
 
 type DirektBereich = "mietvertraege" | "einheiten" | "gebaeude" | "allgemein";
@@ -108,8 +108,6 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
 
   return (
     <form action={formAction} className="rounded-lg border border-neutral-800 p-4">
-      <h2 className="mb-3 text-lg font-medium text-white">Dokumente hochladen</h2>
-
       {vorgabe && (
         <fieldset className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-neutral-300">
           <label className="flex items-center gap-2">
@@ -141,7 +139,7 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
         </>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <input
           type="file"
           name="file"
@@ -150,51 +148,48 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
           onChange={pruefeDateien}
           className="text-sm text-neutral-300 file:mr-3 file:rounded-md file:border file:border-neutral-700 file:bg-neutral-900 file:px-3 file:h-10 file:text-sm file:text-white"
         />
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Typ vorab (optional)</label>
-          <select name="art" value={art} onChange={(e) => setArt(e.target.value)} className={FELD}>
-            <option value="">App erkennt den Typ</option>
-            {ART_GRUPPEN.map((g) => (
-              <optgroup key={g} label={g}>
-                {ART_OPTIONEN.filter((a) => a.gruppe === g).map((a) => (
-                  <option key={a.key} value={a.key}>
-                    {a.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-        <label className={`flex h-[38px] items-center gap-2 text-sm ${perKi ? "text-neutral-500" : "text-neutral-300"}`}>
-          <input type="checkbox" name="erkennen" value="1" checked={erkennen && !perKi} disabled={perKi} onChange={(e) => setErkennen(e.target.checked)} className="h-4 w-4" />
-          Inhalt automatisch erkennen (PDF, lokal)
-        </label>
-        <label className="flex h-[38px] items-center gap-2 text-sm text-neutral-300">
-          <input type="checkbox" name="ki" value="1" checked={perKi} onChange={(e) => setPerKi(e.target.checked)} className="h-4 w-4" />
-          Direkt per KI prüfen (PDF und Bilder)
-        </label>
+        <select name="art" aria-label="Typ vorab (optional)" value={art} onChange={(e) => setArt(e.target.value)} className={FELD}>
+          <option value="">Typ: App erkennt ihn</option>
+          {ART_GRUPPEN.map((g) => (
+            <optgroup key={g} label={g}>
+              {ART_OPTIONEN.filter((a) => a.gruppe === g).map((a) => (
+                <option key={a.key} value={a.key}>
+                  {a.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
         <button
           type="submit"
           disabled={pending || groessenFehler !== null}
-          className="h-[38px] rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+          className="h-10 rounded-md bg-white px-4 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
         >
           {pending ? (perKi ? "Lädt hoch und prüft per KI…" : "Lädt hoch und liest…") : "Hochladen"}
         </button>
       </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-neutral-400">
+        <label className={`flex items-center gap-2 ${perKi ? "text-neutral-500" : ""}`} title="Die App liest den Text von PDFs auf dem Server (Regeln, ohne KI, ohne Datenversand).">
+          <input type="checkbox" name="erkennen" value="1" checked={erkennen && !perKi} disabled={perKi} onChange={(e) => setErkennen(e.target.checked)} className="h-4 w-4" />
+          Inhalt erkennen (lokal)
+        </label>
+        <label className="flex items-center gap-2" title="Statt der lokalen Regeln: Jedes PDF und Bild geht beim Hochladen an Claude (Anthropic).">
+          <input type="checkbox" name="ki" value="1" checked={perKi} onChange={(e) => setPerKi(e.target.checked)} className="h-4 w-4" />
+          Direkt per KI prüfen
+        </label>
+        <span className="text-neutral-500">
+          Bis zu {MAX_DATEIEN} Dateien, je {maxMb} MB
+        </span>
+      </div>
       {perKi && (
         <p className="mt-2 text-xs text-amber-400">
-          KI-Prüfung beim Hochladen: Jedes PDF und Bild wird sofort an Claude (Anthropic) übertragen und gelesen — statt der lokalen Regeln. Das
-          dauert einige Sekunden je Datei. Verträge, Schreiben, Protokolle und Fotos werden auch so nicht gelesen, wenn du sie vorab als Typ wählst.
+          Jedes PDF und Bild geht sofort an Claude (Anthropic) — einige Sekunden je Datei.
         </p>
       )}
       {direktTyp && (
         <div className="mt-4 rounded-md border border-neutral-800 p-3">
-          <p className="mb-3 text-xs text-neutral-500">
-            {direktTyp.bereich === "allgemein" ? "Gleich ablegen" : `${direktTyp.bezug} gleich zuordnen (optional)`}:{" "}
-            {direktTyp.bereich === "allgemein"
-              ? direktTyp.hinweis.charAt(0).toUpperCase() + direktTyp.hinweis.slice(1)
-              : `Mit Auswahl wird das Dokument sofort abgelegt, ${direktTyp.hinweis}`}
-            . Der Inhalt wird nicht gelesen. Die Angaben gelten für alle gewählten Dateien.
+          <p className="mb-3 text-xs text-neutral-500" title={`${direktTyp.hinweis.charAt(0).toUpperCase()}${direktTyp.hinweis.slice(1)}. Der Inhalt wird nicht gelesen.`}>
+            {direktTyp.bereich === "allgemein" ? "Wird gleich in diesem Ordner abgelegt." : `Mit ${direktTyp.bezug} wird sofort abgelegt, ohne Auswahl geht es in den Eingang.`} Gilt für alle gewählten Dateien.
           </p>
           <div className="flex flex-wrap items-end gap-3">
             {mitAuswahl && geladenBereich && (
@@ -236,13 +231,16 @@ export function DokumentUpload({ ordnerNamen, vorgabe }: { ordnerNamen: string[]
           </div>
         </div>
       )}
-      <p className="mt-2 text-xs text-neutral-500">
-        Bis zu {MAX_DATEIEN} Dateien auf einmal, je höchstens {maxMb} MB (zusammen 4 MB). Beim Erkennen liest die App den Text von PDFs auf dem Server (Regeln, ohne KI, ohne Datenversand) und füllt Typ,
-        Aussteller, Betrag, Rechnungsnummer usw. vor. Was sie nicht sicher erkennt (Scans, Fotos, unklare Beträge, Sammel-PDFs), bleibt im Eingang
-        „nicht erkannt“ — dort startest du die KI-Prüfung (Claude, das Dokument geht dann an Anthropic) auf Knopfdruck, oder du setzt hier gleich das
-        Häkchen „Direkt per KI prüfen“ (ohne Regeln, jedes PDF und Bild geht beim Hochladen an Anthropic). Verträge, Schreiben,
-        Protokolle und Fotos liest die App beim Hochladen nie automatisch, wenn du sie hier als Typ wählst. Wählst du vorab Vertrag, Schreiben, Protokoll oder Foto (immer) bzw. Versicherung, Prüfbericht oder Steuer / Behörde (ohne Häkchen), kannst du Mietvertrag, Einheit, Gebäude oder Ordner, Datum und Titel gleich angeben — das Dokument wird dann sofort abgelegt. Rechnungen laufen über den Eingang, damit sie später mit der Zahlung abgeglichen werden. Landet etwas im Eingang, öffnet sich nach dem Hochladen gleich die Prüfung des ersten Dokuments; von dort führt ein Link zum nächsten (es springt nichts von selbst weiter). Kostenbelege lassen sich auch direkt an der Kostenposition hochladen.
-      </p>
+      <details className="mt-3 text-xs text-neutral-500">
+        <summary className="cursor-pointer hover:text-white">Hinweise zum Hochladen</summary>
+        <ul className="mt-2 max-w-3xl list-disc space-y-1 pl-5">
+          <li>Zusammen höchstens 4 MB. Beim Erkennen füllt die App Typ, Aussteller, Betrag, Rechnungsnummer usw. vor — lokal, ohne Datenversand.</li>
+          <li>Was sie nicht sicher erkennt (Scans, Fotos, Sammel-PDFs), bleibt im Eingang; dort startest du die KI-Prüfung (Anthropic) auf Knopfdruck.</li>
+          <li>Verträge, Schreiben, Protokolle und Fotos liest die App nie automatisch, wenn du sie als Typ wählst. Du kannst sie dann gleich einem Mietvertrag bzw. einer Einheit zuordnen.</li>
+          <li>Versicherung, Prüfbericht und Steuer / Behörde lassen sich ohne Häkchen „Inhalt erkennen“ ebenfalls gleich ablegen.</li>
+          <li>Rechnungen laufen über den Eingang (Abgleich mit der Zahlung) oder direkt an der Kostenposition. Nach dem Hochladen öffnet sich die Prüfung des ersten Dokuments.</li>
+        </ul>
+      </details>
       <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </form>
