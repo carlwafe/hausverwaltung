@@ -579,7 +579,7 @@ export const verwerfeZahlungswegHinweis = mitMeldung(async function verwerfeZahl
  * übernehmen“ im Formular). Schreibt nichts — das Formular füllt nur die Felder, gespeichert wird beim Speichern.
  */
 export const holeMandatAusKontoauszug = mitMeldung(async function holeMandatAusKontoauszug(id: string) {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   const m = await ladeMandatAusKontoauszug(id);
   if (!m) return null;
   return {

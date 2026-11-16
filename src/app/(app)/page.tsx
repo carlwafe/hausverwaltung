@@ -1,14 +1,6 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { berechneSoll, berechneIstNachPeriode, ermittleAktuelleMiete, mietnachlaesseFuerSoll } from "@/lib/soll-ist";
-import { ladeSonderforderungSalden } from "@/lib/sonderforderungen";
-import { ladeNkGegenrechnungen } from "@/lib/nk-gegenrechnung";
-import { gegenrechnungBis } from "@/lib/nk-saldo";
-import { berechneMieteMonat } from "@/lib/miete-monat";
-import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
-import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { heuteUtc, sichtbareTickets } from "@/lib/ticket";
 import { requireUser } from "@/lib/session";
+import { ladeStartseiteTickets, ladeStartseiteWerte } from "@/lib/startseite-cache";
 import { GlobaleSuche } from "@/components/globale-suche";
 
 const MONATSNAMEN = [
@@ -22,150 +14,24 @@ function formatEuro(value: number) {
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [
-    objekt,
-    gebaeudeGruppen,
-    einheitenCount,
-    aktiveVertraege,
-    abrechenbareVertraege,
-    aktiveKautionen,
-    offeneTickets,
-    ueberfaelligeTickets,
-  ] =
-    await Promise.all([
-      prisma.objekt.findFirst(),
-      // "Gebäude" meint hier das physische Bauwerk (mehrere Hausnummern desselben Hauses, z.B.
-      // "Breslauer Str. 2, 4, 6"), nicht die einzelne Adresse — siehe /gebaeude, das aus demselben
-      // Grund nach Haus gruppiert statt alle Adressen flach zu zählen.
-      prisma.gebaeude.groupBy({ by: ["hausId"], where: { hausId: { not: null } } }),
-      prisma.einheit.count(),
-      prisma.mietvertrag.findMany({
-        where: { status: "AKTIV" },
-        select: {
-          einheitId: true,
-          kaltmiete: true,
-          nebenkostenVorauszahlung: true,
-          mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
-        },
-      }),
-      prisma.mietvertrag.findMany({
-        where: { status: { in: ["AKTIV", "BEENDET"] } },
-        select: {
-          id: true,
-          beginn: true,
-          ende: true,
-          kaltmiete: true,
-          nebenkostenVorauszahlung: true,
-          mehrwertsteuer: true,
-          buchhaltungAb: true,
-          saldovortrag: true,
-          buchungen: {
-            where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER },
-            select: { datum: true, betrag: true, periodeMonat: true, periodeJahr: true },
-          },
-          mieterhoehungen: { select: { gueltigAb: true, kaltmiete: true, nebenkostenVorauszahlung: true } },
-          mietnachlaesse: { select: { jahr: true, monat: true, betrag: true } },
-        },
-      }),
-      prisma.kaution.findMany({ where: { status: "AKTIV" }, select: { betrag: true } }),
-      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" }, ...sichtbareTickets(user.id) } }),
-      prisma.ticket.count({ where: { status: { not: "ERLEDIGT" }, faelligAm: { lt: heuteUtc() }, ...sichtbareTickets(user.id) } }),
-    ]);
-
-  const summeKautionen = aktiveKautionen.reduce((sum, k) => sum + Number(k.betrag), 0);
-
-  const belegteEinheiten = new Set(aktiveVertraege.map((v) => v.einheitId)).size;
-  const leerstand = einheitenCount - belegteEinheiten;
-  const aktuelleMieten = aktiveVertraege.map((v) =>
-    ermittleAktuelleMiete({
-      kaltmiete: Number(v.kaltmiete),
-      nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-      mieterhoehungen: v.mieterhoehungen.map((m) => ({
-        gueltigAb: m.gueltigAb,
-        kaltmiete: Number(m.kaltmiete),
-        nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
-      })),
-    }),
-  );
-  const sollKaltmiete = aktuelleMieten.reduce((sum, m) => sum + m.kaltmiete, 0);
-  const sollNebenkosten = aktuelleMieten.reduce((sum, m) => sum + m.nebenkostenVorauszahlung, 0);
-
-  // Stichtag je Vertrag: eigener (früherer) oder der des Objekts.
-  const sonderforderungen = await ladeSonderforderungSalden(
-    abrechenbareVertraege.map((v) => v.id),
-    {
-      ab: objekt?.buchhaltungAb ?? null,
-      abJeVertrag: new Map(abrechenbareVertraege.map((v) => [v.id, effektiverStichtag(v, objekt)])),
-    },
-  );
-  const heute = new Date();
-  const sollIstDaten = (v: (typeof abrechenbareVertraege)[number]) => ({
-    beginn: v.beginn,
-    ende: v.ende,
-    kaltmiete: Number(v.kaltmiete),
-    nebenkostenVorauszahlung: Number(v.nebenkostenVorauszahlung),
-    mehrwertsteuer: v.mehrwertsteuer ? Number(v.mehrwertsteuer) : 0,
-    mieterhoehungen: v.mieterhoehungen.map((m) => ({
-      gueltigAb: m.gueltigAb,
-      kaltmiete: Number(m.kaltmiete),
-      nebenkostenVorauszahlung: Number(m.nebenkostenVorauszahlung),
-    })),
-    mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
-  });
-  // Wie in den Offenen Posten: unbezahlte BK-Vorauszahlung versendeter Abrechnungen ist kein Rückstand.
-  const gegenrechnungen = await ladeNkGegenrechnungen(
-    abrechenbareVertraege.map((v) => ({ id: v.id, vertrag: sollIstDaten(v), buchhaltungAb: effektiverStichtag(v, objekt) })),
-    heute,
-  );
-  const gesamtRueckstand = abrechenbareVertraege.reduce((sum, v) => {
-    const buchhaltungAb = effektiverStichtag(v, objekt);
-    const soll = berechneSoll(sollIstDaten(v), heute, buchhaltungAb);
-    const ist = berechneIstNachPeriode(
-      v.buchungen.map((z) => ({
-        datum: z.datum!,
-        betrag: Number(z.betrag),
-        periodeMonat: z.periodeMonat,
-        periodeJahr: z.periodeJahr,
-      })),
-      buchhaltungAb,
-    );
-    const saldo =
-      ist - soll + Number(v.saldovortrag) - (sonderforderungen.get(v.id)?.offen ?? 0) +
-      gegenrechnungBis(gegenrechnungen.get(v.id) ?? [], heute);
-    return sum + Math.min(saldo, 0);
-  }, 0);
-
-  // Mieten des laufenden Monats (wie /miete-monat): wer hat Kaltmiete + BK-Vorauszahlung voll gezahlt?
-  const mietenMonat = abrechenbareVertraege
-    .map((v) =>
-      berechneMieteMonat(
-        sollIstDaten(v),
-        effektiverStichtag(v, objekt),
-        v.buchungen.map((z) => ({ ...z, betrag: Number(z.betrag) })),
-        heute.getFullYear(),
-        heute.getMonth() + 1,
-        heute,
-      ),
-    )
-    .filter((e) => e !== null);
-  const mietenBezahlt = mietenMonat.filter((e) => e.status === "bezahlt").length;
-  const mietenUnbezahlt = mietenMonat.filter((e) => e.status === "offen" || e.status === "teilweise");
-  const mietenOffenBetrag = mietenUnbezahlt.reduce((sum, e) => sum + e.offen, 0);
+  // Beide Werte kommen aus dem Zwischenspeicher (src/lib/startseite-cache.ts): Die Rechnung über
+  // alle Verträge läuft nur nach einer Schreibaktion oder am nächsten Tag neu.
+  const [w, tickets] = await Promise.all([ladeStartseiteWerte(), ladeStartseiteTickets(user.id)]);
 
   const kacheln = [
-    { label: "Gebäude", value: gebaeudeGruppen.length.toString() },
-    { label: "Einheiten gesamt", value: einheitenCount.toString() },
-    { label: "Vermietet", value: belegteEinheiten.toString() },
-    { label: "Leerstand", value: leerstand.toString() },
-    { label: "Sollmiete kalt / Monat", value: formatEuro(sollKaltmiete) },
-    { label: "BK-Vorauszahlung / Monat", value: formatEuro(sollNebenkosten) },
+    { label: "Gebäude", value: w.gebaeude.toString() },
+    { label: "Einheiten gesamt", value: w.einheiten.toString() },
+    { label: "Vermietet", value: w.vermietet.toString() },
+    { label: "Leerstand", value: w.leerstand.toString() },
+    { label: "Sollmiete kalt / Monat", value: formatEuro(w.sollKaltmiete) },
+    { label: "BK-Vorauszahlung / Monat", value: formatEuro(w.sollNebenkosten) },
   ];
 
   return (
     <div>
       <h1 className="mb-1 text-2xl font-semibold text-white">Dashboard</h1>
       <p className="mb-6 text-sm text-neutral-400">
-        {objekt ? `${objekt.name} · ${objekt.strasse} ${objekt.hausnummer}, ${objekt.plz} ${objekt.ort}` : "Kein Objekt angelegt"}
+        {w.objektZeile ?? "Kein Objekt angelegt"}
       </p>
 
       <GlobaleSuche />
@@ -179,14 +45,14 @@ export default async function DashboardPage() {
         ))}
         <Link href="/miete-monat" className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900">
           <p className="text-xs text-neutral-400">
-            Mieten {MONATSNAMEN[heute.getMonth()]} {heute.getFullYear()}
+            Mieten {MONATSNAMEN[w.mietenMonat - 1]} {w.mietenJahr}
           </p>
           <p className="mt-1 text-xl font-semibold text-white">
-            {mietenBezahlt} von {mietenMonat.length} bezahlt
+            {w.mietenBezahlt} von {w.mietenAnzahl} bezahlt
           </p>
-          {mietenUnbezahlt.length > 0 ? (
+          {w.mietenUnbezahlt > 0 ? (
             <p className="text-xs text-red-400">
-              {mietenUnbezahlt.length} offen · {formatEuro(mietenOffenBetrag)}
+              {w.mietenUnbezahlt} offen · {formatEuro(w.mietenOffenBetrag)}
             </p>
           ) : (
             <p className="text-xs text-green-400">Alles bezahlt</p>
@@ -198,9 +64,9 @@ export default async function DashboardPage() {
         >
           <p className="text-xs text-neutral-400">Offene Posten gesamt</p>
           <p
-            className={`mt-1 text-xl font-semibold ${gesamtRueckstand < 0 ? "text-red-400" : "text-white"}`}
+            className={`mt-1 text-xl font-semibold ${w.gesamtRueckstand < 0 ? "text-red-400" : "text-white"}`}
           >
-            {formatEuro(gesamtRueckstand)}
+            {formatEuro(w.gesamtRueckstand)}
           </p>
         </Link>
         <Link
@@ -208,12 +74,12 @@ export default async function DashboardPage() {
           className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900"
         >
           <p className="text-xs text-neutral-400">Kautionen gesamt (aktiv)</p>
-          <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summeKautionen)}</p>
+          <p className="mt-1 text-xl font-semibold text-white">{formatEuro(w.summeKautionen)}</p>
         </Link>
         <Link href="/tickets" className="rounded-lg border border-neutral-800 p-4 hover:bg-neutral-900">
           <p className="text-xs text-neutral-400">Offene Tickets</p>
-          <p className="mt-1 text-xl font-semibold text-white">{offeneTickets}</p>
-          {ueberfaelligeTickets > 0 && <p className="text-xs text-red-400">{ueberfaelligeTickets} überfällig</p>}
+          <p className="mt-1 text-xl font-semibold text-white">{tickets.offen}</p>
+          {tickets.ueberfaellig > 0 && <p className="text-xs text-red-400">{tickets.ueberfaellig} überfällig</p>}
         </Link>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { AktionsFehler } from "@/lib/aktion";
+import { verwerfeStartseiteCache } from "@/lib/startseite-cache";
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -20,12 +21,23 @@ export async function requireAdmin() {
   return user;
 }
 
-/** Für alle schreibenden Server Actions: Gäste haben nur Lesezugriff. */
-export async function requireEditor() {
+/**
+ * Für alle schreibenden Server Actions: Gäste haben nur Lesezugriff.
+ *
+ * Verwirft außerdem die zwischengespeicherten Kachelwerte der Startseite
+ * (src/lib/startseite-cache.ts) — zentral hier, damit keine Aktion es vergessen kann. Deshalb nur
+ * in Server Actions aufrufen, nicht beim Rendern einer Seite.
+ *
+ * `startseiteUnberuehrt`: nur für Aktionen, die nichts ändern, was die Startseite zeigt, **und** die
+ * aktuelle Seite bewusst nicht neu rendern (reine Nachlade-Aktionen, Stern/Kommentar auf schweren
+ * Seiten — docs/deployment-vercel.md). Das Verwerfen ließe Next die Seite sonst neu berechnen.
+ */
+export async function requireEditor(optionen?: { startseiteUnberuehrt?: boolean }) {
   const user = await requireUser();
   if (user.role === "GAST") {
     throw new AktionsFehler("Gäste haben nur Lesezugriff und können nichts ändern.");
   }
+  if (!optionen?.startseiteUnberuehrt) verwerfeStartseiteCache();
   return user;
 }
 

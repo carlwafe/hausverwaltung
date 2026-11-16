@@ -675,7 +675,7 @@ export const speichereTechemAllgemeinstromAnteil = mitMeldung(async function spe
 // Engine-Berechnung neu rechnen (Vercel-CPU), nur um einen Stern umzuschalten — der Stern hält seinen
 // Zustand selbst (VerwalterAbgleichStern).
 export async function toggleNkVerwalterAbgleich(abrechnungId: string, mietvertragId: string): Promise<boolean> {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   const bestehend = await prisma.nebenkostenabrechnungPruefung.findUnique({
     where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },
   });
@@ -690,7 +690,7 @@ export async function toggleNkVerwalterAbgleich(abrechnungId: string, mietvertra
 
 // Kurzer, frei eingegebener Kommentar pro Mietvertrag einer Abrechnung (leer = entfernt).
 export async function speichereNkKommentar(abrechnungId: string, mietvertragId: string, kommentar: string) {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   const text = kommentar.trim() || null;
   await prisma.nebenkostenabrechnungPruefung.upsert({
     where: { abrechnungId_mietvertragId: { abrechnungId, mietvertragId } },

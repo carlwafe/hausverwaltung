@@ -5,6 +5,7 @@ import { optionalesDatum } from "@/lib/zod-datum";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { verwerfeStartseiteCache } from "@/lib/startseite-cache";
 import { mitMeldung } from "@/lib/aktion";
 import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
 import { istGueltigeIban } from "@/lib/dokument-erkennung";
@@ -95,6 +96,9 @@ export const updateObjekt = mitMeldung(async function updateObjekt(
   if (!objekt) return "Kein Objekt vorhanden.";
 
   await prisma.objekt.update({ where: { id: objekt.id }, data: parsed.data });
+  // Name, Anschrift und Buchhaltungsbeginn stehen bzw. wirken auf der Startseite; diese Aktion läuft
+  // über requireAdmin und verwirft den Zwischenspeicher deshalb selbst.
+  verwerfeStartseiteCache();
 
   revalidatePath("/objekt");
   revalidatePath("/");

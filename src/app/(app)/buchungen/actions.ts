@@ -120,7 +120,7 @@ export const speichereBuchungKommentar = mitMeldung(async function speichereBuch
   buchungId: string,
   text: string,
 ): Promise<string | null> {
-  const user = await requireEditor();
+  const user = await requireEditor({ startseiteUnberuehrt: true });
   const bereinigt = text.trim();
   if (bereinigt.length > MAX_BUCHUNG_KOMMENTAR) {
     throw new AktionsFehler(`Der Kommentar darf höchstens ${MAX_BUCHUNG_KOMMENTAR} Zeichen lang sein.`);

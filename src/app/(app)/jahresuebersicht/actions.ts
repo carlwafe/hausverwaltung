@@ -12,7 +12,7 @@ import { mitMeldung } from "@/lib/aktion";
  * befunden wurde — reine Existenz der Zeile, siehe Schema-Kommentar auf JahresberichtVerifikation.
  */
 export async function toggleJahresberichtVerifiziert(mietvertragId: string, jahr: number, quartal = 0): Promise<boolean> {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
 
   const bestehend = await prisma.jahresberichtVerifikation.findUnique({
     where: { mietvertragId_jahr_quartal: { mietvertragId, jahr, quartal } },
@@ -37,7 +37,7 @@ export async function speichereJahresberichtKommentar(
   kommentar: string,
   quartal = 0,
 ) {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   const text = kommentar.trim();
   const where = { mietvertragId_jahr_quartal: { mietvertragId, jahr, quartal } };
   if (!text) {

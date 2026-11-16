@@ -17,7 +17,7 @@ export const kiPruefeZeilen = mitMeldung(async function kiPruefeZeilen(
   zeilen: KiEingabeZeile[],
   kontext: KiKontext,
 ): Promise<{ vorschlaege: KiVorschlag[] }> {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new AktionsFehler("KI-Prüfung nicht eingerichtet: ANTHROPIC_API_KEY fehlt in der Umgebung.");
   }

@@ -841,14 +841,14 @@ export const legeDokumentAb = mitMeldung(async function legeDokumentAb(id: strin
 
 // Auswahl für den direkten Upload (Mietvertrag, Einheit oder Gebäude je nach Typ) — erst beim Wählen des Typs nachgeladen.
 export async function ladeDirektAuswahl(bereich: "mietvertraege" | "einheiten" | "gebaeude") {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   const optionen = await ladeBezugOptionen();
   return optionen[bereich];
 }
 
 // Auswahllisten für „Bezug hinzufügen“ auf der Detailseite — erst beim Öffnen nachgeladen (Vercel-CPU).
 export async function ladeBezugAuswahl(id: string) {
-  await requireEditor();
+  await requireEditor({ startseiteUnberuehrt: true });
   const d = await prisma.dokument.findUnique({ where: { id } });
   if (!d) return null;
   const labels: DokumentLabels = {
