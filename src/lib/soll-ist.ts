@@ -13,7 +13,7 @@ export type MietvertragFuerSollIst = {
   mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
   // Einmalige Minderungen der Kaltmiete einzelner Monate (z.B. späterer Einzug im Einzugsmonat) —
   // siehe Mietnachlass im Schema. Wirken nur auf das Soll dieses Monats, nicht auf die vertragliche
-  // Miete (Mieterhöhung, NK-Anpassung, aktuelle Miete).
+  // Miete (Mieterhöhung, BK-Anpassung, aktuelle Miete).
   mietnachlaesse?: { jahr: number; monat: number; betrag: number }[];
 };
 
@@ -32,7 +32,7 @@ function nachlassFuerMonat(vertrag: Pick<MietvertragFuerSollIst, "mietnachlaesse
 }
 
 /**
- * Ermittelt die für einen bestimmten Monat gültige Kaltmiete/NK-Vorauszahlung: die letzte
+ * Ermittelt die für einen bestimmten Monat gültige Kaltmiete/BK-Vorauszahlung: die letzte
  * Mieterhöhung, deren gueltigAb-Monat kleiner-gleich dem gefragten Monat ist — gibt es keine
  * (noch keine Mieterhöhung erreicht bzw. keine vorhanden), gelten die Basiswerte des
  * Mietvertrags.
@@ -150,7 +150,7 @@ export function sollAufschluesselung(
 
 /**
  * Soll = Summe der Monatsraten seit Mietbeginn (bis heute bzw. bis Mietende, falls dieses in der
- * Vergangenheit liegt) × Warmmiete (Kaltmiete + NK-Vorauszahlung + ggf. Mehrwertsteuer, bei
+ * Vergangenheit liegt) × Warmmiete (Kaltmiete + BK-Vorauszahlung + ggf. Mehrwertsteuer, bei
  * umsatzsteuerpflichtig vermieteten Garagen/Stellplätzen anstelle von Betriebskosten).
  *
  * Liegt der Mietbeginn vor `buchhaltungAb` (z.B. weil dafür keine Kontoauszüge mehr vorliegen),

@@ -69,7 +69,7 @@ async function ladeZeilen(objekt: { buchhaltungAb: Date | null } | null, bis: Da
     })),
     mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
   });
-  // Unbezahlte NK-Vorauszahlung versendeter Abrechnungen (Versanddatum bis zum Stichtag): nicht mehr geschuldet,
+  // Unbezahlte BK-Vorauszahlung versendeter Abrechnungen (Versanddatum bis zum Stichtag): nicht mehr geschuldet,
   // gehört also nicht in den Rückstand (siehe gegenrechnungenJeJahr).
   const gegenrechnungen = await ladeNkGegenrechnungen(
     vertraege.map((v) => ({ id: v.id, vertrag: sollIstDaten(v), buchhaltungAb: effektiverStichtag(v, objekt) })),
@@ -119,7 +119,7 @@ export default async function OffenePostenPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Offene Posten</h1>
         <p className="text-sm text-neutral-400">
-          Soll (Kaltmiete + NK-Vorauszahlung seit{" "}
+          Soll (Kaltmiete + BK-Vorauszahlung seit{" "}
           {objekt?.buchhaltungAb
             ? `Buchhaltungs-Stichtag ${formatDatum(objekt.buchhaltungAb)} bzw. späterem Mietbeginn`
             : "Mietbeginn"}
@@ -127,8 +127,8 @@ export default async function OffenePostenPage() {
           {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
           = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
           sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen. Ebenso die
-          Gegenrechnung der NK-Vorauszahlung versendeter Betriebskostenabrechnungen (Spalte &bdquo;davon
-          NK-Gegenrechnung&ldquo;): Eine nicht gezahlte NK-Vorauszahlung steht zwar als Rückstand im Soll, ist
+          Gegenrechnung der BK-Vorauszahlung versendeter Betriebskostenabrechnungen (Spalte &bdquo;davon
+          BK-Gegenrechnung&ldquo;): Eine nicht gezahlte BK-Vorauszahlung steht zwar als Rückstand im Soll, ist
           nach dem Versand der Abrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) steht
           nicht im Saldo.
         </p>

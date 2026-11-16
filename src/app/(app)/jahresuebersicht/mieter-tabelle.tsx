@@ -25,7 +25,7 @@ export type MieterTabellenZeile = {
   soll: number;
   miete: number;
   nebenkostenabrechnungOffen: number | null;
-  // Gutschrift der unbezahlten NK-Vorauszahlung (steht schon im Rückstand) von Abrechnungen, die im Zeitraum
+  // Gutschrift der unbezahlten BK-Vorauszahlung (steht schon im Rückstand) von Abrechnungen, die im Zeitraum
   // versendet wurden; eigene Spalte „Gutschrift“, nicht in nebenkostenabrechnungOffen enthalten.
   nebenkostenGegenrechnung: number;
   saldoNeu: number;
@@ -35,7 +35,7 @@ export type MieterTabellenZeile = {
   eigenerStichtag: string | null;
 };
 
-// Die Abrechnung selbst (Nachzahlung/Guthaben); die Gutschrift der unbezahlten NK-Vorauszahlung steht in einer
+// Die Abrechnung selbst (Nachzahlung/Guthaben); die Gutschrift der unbezahlten BK-Vorauszahlung steht in einer
 // eigenen Spalte und ist nicht darin enthalten.
 const abrechnungOhneGegenrechnung = (z: MieterTabellenZeile) => z.nebenkostenabrechnungOffen ?? 0;
 
@@ -100,7 +100,7 @@ export function MieterTabelle({
       render: (z) => <span className="text-white">{z.mieter}</span>,
     },
     zahlSpalte("kaltmieteMtl", "Kaltmiete mtl.", (z) => z.kaltmieteMtl, { farbe: () => "text-neutral-400" }),
-    zahlSpalte("nebenkostenMtl", "NK mtl.", (z) => z.nebenkostenMtl, { farbe: () => "text-neutral-400" }),
+    zahlSpalte("nebenkostenMtl", "BK mtl.", (z) => z.nebenkostenMtl, { farbe: () => "text-neutral-400" }),
     zahlSpalte("warmMtl", "Miete warm mtl.", (z) => z.warmMtl, { farbe: () => "text-neutral-400" }),
     zahlSpalte("saldoAlt", "Saldo alt", (z) => z.saldoAlt, {
       farbe: (z) => (z.saldoAlt < 0 ? "text-red-400" : "text-neutral-300"),
@@ -127,13 +127,13 @@ export function MieterTabelle({
       ? [
     {
       key: "nkGutschrift",
-      label: "Gutschrift unbezahlte NK-Vorauszahlung",
+      label: "Gutschrift unbezahlte BK-Vorauszahlung",
       align: "right",
       sortValue: (z) => z.nebenkostenGegenrechnung,
       render: (z) => (
         <span
           className="text-neutral-300"
-          title="Unbezahlte NK-Vorauszahlung des Vorjahres: steht schon im Mietrückstand (Saldo alt/Soll) und wird hier gutgeschrieben, damit sie nicht zusätzlich in der Nachzahlung zählt."
+          title="Unbezahlte BK-Vorauszahlung des Vorjahres: steht schon im Mietrückstand (Saldo alt/Soll) und wird hier gutgeschrieben, damit sie nicht zusätzlich in der Nachzahlung zählt."
         >
           {z.nebenkostenGegenrechnung ? formatEuro(z.nebenkostenGegenrechnung) : "–"}
         </span>
@@ -202,11 +202,11 @@ export function MieterTabelle({
               { label: "Miete", wert: formatEuro(z.miete) },
               mitNkOffen &&
                 abrechnungOhneGegenrechnung(z) !== 0 && {
-                  label: "NK-Abrechnung offen",
+                  label: "BK-Abrechnung offen",
                   wert: formatEuro(abrechnungOhneGegenrechnung(z)),
                   klasse: abrechnungOhneGegenrechnung(z) < 0 ? "text-red-400" : undefined,
                 },
-              z.nebenkostenGegenrechnung !== 0 && { label: "NK-Gutschrift", wert: formatEuro(z.nebenkostenGegenrechnung) },
+              z.nebenkostenGegenrechnung !== 0 && { label: "BK-Gutschrift", wert: formatEuro(z.nebenkostenGegenrechnung) },
             ]}
           />
           {z.kommentar && <KarteNotiz>{z.kommentar}</KarteNotiz>}
@@ -231,8 +231,8 @@ export function MieterTabelle({
                 { label: "Saldo alt", wert: summe((z) => z.saldoAlt) },
                 { label: "Soll gesamt", wert: summe((z) => z.soll) },
                 { label: "Miete", wert: summe((z) => z.miete) },
-                mitNkOffen && { label: "NK-Abrechnung offen", wert: summe(abrechnungOhneGegenrechnung) },
-                zeigeGutschrift && { label: "NK-Gutschrift", wert: summe((z) => z.nebenkostenGegenrechnung) },
+                mitNkOffen && { label: "BK-Abrechnung offen", wert: summe(abrechnungOhneGegenrechnung) },
+                zeigeGutschrift && { label: "BK-Gutschrift", wert: summe((z) => z.nebenkostenGegenrechnung) },
                 { label: "Saldo neu", wert: summe((z) => z.saldoNeu), klasse: "font-medium text-white" },
               ]}
             />

@@ -19,7 +19,7 @@ export type OffenePostenRow = {
   saldovortrag: number;
   saldo: number;
   sonderforderung: number;
-  // Gutschrift (+) bzw. Belastung (−) aus der unbezahlten bzw. überzahlten NK-Vorauszahlung versendeter
+  // Gutschrift (+) bzw. Belastung (−) aus der unbezahlten bzw. überzahlten BK-Vorauszahlung versendeter
   // Abrechnungen (ab dem Versanddatum); steckt im Saldo.
   nkGegenrechnung: number;
   // Eigener, vom Objekt abweichender Buchhaltungs-Stichtag des Vertrags (formatiertes Datum), sonst null.
@@ -117,7 +117,7 @@ const columns: Column<OffenePostenRow>[] = [
   },
   {
     key: "nkGegenrechnung",
-    label: "davon NK-Gegenrechnung",
+    label: "davon BK-Gegenrechnung",
     sortValue: (z) => z.nkGegenrechnung,
     render: (z) =>
       z.nkGegenrechnung === 0 ? (
@@ -125,7 +125,7 @@ const columns: Column<OffenePostenRow>[] = [
       ) : (
         <span
           className={z.nkGegenrechnung > 0 ? "text-green-400" : "text-amber-400"}
-          title="Unbezahlte (+) bzw. überzahlte (−) NK-Vorauszahlung einer versendeten Betriebskostenabrechnung: steht im Mietsaldo, ist aber durch die Abrechnung ausgeglichen."
+          title="Unbezahlte (+) bzw. überzahlte (−) BK-Vorauszahlung einer versendeten Betriebskostenabrechnung: steht im Mietsaldo, ist aber durch die Abrechnung ausgeglichen."
         >
           {formatEuro(z.nkGegenrechnung)}
         </span>
@@ -158,7 +158,7 @@ function OffenePostenKarte({ z }: { z: OffenePostenRow }) {
             klasse: z.sonderforderung > 0 ? "text-amber-400" : "text-green-400",
           },
           z.nkGegenrechnung !== 0 && {
-            label: "NK-Gegenrechnung",
+            label: "BK-Gegenrechnung",
             wert: formatEuro(z.nkGegenrechnung),
             klasse: z.nkGegenrechnung > 0 ? "text-green-400" : "text-amber-400",
           },

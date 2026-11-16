@@ -8,7 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 // Mit der Kaution verrechnete Forderung aus dem Mieterkonto (Mietrückstand, Gebühren): eine
 // KAUTION_EINBEHALT-Buchung (negativ, nicht zahlungswirksam) mit diesem bezugTyp zählt im Mietsaldo
-// wie eine Zahlung des Mieters in derselben Höhe — analog zur Verrechnung mit der NK-Abrechnung.
+// wie eine Zahlung des Mieters in derselben Höhe — analog zur Verrechnung mit der BK-Abrechnung.
 export const MIETERKONTO_VERRECHNUNG_BEZUG = "KautionEinbehaltMieterkonto";
 
 // where-Teil: alle Sonderbuchungen, die den Mietsaldo neben Soll/Mietzahlungen verändern.

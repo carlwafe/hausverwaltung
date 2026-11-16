@@ -173,7 +173,7 @@ export default function MietvertraegeImportPage() {
                   <th className="px-3 py-2">Beginn</th>
                   <th className="px-3 py-2">Ende</th>
                   <th className="px-3 py-2">Kaltmiete</th>
-                  <th className="px-3 py-2">NK</th>
+                  <th className="px-3 py-2">BK</th>
                   <th className="px-3 py-2">Hinweis</th>
                 </tr>
               </thead>

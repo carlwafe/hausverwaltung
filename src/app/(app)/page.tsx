@@ -111,7 +111,7 @@ export default async function DashboardPage() {
     })),
     mietnachlaesse: mietnachlaesseFuerSoll(v.mietnachlaesse),
   });
-  // Wie in den Offenen Posten: unbezahlte NK-Vorauszahlung versendeter Abrechnungen ist kein Rückstand.
+  // Wie in den Offenen Posten: unbezahlte BK-Vorauszahlung versendeter Abrechnungen ist kein Rückstand.
   const gegenrechnungen = await ladeNkGegenrechnungen(
     abrechenbareVertraege.map((v) => ({ id: v.id, vertrag: sollIstDaten(v), buchhaltungAb: effektiverStichtag(v, objekt) })),
     heute,
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
     return sum + Math.min(saldo, 0);
   }, 0);
 
-  // Mieten des laufenden Monats (wie /miete-monat): wer hat Kaltmiete + NK-Vorauszahlung voll gezahlt?
+  // Mieten des laufenden Monats (wie /miete-monat): wer hat Kaltmiete + BK-Vorauszahlung voll gezahlt?
   const mietenMonat = abrechenbareVertraege
     .map((v) =>
       berechneMieteMonat(
@@ -157,7 +157,7 @@ export default async function DashboardPage() {
     { label: "Vermietet", value: belegteEinheiten.toString() },
     { label: "Leerstand", value: leerstand.toString() },
     { label: "Sollmiete kalt / Monat", value: formatEuro(sollKaltmiete) },
-    { label: "NK-Vorauszahlung / Monat", value: formatEuro(sollNebenkosten) },
+    { label: "BK-Vorauszahlung / Monat", value: formatEuro(sollNebenkosten) },
   ];
 
   return (

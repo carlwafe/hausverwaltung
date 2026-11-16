@@ -109,7 +109,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // aufgelöst") mindert die ausgezahlte Summe wieder, statt als zweite Auszahlung zu zählen.
     else if (code === "KAUTION_AUSZAHLUNG") eintrag.ausgezahlt -= betrag;
     // VIRTUELLE_AUSZAHLUNG ist keine Auszahlung, sondern eine Verrechnung der Kaution mit einer vom
-    // Vermieter bezahlten Rechnung (wie die Verrechnung mit NK-Abrechnung/Mieterkonto unten): der
+    // Vermieter bezahlten Rechnung (wie die Verrechnung mit BK-Abrechnung/Mieterkonto unten): der
     // Betrag ist der Kaution endgültig entzogen, ohne dass Geld an den Mieter fließt oder eine
     // Kontobewegung entsteht (Gegenbuchung auf der Kosten-Seite, Buchung.bezugId).
     else if (code === "KAUTION_VIRTUELLE_AUSZAHLUNG") eintrag.verrechnet += Math.abs(betrag);

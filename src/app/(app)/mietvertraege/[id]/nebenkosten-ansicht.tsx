@@ -40,7 +40,7 @@ export type NkJahrDaten = {
   // Ausgleich (Auszahlung/Zahlung), Verrechnung aufs Mieterkonto oder mit der Kaution. betrag im
   // Vorzeichen des gespeicherten Saldos (siehe nkBegleichung).
   erledigungen: NkErledigungZeile[];
-  // Monatliche NK-Vorauszahlung nach der Abrechnung (erste Anpassung nach Jahresende, sonst der
+  // Monatliche BK-Vorauszahlung nach der Abrechnung (erste Anpassung nach Jahresende, sonst der
   // weiterhin geltende Betrag).
   neueVorauszahlung: { ab: Date | null; betrag: number } | null;
 };
@@ -260,15 +260,15 @@ export function NebenkostenAnsicht({
             </tr>
             <tr className="border-t border-neutral-800">
               <td className="px-4 py-2 text-neutral-300">
-                abzgl. geleistete NK-Vorauszahlungen
+                abzgl. geleistete BK-Vorauszahlungen
                 <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
-                  tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die NK, ab 2025 anteilig NK : Kaltmiete
+                  tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die BK, ab 2025 anteilig BK : Kaltmiete
                 </span>
               </td>
               <td colSpan={3} className="hidden md:table-cell" />
               <td className="whitespace-nowrap px-4 py-2 text-right text-neutral-200">{formatEuro(daten.vorauszahlungGesamt)}</td>
               <td className="hidden px-4 py-2 text-xs text-neutral-500 md:table-cell">
-                tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die NK, ab 2025 anteilig NK : Kaltmiete (§ 366 Abs. 2 BGB)
+                tatsächlich gezahlt; Teilzahlungen bis 2024 zuerst auf die BK, ab 2025 anteilig BK : Kaltmiete (§ 366 Abs. 2 BGB)
               </td>
             </tr>
             <tr className="border-t border-neutral-700 font-medium">
@@ -354,7 +354,7 @@ export function NebenkostenAnsicht({
           <table className="text-sm">
             <tbody>
               <tr>
-                <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">NK-Vorauszahlung (mtl.)</td>
+                <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">BK-Vorauszahlung (mtl.)</td>
                 <td className="py-0.5 text-right text-white">{formatEuro(daten.neueVorauszahlung.betrag)}</td>
               </tr>
               <tr>

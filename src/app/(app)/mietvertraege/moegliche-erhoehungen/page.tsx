@@ -108,7 +108,7 @@ export default async function MoeglicheErhoehungenPage() {
           Mieterhöhung — oder, falls noch keine erfolgt ist, der Mietbeginn. Nur aktive
           Wohnungs-Mietverträge mit bekanntem Mietbeginn werden gezeigt — Garagen sind
           ausgenommen, da unklar ist, ob dort überhaupt eine Indexmiete vereinbart ist. Reine
-          Anpassungen der NK-Vorauszahlung setzen das Wartejahr nicht zurück (§ 560 BGB). Die Spalten
+          Anpassungen der BK-Vorauszahlung setzen das Wartejahr nicht zurück (§ 560 BGB). Die Spalten
           rechts sind eine Vorschau: Basisindex = bei der letzten Erhöhung zugrunde gelegter Index
           (unter „Mietvertrag bearbeiten“ je Mieterhöhung erfassbar), sonst der VPI des Monats der
           letzten Kaltmieten-Änderung bzw. des Mietbeginns; neuer Index = neuester eingetragener VPI.{" "}
@@ -124,7 +124,7 @@ export default async function MoeglicheErhoehungenPage() {
           (nur die Miete in der Zwischenzeit ist verloren). Bei Jobcenter-Mietern vorher die Angemessenheitsgrenze
           prüfen. Die Schwelle ist eine Empfehlung, keine Vorgabe — der Filter ist nur eine Ansicht, nichts wird
           gespeichert. Verträge ohne Indexwert blenden die Filter aus.
-          Im Schreiben („Erstellen“) lässt sich per Häkchen auch die NK-Vorauszahlung anpassen — ein gemeinsames
+          Im Schreiben („Erstellen“) lässt sich per Häkchen auch die BK-Vorauszahlung anpassen — ein gemeinsames
           Schreiben mit zwei getrennten Abschnitten.
         </p>
       </div>

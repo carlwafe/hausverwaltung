@@ -1,13 +1,13 @@
 // Teilt vereinnahmte Mietzahlungen in Kaltmiete und Betriebskosten-Vorauszahlung (für die Aufstellung
 // Anlage V). Gleiche Regel wie in der Betriebskostenabrechnung (§ 366 Abs. 2 BGB, siehe nk-anteil.ts): je
-// Mietmonat wird eine Zahlung für Mietperioden bis 2024 zuerst auf die NK-Vorauszahlung angerechnet
-// (höchstens das NK-Soll des Monats), der Rest ist Kaltmiete; ab Mietperiode 2025 anteilig im Verhältnis
-// NK : Kaltmiete (NK-Anteil auf volle Euro gerundet). Gerechnet wird je Mietvertrag und Mietperiode
+// Mietmonat wird eine Zahlung für Mietperioden bis 2024 zuerst auf die BK-Vorauszahlung angerechnet
+// (höchstens das BK-Soll des Monats), der Rest ist Kaltmiete; ab Mietperiode 2025 anteilig im Verhältnis
+// BK : Kaltmiete (BK-Anteil auf volle Euro gerundet). Gerechnet wird je Mietvertrag und Mietperiode
 // laufend in der Reihenfolge der Zahlungen —
 // eine Rücklastschrift oder Rückerstattung (negativer Betrag) nimmt zuerst den Kaltmiete-Anteil zurück.
 // Dem Jahr zugeordnet wird die Zahlung nach dem Zuflussprinzip inkl. 10-Tage-Regel (siehe
 // zuflussJahrMiete); die Aufteilung folgt dagegen der Mietperiode: eine im Januar gezahlte Dezembermiete
-// zählt für den Januar, ihr NK-Anteil richtet sich nach dem Dezember.
+// zählt für den Januar, ihr BK-Anteil richtet sich nach dem Dezember.
 
 import { nkAnteilEinerZahlung } from "./nk-anteil";
 

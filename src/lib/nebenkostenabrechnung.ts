@@ -58,7 +58,7 @@ export type MietvertragFuerAbrechnung = {
   kaltmiete?: number;
   // Guthaben dieser Abrechnung, das mit einem Mietrückstand auf dem Mieterkonto verrechnet wurde
   // (positiver Betrag). Der Rückstand gilt damit als beglichen: zuerst als nachträglich gezahlte
-  // NK-Vorauszahlung, erst der Rest auf den fehlenden Kaltmiete-Teil — sonst würde der Rückstand doppelt
+  // BK-Vorauszahlung, erst der Rest auf den fehlenden Kaltmiete-Teil — sonst würde der Rückstand doppelt
   // berücksichtigt (einmal als gekürzte Vorauszahlung, einmal als verrechneter Betrag).
   rueckstandVerrechnet?: number;
   // Historie von Mieterhöhungen, siehe MietvertragFuerSollIst.mieterhoehungen in soll-ist.ts —
@@ -66,8 +66,8 @@ export type MietvertragFuerAbrechnung = {
   mieterhoehungen?: { gueltigAb: Date; kaltmiete: number; nebenkostenVorauszahlung: number }[];
   // Tatsächliche Mietzahlungen dieses Mietvertrags nach Mietperiode (Monat, für den sie gedacht
   // sind). Ist das Feld gesetzt, zählt als Vorauszahlung nur, was wirklich gezahlt wurde: je Monat
-  // wird die Zahlung bis Mietjahr 2024 zuerst auf die NK-Vorauszahlung angerechnet (höchstens das
-  // NK-Soll des Monats), erst der Rest auf die Kaltmiete; ab 2025 anteilig im Verhältnis NK : Kaltmiete,
+  // wird die Zahlung bis Mietjahr 2024 zuerst auf die BK-Vorauszahlung angerechnet (höchstens das
+  // BK-Soll des Monats), erst der Rest auf die Kaltmiete; ab 2025 anteilig im Verhältnis BK : Kaltmiete,
   // auf volle Euro gerundet (nk-anteil.ts, § 366 Abs. 2 BGB). Nur ein Monat, in dem weniger als das
   // Soll gezahlt wurde, kürzt die Vorauszahlung.
   // Fehlt das Feld, gilt das volle Soll.
@@ -151,7 +151,7 @@ export type AbrechnungPositionErgebnis = {
   kostenanteilGesamt: number;
   vorauszahlungGesamt: number;
   // Teil von vorauszahlungGesamt, der aus Monaten außerhalb des Mietzeitraums stammt (z.B. Miete, die
-  // nach Vertragsende noch für einen weiteren Monat gezahlt wurde) — der NK-Anteil dieser Zahlung
+  // nach Vertragsende noch für einen weiteren Monat gezahlt wurde) — der BK-Anteil dieser Zahlung
   // zählt als Vorauszahlung; 0 = keine solche Zahlung.
   vorauszahlungAusserhalb: number;
   saldo: number;
@@ -544,16 +544,16 @@ export function berechneNebenkostenabrechnung(
 
       const kostenanteilGesamt = round2(kostenanteilJahr * zeitanteil + vorverteilterAnteil);
       const vorauszahlungSoll = vorauszahlungFuerZeitraum(mv, von, bis);
-      // Zahlung je Monat auf die NK-Vorauszahlung (bis 2024 zuerst NK, ab 2025 anteilig, siehe nk-anteil.ts).
+      // Zahlung je Monat auf die BK-Vorauszahlung (bis 2024 zuerst BK, ab 2025 anteilig, siehe nk-anteil.ts).
       const zahlungsanteil = mv.zahlungen ? nkAnteilImZeitraum(mv, mv.zahlungen, von, bis) : null;
-      // Mit Guthaben verrechneter Mietrückstand: gilt zuerst als gezahlte NK, der Rest deckt die fehlende Kaltmiete.
+      // Mit Guthaben verrechneter Mietrückstand: gilt zuerst als gezahlte BK, der Rest deckt die fehlende Kaltmiete.
       const ausRueckstandVerrechnung = zahlungsanteil
         ? Math.min(zahlungsanteil.nkFehlbetrag, Math.max(0, mv.rueckstandVerrechnet ?? 0))
         : 0;
       const vorauszahlungImZeitraum = zahlungsanteil ? zahlungsanteil.nk + ausRueckstandVerrechnung : vorauszahlungSoll;
       // Wurde für einen Monat des Abrechnungsjahres gezahlt, der außerhalb des Mietzeitraums liegt
-      // (z.B. Miete für November trotz Vertragsende im August), zählt der NK-Anteil dieser Zahlung
-      // (höchstens das NK-Soll des Monats) ebenfalls als Vorauszahlung.
+      // (z.B. Miete für November trotz Vertragsende im August), zählt der BK-Anteil dieser Zahlung
+      // (höchstens das BK-Soll des Monats) ebenfalls als Vorauszahlung.
       const ausserhalb = mv.zahlungen ? nkAnteilAusserhalb(mv, mv.zahlungen, jahr, von, bis) : 0;
       const vorauszahlungGesamt = round2(vorauszahlungImZeitraum + ausserhalb);
 
@@ -623,7 +623,7 @@ function kaltmieteFuerDatum(
   return aktuell;
 }
 
-/** Die zu `datum` passende NK-Vorauszahlung: die letzte Mieterhöhung, deren (auf Monatsanfang
+/** Die zu `datum` passende BK-Vorauszahlung: die letzte Mieterhöhung, deren (auf Monatsanfang
  * normiertes) gueltigAb kleiner-gleich `datum` ist, sonst der Basiswert des Mietvertrags. */
 function nkVorauszahlungFuerDatum(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "mieterhoehungen">,
@@ -643,8 +643,8 @@ function nkVorauszahlungFuerDatum(
 
 // Summe der Zahlungen, deren Mietperiode in einen Monat von [von, bis] fällt (angebrochene Monate
 // zählen voll, wie beim Soll in vorauszahlungFuerZeitraum).
-// NK-Anteil der Zahlungen innerhalb von [von, bis], monatsweise: je Monat die (netto) gezahlte Summe,
-// höchstens das NK-Soll (bis 2024 NK vor Kaltmiete, ab 2025 anteilig, siehe nk-anteil.ts) — angebrochene
+// BK-Anteil der Zahlungen innerhalb von [von, bis], monatsweise: je Monat die (netto) gezahlte Summe,
+// höchstens das BK-Soll (bis 2024 BK vor Kaltmiete, ab 2025 anteilig, siehe nk-anteil.ts) — angebrochene
 // Monate anteilig nach Tagen.
 function nkAnteilImZeitraum(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "kaltmiete" | "mieterhoehungen">,
@@ -679,8 +679,8 @@ function nkAnteilImZeitraum(
   return { nk: nkSumme, nkFehlbetrag };
 }
 
-// NK-Anteil der Zahlungen für Monate des Jahres, die außerhalb von [von, bis] liegen: je Monat die
-// (netto) gezahlte Summe, höchstens das NK-Soll dieses Monats (Regel wie oben, siehe nk-anteil.ts).
+// BK-Anteil der Zahlungen für Monate des Jahres, die außerhalb von [von, bis] liegen: je Monat die
+// (netto) gezahlte Summe, höchstens das BK-Soll dieses Monats (Regel wie oben, siehe nk-anteil.ts).
 function nkAnteilAusserhalb(
   mv: Pick<MietvertragFuerAbrechnung, "nebenkostenVorauszahlung" | "kaltmiete" | "mieterhoehungen">,
   zahlungen: { jahr: number; monat: number; betrag: number }[],
@@ -704,7 +704,7 @@ function nkAnteilAusserhalb(
 }
 
 /**
- * NK-Vorauszahlung über [von, bis], monatsweise gerechnet: jeder ganz abgedeckte Kalendermonat zählt
+ * BK-Vorauszahlung über [von, bis], monatsweise gerechnet: jeder ganz abgedeckte Kalendermonat zählt
  * mit dem vollen Monatsbetrag, ein nur angebrochener Monat (Ein-/Auszug mitten im Monat)
  * tagesanteilig an seiner eigenen Länge. So ergibt z.B. ein Einzug zum 1.8. bei 200 € genau
  * 5 × 200 € = 1.000 € bis Jahresende (tagesgenau über das ganze Jahr gerechnet wären es 1.006,03 €).

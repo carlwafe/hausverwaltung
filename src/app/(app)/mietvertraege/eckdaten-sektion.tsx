@@ -100,7 +100,7 @@ export function EckdatenSektion({
           <Feld label="Mietbeginn" value={beginnText} />
           <Feld label="Mietende" value={endeText} />
           <Feld label="Kaltmiete" value={kaltmieteText} />
-          <Feld label="NK-Vorauszahlung" value={nebenkostenText} />
+          <Feld label="BK-Vorauszahlung" value={nebenkostenText} />
           {mehrwertsteuerText && <Feld label="Mehrwertsteuer" value={mehrwertsteuerText} />}
           <Feld label="Status" value={STATUS_LABEL[status] ?? status} />
           {eigenerStichtagText && <Feld label="Buchhaltung ab" value={eigenerStichtagText} />}

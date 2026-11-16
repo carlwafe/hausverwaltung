@@ -11,16 +11,16 @@ export function saldoMitToleranz(saldo: number): number {
 const monatsIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
 
 /**
- * Unbezahlter Teil der NK-Vorauszahlung einer *berechneten* Abrechnungsposition: das NK-Soll, das im
+ * Unbezahlter Teil der BK-Vorauszahlung einer *berechneten* Abrechnungsposition: das BK-Soll, das im
  * Mietsaldo steht (volle Monate wie `sollAufschluesselung`), minus die in der Abrechnung als gezahlt
- * angesetzte Vorauszahlung (`vorauszahlungGesamt`, nur tatsächlich gezahlte NK, § 366 Abs. 2 BGB).
+ * angesetzte Vorauszahlung (`vorauszahlungGesamt`, nur tatsächlich gezahlte BK, § 366 Abs. 2 BGB).
  *
  * Wozu: Die Abrechnung vergleicht die Kosten mit der *gezahlten* Vorauszahlung. Die unbezahlte
  * Vorauszahlung steht aber weiter als Rückstand im Mietsaldo — ohne Gegenrechnung würde sie dort und
- * in der Nachzahlung doppelt belastet (Beispiel: Kosten 2.790,95 €, NK-Soll 3.360 €, gezahlt 2.520 €:
+ * in der Nachzahlung doppelt belastet (Beispiel: Kosten 2.790,95 €, BK-Soll 3.360 €, gezahlt 2.520 €:
  * Nachzahlung 270,95 € + Rückstand 840 € = 1.110,95 € statt 270,95 €). Die Abrechnung ersetzt das
- * NK-Soll im Mietsaldo durch die Kosten, ihre Wirkung auf den Saldo ist also
- * `saldo + unbezahlteNkVorauszahlung` (= NK-Soll − Kosten); so bucht es auch der Verwalter.
+ * BK-Soll im Mietsaldo durch die Kosten, ihre Wirkung auf den Saldo ist also
+ * `saldo + unbezahlteNkVorauszahlung` (= BK-Soll − Kosten); so bucht es auch der Verwalter.
  *
  * Keine Gegenrechnung (0) vor Buchhaltungsbeginn — dort stehen weder Soll noch Zahlungen im Mietsaldo.
  * `buchhaltungAb` ist der wirksame Stichtag des Vertrags (eigener oder der des Objekts, siehe
@@ -29,7 +29,7 @@ const monatsIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
  * Für manuelle Positionen (`details = null`) nur aufrufen, wenn `hatGegenrechnung` es erlaubt: deren
  * Vorauszahlung ist von Hand eingetragen (Verwalter-Betrag bzw. Platzhalter 0). Bei einer versendeten
  * manuellen Position mit Vorauszahlung > 0 gilt der eingetragene Wert als die angesetzte Vorauszahlung
- * (Entscheidung 20.10.2026: sonst steht die unbezahlte NK-Vorauszahlung im Mietrückstand und zusätzlich in
+ * (Entscheidung 20.10.2026: sonst steht die unbezahlte BK-Vorauszahlung im Mietrückstand und zusätzlich in
  * der Nachzahlung gegen den kleineren Betrag).
  */
 export function unbezahlteNkVorauszahlung(
@@ -48,13 +48,13 @@ export function unbezahlteNkVorauszahlung(
 }
 
 /**
- * Ob eine Abrechnungsposition die Gegenrechnung der unbezahlten NK-Vorauszahlung bekommt (und damit wie eine
+ * Ob eine Abrechnungsposition die Gegenrechnung der unbezahlten BK-Vorauszahlung bekommt (und damit wie eine
  * berechnete Position behandelt wird: zählt erst ab dem Versand der Abrechnung):
  * - berechnete Positionen (`details` gesetzt) immer,
  * - manuelle nur, wenn die Abrechnung versendet ist und die eingetragene Vorauszahlung > 0 ist. Platzhalter
- *   (Vorauszahlung 0) würden sonst das ganze NK-Soll gutschreiben; manuelle Positionen unversendeter
+ *   (Vorauszahlung 0) würden sonst das ganze BK-Soll gutschreiben; manuelle Positionen unversendeter
  *   Abrechnungen (Verwalter-Beträge 2021–2024) bleiben unberührt — ihre Vorauszahlung ist die des Verwalters
- *   und passt nicht zum NK-Soll (sonst +100 €/−360 € Gutschrift ohne Grund, sobald jemand „versendet“ setzt:
+ *   und passt nicht zum BK-Soll (sonst +100 €/−360 € Gutschrift ohne Grund, sobald jemand „versendet“ setzt:
  *   dann zuerst prüfen, ob die Vorauszahlung der Position der tatsächlich gezahlten entspricht).
  * Vor dem Stichtag des Vertrags ergibt `unbezahlteNkVorauszahlung` ohnehin 0.
  */
@@ -82,7 +82,7 @@ export type Gegenrechnung = { jahr: number; betrag: number; datum: Date };
  * Gegenrechnung je Abrechnung (nur Beträge ≠ 0) für die Positionen eines Vertrags, die sie bekommen (`hatGegenrechnung`), jeweils mit
  * dem Datum, ab dem sie gilt: dem Versanddatum der Abrechnung. Nicht versendete Abrechnungen haben keine.
  *
- * Sie gehört zum Mietsaldo: Die unbezahlte NK-Vorauszahlung steht dort als Rückstand, ist aber erst mit der
+ * Sie gehört zum Mietsaldo: Die unbezahlte BK-Vorauszahlung steht dort als Rückstand, ist aber erst mit der
  * Abrechnung nicht mehr geschuldet (die Abrechnung vergleicht die Kosten nur mit der gezahlten
  * Vorauszahlung) — davor besteht der Rückstand tatsächlich. Deshalb zählt sie ab dem Versanddatum
  * (`gegenrechnungBis`), nicht schon ab Jahresanfang; gespeichert wird nichts, der Wert ändert sich mit

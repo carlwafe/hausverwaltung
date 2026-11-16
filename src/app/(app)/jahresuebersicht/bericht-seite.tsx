@@ -110,7 +110,7 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
       },
       include: { kostenart: true },
     }),
-    // Aufteilung der Mietzahlungen in Kaltmiete und NK-Vorauszahlung — nur für die Aufstellung
+    // Aufteilung der Mietzahlungen in Kaltmiete und BK-Vorauszahlung — nur für die Aufstellung
     // Anlage V im Gesamtjahr (lädt auch frühere Zahlungen derselben Mietmonate).
     quartal === 0 ? ladeMietAufteilung(zeitraum) : Promise.resolve(null),
     // Schuldzinsen von anderen Konten (Jahreswerte laut Bankbescheinigung) — nur für die Aufstellung im Gesamtjahr.
@@ -244,9 +244,9 @@ export async function ladeJahresuebersicht(zeitraum: Zeitraum) {
   };
 }
 
-// Teilt die im Zeitraum eingegangenen Mietzahlungen in Kaltmiete und NK-Vorauszahlung (siehe
+// Teilt die im Zeitraum eingegangenen Mietzahlungen in Kaltmiete und BK-Vorauszahlung (siehe
 // teileMietzahlungen). Berücksichtigt auch frühere Zahlungen derselben Mietmonate, weil sich der
-// NK-Anteil nach den davor eingegangenen Zahlungen richtet.
+// BK-Anteil nach den davor eingegangenen Zahlungen richtet.
 async function ladeMietAufteilung(zeitraum: Zeitraum) {
   const { jahr } = zeitraum;
   const zahlungen = await prisma.buchung.findMany({
@@ -404,7 +404,7 @@ export async function ladeMieterZeilen(zeitraum: Zeitraum) {
   ]);
 
   const mietvertragIds = vertraegeRaw.map((v) => v.id);
-  // Positionen mit Gegenrechnung der unbezahlten NK-Vorauszahlung (siehe hatGegenrechnung in nk-saldo.ts):
+  // Positionen mit Gegenrechnung der unbezahlten BK-Vorauszahlung (siehe hatGegenrechnung in nk-saldo.ts):
   // berechnete (details gesetzt) und manuelle versendeter Abrechnungen mit eingetragener Vorauszahlung > 0.
   // Sonstige manuelle Positionen haben von Hand eingetragene Beträge (siehe unbezahlteNkVorauszahlung).
   const berechnetePositionIds = new Set(
@@ -621,7 +621,7 @@ export async function BerichtSeite({ jahr, quartal }: { jahr: number; quartal: n
           </p>
           <p className="mb-3 text-sm text-neutral-400">
             &bdquo;Betriebskostenabrechnung offen (Vorjahr)&ldquo;: offener Saldo der {jahr - 1}er-Abrechnung (positiv = Guthaben,
-            negativ = Nachzahlung), fließt erst in Saldo neu ein. &bdquo;Gutschrift unbezahlte NK-Vorauszahlung&ldquo; gleicht
+            negativ = Nachzahlung), fließt erst in Saldo neu ein. &bdquo;Gutschrift unbezahlte BK-Vorauszahlung&ldquo; gleicht
             den unbezahlten Teil der Vorauszahlung aus (steht schon als Rückstand im Soll) und zählt ab dem Versanddatum
             der Abrechnung; eine nicht versendete Abrechnung zählt gar nicht.
           </p>
@@ -919,7 +919,7 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
       text: "Vereinnahmte Mieten (Kaltmiete, netto)",
       betrag: st.mieten,
       hinweis:
-        "Zahlungen je Monat auf die NK-Vorauszahlung angerechnet (Teilzahlungen ab Mietjahr 2025 anteilig), der Rest ist Kaltmiete" +
+        "Zahlungen je Monat auf die BK-Vorauszahlung angerechnet (Teilzahlungen ab Mietjahr 2025 anteilig), der Rest ist Kaltmiete" +
         (st.kautionMitMiete !== 0 ? `; darin ${formatEuro(st.kautionMitMiete)} mit Kaution verrechnet` : ""),
     },
     ...(st.umsatzsteuer !== 0
@@ -1099,10 +1099,10 @@ function AnlageVAufstellung({ jahr, daten }: { jahr: number; daten: JahresDaten 
             Betriebskosten, separate Instandhaltung und die Unterteilung der Kosten in umlagefähig / nicht umlagefähig.
           </p>
           <p>
-            Mieten und Betriebskosten: Jede Mietzahlung wird je Mietmonat zuerst auf die NK-Vorauszahlung angerechnet (höchstens
-            das NK-Soll, § 366 Abs. 2 BGB), der Rest ist Kaltmiete; bei Teilzahlungen gilt ab Mietjahr 2025 die anteilige
-            Aufteilung (NK-Anteil auf volle Euro gerundet), bis 2024 zuerst die NK. Der Zeitraum richtet sich nach dem
-            Zahlungsdatum, die Aufteilung nach dem Mietmonat. NK-Guthaben mindern die Betriebskosten-Einnahmen, Nachzahlungen
+            Mieten und Betriebskosten: Jede Mietzahlung wird je Mietmonat zuerst auf die BK-Vorauszahlung angerechnet (höchstens
+            das BK-Soll, § 366 Abs. 2 BGB), der Rest ist Kaltmiete; bei Teilzahlungen gilt ab Mietjahr 2025 die anteilige
+            Aufteilung (BK-Anteil auf volle Euro gerundet), bis 2024 zuerst die BK. Der Zeitraum richtet sich nach dem
+            Zahlungsdatum, die Aufteilung nach dem Mietmonat. BK-Guthaben mindern die Betriebskosten-Einnahmen, Nachzahlungen
             erhöhen sie (Anlage V, Z. 13); im Bericht oben stehen sie als Ausgabe bzw. Einnahme — das Ergebnis ist gleich.
           </p>
           <p>

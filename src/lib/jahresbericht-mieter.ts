@@ -24,7 +24,7 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   // Berichtsjahres selbst. zahlungSumme = tatsächlich gezahlte/erhaltene Summe für
   // Mietvertrag+Jahr aus dem Betriebskostenausgleich-Archiv (0 = noch nichts erfasst).
   // unbezahlteVorauszahlung = Gegenrechnung bei berechneten Positionen (siehe unbezahlteNkVorauszahlung
-  // in nk-saldo.ts): NK-Soll, das schon als Rückstand im Mietsaldo steht, aber in der Abrechnung nicht
+  // in nk-saldo.ts): BK-Soll, das schon als Rückstand im Mietsaldo steht, aber in der Abrechnung nicht
   // als gezahlt zählt. Fehlt sie (manuelle Positionen), gilt 0. versendetAm = Versanddatum der Abrechnung:
   // berechnete Positionen nicht versendeter Abrechnungen gehören nicht in die Liste (weder Abrechnung noch
   // Gegenrechnung zählen), die Gegenrechnung gilt ab diesem Datum; manuelle Positionen haben keines.
@@ -59,18 +59,18 @@ export type MieterJahresberichtZeile = {
   // Anzeige bewusst nicht von "0" — beides zeigt "–", da ein bestätigter Nullsaldo von "nie
   // erfasst" ohnehin nicht unterscheidbar wäre).
   nebenkostenabrechnungOffen: number | null;
-  // Gutschrift der unbezahlten NK-Vorauszahlung (steht schon im Mietrückstand, siehe unbezahlteNkVorauszahlung)
+  // Gutschrift der unbezahlten BK-Vorauszahlung (steht schon im Mietrückstand, siehe unbezahlteNkVorauszahlung)
   // von Abrechnungen, die im Zeitraum versendet wurden; sie ist schon in saldoNeu enthalten (danach in saldoAlt),
   // nebenkostenabrechnungOffen enthält sie nicht. 0 = keine.
   nebenkostenGegenrechnung: number;
 };
 
 /**
- * Sonderbewegungen (Gebühren-Forderungen, Zahlungen darauf, Verrechnungen mit Kaution/NK) je Vertrag im
+ * Sonderbewegungen (Gebühren-Forderungen, Zahlungen darauf, Verrechnungen mit Kaution/BK) je Vertrag im
  * Zeitraum, getrennt nach Forderung (`gefordert`, positiv = der Mieter schuldet das) und Gutschrift
  * (`gezahlt`, Zahlung oder Verrechnung). Gleiche Abgrenzung wie `saldoZuStichtag`/`berechneMieterBericht`
  * (Stichtag je Vertrag, Ende gekappt auf `buchhaltungBisGlobal`), damit
- * Saldo neu = Saldo alt − Soll + Miete − gefordert + gezahlt + Gutschrift NK-Vorauszahlung + NK offen aufgeht.
+ * Saldo neu = Saldo alt − Soll + Miete − gefordert + gezahlt + Gutschrift BK-Vorauszahlung + BK offen aufgeht.
  * Eigene Funktion statt Feld in `MieterJahresberichtZeile`, damit sich deren JSON-Ausgabe nicht ändert.
  */
 export function berechneMieterSonderbewegungen(
@@ -99,7 +99,7 @@ export function berechneMieterSonderbewegungen(
  * Abrechnung und Ausgleich der Betriebskostenabrechnung des Vorjahres je Vertrag, beide im Vorzeichen des
  * Mietsaldos (negativ = der Mieter schuldet): `abrechnung` = Saldo der Position (Guthaben +, Nachzahlung −),
  * `ausgleich` = bisher gebuchte Auszahlung/Zahlung/Verrechnung dazu mit umgekehrtem Vorzeichen (ausgezahltes
- * Guthaben −, gezahlte Nachzahlung +). Abrechnung + Ausgleich = „NK-Abrechnung offen“ (bis auf die Toleranz von
+ * Guthaben −, gezahlte Nachzahlung +). Abrechnung + Ausgleich = „BK-Abrechnung offen“ (bis auf die Toleranz von
  * 1 Cent). Gleiche Auswahl wie `nebenkostenabrechnungOffenBetrag` (Position von jahr−1, erst ab Versand); wie
  * dort zählt der Ausgleich alles, was bisher gebucht ist, nicht nur den Berichtszeitraum. Eigene Funktion statt
  * Feldern in `MieterJahresberichtZeile`, damit sich deren JSON-Ausgabe nicht ändert.
@@ -154,7 +154,7 @@ function istNachZuordnung(
  * Jahresbewegung als Differenz zu zeigen. Bewusst ohne jeden Bezug zur
  * Betriebskostenabrechnung selbst — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
  * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung. Ausnahme: die Gegenrechnung der
- * unbezahlten NK-Vorauszahlung versendeter Abrechnungen (Versanddatum ≤ Stichtag): nach dem Versand nicht mehr
+ * unbezahlten BK-Vorauszahlung versendeter Abrechnungen (Versanddatum ≤ Stichtag): nach dem Versand nicht mehr
  * geschuldet, gehört sie ab diesem Datum zum Saldo (im Zeitraum des Versands als Spalte „Gutschrift“ sichtbar,
  * danach in Saldo alt). Nachzahlung/Guthaben der Abrechnung des Vorjahres kommt als Spalte „Betriebskostenabrechnung
  * offen“ dazu.
@@ -204,7 +204,7 @@ function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr:
  * Pro-Mietvertrag-Aufschlüsselung für den Jahresbericht: Saldo alt (1.1.), die Bewegungen des
  * Jahres (Soll, tatsächlich gezahlte Miete) und Saldo neu (31.12. bzw. `buchhaltungBis`, falls
  * das Jahr noch nicht vollständig erfasst ist) — Saldo neu = Saldo alt - Soll + Miete +
- * Betriebskostenabrechnung offen (Vorjahr). Der offene Vorjahres-NK-Saldo (siehe
+ * Betriebskostenabrechnung offen (Vorjahr). Der offene Vorjahres-BK-Saldo (siehe
  * nebenkostenabrechnungOffenBetrag) fließt bewusst nur in Saldo neu ein, nicht in Saldo alt — die
  * Vorjahresabrechnung entsteht/wird beglichen typischerweise erst im Laufe des Berichtsjahres,
  * war zu dessen Beginn also noch kein Bestandteil des Saldos.
@@ -239,7 +239,7 @@ export function berechneMieterJahresbericht(
  * `jahr` (Quartalsübersicht). "Betriebskostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
  * Abrechnung des Vorjahres von `jahr` und fließt voll ein — außer bei `mitNkOffen: false` (Q1/Q2,
  * die Abrechnung liegt dann meist noch nicht vor): dann bleibt sie außen vor, Saldo neu ist der
- * reine Mietsaldo. Die Gutschrift der unbezahlten NK-Vorauszahlung zählt dagegen datumsgenau ab dem
+ * reine Mietsaldo. Die Gutschrift der unbezahlten BK-Vorauszahlung zählt dagegen datumsgenau ab dem
  * Versand der Abrechnung (`versendetAm`), unabhängig vom Quartal.
  */
 export function berechneMieterBericht(
@@ -281,7 +281,7 @@ export function berechneMieterBericht(
       .reduce((sum, z) => sum + z.betrag, 0);
     const nebenkostenabrechnungOffen =
       zeitraum.mitNkOffen === false ? null : nebenkostenabrechnungOffenBetrag(v, jahr, saldoNeuBis);
-    // Gutschrift der unbezahlten NK-Vorauszahlung: gehört zum Mietsaldo (wie im Mieterkonto) ab dem Versand der
+    // Gutschrift der unbezahlten BK-Vorauszahlung: gehört zum Mietsaldo (wie im Mieterkonto) ab dem Versand der
     // Abrechnung, hier die Beträge, die im Zeitraum versendet wurden (schon in saldoNeu enthalten).
     const nkGegenrechnung =
       Math.round(

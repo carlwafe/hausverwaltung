@@ -46,7 +46,7 @@ export type KautionRow = {
   aufgeloest: number;
   ausgezahlt: number;
   // Mit einer Betriebskostenabrechnung, dem Mieterkonto oder einer vom Vermieter bezahlten Rechnung
-  // verrechneter Teil ("Verrechnung mit NK-Abrechnung" / "…Mieterkonto" / "…Rechnung") — ist der
+  // verrechneter Teil ("Verrechnung mit BK-Abrechnung" / "…Mieterkonto" / "…Rechnung") — ist der
   // Kaution ebenfalls endgültig entzogen, aber ohne Auszahlung.
   verrechnet: number;
   einbehalten: number | null;
@@ -172,7 +172,7 @@ const columns: Column<KautionRow>[] = [
   },
   {
     key: "verrechnet",
-    label: "Verrechnet (NK / Mieterkonto / Rechnung)",
+    label: "Verrechnet (BK / Mieterkonto / Rechnung)",
     sortValue: (r) => r.verrechnet,
     render: (r) => (r.verrechnet > 0 ? formatEuro(r.verrechnet) : "–"),
   },

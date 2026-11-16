@@ -89,7 +89,7 @@ export type KostenSumme = {
 export type AnlageVAufstellung = {
   mieten: number; // vereinnahmte Kaltmiete (netto)
   umsatzsteuer: number; // vereinnahmte Umsatzsteuer auf Garagenmieten
-  nebenkosten: number; // vereinnahmte NK-Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben
+  nebenkosten: number; // vereinnahmte BK-Vorauszahlungen + Nachzahlungen − ausgezahlte Guthaben
   // Bestandteile von nebenkosten (für die „davon“-Zeilen)
   nkVorauszahlungen: number;
   nkNachzahlungen: number;
@@ -131,7 +131,7 @@ export type AnlageVAufstellung = {
 const gerundet = (n: number) => Math.round(n * 100) / 100;
 
 // Setzt die Summen des Jahresberichts in der Gliederung des Steuerberaters zusammen. Das Ergebnis
-// ist dasselbe wie im Jahresbericht (Einnahmen − Ausgaben); ausgezahlte NK-Guthaben mindern hier die
+// ist dasselbe wie im Jahresbericht (Einnahmen − Ausgaben); ausgezahlte BK-Guthaben mindern hier die
 // Betriebskosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen. Die Mietzahlungen sind nach der
 // 10-Tage-Regel dem Jahr zugeordnet (siehe zuflussJahrMiete); die Abweichung zum Bericht steht in `abgrenzung`.
 export function baueAnlageVAufstellung(eingabe: {

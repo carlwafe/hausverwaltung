@@ -98,7 +98,7 @@ export function MieterkontoAnsicht({
             />
             {z.sollKaltmiete !== null && z.sollNebenkosten !== null && (
               <div className="mt-1.5 text-xs text-neutral-500">
-                Soll: Kaltmiete {formatEuro(z.sollKaltmiete)} + NK-Vorauszahlung {formatEuro(z.sollNebenkosten)}
+                Soll: Kaltmiete {formatEuro(z.sollKaltmiete)} + BK-Vorauszahlung {formatEuro(z.sollNebenkosten)}
               </div>
             )}
             {z.bemerkung && <div className="mt-1 text-xs italic text-neutral-500">{z.bemerkung}</div>}
@@ -124,7 +124,7 @@ export function MieterkontoAnsicht({
             ]}
           />
           <div className="mt-1.5 text-xs text-neutral-500">
-            Soll: Kaltmiete {formatEuro(konto.summe.sollKaltmiete)} + NK-Vorauszahlung {formatEuro(konto.summe.sollNebenkosten)}
+            Soll: Kaltmiete {formatEuro(konto.summe.sollKaltmiete)} + BK-Vorauszahlung {formatEuro(konto.summe.sollNebenkosten)}
           </div>
         </li>
       </ul>
@@ -135,7 +135,7 @@ export function MieterkontoAnsicht({
             <tr>
               <th className="px-4 py-2.5">Monat / Buchung</th>
               <th className="px-4 py-2.5 text-right">Soll Kaltmiete</th>
-              <th className="px-4 py-2.5 text-right">Soll NK-Vorauszahlung</th>
+              <th className="px-4 py-2.5 text-right">Soll BK-Vorauszahlung</th>
               <th className="px-4 py-2.5 text-right">Soll gesamt</th>
               <th className="px-4 py-2.5">Buchungsart</th>
               <th className="px-4 py-2.5">Datum</th>
@@ -209,7 +209,7 @@ export function MieterkontoAnsicht({
       {konto.nebenkostenabrechnungOffen !== null && (
         <table className="mt-3 w-full text-sm md:ml-auto md:w-auto">
           <tbody>
-            {/* Die Gegenrechnung der unbezahlten NK-Vorauszahlung steht als Zeile in der Tabelle (Teil des
+            {/* Die Gegenrechnung der unbezahlten BK-Vorauszahlung steht als Zeile in der Tabelle (Teil des
                 Saldos); hier bleibt die Abrechnung selbst (Kosten ./. gezahlte Vorauszahlung, abzüglich
                 Auszahlung/Verrechnung). */}
             <tr>
@@ -235,7 +235,7 @@ export function MieterkontoAnsicht({
       <div className="mt-2 space-y-0.5 text-xs italic text-neutral-500">
         <p>Positiver Saldo = Guthaben des Mieters, negativer Saldo = Mietrückstand. Der Endsaldo ist der Übertrag ins Folgejahr.</p>
         <p>
-          „Gutschrift/Belastung NK-Vorauszahlung“ steht am Versanddatum der Abrechnung (unter „Als versendet markieren“
+          „Gutschrift/Belastung BK-Vorauszahlung“ steht am Versanddatum der Abrechnung (unter „Als versendet markieren“
           gepflegt); die Abrechnung selbst fließt nur in „Saldo inkl. offener Betriebskostenabrechnung“ ein.
         </p>
         <p>

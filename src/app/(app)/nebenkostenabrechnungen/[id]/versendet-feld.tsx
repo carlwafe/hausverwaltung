@@ -6,7 +6,7 @@ import { runFormAction } from "@/lib/form-utils";
 import { speichereVersendetAm } from "../actions";
 
 /**
- * Versanddatum der Abrechnung. Erst ab diesem Datum zählt die Gegenrechnung der unbezahlten NK-Vorauszahlung
+ * Versanddatum der Abrechnung. Erst ab diesem Datum zählt die Gegenrechnung der unbezahlten BK-Vorauszahlung
  * im Mietsaldo — vorher besteht der Rückstand tatsächlich noch. Unabhängig von Entwurf/Final.
  */
 export function VersendetFeld({
@@ -69,7 +69,7 @@ export function VersendetFeld({
       </form>
       {fehler && <p className="mt-1 text-xs text-red-400">{fehler}</p>}
       <p className="mt-1.5 text-xs text-neutral-500">
-        Ab dem Versanddatum zählt die Gutschrift der nicht gezahlten NK-Vorauszahlung im Mietsaldo und (bei berechneten
+        Ab dem Versanddatum zählt die Gutschrift der nicht gezahlten BK-Vorauszahlung im Mietsaldo und (bei berechneten
         Abrechnungen) die Nachzahlung/das Guthaben in der Jahresübersicht; vorher besteht der Rückstand noch. Unabhängig vom
         Status Entwurf/Final. Datum bei späterem Zugang beim Mieter nachtragen. Bei manuellen Positionen mit Vorauszahlung &gt; 0
         wird die Gutschrift als Soll minus eingetragene Vorauszahlung gerechnet — vor dem Markieren prüfen, ob das stimmt.

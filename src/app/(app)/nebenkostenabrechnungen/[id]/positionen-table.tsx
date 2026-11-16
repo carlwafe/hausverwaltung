@@ -203,7 +203,7 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
       label: "Vorauszahlung",
       align: "right",
       title:
-        "Tatsächlich gezahlte NK-Vorauszahlung: je Mietmonat bis 2024 zuerst auf die NK (bis zum NK-Soll), ab 2025 anteilig im Verhältnis NK : Kaltmiete, auf volle Euro gerundet (§ 366 Abs. 2 BGB)",
+        "Tatsächlich gezahlte BK-Vorauszahlung: je Mietmonat bis 2024 zuerst auf die BK (bis zum BK-Soll), ab 2025 anteilig im Verhältnis BK : Kaltmiete, auf volle Euro gerundet (§ 366 Abs. 2 BGB)",
       sortValue: (p) => p.vorauszahlungGesamt,
       render: (p) =>
         p.berechnet ? (

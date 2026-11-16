@@ -29,7 +29,7 @@ const ANLAGEFORM_LABEL: Record<string, string> = {
   BAR: "Bar",
 };
 
-// Art der Erledigung / Weg je Buchungsart, die eine NK-Abrechnung begleicht (siehe nk-verrechnung.ts).
+// Art der Erledigung / Weg je Buchungsart, die eine BK-Abrechnung begleicht (siehe nk-verrechnung.ts).
 const NK_ERLEDIGUNG: Record<string, { art: string; weg: string }> = {
   NEBENKOSTENAUSGLEICH: { art: "Auszahlung / Zahlung", weg: "Banküberweisung (Betriebskostenausgleich)" },
   MAHNGEBUEHR: { art: "Verrechnung mit Miete", weg: "Forderung im Mieterkonto" },
@@ -136,7 +136,7 @@ export default async function MietvertragDetailPage({
   const sonderOffenImSaldo = sonderBuchungen
     .filter((b) => b.datum && (!stichtagAb || b.datum >= stichtagAb) && b.datum <= bis)
     .reduce((sum, b) => sum - sonderWirkung(b.buchungsart.code, Number(b.betrag)), 0);
-  // Unbezahlte NK-Vorauszahlung berechneter (und versendeter manueller, siehe hatGegenrechnung) Abrechnungen (je Abrechnung): steht als Rückstand im Soll, ist
+  // Unbezahlte BK-Vorauszahlung berechneter (und versendeter manueller, siehe hatGegenrechnung) Abrechnungen (je Abrechnung): steht als Rückstand im Soll, ist
   // nach dem Versand der Abrechnung aber nicht mehr geschuldet. Zählt zum Saldo ab dem Versanddatum (siehe
   // gegenrechnungenJeJahr); die Abrechnung selbst (Nachzahlung/Guthaben) steht nicht darin.
   const nkGegenrechnungen = gegenrechnungenJeJahr(
@@ -198,7 +198,7 @@ export default async function MietvertragDetailPage({
     if (z.jahr === null) continue;
     nkZahlungNachJahr.set(z.jahr, (nkZahlungNachJahr.get(z.jahr) ?? 0) + nkBegleichung(z.buchungsart.code, Number(z.betrag)));
   }
-  // Monatliche NK-Vorauszahlung nach einer Abrechnung: die erste Mieterhöhung nach Jahresende, sonst
+  // Monatliche BK-Vorauszahlung nach einer Abrechnung: die erste Mieterhöhung nach Jahresende, sonst
   // der im Januar des Folgejahres geltende Betrag — null, wenn der Vertrag bis dahin endet.
   const neueVorauszahlungNach = (jahr: number): NkJahrDaten["neueVorauszahlung"] => {
     const jahresende = new Date(jahr, 11, 31, 23, 59, 59);
@@ -286,8 +286,8 @@ export default async function MietvertragDetailPage({
       mieterkonto: e.bezugTyp === "Mieterkonto",
     })),
   });
-  // Offene NK-Abrechnung des Vorjahres: Saldo der Position ./. Auszahlung/Verrechnung. Die Gegenrechnung der
-  // unbezahlten NK-Vorauszahlung gehört zum Mietsaldo (nkGegenrechnungen, Zeile im Mieterkonto) und steht hier nicht.
+  // Offene BK-Abrechnung des Vorjahres: Saldo der Position ./. Auszahlung/Verrechnung. Die Gegenrechnung der
+  // unbezahlten BK-Vorauszahlung gehört zum Mietsaldo (nkGegenrechnungen, Zeile im Mieterkonto) und steht hier nicht.
   const nkOffenFuerJahr = (jahr: number): number | null => {
     const position = vertrag.abrechnungspositionen.find((p) => p.abrechnung.jahr === jahr - 1);
     if (!position) return null;
@@ -326,7 +326,7 @@ export default async function MietvertragDetailPage({
 
   const letzteErhoehungText =
     mieterhoehungen.length > 0
-      ? `Miete zuletzt zum ${formatDate(mieterhoehungen[0].gueltigAb)} auf ${formatEuro(mieterhoehungen[0].kaltmiete)} Kaltmiete + ${formatEuro(mieterhoehungen[0].nebenkostenVorauszahlung)} NK erhöht${mieterhoehungen.length > 1 ? ` (${mieterhoehungen.length} Erhöhungen insgesamt)` : ""}.`
+      ? `Miete zuletzt zum ${formatDate(mieterhoehungen[0].gueltigAb)} auf ${formatEuro(mieterhoehungen[0].kaltmiete)} Kaltmiete + ${formatEuro(mieterhoehungen[0].nebenkostenVorauszahlung)} BK erhöht${mieterhoehungen.length > 1 ? ` (${mieterhoehungen.length} Erhöhungen insgesamt)` : ""}.`
       : null;
 
   return (

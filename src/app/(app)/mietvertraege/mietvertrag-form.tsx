@@ -246,7 +246,7 @@ export function MietvertragForm({
             className="mb-1 flex min-h-10 items-end text-sm font-medium"
             htmlFor="nebenkostenVorauszahlung"
           >
-            NK-Vorauszahlung (€){istGarage && " (optional bei Garagen)"}
+            BK-Vorauszahlung (€){istGarage && " (optional bei Garagen)"}
           </label>
           <input
             id="nebenkostenVorauszahlung"

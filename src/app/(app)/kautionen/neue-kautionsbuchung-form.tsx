@@ -30,7 +30,7 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
   },
   {
     value: "VERRECHNUNG_NK",
-    label: "Verrechnung mit NK-Abrechnung (Kaution mit einer Nachzahlung verrechnet)",
+    label: "Verrechnung mit BK-Abrechnung (Kaution mit einer Nachzahlung verrechnet)",
   },
   {
     value: "VERRECHNUNG_MIETERKONTO",
@@ -141,7 +141,7 @@ export function NeueKautionsbuchungForm({
       <p className="mb-3 text-xs text-neutral-500">
         Einbehalte: <em>vorläufig</em>, solange die Rechnung noch fehlt — liegt sie vor, Einbehalt löschen und als
         Verrechnung mit Rechnung anlegen. <em>Pauschal</em> für Endgültiges ohne Rechnung (Abnutzung,
-        Sperrmüll). Nachzahlung → Verrechnung mit NK-Abrechnung, Mietrückstand/Gebühren → Verrechnung mit Mieterkonto.
+        Sperrmüll). Nachzahlung → Verrechnung mit BK-Abrechnung, Mietrückstand/Gebühren → Verrechnung mit Mieterkonto.
         Rückflüsse mit Bankvorzeichen buchen: positive Anlage = Rückbuchung vom Kautionskonto, positive Auszahlung =
         zurückgekommene Auszahlung.
       </p>

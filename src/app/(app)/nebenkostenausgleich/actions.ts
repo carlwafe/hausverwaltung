@@ -33,7 +33,7 @@ const aufteilungTeilSchema = z.object({
 /**
  * Teilt eine Betriebskostenausgleich-Buchung (eine Überweisung) in mehrere Teile auf — z.B. eine Überweisung,
  * die zwei Abrechnungsjahre/Mietverträge auf einmal begleicht. Ein mit ausgezahltes Mietkonto-Guthaben
- * bzw. ein damit verrechneter Rückstand wird dagegen als NK-Verrechnung (MAHNGEBUEHR, siehe
+ * bzw. ein damit verrechneter Rückstand wird dagegen als BK-Verrechnung (MAHNGEBUEHR, siehe
  * nk-verrechnung.ts) gebucht, nicht durch Aufteilen. Alle Teile tragen das Bankvorzeichen und
  * summieren sich zum Originalbetrag. Das Original wird storniert; die gemeinsame
  * aufteilungGruppeId (= Id des Originals) hält die Teile zusammen und lässt die Zeile beim

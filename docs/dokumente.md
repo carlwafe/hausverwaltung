@@ -139,11 +139,11 @@ Die Jahresabrechnung (z.B. Wasser-Rechnung + Abwasser-Bescheid in einem PDF) nen
 - **Ausnahmen** (Kontoauszug bzw. interne Forderung ist der Beleg): Nebenkosten des Geldverkehrs, Mahngebühren, Verzugszinsen, Mietminderung, Sonstige Einnahmen (Waschgeld). Darlehenszinsen bleiben pflichtig (Jahresbescheinigung als gemeinsamer Beleg).
 - **Techem-Kostenarten** (Schlüssel `IN_ABRECHNUNG_ENTHALTEN`: Gas, Wasser/Abwasser, Heizungswartung, Rauchmelder, Schornsteinfeger) sind **ausdrücklich pflichtig** — die Techem-Abrechnung wird als gemeinsamer Beleg angehängt (der Mieter kann die Rechnungen sehen wollen).
 - **Wo:** Kosten-Liste (Filter „Beleg fehlt“ für alle bzw. nur umlagefähige), Box auf `/kosten/[id]`, Hinweis `BelegLueckenHinweis` mit Zähler und den Kostenarten mit den meisten Lücken auf Jahresübersicht und Aufstellung für die Steuererklärung (`zaehleBelegLueckenJahr`, Abflussprinzip; in der Druckansicht ausgeblendet) — **kein Sperren**.
-- Die Belegprüfung der NK-Abrechnung (`ladeBelegPruefung`, `zaehleBelegLuecken`) und der Arbeitskosten-Ausweis bleiben auf umlagefähige Kostenarten beschränkt (inklusive Techem).
+- Die Belegprüfung der BK-Abrechnung (`ladeBelegPruefung`, `zaehleBelegLuecken`) und der Arbeitskosten-Ausweis bleiben auf umlagefähige Kostenarten beschränkt (inklusive Techem).
 - Der Bestand ist weitgehend unbelegt und nachzupflegen (Eingang der Ablage, Vorschläge je Kostenposition).
 
 ## Versandte Schreiben ablegen
 
-`src/components/schreiben-ablegen.tsx`, eingebunden im Anpassungsschreiben (`anpassungsschreiben.tsx`, NK-Anpassung und Indexmiete). Diese Schreiben werden per `window.print()` gedruckt und nirgends gespeichert — nach dem Versand legt man die PDF-Kopie über die Box „Kopie in der Mieterakte ablegen“ als `Dokument` am Mietvertrag ab (Art `SCHREIBEN`, Belegdatum = Datum des Schreibens, 1 MB, nur PDF). Die Box listet die schon abgelegten Schreiben des Vertrags.
+`src/components/schreiben-ablegen.tsx`, eingebunden im Anpassungsschreiben (`anpassungsschreiben.tsx`, BK-Anpassung und Indexmiete). Diese Schreiben werden per `window.print()` gedruckt und nirgends gespeichert — nach dem Versand legt man die PDF-Kopie über die Box „Kopie in der Mieterakte ablegen“ als `Dokument` am Mietvertrag ab (Art `SCHREIBEN`, Belegdatum = Datum des Schreibens, 1 MB, nur PDF). Die Box listet die schon abgelegten Schreiben des Vertrags.
 - Bewusst **kein** automatisches Speichern (die Kopie ist der Nachweis des tatsächlich Versandten, z.B. für den Zugang einer Erhöhungserklärung) und **kein** Zwang — „Übernehmen“ geht auch ohne Kopie.
 - Auch die PDF-Schreiben der Betriebskostenabrechnung werden von Hand abgelegt.

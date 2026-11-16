@@ -100,7 +100,7 @@ export default async function NkAnpassungPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">NK-Anpassung</h1>
+        <h1 className="text-2xl font-semibold text-white">BK-Anpassung</h1>
         <p className="text-sm text-neutral-400">
           Nach einer Betriebskostenabrechnung darf die monatliche Vorauszahlung auf eine angemessene Höhe angepasst werden
           (§ 560 Abs. 4 BGB, Erklärung in Textform). Gezeigt wird je aktivem Mietvertrag die neueste Abrechnung mit dem

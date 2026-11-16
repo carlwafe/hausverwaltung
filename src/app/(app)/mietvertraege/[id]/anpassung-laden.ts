@@ -7,8 +7,8 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import type { AnpassungsschreibenProps } from "@/components/anpassungsschreiben";
 
 /**
- * Lädt alles für das Anpassungsschreiben (Indexerhöhung + NK-Vorauszahlung) eines Mietvertrags. Beide Seiten
- * („Mieterhöhung“ → …/indexerhoehung, „NK-Anpassung“ → …/nk-anpassung) zeigen dasselbe Formular und unterscheiden
+ * Lädt alles für das Anpassungsschreiben (Indexerhöhung + BK-Vorauszahlung) eines Mietvertrags. Beide Seiten
+ * („Mieterhöhung“ → …/indexerhoehung, „BK-Anpassung“ → …/nk-anpassung) zeigen dasselbe Formular und unterscheiden
  * sich nur im Einstieg. `null` = Vertrag nicht gefunden.
  */
 export async function ladeAnpassungsschreiben(
@@ -65,7 +65,7 @@ export async function ladeAnpassungsschreiben(
       ? "Für diesen Vertrag ist kein Mietbeginn erfasst — ohne ihn lässt sich der Basisindex nicht bestimmen."
       : "Es sind noch keine VPI-Werte eingetragen (Mietverträge → VPI-Werte pflegen).";
 
-  // ----- NK-Vorauszahlung -----
+  // ----- BK-Vorauszahlung -----
   const position = vertrag.abrechnungspositionen[0] ?? null;
   const nkMoeglich = position !== null && nkAnpassungMoeglich(vertrag.ende, position.abrechnung.jahr, Number(position.kostenanteilGesamt));
   const nk =

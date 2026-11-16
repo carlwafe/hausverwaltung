@@ -135,7 +135,7 @@ export default async function MietvertragBearbeitenPage({
               <KarteWerte
                 werte={[
                   { label: "Kaltmiete", wert: formatEuro(m.kaltmiete) },
-                  { label: "NK-Vorauszahlung", wert: formatEuro(m.nebenkostenVorauszahlung) },
+                  { label: "BK-Vorauszahlung", wert: formatEuro(m.nebenkostenVorauszahlung) },
                 ]}
               />
               {m.notizen && <KarteNotiz>{m.notizen}</KarteNotiz>}
@@ -172,7 +172,7 @@ export default async function MietvertragBearbeitenPage({
               <tr>
                 <th className="px-4 py-2">Gültig ab</th>
                 <th className="px-4 py-2">Kaltmiete</th>
-                <th className="px-4 py-2">NK-Vorauszahlung</th>
+                <th className="px-4 py-2">BK-Vorauszahlung</th>
                 <th className="px-4 py-2" title="Bei einer Indexerhöhung: der zugrunde gelegte Preisindex (Monat) — Ausgangswert der nächsten Indexerhöhung">Index-Monat</th>
                 <th className="px-4 py-2">Notizen</th>
                 <th className="px-4 py-2" />
@@ -242,7 +242,7 @@ export default async function MietvertragBearbeitenPage({
             />
           </div>
           <div>
-            <label className="block text-xs text-neutral-400">NK-Vorauszahlung</label>
+            <label className="block text-xs text-neutral-400">BK-Vorauszahlung</label>
             <input
               type="number"
               step="0.01"
@@ -286,7 +286,7 @@ export default async function MietvertragBearbeitenPage({
           Einmaliger Nachlass auf die Kaltmiete eines einzelnen Monats, z.B. weil der Mieter erst nach dem
           1. eingezogen ist oder der Verwalter einen Monat anteilig berechnet hat. Er mindert nur das Soll dieses
           Monats (Mieterkonto, Offene Posten, Jahres-/Quartalsübersicht); die vertragliche Miete, Mieterhöhungen
-          und die NK-Vorauszahlung bleiben unverändert.
+          und die BK-Vorauszahlung bleiben unverändert.
         </p>
         {/* Handy: je Mietnachlass eine Karte statt der Tabelle. */}
         <ul className={KARTE_LISTE}>

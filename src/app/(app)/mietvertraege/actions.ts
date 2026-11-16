@@ -277,7 +277,7 @@ const indexMonatSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Index-Mona
 const mieterhoehungSchema = z.object({
   gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
   kaltmiete: z.coerce.number().min(0, "Kaltmiete darf nicht negativ sein"),
-  nebenkostenVorauszahlung: z.coerce.number().min(0, "NK-Vorauszahlung darf nicht negativ sein"),
+  nebenkostenVorauszahlung: z.coerce.number().min(0, "BK-Vorauszahlung darf nicht negativ sein"),
   indexMonat: indexMonatSchema.optional(),
   notizen: z.string().optional(),
 });
@@ -387,14 +387,14 @@ export async function loescheMietnachlass(id: string) {
 
 const vorauszahlungAnpassungSchema = z.object({
   gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
-  nebenkostenVorauszahlung: z.coerce.number().min(0, "NK-Vorauszahlung darf nicht negativ sein"),
+  nebenkostenVorauszahlung: z.coerce.number().min(0, "BK-Vorauszahlung darf nicht negativ sein"),
   notizen: z.string().optional(),
 });
 
 /**
- * Übernimmt eine neue NK-Vorauszahlung nach einer Abrechnung (§ 560 Abs. 4 BGB) als Mieterhöhung
+ * Übernimmt eine neue BK-Vorauszahlung nach einer Abrechnung (§ 560 Abs. 4 BGB) als Mieterhöhung
  * mit unveränderter Kaltmiete — die Kaltmiete wird aus dem zum gueltigAb-Monat geltenden Stand
- * übernommen. Gibt es in diesem Monat schon eine Mieterhöhung, wird nur deren NK-Betrag ersetzt.
+ * übernommen. Gibt es in diesem Monat schon eine Mieterhöhung, wird nur deren BK-Betrag ersetzt.
  */
 export const passeNkVorauszahlungAn = mitMeldung(async function passeNkVorauszahlungAn(mietvertragId: string, formData: FormData) {
   await requireEditor();
@@ -452,19 +452,19 @@ const indexerhoehungSchema = z.object({
   gueltigAb: pflichtDatum("Gültig ab ist erforderlich"),
   kaltmiete: z.coerce.number().positive("Die neue Kaltmiete muss größer als 0 sein"),
   indexMonat: indexMonatSchema,
-  // Nur im kombinierten Schreiben (Index + NK-Anpassung): neue NK-Vorauszahlung im selben Monat.
+  // Nur im kombinierten Schreiben (Index + BK-Anpassung): neue BK-Vorauszahlung im selben Monat.
   nebenkostenVorauszahlung: z.preprocess(
     (v) => (v === "" || v === null ? undefined : v),
-    z.coerce.number().min(0, "Die NK-Vorauszahlung darf nicht negativ sein").optional(),
+    z.coerce.number().min(0, "Die BK-Vorauszahlung darf nicht negativ sein").optional(),
   ),
   notizen: z.string().optional(),
 });
 
 /**
  * Übernimmt die Indexerhöhung (§ 557b BGB) als Mieterhöhung: neue Kaltmiete ab dem Monat von
- * `gueltigAb`, die NK-Vorauszahlung bleibt wie sie zu diesem Zeitpunkt gilt — außer das Schreiben
+ * `gueltigAb`, die BK-Vorauszahlung bleibt wie sie zu diesem Zeitpunkt gilt — außer das Schreiben
  * passt sie zugleich an (§ 560 Abs. 4 BGB, Feld `nebenkostenVorauszahlung`). Gibt es im selben Monat
- * schon eine Mieterhöhung, wird nur deren Kaltmiete (und ggf. NK-Betrag) ersetzt.
+ * schon eine Mieterhöhung, wird nur deren Kaltmiete (und ggf. BK-Betrag) ersetzt.
  */
 export const uebernehmeIndexerhoehung = mitMeldung(async function uebernehmeIndexerhoehung(mietvertragId: string, formData: FormData) {
   await requireEditor();

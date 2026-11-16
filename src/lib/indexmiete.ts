@@ -8,7 +8,7 @@ type Erhoehung = { gueltigAb: Date; kaltmiete: number; indexMonat?: string | nul
 
 /**
  * Letzte Änderung der Kaltmiete (nur Einträge, bei denen sich die Kaltmiete gegenüber dem Vorgänger
- * ändert: reine NK-Anpassungen nach § 560 BGB setzen das Wartejahr laut Vertrag nicht zurück) samt
+ * ändert: reine BK-Anpassungen nach § 560 BGB setzen das Wartejahr laut Vertrag nicht zurück) samt
  * dem dabei zugrunde gelegten Index. `undefined` = noch nie geändert (dann zählt der Mietbeginn).
  */
 export function letzteKaltmietenAenderung(

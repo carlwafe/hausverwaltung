@@ -35,7 +35,7 @@ const VERMIETUNG: NavGruppe = {
       titel: "Jährlich und Anpassungen",
       links: [
         { href: "/mietvertraege/moegliche-erhoehungen", label: "Mieterhöhung" },
-        { href: "/mietvertraege/nk-anpassung", label: "NK-Anpassung" },
+        { href: "/mietvertraege/nk-anpassung", label: "BK-Anpassung" },
         { href: "/nebenkostenabrechnungen", label: "Betriebskostenabrechnung" },
         { href: "/nebenkostenausgleich", label: "Betriebskostenausgleich" },
       ],

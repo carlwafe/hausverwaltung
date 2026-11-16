@@ -65,7 +65,7 @@ export default async function ZahlungenPage() {
   const zusatz = [
     anzahlGebuehrenZahlungen > 0 ? `${anzahlGebuehrenZahlungen} Gebühren-Zahlungen` : null,
     anzahlGebuehrenForderungen > 0 ? `${anzahlGebuehrenForderungen} Gebühren-Forderungen` : null,
-    anzahlNkVerrechnungen > 0 ? `${anzahlNkVerrechnungen} NK-Verrechnungen` : null,
+    anzahlNkVerrechnungen > 0 ? `${anzahlNkVerrechnungen} BK-Verrechnungen` : null,
   ].filter(Boolean);
 
   return (

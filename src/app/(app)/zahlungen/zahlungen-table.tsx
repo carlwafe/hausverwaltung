@@ -85,7 +85,7 @@ function ArtKennzeichen({ z }: { z: ZahlungRow }) {
         title="Betriebskostenabrechnung aufs Mieterkonto verrechnet — ohne Geldfluss, nicht EUR-relevant"
         className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400"
       >
-        NK-Verrechnung {z.nkJahr}
+        BK-Verrechnung {z.nkJahr}
       </span>
     );
   }

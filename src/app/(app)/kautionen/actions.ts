@@ -133,7 +133,7 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
   const nkBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
   // Ein positiver Betriebskostenanteil wäre eine mit der Kaution verrechnete Nachzahlung (z.B. Kaution
   // -100 €, Nachzahlung +67,34 €, überwiesen -32,66 €): die Bankzeile bleibt dann 1:1 die Auszahlung,
-  // die Verrechnung ist ein Einbehalt (Kautionen → Einbehalt erfassen → Verrechnung mit NK-Abrechnung).
+  // die Verrechnung ist ein Einbehalt (Kautionen → Einbehalt erfassen → Verrechnung mit BK-Abrechnung).
   if (nkBetrag > 0.005 && gesamt < 0)
     return "Eine mit der Kaution verrechnete Nachzahlung wird nicht aufgeteilt: Auszahlung unverändert lassen und die Verrechnung als Einbehalt \"Verrechnung mit Betriebskostenabrechnung\" erfassen.";
   if (Math.abs(nkBetrag) < 0.005)
@@ -370,7 +370,7 @@ async function synchronisiereKautionEinbehaltBuchung(
         datum: einbehalt.datum ?? new Date(),
         betrag: -Number(einbehalt.betrag),
         verwendungszweck: einbehalt.positionText,
-        // Mit einer NK-Abrechnung verrechnet: das Abrechnungsjahr steht in jahr, dann zählt diese
+        // Mit einer BK-Abrechnung verrechnet: das Abrechnungsjahr steht in jahr, dann zählt diese
         // Buchung als Begleichung der Position (siehe nk-verrechnung.ts).
         jahr: einbehalt.bezugTyp === NK_VERRECHNUNG_BEZUG && einbehalt.bezugId ? Number(einbehalt.bezugId) : null,
         // Mit dem Mieterkonto verrechnet: eigener bezugTyp, damit die Buchung im Mietsaldo als Zahlung
@@ -381,7 +381,7 @@ async function synchronisiereKautionEinbehaltBuchung(
       },
     });
     await tx.kautionEinbehalt.update({ where: { id: einbehalt.id }, data: { buchungId: buchung.id } });
-    // Mit einer NK-Abrechnung verrechnet, aber ohne Position dort: Platzhalter-Position anlegen.
+    // Mit einer BK-Abrechnung verrechnet, aber ohne Position dort: Platzhalter-Position anlegen.
     if (buchung.jahr) await stelleNkPositionSicher(tx, kaution.mietvertragId, buchung.jahr);
   } else if (!soll && einbehalt.buchungId) {
     await storniereBuchung(tx, einbehalt.buchungId, erstelltVon);
@@ -410,7 +410,7 @@ export const erfasseKautionEinbehalt = mitMeldung(async function erfasseKautionE
   }
   const { mietvertragId, positionText, betrag, nkJahr } = parsed.data;
   const mieterkonto = parsed.data.mieterkonto ?? false;
-  if (mieterkonto && nkJahr) return "Bitte entweder mit dem Mieterkonto oder mit einer NK-Abrechnung verrechnen, nicht beides.";
+  if (mieterkonto && nkJahr) return "Bitte entweder mit dem Mieterkonto oder mit einer BK-Abrechnung verrechnen, nicht beides.";
   const pauschal = parsed.data.pauschal ?? false;
   // Ein pauschaler Einbehalt ist per Definition endgültig — also immer unstrittig (gebucht).
   // Pauschale Einbehalte und Verrechnungen mit dem Mieterkonto sind immer unstrittig (gebucht).

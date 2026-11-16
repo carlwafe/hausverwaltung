@@ -26,7 +26,7 @@ export default async function IndexerhoehungPage({
           {daten.kopf.einheit} · {daten.kopf.mieter}
         </p>
         <p className="mt-1 text-xs text-neutral-500">
-          Soll zugleich die NK-Vorauszahlung angepasst werden, den Abschnitt „NK-Vorauszahlung anpassen“ anhaken — dann
+          Soll zugleich die BK-Vorauszahlung angepasst werden, den Abschnitt „BK-Vorauszahlung anpassen“ anhaken — dann
           entsteht ein gemeinsames Schreiben.
         </p>
       </div>

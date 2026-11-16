@@ -23,7 +23,7 @@ const eingabe =
  * Eingeklappt hinter "Aufteilen…", da selten nötig — z.B. wenn eine Auszahlung neben der
  * BK-Rückzahlung ein Mietkonto-Guthaben enthält oder zwei Abrechnungsjahre/Mietverträge auf einmal
  * begleicht. Gegenstück zu zahlungen/aufteilen-form.tsx. Verrechnungen mit dem Mietkonto laufen bewusst nicht hierüber,
- * sondern über die NK-Verrechnung (siehe nk-verrechnung.ts).
+ * sondern über die BK-Verrechnung (siehe nk-verrechnung.ts).
  */
 export function NebenkostenausgleichAufteilenForm({
   id,

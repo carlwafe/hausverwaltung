@@ -1,17 +1,17 @@
-// NK-Anteil einer Mietzahlung (Teilzahlung): gemeinsame Regel der Betriebskostenabrechnung
+// BK-Anteil einer Mietzahlung (Teilzahlung): gemeinsame Regel der Betriebskostenabrechnung
 // (Vorauszahlung) und der Aufstellung für die Steuererklärung (Mieten/Betriebskosten).
 //
-// Bis einschließlich Mietjahr 2024: zuerst auf die NK-Vorauszahlung bis zum NK-Soll, erst der Rest auf
+// Bis einschließlich Mietjahr 2024: zuerst auf die BK-Vorauszahlung bis zum BK-Soll, erst der Rest auf
 // die Kaltmiete. Ab Mietjahr 2025 (Entscheidung 23.10.2026): anteilig im Verhältnis der Beträge
-// (§ 366 Abs. 2 BGB: verhältnismäßig), der NK-Anteil auf volle Euro gerundet und höchstens das NK-Soll.
-// Zahlt der Mieter mindestens das Soll des Monats, gilt in beiden Fällen der volle NK-Betrag.
+// (§ 366 Abs. 2 BGB: verhältnismäßig), der BK-Anteil auf volle Euro gerundet und höchstens das BK-Soll.
+// Zahlt der Mieter mindestens das Soll des Monats, gilt in beiden Fällen der volle BK-Betrag.
 export const ANTEILIG_AB_JAHR = 2025;
 
 /**
- * NK-Anteil einer (kumulierten, ggf. mehrfachen) Zahlung für einen Mietmonat.
+ * BK-Anteil einer (kumulierten, ggf. mehrfachen) Zahlung für einen Mietmonat.
  * @param summe     gezahlt für diesen Monat (ohne Umsatzsteuer)
- * @param nkSoll    NK-Soll des Monats
- * @param sollGesamt Kaltmiete + NK-Soll des Monats (ohne Umsatzsteuer)
+ * @param nkSoll    BK-Soll des Monats
+ * @param sollGesamt Kaltmiete + BK-Soll des Monats (ohne Umsatzsteuer)
  * @param mietjahr  Jahr der Mietperiode
  */
 export function nkAnteilEinerZahlung(summe: number, nkSoll: number, sollGesamt: number, mietjahr: number): number {

@@ -4,7 +4,7 @@ import { gegenrechnungenJeJahr, type Gegenrechnung } from "./nk-saldo";
 import type { MietvertragFuerSollIst } from "./soll-ist";
 
 /**
- * Gegenrechnungen der unbezahlten NK-Vorauszahlung (siehe `gegenrechnungenJeJahr`) für viele Verträge in
+ * Gegenrechnungen der unbezahlten BK-Vorauszahlung (siehe `gegenrechnungenJeJahr`) für viele Verträge in
  * einer Abfrage — für Offene Posten und Dashboard. Es werden nur Positionen mit Gegenrechnung (berechnet, oder
  * manuell mit Vorauszahlung > 0, siehe `hatGegenrechnung`) versendeter Abrechnungen (Versanddatum bis zum Stichtag `bis`) geladen, und `details` selbst bleibt in der
  * Datenbank (nur der Filter läuft dort).

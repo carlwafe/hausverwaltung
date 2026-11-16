@@ -96,7 +96,7 @@ const columns: Column<NkAnpassungZeile>[] = [
     key: "bisher",
     label: "Vorauszahlung jetzt",
     align: "right",
-    title: "Monatliche NK-Vorauszahlung, die vor dem vorgeschlagenen Gültig-ab-Datum gilt",
+    title: "Monatliche BK-Vorauszahlung, die vor dem vorgeschlagenen Gültig-ab-Datum gilt",
     render: (z) => <span className="text-neutral-300">{euro(z.bisher)} €</span>,
     sortValue: (z) => z.bisher,
   },

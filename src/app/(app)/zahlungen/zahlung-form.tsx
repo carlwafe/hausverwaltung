@@ -210,7 +210,7 @@ export function ZahlungForm({
           </div>
           <p className="col-span-2 text-xs text-neutral-400">
             Der Monat, für den die Miete gedacht ist — nicht der Zahlungstag. Er bestimmt, in welcher
-            Betriebskostenabrechnung die NK-Vorauszahlung zählt (z.B. Dezembermiete, im Januar gezahlt →
+            Betriebskostenabrechnung die BK-Vorauszahlung zählt (z.B. Dezembermiete, im Januar gezahlt →
             Dezember des Vorjahres).
           </p>
         </div>

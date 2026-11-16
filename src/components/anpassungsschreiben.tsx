@@ -57,10 +57,10 @@ export type AnpassungsschreibenProps = {
   // null = Indexerhöhung nicht möglich (kein Mietbeginn / keine VPI-Werte), `indexHinweis` nennt den Grund.
   index: AnpassungIndexDaten | null;
   indexHinweis: string | null;
-  // null = NK-Anpassung nicht möglich (keine Abrechnung, kein Kostenanteil, Vertrag endet vorher).
+  // null = BK-Anpassung nicht möglich (keine Abrechnung, kein Kostenanteil, Vertrag endet vorher).
   nk: AnpassungNkDaten | null;
   nkHinweis: string | null;
-  // Welche Abschnitte beim Öffnen angehakt sind (je nach Einstieg über „Mieterhöhung“ oder „NK-Anpassung“).
+  // Welche Abschnitte beim Öffnen angehakt sind (je nach Einstieg über „Mieterhöhung“ oder „BK-Anpassung“).
   startIndex: boolean;
   startNk: boolean;
 };
@@ -100,8 +100,8 @@ function formatIban(iban: string): string {
 
 /**
  * Anpassungsschreiben an den Mieter mit zwei einzeln zuschaltbaren Abschnitten: Indexerhöhung der Kaltmiete
- * (§ 557b BGB) und Anpassung der NK-Vorauszahlung (§ 560 Abs. 4 BGB). Ein Schreiben, eine Gesamtmiete, eine
- * Mieterhöhung beim Übernehmen. Erreichbar über „Mieterhöhung“ und „NK-Anpassung“ — beide Seiten zeigen dasselbe
+ * (§ 557b BGB) und Anpassung der BK-Vorauszahlung (§ 560 Abs. 4 BGB). Ein Schreiben, eine Gesamtmiete, eine
+ * Mieterhöhung beim Übernehmen. Erreichbar über „Mieterhöhung“ und „BK-Anpassung“ — beide Seiten zeigen dasselbe
  * Formular und unterscheiden sich nur darin, welcher Abschnitt zuerst angehakt ist.
  */
 export function Anpassungsschreiben({
@@ -140,7 +140,7 @@ export function Anpassungsschreiben({
   const bisher = gueltigAb
     ? ermittleMieteFuerMonat(vertragStand, gueltigAb.getFullYear(), gueltigAb.getMonth())
     : ermittleMieteFuerMonat(vertragStand, new Date().getFullYear(), new Date().getMonth() + 1);
-  // Kaltmiete, die ab „Gültig ab“ ohne Indexerhöhung gilt (bei reiner NK-Anpassung unverändert).
+  // Kaltmiete, die ab „Gültig ab“ ohne Indexerhöhung gilt (bei reiner BK-Anpassung unverändert).
   const kaltmieteAb = gueltigAb ? ermittleMieteFuerMonat(vertragStand, gueltigAb.getFullYear(), gueltigAb.getMonth() + 1).kaltmiete : bisher.kaltmiete;
 
   // ----- Indexerhöhung -----
@@ -174,7 +174,7 @@ export function Anpassungsschreiben({
   const rechenwert = basis && neu ? Math.round(bisher.kaltmiete * (neu.wert / basis.wert) * 100) / 100 : null;
   const abgerundet = mieteEigen === null && abrunden && rechenwert !== null && neueKalt !== null && rechenwert - neueKalt >= 0.005;
 
-  // ----- NK-Anpassung -----
+  // ----- BK-Anpassung -----
   const [zuschlag, setZuschlag] = useState(STANDARD_ZUSCHLAG_PROZENT);
   const [zuschlagGrund, setZuschlagGrund] = useState(STANDARD_ZUSCHLAG_GRUND);
   const [nkEigen, setNkEigen] = useState<string | null>(null);
@@ -192,7 +192,7 @@ export function Anpassungsschreiben({
       : null;
   const nurNk = nkAktiv && !mitIndex;
   const beide = mitIndex && nkAktiv;
-  // Gesamtmiete ab „Gültig ab“: neue Kaltmiete (falls Index) bzw. unveränderte Kaltmiete + neue NK.
+  // Gesamtmiete ab „Gültig ab“: neue Kaltmiete (falls Index) bzw. unveränderte Kaltmiete + neue BK.
   const gesamt = (idx ? idx.neueKalt : kaltmieteAb) + neueNk + mehrwertsteuer;
   // Beide Abschnitte mit Änderung: engere Absätze, damit das Schreiben auf eine A4-Seite passt.
   const kompakt = beide && nkAenderung;
@@ -216,15 +216,15 @@ export function Anpassungsschreiben({
 
   const notizen = [
     idx ? `Indexmiete § 557b BGB: VPI ${monatLabel(idx.basis.jahr, idx.basis.monat)} ${zahl(idx.basis.wert)} → ${monatLabel(idx.neu.jahr, idx.neu.monat)} ${zahl(idx.neu.wert)}` : null,
-    nkAktiv && nk ? `NK-Vorauszahlung angepasst nach Abrechnung ${nk.jahr} (§ 560 Abs. 4 BGB)` : null,
+    nkAktiv && nk ? `BK-Vorauszahlung angepasst nach Abrechnung ${nk.jahr} (§ 560 Abs. 4 BGB)` : null,
   ].filter(Boolean).join(" · ");
 
   const uebernehmenText = pending
     ? "Speichern…"
     : idx
-      ? `${formatEuro(idx.neueKalt)}${nkAktiv ? ` + NK ${formatEuro(neueNk)}` : ""} ab ${gueltigAbText} übernehmen`
+      ? `${formatEuro(idx.neueKalt)}${nkAktiv ? ` + BK ${formatEuro(neueNk)}` : ""} ab ${gueltigAbText} übernehmen`
       : nkAktiv
-        ? `NK ${formatEuro(neueNk)} ab ${gueltigAbText} übernehmen`
+        ? `BK ${formatEuro(neueNk)} ab ${gueltigAbText} übernehmen`
         : "Übernehmen";
 
   const abschnittKopf = (
@@ -341,14 +341,14 @@ export function Anpassungsschreiben({
             )}
           </div>
 
-          {/* ---------- Abschnitt 2: NK-Anpassung ---------- */}
+          {/* ---------- Abschnitt 2: BK-Anpassung ---------- */}
           <div className="rounded-md border border-neutral-800 p-3">
             {abschnittKopf(
               "an-nk",
               mitNk,
               setMitNk,
               mitIndex,
-              `NK-Vorauszahlung anpassen (§ 560 Abs. 4 BGB)${nk ? `, Abrechnung ${nk.jahr}` : ""}`,
+              `BK-Vorauszahlung anpassen (§ 560 Abs. 4 BGB)${nk ? `, Abrechnung ${nk.jahr}` : ""}`,
               nk !== null,
             )}
             {nk === null && nkHinweis && <p className="mt-2 text-xs text-neutral-500">{nkHinweis}</p>}
@@ -487,7 +487,7 @@ export function Anpassungsschreiben({
           {fehler && <p className="text-sm text-red-400">{fehler}</p>}
           {gespeichert && !fehler && (
             <p className="text-sm text-green-400">
-              Übernommen — steht als Mieterhöhung ({idx && nkAktiv ? "Kaltmiete und NK-Vorauszahlung angepasst" : idx ? "NK-Vorauszahlung unverändert" : "Kaltmiete unverändert"}) im Vertrag.
+              Übernommen — steht als Mieterhöhung ({idx && nkAktiv ? "Kaltmiete und BK-Vorauszahlung angepasst" : idx ? "BK-Vorauszahlung unverändert" : "Kaltmiete unverändert"}) im Vertrag.
             </p>
           )}
           <p className="text-xs text-neutral-500">Erst übernehmen, wenn das Schreiben verschickt ist: Die Miete gilt dann im Soll ab „Gültig ab“.</p>
@@ -575,7 +575,7 @@ export function Anpassungsschreiben({
               </>
             )}
 
-            {/* ---------- Abschnitt NK-Vorauszahlung ---------- */}
+            {/* ---------- Abschnitt BK-Vorauszahlung ---------- */}
             {nkAktiv && nk && nkVorschlag && (nurNk || nkAenderung) && (
               <>
                 {beide && <p className="mb-1 font-bold">2. Betriebskostenvorauszahlung (§ 560 Abs. 4 BGB)</p>}

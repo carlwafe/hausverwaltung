@@ -11,7 +11,7 @@ export type MieteMonatErgebnis = {
 };
 
 /**
- * Soll/Ist der Miete (Kaltmiete + NK-Vorauszahlung) eines Vertrags für einen Monat.
+ * Soll/Ist der Miete (Kaltmiete + BK-Vorauszahlung) eines Vertrags für einen Monat.
  * Gezählt werden Mietzahlungen nach Mietperiode (ohne Periode: Monat des Buchungsdatums).
  * `null`, wenn für den Monat kein Soll besteht. Gemeinsame Rechnung von /miete-monat und Dashboard.
  */

@@ -34,7 +34,7 @@ export type MieterkontoJahr = {
   // Offener Saldo der Betriebskostenabrechnung des Vorjahres selbst (positiv = noch auszuzahlendes Guthaben,
   // negativ = noch einzuziehende Nachzahlung), null = keine Abrechnung vorhanden. Wie in der
   // Jahresübersicht fließt sie nur in den Saldo am Jahresende ein, nicht in den Übertrag. Die Gegenrechnung
-  // der unbezahlten NK-Vorauszahlung ist dagegen Teil des Saldos (Zeile in der Tabelle, siehe
+  // der unbezahlten BK-Vorauszahlung ist dagegen Teil des Saldos (Zeile in der Tabelle, siehe
   // gegenrechnungen in baueMieterkontoJahr).
   nebenkostenabrechnungOffen: number | null;
   saldoInklNebenkostenabrechnung: number;
@@ -99,7 +99,7 @@ const formatEuro = (v: number) => new Intl.NumberFormat("de-DE", { style: "curre
 /**
  * Hinweis zur Aufteilung einer Teilzahlung auf Betriebskosten und Kaltmiete, je Zahlungs-ID. Nur ab
  * Mietjahr ANTEILIG_AB_JAHR und nur für Zahlungen, bei denen die Summe der Zahlungen des Monats davor noch
- * unter dem Soll lag (Kaltmiete + NK, ohne Umsatzsteuer) — wer das Soll voll zahlt, braucht keinen Hinweis.
+ * unter dem Soll lag (Kaltmiete + BK, ohne Umsatzsteuer) — wer das Soll voll zahlt, braucht keinen Hinweis.
  * Dieselbe Regel wie in der Betriebskostenabrechnung (nkAnteilEinerZahlung); das Konto selbst rechnet weiter
  * mit dem Gesamtbetrag, der Hinweis ändert den Saldo nicht.
  */
@@ -121,7 +121,7 @@ function teilzahlungsHinweise(pays: Zahlung[], soll: SollZeile | undefined, mehr
       const kalt = z.betrag - nk;
       hinweise.set(
         z.id,
-        `${danach < sollOhneUst - 0.005 ? "Teilzahlung" : "Restzahlung"} anteilig: ${formatEuro(nk)} NK + ${formatEuro(kalt)} Kaltmiete`,
+        `${danach < sollOhneUst - 0.005 ? "Teilzahlung" : "Restzahlung"} anteilig: ${formatEuro(nk)} BK + ${formatEuro(kalt)} Kaltmiete`,
       );
     }
     davor = danach;
@@ -138,7 +138,7 @@ export function baueMieterkontoJahr(input: {
   ab: Date | null;
   bis: Date;
   nebenkostenabrechnungOffen?: number | null;
-  // Gegenrechnung der unbezahlten (+) bzw. überzahlten (−) NK-Vorauszahlung je versendeter Abrechnung (siehe
+  // Gegenrechnung der unbezahlten (+) bzw. überzahlten (−) BK-Vorauszahlung je versendeter Abrechnung (siehe
   // gegenrechnungenJeJahr in nk-saldo.ts). Sie steht als Zeile am Versanddatum der Abrechnung; was vor dem
   // Jahresanfang versendet wurde, steckt im Übertrag, was nach `bis` liegt, fehlt noch.
   gegenrechnungen?: { jahr: number; betrag: number; datum: Date }[];
@@ -202,7 +202,7 @@ export function baueMieterkontoJahr(input: {
 
     // Zahlungen und Sonderbuchungen des Monats in einer gemeinsamen, nach Datum sortierten Reihe
     // (bei gleichem Datum: Zahlung, dann Gebühr, dann Zahlung auf Gebühren).
-    // Dazu die Gegenrechnung der NK-Vorauszahlung am Versanddatum der Abrechnung (zuletzt am Tag).
+    // Dazu die Gegenrechnung der BK-Vorauszahlung am Versanddatum der Abrechnung (zuletzt am Tag).
     type Ereignis =
       | { art: "zahlung"; datum: Date; z: Zahlung }
       | { art: "sonder"; datum: Date; s: Sonder }
@@ -251,9 +251,9 @@ export function baueMieterkontoJahr(input: {
         zeilen.push({
           monat: monatLabel(),
           sollKaltmiete: null, sollNebenkosten: null, sollGesamt: null,
-          buchungsart: `${g.betrag > 0 ? "Gutschrift unbezahlte" : "Belastung überzahlte"} NK-Vorauszahlung ${g.jahr}`,
+          buchungsart: `${g.betrag > 0 ? "Gutschrift unbezahlte" : "Belastung überzahlte"} BK-Vorauszahlung ${g.jahr}`,
           datum: e.datum, betrag: null, differenz: g.betrag, saldo,
-          bemerkung: `Betriebskostenabrechnung ${g.jahr} versendet: nicht gezahlte NK-Vorauszahlung ist nicht mehr geschuldet`,
+          bemerkung: `Betriebskostenabrechnung ${g.jahr} versendet: nicht gezahlte BK-Vorauszahlung ist nicht mehr geschuldet`,
           sonderbuchung: true,
         });
         summe.differenz += g.betrag;

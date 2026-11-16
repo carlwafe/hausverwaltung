@@ -98,12 +98,12 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
         <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400">Verrechnung mit Mieterkonto</span>
       );
     }
-    // Verrechnung mit einer NK-Abrechnung: ein unstrittiger Einbehalt mit Abrechnungsjahr — hat
+    // Verrechnung mit einer BK-Abrechnung: ein unstrittiger Einbehalt mit Abrechnungsjahr — hat
     // keinen Streit-Status, den man hier umstellen müsste.
     if (nkJahr) {
       return (
         <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400">
-          Verrechnung mit NK-Abrechnung {nkJahr}
+          Verrechnung mit BK-Abrechnung {nkJahr}
         </span>
       );
     }
@@ -181,7 +181,7 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
 }
 
 function kategorieText(k: KautionsbuchungRow) {
-  if (k.einbehalt?.nkJahr) return `Verrechnung mit NK-Abrechnung ${k.einbehalt.nkJahr}`;
+  if (k.einbehalt?.nkJahr) return `Verrechnung mit BK-Abrechnung ${k.einbehalt.nkJahr}`;
   if (k.einbehalt?.mieterkonto) return "Verrechnung mit Mieterkonto";
   if (k.einbehalt) return k.einbehalt.pauschal ? "Einbehalt pauschal gutgeschrieben" : "Einbehalt vorläufig";
   return KATEGORIE_LABEL[k.kategorie];

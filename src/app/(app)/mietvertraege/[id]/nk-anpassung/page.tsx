@@ -19,9 +19,9 @@ export default async function NkAnpassungPage({
     <div>
       <div className="mb-6">
         <Link href="/mietvertraege/nk-anpassung" className="text-sm text-neutral-400 hover:text-white">
-          ← NK-Anpassung
+          ← BK-Anpassung
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-white">NK-Vorauszahlung anpassen</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-white">BK-Vorauszahlung anpassen</h1>
         <p className="text-sm text-neutral-400">
           {daten.kopf.einheit} · {daten.kopf.mieter}
           {" · "}

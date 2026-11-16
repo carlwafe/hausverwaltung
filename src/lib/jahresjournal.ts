@@ -17,7 +17,7 @@ const ART_KURZ: Record<string, string> = {
   SONDERZAHLUNG: "Gebührenzahlung",
   KOSTENPOSITION: "Kosten",
   MIETWEITERLEITUNG: "Mietweiterleitung",
-  NEBENKOSTENAUSGLEICH: "NK-Ausgleich",
+  NEBENKOSTENAUSGLEICH: "BK-Ausgleich",
   KAUTION_EINZAHLUNG: "Kaution Einzahlung",
   KAUTION_ANLAGE: "Kaution Anlage",
   KAUTION_AUFLOESUNG: "Kaution Auflösung",

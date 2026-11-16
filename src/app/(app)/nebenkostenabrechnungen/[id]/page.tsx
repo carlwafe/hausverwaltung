@@ -539,8 +539,8 @@ export default async function NebenkostenabrechnungDetailPage({
           </p>
           <p className="mb-3 text-sm text-neutral-400">
             <strong className="text-neutral-300">Manuelle Positionen und unbezahlte Vorauszahlung:</strong>{" "}
-            Die nicht gezahlte NK-Vorauszahlung steht im Mietrückstand (NK-Soll) und würde zusätzlich in der
-            Nachzahlung stehen. Deshalb wird sie ab dem Versand der Abrechnung gutgeschrieben (NK-Soll
+            Die nicht gezahlte BK-Vorauszahlung steht im Mietrückstand (BK-Soll) und würde zusätzlich in der
+            Nachzahlung stehen. Deshalb wird sie ab dem Versand der Abrechnung gutgeschrieben (BK-Soll
             minus Vorauszahlung der Position). Das gilt für berechnete Positionen und für manuelle mit
             eingetragener Vorauszahlung &gt; 0; automatisch angelegte Positionen (Vorauszahlung 0) und
             manuelle Positionen einer noch nicht versendeten Abrechnung (z.B. Beträge des Vorverwalters
@@ -550,12 +550,12 @@ export default async function NebenkostenabrechnungDetailPage({
           <p className="mb-3 text-sm text-neutral-400">
             <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
             Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
-            dort angerechnet: bis Mietjahr 2024 zuerst auf die NK-Vorauszahlung bis zum NK-Soll, erst der
-            Rest auf die Kaltmiete; ab 2025 bei einer Teilzahlung anteilig im Verhältnis NK : Kaltmiete (NK-Anteil
+            dort angerechnet: bis Mietjahr 2024 zuerst auf die BK-Vorauszahlung bis zum BK-Soll, erst der
+            Rest auf die Kaltmiete; ab 2025 bei einer Teilzahlung anteilig im Verhältnis BK : Kaltmiete (BK-Anteil
             auf volle Euro gerundet, § 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in
-            einem Monat weniger als das Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € NK zählen ab 2025
-            von 380 € gezahlt 172 € als NK (380 × 280 ÷ 620), 208 € als Kaltmiete (bis 2024: 280 € NK, 100 €
-            Kaltmiete); ein Monat ohne Zahlung bringt 0 € NK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
+            einem Monat weniger als das Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € BK zählen ab 2025
+            von 380 € gezahlt 172 € als BK (380 × 280 ÷ 620), 208 € als Kaltmiete (bis 2024: 280 € BK, 100 €
+            Kaltmiete); ein Monat ohne Zahlung bringt 0 € BK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
             berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
             an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
           </p>

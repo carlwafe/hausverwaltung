@@ -45,7 +45,7 @@ export type NkSchreibenDaten = {
   vorauszahlung: number;
   /** Positiv = Guthaben, negativ = Nachzahlung (wie NebenkostenabrechnungPosition.saldo). */
   saldo: number;
-  /** Nicht gezahlte NK-Vorauszahlung, die durch die Abrechnung abgegolten ist (unbezahlteNkVorauszahlung); 0 = kein Hinweis. */
+  /** Nicht gezahlte BK-Vorauszahlung, die durch die Abrechnung abgegolten ist (unbezahlteNkVorauszahlung); 0 = kein Hinweis. */
   unbezahlteVorauszahlung: number;
   details: NkSchreibenDetail[];
   /** Ausweis der Arbeitskosten nach § 35a EStG (Anlage); leer/fehlend = keine Anlage. Siehe berechneArbeitskostenZeilen. */

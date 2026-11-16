@@ -1,5 +1,5 @@
 // Mandatsangaben (SEPA-Lastschrift) für die Vorabankündigung in den Anpassungsschreiben an den Mieter
-// (Indexmiete, NK-Vorauszahlung). Die Daten liefert `ladeLastschriftMandat` (src/lib/lastschrift-mandat.ts);
+// (Indexmiete, BK-Vorauszahlung). Die Daten liefert `ladeLastschriftMandat` (src/lib/lastschrift-mandat.ts);
 // bewusst ohne Import von dort, damit keine Prisma-Abhängigkeit in Client-Komponenten gelangt.
 
 export type MandatDaten = { referenz: string | null; glaeubigerId: string | null };

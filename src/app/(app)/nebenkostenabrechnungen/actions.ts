@@ -62,7 +62,7 @@ export async function ladeBerechnungsdaten(jahr: number) {
       prisma.techemAllgemeinstromAnteil.findMany({ where: { jahr } }),
       prisma.kostenart.findFirst({ where: { name: "Allgemeinstrom" } }),
       // Mietzahlungen für Monate dieses Jahres (nach Mietperiode; fehlt sie, gilt der Monat des
-      // Buchungsdatums) — Grundlage der Vorauszahlung: je Monat erst NK-Anteil, Rest = Kaltmiete.
+      // Buchungsdatums) — Grundlage der Vorauszahlung: je Monat erst BK-Anteil, Rest = Kaltmiete.
       prisma.buchung.findMany({
         where: {
           buchungsart: { code: "MIETZAHLUNG" },
@@ -777,7 +777,7 @@ export async function setAbrechnungStatus(id: string, status: "ENTWURF" | "FINAL
 }
 
 // Versanddatum der Abrechnung an die Mieter (unabhängig vom Status Entwurf/Final). Erst ab diesem Datum zählt die
-// Gegenrechnung der unbezahlten NK-Vorauszahlung berechneter Positionen im Mietsaldo (Mieterkonto, Jahresübersicht,
+// Gegenrechnung der unbezahlten BK-Vorauszahlung berechneter Positionen im Mietsaldo (Mieterkonto, Jahresübersicht,
 // Offene Posten, Dashboard). Aktion „zuruecknehmen“ oder leeres Datum = Versand zurücknehmen.
 export const speichereVersendetAm = mitMeldung(async function speichereVersendetAm(id: string, formData: FormData) {
   await requireEditor();

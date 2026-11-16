@@ -19,4 +19,4 @@ Free-Tarif, „Fluid Active CPU“: 4 h pro Abrechnungszeitraum, Stichtag jeweil
 ## Offen
 
 - Ob Prefetching die Hauptursache war, ist nicht belegt — nach einem normalen Arbeitstag die Aufrufe von `/mietvertraege/[id]` und nextauth im Dashboard vergleichen.
-- Falls der Monatsverbrauch weiter bei ≈ 3½ h liegt: Ergebnisse der schweren Seiten (Jahres-/Quartalsübersicht, Mieterkonto, NK-Ansicht) zwischenspeichern und beim Schreiben per `revalidatePath`/Tag ungültig machen (größerer Umbau).
+- Falls der Monatsverbrauch weiter bei ≈ 3½ h liegt: Ergebnisse der schweren Seiten (Jahres-/Quartalsübersicht, Mieterkonto, BK-Ansicht) zwischenspeichern und beim Schreiben per `revalidatePath`/Tag ungültig machen (größerer Umbau).

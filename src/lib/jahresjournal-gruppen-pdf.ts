@@ -113,15 +113,15 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
     { titel: "Mieter", w: Math.floor(NUTZBREITE) - 120 - zahl * anzahlZahlen, maxZeilen: 2 },
     { titel: "Saldo 01.01.", w: zahl, rechts: true },
     { titel: "Soll Kaltmiete", w: zahl, rechts: true },
-    { titel: "Soll NK/USt", w: zahl, rechts: true },
+    { titel: "Soll BK/USt", w: zahl, rechts: true },
     { titel: "Gezahlt", w: zahl, rechts: true },
     { titel: "Gebühren gef.", w: zahl, rechts: true },
     { titel: "Gebühren gez.", w: zahl, rechts: true },
-    ...(zeigeGutschrift ? [{ titel: "NK-Gutschrift", w: zahl, rechts: true } as Spalte] : []),
+    ...(zeigeGutschrift ? [{ titel: "BK-Gutschrift", w: zahl, rechts: true } as Spalte] : []),
     ...(zeigeNk
       ? [
-          { titel: `NK-Abr. ${jahr - 1}`, w: zahl, rechts: true } as Spalte,
-          { titel: "NK-Ausgleich", w: zahl, rechts: true } as Spalte,
+          { titel: `BK-Abr. ${jahr - 1}`, w: zahl, rechts: true } as Spalte,
+          { titel: "BK-Ausgleich", w: zahl, rechts: true } as Spalte,
         ]
       : []),
     { titel: "Saldo 31.12.", w: zahl, rechts: true },
@@ -188,7 +188,7 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   );
   b.absatz(
     nichtOk.length === 0
-      ? `Rechenprobe bestanden: In allen ${mieter.length} Zeilen ergibt Saldo 01.01. − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt${zeigeGutschrift || zeigeNk ? " + NK-Positionen" : ""} den Saldo 31.12.`
+      ? `Rechenprobe bestanden: In allen ${mieter.length} Zeilen ergibt Saldo 01.01. − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt${zeigeGutschrift || zeigeNk ? " + BK-Positionen" : ""} den Saldo 31.12.`
       : `ACHTUNG Rechenprobe: ${nichtOk.length} Zeilen gehen nicht auf (${nichtOk.map((m) => m.einheitBezeichnung).slice(0, 5).join("; ")}).`,
     { farbe: nichtOk.length === 0 ? GRUEN : ROT },
   );
@@ -221,7 +221,7 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   }
   b.absatz(
     "Die Mieter-Übersicht ordnet Zahlungen dem Monat zu, für den sie bestimmt sind (Mietperiode); der Kontoauszug und der Bericht nach Monaten zählen nach dem Datum der Gutschrift. " +
-      "Spalten: „Gezahlt“ = gezahlte Miete (Kaltmiete + Betriebskosten zusammen, wie überwiesen); „Gebühren gef.“ = Rücklastschrift-/Mahngebühren u. ä.; „Gebühren gez.“ = Zahlungen darauf sowie Verrechnungen mit Kaution oder Betriebskostenabrechnung (ohne Geldfluss); „NK-Gutschrift“ = nicht gezahlte NK-Vorauszahlung nach Versand der Abrechnung; „NK-Abr.“ = Ergebnis der Betriebskostenabrechnung des Vorjahres (Guthaben +, Nachzahlung −); „NK-Ausgleich“ = dazu bisher ausgezahltes Guthaben (−), gezahlte oder verrechnete Nachzahlung (+). Abrechnung + Ausgleich = noch offener Rest. Der Ausgleich zählt alle bisher gebuchten Zahlungen, auch nach dem Berichtsjahr; die einzelnen Buchungen stehen in Abschnitt 4. Die Spalten zeigen nur Abrechnungen, die in der App erfasst sind; ausgezahlte Guthaben ohne Abrechnung in der App (z. B. 2024, vom Vorverwalter geführt) stehen nur in Abschnitt 4.",
+      "Spalten: „Gezahlt“ = gezahlte Miete (Kaltmiete + Betriebskosten zusammen, wie überwiesen); „Gebühren gef.“ = Rücklastschrift-/Mahngebühren u. ä.; „Gebühren gez.“ = Zahlungen darauf sowie Verrechnungen mit Kaution oder Betriebskostenabrechnung (ohne Geldfluss); „BK-Gutschrift“ = nicht gezahlte BK-Vorauszahlung nach Versand der Abrechnung; „BK-Abr.“ = Ergebnis der Betriebskostenabrechnung des Vorjahres (Guthaben +, Nachzahlung −); „BK-Ausgleich“ = dazu bisher ausgezahltes Guthaben (−), gezahlte oder verrechnete Nachzahlung (+). Abrechnung + Ausgleich = noch offener Rest. Der Ausgleich zählt alle bisher gebuchten Zahlungen, auch nach dem Berichtsjahr; die einzelnen Buchungen stehen in Abschnitt 4. Die Spalten zeigen nur Abrechnungen, die in der App erfasst sind; ausgezahlte Guthaben ohne Abrechnung in der App (z. B. 2024, vom Vorverwalter geführt) stehen nur in Abschnitt 4.",
     { farbe: GRAU },
   );
 }

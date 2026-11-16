@@ -113,7 +113,7 @@ const columns: Column<VertragRow>[] = [
   },
   {
     key: "nk",
-    label: "NK-Vorauszahlung",
+    label: "BK-Vorauszahlung",
     sortValue: (v) => v.nebenkostenVorauszahlung,
     render: (v) => formatEuro(v.nebenkostenVorauszahlung),
   },
