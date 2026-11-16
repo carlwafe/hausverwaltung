@@ -27,6 +27,12 @@ const MOJIBAKE_MUSTER: [RegExp, string][] = [
   // "Straße" → "StraØe": „Ø" nur zwischen Buchstaben und nur vor Kleinbuchstaben, damit echte „Ø" in
   // Namen (z.B. dänisch, meist am Wortanfang oder vor Großbuchstaben) unberührt bleiben.
   [/(?<=[a-zäöüA-Z])Ø(?=[a-zäöü])/g, "ß"],
+  // Weitere Fehlkodierungen aus alten CSV-Daten („Schl≥ssel", „Mırz", „M‰rz", „Sch˜ning"). „≥" kommt in
+  // Bankdaten sonst nie vor; die übrigen nur direkt nach einem Buchstaben („5‰" bleibt unberührt).
+  [/≥/g, "ü"],
+  [/(?<=[a-zA-Z])ı/g, "ä"],
+  [/(?<=[a-zA-Z])‰/g, "ä"],
+  [/(?<=[a-zA-Z])˜/g, "ö"],
 ];
 
 export function repariereMojibake(s: string): string {
