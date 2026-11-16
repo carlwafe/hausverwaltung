@@ -18,6 +18,7 @@ import {
 } from "../../actions";
 import { mieterName, mieterNameNachnameZuerst } from "@/lib/mieter-name";
 import { ermittleZahlungsweg } from "@/lib/zahlungsweg-ableiten";
+import { KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteNotiz, KarteWerte, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -76,7 +77,7 @@ export default async function MietvertragBearbeitenPage({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">
             Mietvertrag bearbeiten — {vertrag.einheit.bezeichnung} ({mieterNamen})
@@ -126,7 +127,46 @@ export default async function MietvertragBearbeitenPage({
 
       <div className="mt-8">
         <h2 className="mb-4 text-lg font-medium text-white">Mieterhöhungen ({mieterhoehungen.length})</h2>
-        <div className="overflow-auto rounded-lg border border-neutral-800">
+        {/* Handy: je Mieterhöhung eine Karte statt der Tabelle. */}
+        <ul className={KARTE_LISTE}>
+          {mieterhoehungen.map((m) => (
+            <li key={m.id} className={KARTE_RAHMEN}>
+              <KarteKopf titel={`ab ${formatDate(m.gueltigAb)}`} />
+              <KarteWerte
+                werte={[
+                  { label: "Kaltmiete", wert: formatEuro(m.kaltmiete) },
+                  { label: "NK-Vorauszahlung", wert: formatEuro(m.nebenkostenVorauszahlung) },
+                ]}
+              />
+              {m.notizen && <KarteNotiz>{m.notizen}</KarteNotiz>}
+              <form action={setzeIndexMonat.bind(null, m.id)} className="mt-2.5 flex flex-wrap items-end gap-2">
+                <label className="text-xs text-neutral-400">
+                  Index-Monat
+                  <input
+                    type="month"
+                    name="indexMonat"
+                    defaultValue={m.indexMonat ?? ""}
+                    className="mt-1 block h-9 w-40 rounded-md border border-neutral-700 bg-neutral-950 px-2 text-sm text-white"
+                  />
+                </label>
+                <button type="submit" className="h-9 rounded-md border border-neutral-700 px-3 text-sm text-white">
+                  Speichern
+                </button>
+              </form>
+              <KarteAktionen>
+                <DeleteButton
+                  action={loescheMieterhoehung.bind(null, m.id)}
+                  confirmText="Mieterhöhung wirklich löschen?"
+                  label="Löschen"
+                />
+              </KarteAktionen>
+            </li>
+          ))}
+          {mieterhoehungen.length === 0 && (
+            <li className={`${KARTE_RAHMEN} py-8 text-center text-sm text-neutral-500`}>Noch keine Mieterhöhung erfasst.</li>
+          )}
+        </ul>
+        <div className="hidden overflow-auto rounded-lg border border-neutral-800 md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
               <tr>
@@ -248,7 +288,26 @@ export default async function MietvertragBearbeitenPage({
           Monats (Mieterkonto, Offene Posten, Jahres-/Quartalsübersicht); die vertragliche Miete, Mieterhöhungen
           und die NK-Vorauszahlung bleiben unverändert.
         </p>
-        <div className="overflow-auto rounded-lg border border-neutral-800">
+        {/* Handy: je Mietnachlass eine Karte statt der Tabelle. */}
+        <ul className={KARTE_LISTE}>
+          {vertrag.mietnachlaesse.map((n) => (
+            <li key={n.id} className={KARTE_RAHMEN}>
+              <KarteKopf titel={`${MONATSNAMEN[n.monat - 1]} ${n.jahr}`} wert={formatEuro(-Number(n.betrag))} />
+              {n.grund && <KarteZeile>{n.grund}</KarteZeile>}
+              <KarteAktionen>
+                <DeleteButton
+                  action={loescheMietnachlass.bind(null, n.id)}
+                  confirmText="Mietnachlass wirklich löschen? Das Soll des Monats steigt wieder auf die volle Miete."
+                  label="Löschen"
+                />
+              </KarteAktionen>
+            </li>
+          ))}
+          {vertrag.mietnachlaesse.length === 0 && (
+            <li className={`${KARTE_RAHMEN} py-8 text-center text-sm text-neutral-500`}>Noch kein Mietnachlass erfasst.</li>
+          )}
+        </ul>
+        <div className="hidden overflow-auto rounded-lg border border-neutral-800 md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
               <tr>

@@ -4,6 +4,7 @@ import { BenutzerForm } from "./benutzer-form";
 import { DeleteButton } from "@/components/delete-button";
 import { deleteBenutzer } from "./actions";
 import { BenutzerBearbeiten } from "./benutzer-bearbeiten";
+import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteZeile } from "@/components/karte";
 
 export default async function BenutzerPage() {
   await requireAdmin();
@@ -27,7 +28,28 @@ export default async function BenutzerPage() {
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Benutzer</h1>
 
-      <div className="mb-8 overflow-hidden rounded-lg border border-neutral-800">
+      {/* Handy: Karten statt Tabelle (siehe docs/tickets-logo-design.md). */}
+      <ul className={`mb-8 ${KARTE_LISTE}`}>
+        {users.map((u) => (
+          <li key={u.id} className={KARTE_RAHMEN}>
+            <KarteKopf
+              titel={u.name ?? u.email}
+              wert={
+                <span className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-300`}>
+                  {u.role === "ADMIN" ? "Admin" : "Gast"}
+                </span>
+              }
+            />
+            {u.name && <KarteZeile>{u.email}</KarteZeile>}
+            <KarteAktionen>
+              <BenutzerBearbeiten id={u.id} name={u.name} email={u.email} />
+              <DeleteButton action={deleteBenutzer.bind(null, u.id)} label="Entfernen" />
+            </KarteAktionen>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mb-8 hidden overflow-hidden rounded-lg border border-neutral-800 md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>

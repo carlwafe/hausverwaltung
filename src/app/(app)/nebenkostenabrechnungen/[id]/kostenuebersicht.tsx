@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Uebersicht } from "@/lib/nk-uebersicht";
+import { KARTE_LISTE, KARTE_RAHMEN, KarteKopf, KarteMeta, KarteWerte } from "@/components/karte";
 
 function formatQm(value: number) {
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value)} m²`;
@@ -97,7 +98,53 @@ export function Kostenuebersicht({
           </>
         )}
       </p>
-      <div className="overflow-x-auto rounded-lg border border-neutral-800">
+      {/* Handy: je Kostenart eine Karte statt der Tabelle (siehe docs/tickets-logo-design.md). */}
+      <ul className={KARTE_LISTE}>
+        {u.zeilen.map((z) => {
+          const rest = z.basis - z.umgelegt;
+          const flaeche =
+            z.masseText ??
+            (z.qmAnteil !== null && z.qmKreis !== null ? `${formatQm(z.qmAnteil)} von ${formatQm(z.qmKreis)}` : null);
+          return (
+            <li key={z.kostenartName} className={KARTE_RAHMEN}>
+              <KarteKopf
+                titel={z.kostenartName}
+                wert={formatEuro(z.basis)}
+                wertLabel={gesamtModus ? "Gesamt (Jahr)" : "Anteil (volles Jahr)"}
+              />
+              <KarteMeta>
+                <span>{[z.kreise, flaeche].filter(Boolean).join(" · ")}</span>
+              </KarteMeta>
+              <KarteWerte
+                werte={[
+                  { label: "Auf Mieter umgelegt", wert: formatEuro(z.umgelegt), klasse: "text-white" },
+                  {
+                    label: "Nicht umgelegt",
+                    wert: formatEuro(rest),
+                    klasse: Math.abs(rest) < 0.005 ? "text-neutral-500" : "text-amber-400",
+                  },
+                  !gesamtModus && z.kreisGesamt !== null && { label: "Kostenkreis gesamt", wert: formatEuro(z.kreisGesamt) },
+                ]}
+              />
+            </li>
+          );
+        })}
+        {u.zeilen.length === 0 && (
+          <li className={`${KARTE_RAHMEN} py-6 text-center text-sm text-neutral-500`}>
+            Keine Kostenaufschlüsselung für diese Auswahl.
+          </li>
+        )}
+        <li className={`${KARTE_RAHMEN} bg-neutral-900`}>
+          <KarteKopf titel="Summe" wert={formatEuro(u.summe.basis)} />
+          <KarteWerte
+            werte={[
+              { label: "Auf Mieter umgelegt", wert: formatEuro(u.summe.umgelegt), klasse: "text-white" },
+              { label: "Nicht umgelegt", wert: formatEuro(u.summe.basis - u.summe.umgelegt) },
+            ]}
+          />
+        </li>
+      </ul>
+      <div className="hidden overflow-x-auto rounded-lg border border-neutral-800 md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>

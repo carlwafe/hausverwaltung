@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { KONTOKREIS_LABEL } from "./buchungsart-form";
+import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteKopf, KarteMeta, KarteZeile } from "@/components/karte";
 
 function Ja({ wert }: { wert: boolean }) {
   return wert ? (
@@ -18,7 +19,7 @@ export default async function BuchungsartenPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Buchungsarten</h1>
           <p className="max-w-3xl text-sm text-neutral-400">
@@ -34,7 +35,29 @@ export default async function BuchungsartenPage() {
         </Link>
       </div>
 
-      <div className="overflow-auto rounded-lg border border-neutral-800">
+      {/* Handy: Karten statt Tabelle; Kennzeichen erscheinen nur, wenn sie zutreffen. */}
+      <ul className={KARTE_LISTE}>
+        {arten.map((a) => (
+          <li key={a.id}>
+            <Link href={`/buchungsarten/${a.id}`} className={`block ${KARTE_RAHMEN} active:bg-neutral-900`}>
+              <KarteKopf titel={a.bezeichnung} wert={`${a._count.buchungen} Buchungen`} wertKlasse="text-neutral-300" />
+              <KarteZeile>
+                <span className="font-mono text-xs">{a.code}</span>
+              </KarteZeile>
+              <KarteMeta>
+                <span>{KONTOKREIS_LABEL[a.kontokreis]}</span>
+                {a.zahlungswirksam && (
+                  <span className={`${KARTE_KENNZEICHEN} bg-green-500/10 text-green-400`}>zahlungswirksam</span>
+                )}
+                {a.eurRelevant && <span className={`${KARTE_KENNZEICHEN} bg-green-500/10 text-green-400`}>eur-relevant</span>}
+                {!a.aktiv && <span className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-400`}>inaktiv</span>}
+              </KarteMeta>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-auto rounded-lg border border-neutral-800 md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>

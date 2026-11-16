@@ -93,8 +93,8 @@ export function VorverteilteKostenanteileForm({
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
             <tr>
               <th className="px-4 py-2">Einheit</th>
-              <th className="px-4 py-2">Mieter</th>
-              <th className="px-4 py-2">Zeitraum</th>
+              <th className="hidden px-4 py-2 md:table-cell">Mieter</th>
+              <th className="hidden px-4 py-2 md:table-cell">Zeitraum</th>
               <th className="px-4 py-2 text-right">Betrag (€)</th>
             </tr>
           </thead>
@@ -104,9 +104,13 @@ export function VorverteilteKostenanteileForm({
                 <td className="px-4 py-2 text-white">
                   {z.einheitBezeichnung}
                   <input type="hidden" name="mietvertragId" value={z.mietvertragId} />
+                  {/* Handy: Mieter und Zeitraum stehen unter der Einheit (die Eingabefelder gibt es nur einmal). */}
+                  <span className="mt-0.5 block text-xs text-neutral-400 md:hidden">
+                    {z.mieterNamen} · {formatDate(z.zeitraumVon)} – {formatDate(z.zeitraumBis)}
+                  </span>
                 </td>
-                <td className="px-4 py-2 text-neutral-300">{z.mieterNamen}</td>
-                <td className="px-4 py-2 text-neutral-300">
+                <td className="hidden px-4 py-2 text-neutral-300 md:table-cell">{z.mieterNamen}</td>
+                <td className="hidden px-4 py-2 text-neutral-300 md:table-cell">
                   {formatDate(z.zeitraumVon)} – {formatDate(z.zeitraumBis)}
                 </td>
                 <td className="px-4 py-2 text-right">

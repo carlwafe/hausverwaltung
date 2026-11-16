@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { BelegBadge } from "@/components/beleg-badge";
 import { ladeBelegPruefung, fasseBelegPruefungZusammen } from "@/lib/beleg-pruefung";
+import { KARTE_LISTE, KARTE_RAHMEN, KarteKopf, KarteMeta, KarteNotiz, KarteZeile } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -78,7 +79,26 @@ export default async function BelegPruefungPage({ params }: { params: Promise<{ 
       {fehlend.length === 0 ? (
         <p className="mb-8 text-sm text-green-400">Alle umlagefähigen Positionen sind belegt oder markiert.</p>
       ) : (
-        <div className="mb-8 overflow-x-auto rounded-lg border border-neutral-800">
+        <>
+        {/* Handy: je Kostenposition eine Karte statt der Tabelle. */}
+        <ul className={`mb-8 ${KARTE_LISTE}`}>
+          {fehlend.map((r) => (
+            <li key={r.id}>
+              <Link prefetch={false} href={`/kosten/${r.id}`} className={`block ${KARTE_RAHMEN} active:bg-neutral-900`}>
+                <KarteKopf titel={r.kostenartName} wert={formatEuro(r.betrag)} />
+                {r.empfaenger && <KarteZeile>{r.empfaenger}</KarteZeile>}
+                <KarteMeta>
+                  <span>
+                    {formatDate(r.datum)} · {r.gebaeudeLabel}
+                  </span>
+                  <BelegBadge status={r.status} />
+                </KarteMeta>
+                {r.beschreibung && <KarteNotiz>{r.beschreibung}</KarteNotiz>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="mb-8 hidden overflow-x-auto rounded-lg border border-neutral-800 md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-neutral-800 text-xs text-neutral-400">
               <tr>
@@ -114,10 +134,39 @@ export default async function BelegPruefungPage({ params }: { params: Promise<{ 
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <h2 className="mb-2 text-lg font-medium text-white">Nach Kostenart</h2>
-      <div className="mb-8 overflow-x-auto rounded-lg border border-neutral-800">
+      <ul className={`mb-8 ${KARTE_LISTE}`}>
+        {kostenartZeilen.map(([name, k]) => (
+          <li key={name} className={KARTE_RAHMEN}>
+            <KarteKopf titel={name} wert={formatEuro(k.betrag)} />
+            <KarteMeta>
+              <span>
+                {k.gesamt} Positionen · <span className="text-green-400">{k.belegt} mit Beleg</span>
+                {k.ausnahme > 0 && (
+                  <>
+                    {" "}
+                    · <span className="text-blue-400">{k.ausnahme} kein Beleg nötig</span>
+                  </>
+                )}
+              </span>
+            </KarteMeta>
+            {k.fehlt > 0 && (
+              <div className="mt-1.5 text-sm text-amber-400">
+                {k.fehlt} ohne Beleg{k.betragFehlt > 0 && ` (${formatEuro(k.betragFehlt)})`}
+              </div>
+            )}
+          </li>
+        ))}
+        {kostenartZeilen.length === 0 && (
+          <li className={`${KARTE_RAHMEN} py-4 text-center text-sm text-neutral-500`}>
+            Keine umlagefähigen Kostenpositionen für {abrechnung.jahr}.
+          </li>
+        )}
+      </ul>
+      <div className="mb-8 hidden overflow-x-auto rounded-lg border border-neutral-800 md:block">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-neutral-800 text-xs text-neutral-400">
             <tr>

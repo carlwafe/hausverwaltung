@@ -17,6 +17,7 @@ import {
 import { MIETKONTO_AB } from "@/lib/darlehenskonto";
 import { DarlehenForm, type DarlehenFormWerte } from "./darlehen-form";
 import { loescheDarlehen } from "./actions";
+import { KARTE_LISTE, KARTE_RAHMEN, KarteKopf, KarteMeta, KarteWerte } from "@/components/karte";
 
 type Suche = { darlehen?: string; jahr?: string; neu?: string; bearbeiten?: string };
 
@@ -103,7 +104,7 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:justify-between md:gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-white">Darlehen &amp; Tilgungspläne</h1>
           <p className="mt-1 max-w-3xl text-sm text-neutral-400">
@@ -133,7 +134,68 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
             ))}
           </p>
 
-          <div className="overflow-auto rounded-lg border border-neutral-800">
+          {/* Handy: je Darlehen eine Karte statt der neunspaltigen Tabelle (siehe docs/tickets-logo-design.md). */}
+          <ul className={KARTE_LISTE}>
+            {jahrZeilen.map(({ p, zins, tilgung, rest, vgl }) => {
+              const imJahr = p.raten.filter((r) => r.jahr === jahr);
+              const satz = imJahr.at(-1)?.zinssatz ?? Number(p.d.zinssatz);
+              const rate = imJahr.length ? Math.max(...imJahr.map((r) => r.rate)) : Number(p.d.rate);
+              const ist = istJeDarlehen.get(p.d.id) ?? [];
+              const offen = zaehleOffeneMonate(p.raten, ist, heute);
+              return (
+                <li key={p.d.id} className={KARTE_RAHMEN}>
+                  <KarteKopf
+                    titel={
+                      <Link prefetch={false} href={`/darlehen/tilgungsplan?jahr=${jahr}&darlehen=${p.d.id}`} className="underline">
+                        {p.d.bezeichnung}
+                      </Link>
+                    }
+                    wert={formatEuro(restschuldAm(p.e, p.raten, heute))}
+                    wertLabel="Restschuld heute"
+                  />
+                  <KarteMeta>
+                    <span>{[p.d.darlehensnummer, prozent(satz), `Rate ${formatEuro(rate)}`].filter(Boolean).join(" · ")}</span>
+                    {vgl &&
+                      (vgl.stimmt ? (
+                        <span className="text-xs text-green-400">Bank stimmt ✓</span>
+                      ) : (
+                        <span className="text-xs text-amber-400">Abweichung zur Bank</span>
+                      ))}
+                    {offen > 0 ? (
+                      <span className="text-xs text-red-400">
+                        {offen} Monat{offen === 1 ? "" : "e"} offen
+                      </span>
+                    ) : (
+                      ist.length > 0 && <span className="text-xs text-green-400">gebucht ✓</span>
+                    )}
+                  </KarteMeta>
+                  <KarteWerte
+                    werte={[
+                      { label: `Zinsen ${jahr}`, wert: formatEuro(zins) },
+                      { label: `Tilgung ${jahr}`, wert: formatEuro(tilgung) },
+                      { label: `Restschuld 31.12.${jahr}`, wert: formatEuro(rest) },
+                    ]}
+                  />
+                </li>
+              );
+            })}
+            <li className={`${KARTE_RAHMEN} bg-neutral-900`}>
+              <KarteKopf
+                titel={`Summe ${jahr}`}
+                wert={formatEuro(Math.round(aktive.reduce((s, p) => s + restschuldAm(p.e, p.raten, heute), 0) * 100) / 100)}
+                wertLabel="Restschuld heute"
+              />
+              <KarteWerte
+                werte={[
+                  { label: "Rate", wert: formatEuro(summe((z) => z.rate)) },
+                  { label: `Zinsen ${jahr}`, wert: formatEuro(summe((z) => z.zins)) },
+                  { label: `Tilgung ${jahr}`, wert: formatEuro(summe((z) => z.tilgung)) },
+                  { label: `Restschuld 31.12.${jahr}`, wert: formatEuro(summe((z) => z.rest)) },
+                ]}
+              />
+            </li>
+          </ul>
+          <div className="hidden overflow-auto rounded-lg border border-neutral-800 md:block">
             <table className="w-full text-sm">
               <thead className="text-xs text-neutral-400">
                 <tr>
@@ -218,6 +280,28 @@ export default async function TilgungsplanSeite({ searchParams }: { searchParams
   );
 }
 
+// Buchungsstatus eines Monats im Darlehenskonto (Tabellenspalte „Status“ und Karte fürs Handy).
+function KontoStatus({ z }: { z: Darlehenskonto["zeilen"][number] }) {
+  const diff = z.ist && z.soll ? Math.round((z.ist.rate - z.soll.rate) * 100) / 100 : null;
+  const diffZins = z.ist && z.soll ? Math.round((z.ist.zins - z.soll.zins) * 100) / 100 : null;
+  return (
+    <>
+      {z.status === "ok" && <span className="text-green-400">gebucht ✓</span>}
+      {z.status === "abweichung" && (
+        <span className="text-amber-400">
+          Abweichung
+          {diff !== null && Math.abs(diff) >= 0.005 ? ` Rate ${diff > 0 ? "+" : ""}${formatEuro(diff)}` : ""}
+          {diffZins !== null && Math.abs(diffZins) >= 0.005 ? ` · Zinsen ${diffZins > 0 ? "+" : ""}${formatEuro(diffZins)}` : ""}
+          {!z.soll ? " (keine Rate im Plan)" : ""}
+        </span>
+      )}
+      {z.status === "offen" && <span className="text-red-400">offen – nicht gebucht</span>}
+      {z.status === "bevorstehend" && <span className="text-neutral-500">steht aus</span>}
+      {z.status === "nicht-im-journal" && <span className="text-neutral-600">anderes Konto</span>}
+    </>
+  );
+}
+
 function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: string; bezeichnung: string; darlehensnummer: string | null; bank: string | null; darlehensbetrag: unknown; startRestschuld: unknown; startDatum: Date; zinssatz: unknown; zinsbindungBis: Date | null; laufzeitEnde: Date | null; bemerkung: string | null; zahltag: number }; raten: ReturnType<typeof berechneTilgungsplan>; summen: ReturnType<typeof jahressummen>; vergleich: ReturnType<typeof vergleicheMitBank> }; stufen: Zinsstufe[]; jahr: number; kannBearbeiten: boolean; konto: Darlehenskonto }) {
   const { d } = p;
   const imJahr = p.raten.filter((r) => r.jahr === jahr);
@@ -265,7 +349,66 @@ function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: 
       {konto.zeilen.length === 0 ? (
         <p className="mt-2 text-sm text-neutral-400">Für {jahr} gibt es keine Raten (vor dem Ausgangsstand oder nach Laufzeitende).</p>
       ) : (
-        <div className="mt-2 overflow-auto rounded-lg border border-neutral-800">
+        <>
+        {/* Handy: je Monat eine Karte statt der elfspaltigen Tabelle. */}
+        <ul className={`mt-2 ${KARTE_LISTE}`}>
+          {konto.zeilen.map((z) => (
+            <li key={z.monat} className={KARTE_RAHMEN}>
+              <KarteKopf
+                titel={
+                  <>
+                    {String(z.monat).padStart(2, "0")}/{z.jahr}
+                    {z.planDatum && <span className="ml-2 text-xs font-normal text-neutral-500">{datumText(z.planDatum)}</span>}
+                  </>
+                }
+              />
+              <KarteMeta>
+                <span className="text-xs">
+                  <KontoStatus z={z} />
+                </span>
+              </KarteMeta>
+              <KarteWerte
+                werte={[
+                  z.soll && { label: "Soll Rate", wert: formatEuro(z.soll.rate) },
+                  z.soll && { label: "Soll Zinsen", wert: formatEuro(z.soll.zins) },
+                  z.soll && { label: "Soll Tilgung", wert: formatEuro(z.soll.tilgung) },
+                  z.ist && {
+                    label: z.ist.ankerIds.length > 1 ? `Ist Rate (${z.ist.ankerIds.length} Zahlungen)` : "Ist Rate",
+                    wert: (
+                      <Link prefetch={false} href={`/darlehen/rate/${z.ist.ankerIds[0]}`} className="underline">
+                        {formatEuro(z.ist.rate)}
+                      </Link>
+                    ),
+                    klasse: "text-white",
+                  },
+                  z.ist && { label: "Ist Zinsen", wert: formatEuro(z.ist.zins), klasse: "text-white" },
+                  z.ist && { label: "Ist Tilgung", wert: formatEuro(z.ist.tilgung), klasse: "text-white" },
+                  z.restschuldPlan !== null && { label: "Restschuld Plan", wert: formatEuro(z.restschuldPlan) },
+                  z.restschuldIst !== null && { label: "Restschuld Ist", wert: formatEuro(z.restschuldIst), klasse: "text-white" },
+                  z.zinssatz !== null && { label: "Zinssatz", wert: `${prozent(z.zinssatz)}${z.nachZinsbindung ? " *" : ""}` },
+                ]}
+              />
+            </li>
+          ))}
+          <li className={`${KARTE_RAHMEN} bg-neutral-900`}>
+            <KarteKopf titel={`Summe ab ${String(MIETKONTO_AB.monat).padStart(2, "0")}/${MIETKONTO_AB.jahr}`} />
+            <KarteWerte
+              werte={[
+                { label: "Soll Rate", wert: formatEuro(konto.summeSoll.rate) },
+                { label: "Soll Zinsen", wert: formatEuro(konto.summeSoll.zins) },
+                { label: "Soll Tilgung", wert: formatEuro(konto.summeSoll.tilgung) },
+                { label: "Ist Rate", wert: formatEuro(konto.summeIst.rate), klasse: "text-white" },
+                { label: "Ist Zinsen", wert: formatEuro(konto.summeIst.zins), klasse: "text-white" },
+                { label: "Ist Tilgung", wert: formatEuro(konto.summeIst.tilgung), klasse: "text-white" },
+              ]}
+            />
+            <div className="mt-2 text-xs text-neutral-400">
+              Plan {jahr} gesamt: Rate {formatEuro(konto.sollJahr.rate)} · Zinsen {formatEuro(konto.sollJahr.zins)} · Tilgung{" "}
+              {formatEuro(konto.sollJahr.tilgung)}
+            </div>
+          </li>
+        </ul>
+        <div className="mt-2 hidden overflow-auto rounded-lg border border-neutral-800 md:block">
           <table className="w-full text-sm">
             <thead className="text-xs text-neutral-400">
               <tr>
@@ -284,8 +427,6 @@ function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: 
             </thead>
             <tbody>
               {konto.zeilen.map((z) => {
-                const diff = z.ist && z.soll ? Math.round((z.ist.rate - z.soll.rate) * 100) / 100 : null;
-                const diffZins = z.ist && z.soll ? Math.round((z.ist.zins - z.soll.zins) * 100) / 100 : null;
                 return (
                   <tr key={z.monat} className="border-t border-neutral-800">
                     <td className="whitespace-nowrap px-3 py-2 text-white">
@@ -313,18 +454,7 @@ function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: 
                     <td className={`${zelle} text-neutral-300`}>{z.restschuldPlan !== null ? formatEuro(z.restschuldPlan) : "–"}</td>
                     <td className={zelle}>{z.restschuldIst !== null ? formatEuro(z.restschuldIst) : "–"}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs">
-                      {z.status === "ok" && <span className="text-green-400">gebucht ✓</span>}
-                      {z.status === "abweichung" && (
-                        <span className="text-amber-400">
-                          Abweichung
-                          {diff !== null && Math.abs(diff) >= 0.005 ? ` Rate ${diff > 0 ? "+" : ""}${formatEuro(diff)}` : ""}
-                          {diffZins !== null && Math.abs(diffZins) >= 0.005 ? ` · Zinsen ${diffZins > 0 ? "+" : ""}${formatEuro(diffZins)}` : ""}
-                          {!z.soll ? " (keine Rate im Plan)" : ""}
-                        </span>
-                      )}
-                      {z.status === "offen" && <span className="text-red-400">offen – nicht gebucht</span>}
-                      {z.status === "bevorstehend" && <span className="text-neutral-500">steht aus</span>}
-                      {z.status === "nicht-im-journal" && <span className="text-neutral-600">anderes Konto</span>}
+                      <KontoStatus z={z} />
                     </td>
                   </tr>
                 );
@@ -353,6 +483,7 @@ function Einzelplan({ p, stufen, jahr, kannBearbeiten, konto }: { p: { d: { id: 
             </tfoot>
           </table>
         </div>
+        </>
       )}
       {konto.sonder.length > 0 && (
         <div className="mt-3 max-w-3xl">

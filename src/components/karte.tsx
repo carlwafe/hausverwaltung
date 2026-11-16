@@ -3,6 +3,13 @@
 // zweite Angabe, Zeile mit Datum und Kennzeichen, Zahlenwerte, klein der Freitext.
 // Regeln: docs/tickets-logo-design.md („Tabellen auf dem Handy: Kartenansicht“).
 
+/** Kartenliste fürs Handy neben einer Tabelle ohne DataTable: `<ul className={KARTE_LISTE}>`, die Tabelle
+ * bekommt `hidden md:block`. */
+export const KARTE_LISTE = "flex flex-col gap-2 md:hidden";
+
+/** Rahmen einer Karte in einer solchen Liste (`<li className={KARTE_RAHMEN}>`). */
+export const KARTE_RAHMEN = "rounded-lg border border-neutral-800 px-4 py-3";
+
 /** Kleines Kennzeichen (Pille) in einer Karte. */
 export const KARTE_KENNZEICHEN = "whitespace-nowrap rounded-full px-2 py-0.5 text-xs";
 

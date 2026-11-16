@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { uebernehmeVorschlaege } from "./actions";
+import { KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteMeta } from "@/components/karte";
 
 type Typ = "HANDWERKER" | "SONSTIGE";
 
@@ -58,7 +59,44 @@ export function Vorschlaege({ rows }: { rows: VorschlagRow[] }) {
         )}
       </div>
       {fehler && <p className="mb-2 text-sm text-red-400">{fehler}</p>}
-      <div className="overflow-x-auto">
+      {/* Handy: je Vorschlag eine Karte statt der Tabelle. */}
+      <ul className={KARTE_LISTE}>
+        {rows.map((r) => (
+          <li key={r.name} className={KARTE_RAHMEN}>
+            <KarteKopf titel={r.name} wert={euro.format(r.summe)} />
+            <KarteMeta>
+              <span>
+                {r.anzahl} Buchungen
+                {r.kostenarten.length > 0 && ` · ${r.kostenarten.map((k) => k.name).join(", ")}`}
+              </span>
+            </KarteMeta>
+            <KarteAktionen>
+              <select
+                value={typVon(r)}
+                onChange={(e) => setTypen((t) => ({ ...t, [r.name]: e.target.value as Typ }))}
+                aria-label={`Typ für ${r.name}`}
+                className="h-9 rounded-md border border-neutral-700 bg-transparent px-2 text-sm"
+              >
+                <option value="HANDWERKER" className="bg-neutral-900">
+                  Handwerker
+                </option>
+                <option value="SONSTIGE" className="bg-neutral-900">
+                  Sonstige
+                </option>
+              </select>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => uebernehmen([r])}
+                className="h-9 rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200 disabled:opacity-50"
+              >
+                Übernehmen
+              </button>
+            </KarteAktionen>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead className="text-neutral-500">
             <tr>

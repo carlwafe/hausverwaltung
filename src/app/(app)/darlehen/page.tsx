@@ -10,6 +10,7 @@ import { JahreswertForm, type JahreswertDarlehen } from "./jahreswert-form";
 import { RateDarlehenSelect } from "./rate-darlehen-select";
 import { zeitraumText, zinsenJeMonat } from "@/lib/darlehen-zinsen";
 import type { Bankwert, Zinsstufe } from "@/lib/tilgungsplan";
+import { KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteWerte } from "@/components/karte";
 
 type Rate = {
   id: string;
@@ -130,7 +131,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
   const bankDifferenz = Math.round((gesamtZinsen - bankSumme) * 100) / 100;
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Darlehen</h1>
           <p className="max-w-3xl text-sm text-neutral-400">
@@ -163,7 +164,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
         </p>
       )}
 
-      <div className="mb-6 grid max-w-2xl grid-cols-3 gap-4">
+      <div className="mb-6 grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Raten {jahr}</p>
           <p className="mt-1 text-lg font-semibold text-white">{formatEuro(summeZins + summeTilgung)}</p>
@@ -187,7 +188,54 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
       {imJahr.length === 0 ? (
         <p className="text-sm text-neutral-400">Noch keine Darlehensrate für {jahr} erfasst.</p>
       ) : (
-        <div className="overflow-auto rounded-lg border border-neutral-800">
+        <>
+        {/* Handy: je Rate eine Karte statt der Tabelle. */}
+        <ul className={KARTE_LISTE}>
+          {imJahr.map((r) => (
+            <li key={r.id} className={KARTE_RAHMEN}>
+              <KarteKopf
+                titel={
+                  <Link prefetch={false} href={`/darlehen/rate/${r.id}`} className="underline">
+                    {datumText(r.datum)}
+                  </Link>
+                }
+                wert={formatEuro(r.zins + r.tilgung)}
+                wertLabel="Rate"
+              />
+              <div className="mt-0.5 text-xs text-neutral-400 [overflow-wrap:anywhere]">{r.text}</div>
+              <KarteWerte
+                werte={[
+                  {
+                    label: "Zinsen",
+                    wert: r.kostenId ? (
+                      <Link prefetch={false} href={`/kosten/${r.kostenId}`} className="underline">
+                        {formatEuro(r.zins)}
+                      </Link>
+                    ) : (
+                      formatEuro(r.zins)
+                    ),
+                  },
+                  { label: "Tilgung", wert: formatEuro(r.tilgung) },
+                ]}
+              />
+              <KarteAktionen>
+                <RateDarlehenSelect ankerId={r.id} darlehenId={r.darlehenId} darlehen={darlehenOptionen} gesperrt={!kannBearbeiten} />
+                {kannBearbeiten && (
+                  <DeleteButton
+                    size="sm"
+                    confirmText={
+                      r.tilgungId
+                        ? "Rate löschen? Der Zinsanteil wird mit gelöscht (storniert)."
+                        : "Diese Zinsbuchung löschen (stornieren)? Die Bankzeile lässt sich danach im Import neu erfassen."
+                    }
+                    action={loescheDarlehensrate.bind(null, r.id) as () => Promise<void>}
+                  />
+                )}
+              </KarteAktionen>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-auto rounded-lg border border-neutral-800 md:block">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-neutral-400">
               <tr>
@@ -241,6 +289,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <section className="mt-10">
@@ -262,7 +311,7 @@ export default async function DarlehenPage({ searchParams }: { searchParams: Pro
                     <td className="px-4 py-2 text-white">
                       {j.bezeichnung}
                       {[zeitraumText(j.vonMonat, j.bisMonat), j.bemerkung].filter(Boolean).length > 0 && (
-                        <span className="ml-2 text-xs text-neutral-500">
+                        <span className="block text-xs text-neutral-500 md:ml-2 md:inline">
                           {[zeitraumText(j.vonMonat, j.bisMonat), j.bemerkung].filter(Boolean).join(" · ")}
                         </span>
                       )}

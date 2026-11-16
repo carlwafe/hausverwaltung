@@ -79,26 +79,33 @@ export default async function NkSchreibenPage({ params }: { params: Promise<{ id
               <thead className="text-left text-neutral-500">
                 <tr>
                   <th className="py-1 pr-3">Kostenart</th>
-                  <th className="py-1 pr-3 text-right">Positionen mit Angabe</th>
-                  <th className="py-1 pr-3 text-right">Rechnungsbetrag</th>
+                  <th className="hidden py-1 pr-3 text-right md:table-cell">Positionen mit Angabe</th>
+                  <th className="hidden py-1 pr-3 text-right md:table-cell">Rechnungsbetrag</th>
                   <th className="py-1 pr-3 text-right">Arbeitskosten</th>
-                  <th className="py-1 pr-3 text-right">Anteil</th>
+                  <th className="hidden py-1 pr-3 text-right md:table-cell">Anteil</th>
                   <th className="py-1">Anlage</th>
                 </tr>
               </thead>
               <tbody>
                 {arbeitskosten.map((k) => (
                   <tr key={k.kostenartId} className="border-t border-neutral-800">
-                    <td className="py-1 pr-3 text-neutral-200">{k.kostenartName}</td>
-                    <td className="py-1 pr-3 text-right text-neutral-300">
+                    <td className="py-1 pr-3 text-neutral-200">
+                      {k.kostenartName}
+                      {/* Handy: die Nebenspalten stehen unter der Kostenart. */}
+                      <span className="block text-neutral-500 md:hidden">
+                        {k.mitAngabe} von {k.positionen} Positionen · Rechnung {euro(k.summeBetrag)}
+                        {k.quote !== null && ` · ${(k.quote * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`}
+                      </span>
+                    </td>
+                    <td className="hidden py-1 pr-3 text-right text-neutral-300 md:table-cell">
                       {k.mitAngabe} von {k.positionen}
                     </td>
-                    <td className="py-1 pr-3 text-right text-neutral-300">{euro(k.summeBetrag)}</td>
-                    <td className="py-1 pr-3 text-right text-neutral-300">{euro(k.summeArbeit)}</td>
-                    <td className="py-1 pr-3 text-right text-neutral-300">
+                    <td className="hidden py-1 pr-3 text-right text-neutral-300 md:table-cell">{euro(k.summeBetrag)}</td>
+                    <td className="whitespace-nowrap py-1 pr-3 text-right align-top text-neutral-300">{euro(k.summeArbeit)}</td>
+                    <td className="hidden py-1 pr-3 text-right text-neutral-300 md:table-cell">
                       {k.quote === null ? "–" : `${(k.quote * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`}
                     </td>
-                    <td className={`py-1 ${k.vollstaendig ? "text-green-400" : "text-amber-400"}`}>
+                    <td className={`py-1 align-top ${k.vollstaendig ? "text-green-400" : "text-amber-400"}`}>
                       {k.vollstaendig ? "erscheint" : `unvollständig – fehlt bei ${k.positionen - k.mitAngabe}`}
                     </td>
                   </tr>

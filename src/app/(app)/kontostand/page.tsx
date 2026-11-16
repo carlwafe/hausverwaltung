@@ -6,6 +6,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { KontostandKontrolleForm } from "./kontostand-kontrolle-form";
 import { loescheKontostandKontrolle } from "./actions";
 import { KontostandTable, type KontostandRow } from "./kontostand-table";
+import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteNotiz, KarteWerte } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -96,8 +97,45 @@ export default async function KontostandPage() {
           falsch erfasst ist. Die Prüfwerte ändern den Verlauf nicht.
         </p>
         <KontostandKontrolleForm />
+        {/* Handy: je Prüfwert eine Karte statt der Tabelle. */}
         {kontrollZeilen.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <ul className={`mt-4 ${KARTE_LISTE}`}>
+            {kontrollZeilen.map((k) => {
+              const stimmt = Math.abs(k.differenz) < 0.005;
+              return (
+                <li key={k.id} className={KARTE_RAHMEN}>
+                  <KarteKopf
+                    titel={formatDate(k.datum)}
+                    wert={
+                      <span
+                        className={`${KARTE_KENNZEICHEN} ${stimmt ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}
+                      >
+                        {stimmt ? "stimmt" : "Abweichung"}
+                      </span>
+                    }
+                  />
+                  <KarteWerte
+                    werte={[
+                      { label: "Laut Kontoauszug", wert: formatEuro(k.bank) },
+                      { label: "Simuliert", wert: formatEuro(k.simuliert) },
+                      !stimmt && { label: "Differenz", wert: formatEuro(k.differenz), klasse: "text-red-400" },
+                    ]}
+                  />
+                  {k.notiz && <KarteNotiz>{k.notiz}</KarteNotiz>}
+                  <KarteAktionen>
+                    <DeleteButton
+                      action={loescheKontostandKontrolle.bind(null, k.id)}
+                      confirmText="Prüfwert wirklich entfernen?"
+                      label="Entfernen"
+                    />
+                  </KarteAktionen>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {kontrollZeilen.length > 0 && (
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
                 <tr>

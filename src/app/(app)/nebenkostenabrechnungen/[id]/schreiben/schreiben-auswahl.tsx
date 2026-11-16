@@ -87,9 +87,9 @@ export function SchreibenAuswahl({
                 />
               </th>
               <th className="px-3 py-2">Wohnung</th>
-              <th className="px-3 py-2">Mieter</th>
-              <th className="px-3 py-2 text-right">Kostenanteil</th>
-              <th className="px-3 py-2 text-right">Vorauszahlung</th>
+              <th className="hidden px-3 py-2 md:table-cell">Mieter</th>
+              <th className="hidden px-3 py-2 text-right md:table-cell">Kostenanteil</th>
+              <th className="hidden px-3 py-2 text-right md:table-cell">Vorauszahlung</th>
               <th className="px-3 py-2 text-right">Ergebnis</th>
               <th className="px-3 py-2" />
             </tr>
@@ -106,14 +106,24 @@ export function SchreibenAuswahl({
                     onChange={() => umschalten(z.mietvertragId)}
                   />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">{z.wohnung}</td>
-                <td className="px-3 py-2 text-white">
+                <td className="px-3 py-2 text-neutral-300 md:whitespace-nowrap">
+                  {z.wohnung}
+                  {/* Handy: Mieter und Beträge stehen unter der Wohnung (die Auswahl-Kästchen gibt es nur einmal). */}
+                  <span className="mt-0.5 block text-xs text-white md:hidden">
+                    {z.mieter}
+                    {z.beendet && <span className="ml-2 text-amber-400">ausgezogen – Anschrift ergänzen</span>}
+                  </span>
+                  <span className="block text-xs text-neutral-500 md:hidden">
+                    Kosten {euro(z.kostenanteil)} · Vorauszahlung {euro(z.vorauszahlung)}
+                  </span>
+                </td>
+                <td className="hidden px-3 py-2 text-white md:table-cell">
                   {z.mieter}
                   {z.beendet && <span className="ml-2 text-xs text-amber-400">ausgezogen – Anschrift ergänzen</span>}
                 </td>
-                <td className="px-3 py-2 text-right text-neutral-300">{euro(z.kostenanteil)}</td>
-                <td className="px-3 py-2 text-right text-neutral-300">{euro(z.vorauszahlung)}</td>
-                <td className={`whitespace-nowrap px-3 py-2 text-right ${z.saldo < -0.005 ? "text-red-400" : "text-green-400"}`}>
+                <td className="hidden px-3 py-2 text-right text-neutral-300 md:table-cell">{euro(z.kostenanteil)}</td>
+                <td className="hidden px-3 py-2 text-right text-neutral-300 md:table-cell">{euro(z.vorauszahlung)}</td>
+                <td className={`px-3 py-2 text-right md:whitespace-nowrap ${z.saldo < -0.005 ? "text-red-400" : "text-green-400"}`}>
                   {Math.abs(z.saldo) < 0.005 ? "ausgeglichen" : z.saldo < 0 ? `Nachzahlung ${euro(-z.saldo)}` : `Guthaben ${euro(z.saldo)}`}
                 </td>
                 <td className="px-3 py-2 text-right">

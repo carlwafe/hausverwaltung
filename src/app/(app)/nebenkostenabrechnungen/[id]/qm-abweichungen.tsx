@@ -120,7 +120,7 @@ export function QmAbweichungen({
       )}
 
       <form action={formAction} className="flex flex-wrap items-end gap-3">
-        <div>
+        <div className="min-w-0 max-w-full">
           <label className="mb-1 block text-xs text-neutral-400" htmlFor="kostenkreis">
             Kostenkreis
           </label>
@@ -130,7 +130,7 @@ export function QmAbweichungen({
             required
             value={kreis}
             onChange={(e) => setKreis(e.target.value)}
-            className="rounded-md border border-neutral-700 bg-neutral-950 px-2 h-10 text-sm text-white outline-none focus:border-neutral-400"
+            className="h-10 w-full max-w-full rounded-md border border-neutral-700 bg-neutral-950 px-2 text-sm text-white outline-none focus:border-neutral-400 md:w-auto"
           >
             <option value="" disabled>
               Bitte wählen…
