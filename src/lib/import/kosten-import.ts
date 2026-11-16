@@ -336,6 +336,12 @@ function stripStrassenwort(s: string): string {
   return s.replace(/\bstra(?:ss|ß)e\.?\b/gi, " ").replace(/\bstr\.?(?=\s|$)/gi, " ");
 }
 
+// Banken schreiben Umlaute oft um ("KOENIGSBERGER STR." statt "Königsberger Straße") — für den
+// Adressabgleich beide Seiten auf dieselbe Schreibweise bringen.
+function umschrift(s: string): string {
+  return s.replace(/ä/gi, "ae").replace(/ö/gi, "oe").replace(/ü/gi, "ue").replace(/ß/g, "ss");
+}
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -431,15 +437,15 @@ function ermittleGebaeudeVorschlag(
     if (auswahl) return auswahl;
   }
 
-  const textLeicht = stripStrassenwort(text).toLowerCase();
+  const textLeicht = umschrift(stripStrassenwort(text).toLowerCase());
   const strassen = [
-    ...new Set(gebaeude.map((g) => stripStrassenwort(g.strasse).trim().toLowerCase()).filter(Boolean)),
+    ...new Set(gebaeude.map((g) => umschrift(stripStrassenwort(g.strasse).trim().toLowerCase())).filter(Boolean)),
   ];
   const spanne = findeHausnummernSpanne(textLeicht, strassen);
 
   if (!spanne) {
     const adressTreffer = gebaeude.filter((g) => {
-      const strasseBasis = stripStrassenwort(g.strasse).trim().toLowerCase();
+      const strasseBasis = umschrift(stripStrassenwort(g.strasse).trim().toLowerCase());
       const hausnummer = g.hausnummer.trim().toLowerCase();
       if (!strasseBasis || !hausnummer) return false;
       // Die einzige nicht-numerische Hausnummer ("G" für das Garagen-Gebäude) wird im
