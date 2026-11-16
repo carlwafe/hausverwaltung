@@ -18,6 +18,9 @@ const STATUS_LABEL = {
   ERLEDIGT: "Erledigt",
 } as const;
 
+// Kurzform für die Tabelle am Computer (voller Text im Tooltip); Karte und Filter zeigen die Langform.
+const STATUS_KURZ: Record<keyof typeof STATUS_LABEL, string> = { ...STATUS_LABEL, AUFGELOEST: "Rest offen" };
+
 const STATUS_FARBE: Record<keyof typeof STATUS_LABEL, string> = {
   AKTIV: "bg-green-500/10 text-green-400",
   AUFGELOEST: "bg-amber-500/10 text-amber-400",
@@ -97,50 +100,69 @@ function KommentarFeld({ kautionId, notizen }: { kautionId: string; notizen: str
       disabled={isPending}
       placeholder="Kommentar…"
       maxLength={500}
-      className="block w-56 resize-none rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50"
+      className="mt-1 block w-full resize-none rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50"
     />
   );
 }
 
+const BETRAG = { align: "right", className: "whitespace-nowrap tabular-nums" } as const;
+
+function formatDatum(iso: string) {
+  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
+}
+
+// Am Computer darf die Tabelle nicht breiter als die Seite sein (siehe „Tabellen am Computer“ in
+// docs/tickets-logo-design.md): Mietende steht unter der Einheit, der Kommentar unter dem Mieter
+// (Füllspalte), die Zinsen unter „Aufgelöst“.
 const columns: Column<KautionRow>[] = [
   {
     key: "einheit",
     label: "Einheit",
+    title: "Darunter das Mietende, falls der Vertrag beendet ist",
     sortValue: (r) => r.einheitBezeichnung,
     searchValue: (r) => r.einheitBezeichnung,
     render: (r) => (
-      <span className="inline-flex items-center gap-1">
+      // Feste Breite über das div (nicht die Zelle), sonst drückt die Füllspalte die Spalte zusammen.
+      <div className="w-24">
         <Link prefetch={false} href={`/mietvertraege/${r.mietvertragId}`} className={TABELLEN_LINK}>
           {r.einheitBezeichnung}
         </Link>
         {r.warnung && (
-          <span title={r.warnung} className="text-amber-400">
+          <span title={r.warnung} className="ml-1 text-amber-400">
             ⚠
           </span>
         )}
-      </span>
+        {r.mietende && (
+          <div title="Mietende" className="text-xs text-neutral-400">
+            bis {formatDatum(r.mietende)}
+          </div>
+        )}
+      </div>
     ),
   },
   {
     key: "mieter",
-    label: "Mieter",
+    label: "Mieter · Kommentar",
+    title: "Sortiert nach Mieter",
+    fuellend: true,
     sortValue: (r) => r.mieterNamen,
-    searchValue: (r) => r.mieterNamen,
-    render: (r) => r.mieterNamen,
-  },
-  {
-    key: "mietende",
-    label: "Mietende",
-    sortValue: (r) => r.mietende ?? "9999",
-    render: (r) => (r.mietende ? new Intl.DateTimeFormat("de-DE").format(new Date(r.mietende)) : "–"),
+    searchValue: (r) => `${r.mieterNamen} ${r.notizen ?? ""}`,
+    render: (r) => (
+      <>
+        <div title={r.mieterNamen} className="truncate">
+          {r.mieterNamen}
+        </div>
+        {r.kautionId && <KommentarFeld kautionId={r.kautionId} notizen={r.notizen ?? ""} />}
+      </>
+    ),
   },
   {
     key: "betrag",
     label: "Betrag",
+    ...BETRAG,
     sortValue: (r) => r.betrag,
     render: (r) => (
       <span className="inline-flex items-center gap-1">
-        {formatEuro(r.betrag)}
         {r.betragAbweichung && (
           <span
             title={`Weicht von der Summe der "Einzahlung Mieter"-Kautionsbuchungen ab: ${formatEuro(r.einzahlungSumme!)}`}
@@ -149,36 +171,43 @@ const columns: Column<KautionRow>[] = [
             ⚠
           </span>
         )}
+        {formatEuro(r.betrag)}
       </span>
     ),
   },
   {
-    key: "zinsen",
-    label: "Zinsen",
-    sortValue: (r) => r.zinsen ?? 0,
-    render: (r) => (r.zinsen ? formatEuro(r.zinsen) : "–"),
-  },
-  {
     key: "aufgeloest",
     label: "Aufgelöst",
+    title: "Darunter die in der Auflösung enthaltenen Zinsen",
+    ...BETRAG,
     sortValue: (r) => r.aufgeloest,
-    render: (r) => (r.aufgeloest > 0 ? formatEuro(r.aufgeloest) : "–"),
+    render: (r) => (
+      <>
+        {r.aufgeloest > 0 ? formatEuro(r.aufgeloest) : "–"}
+        {r.zinsen ? <div className="text-xs text-neutral-400">Zinsen {formatEuro(r.zinsen)}</div> : null}
+      </>
+    ),
   },
   {
     key: "ausgezahlt",
     label: "Ausgezahlt",
+    ...BETRAG,
     sortValue: (r) => r.ausgezahlt,
     render: (r) => (r.ausgezahlt > 0 ? formatEuro(r.ausgezahlt) : "–"),
   },
   {
     key: "verrechnet",
-    label: "Verrechnet (BK / Mieterkonto / Rechnung)",
+    label: "Verrechnet",
+    title: "Verrechnet mit Betriebskostenabrechnung, Mieterkonto oder Rechnung",
+    ...BETRAG,
     sortValue: (r) => r.verrechnet,
     render: (r) => (r.verrechnet > 0 ? formatEuro(r.verrechnet) : "–"),
   },
   {
     key: "einbehalten",
-    label: "Einbehalten",
+    label: "Einbeh.",
+    title: "Einbehalten",
+    ...BETRAG,
     sortValue: (r) => r.einbehalten ?? -1,
     render: (r) =>
       r.einbehalten === null ? (
@@ -190,6 +219,7 @@ const columns: Column<KautionRow>[] = [
   {
     key: "offen",
     label: "Offen",
+    ...BETRAG,
     sortValue: (r) => r.offen ?? -1,
     render: (r) =>
       r.offen === null ? (
@@ -203,21 +233,14 @@ const columns: Column<KautionRow>[] = [
   {
     key: "status",
     label: "Status",
+    className: "whitespace-nowrap",
     sortValue: (r) => STATUS_LABEL[r.status],
     searchValue: (r) => STATUS_LABEL[r.status],
     render: (r) => (
-      <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[r.status]}`}>
-        {STATUS_LABEL[r.status]}
+      <span title={STATUS_LABEL[r.status]} className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[r.status]}`}>
+        {STATUS_KURZ[r.status]}
       </span>
     ),
-  },
-  {
-    key: "kommentar",
-    label: "Kommentar",
-    sortValue: (r) => r.notizen ?? "",
-    searchValue: (r) => r.notizen ?? "",
-    render: (r) =>
-      r.kautionId ? <KommentarFeld kautionId={r.kautionId} notizen={r.notizen ?? ""} /> : <span className="text-neutral-600">–</span>,
   },
 ];
 
@@ -269,6 +292,7 @@ export function KautionenTable({ rows }: { rows: KautionRow[] }) {
       mobileCard={(r) => <KautionKarte r={r} />}
       columns={columns}
       rows={rows}
+      kompakt
       emptyMessage="Noch keine Kautionen erfasst."
       searchPlaceholder="Kautionen durchsuchen…"
       selectFilter={{

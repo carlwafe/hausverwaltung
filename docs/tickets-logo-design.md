@@ -85,12 +85,14 @@ Der Seiteninhalt ist höchstens 1152 px breit (`max-w-6xl` im Layout), auch auf 
 - **Ja/Nein-Spalten werden Kennzeichen:** kurze Überschrift mit Tooltip („Uml.“), Kennzeichen nur wenn es zutrifft (wie auf der Karte). Die Spalte bleibt sortierbar.
 - **Aktions-Spalten ohne Text:** Symbol-Knopf mit `title`/`aria-label` statt Wort (Rohdaten: `<RohdatenToggleButton symbol />`), Spaltenüberschrift leer.
 - **Spalten mit Bezeichnungen bekommen eine feste Breite** über ein `<div className="w-…">` in der Zelle (nicht über die Zelle selbst) und brechen darin um; ein Zusatz (Einheit hinter der Adresse, Klammerzusatz der Kostenart) steht klein darunter. Ohne feste Breite drückt die Füllspalte sie auf ihr längstes Wort zusammen.
+- **Nebenangaben unter die Hauptangabe:** Ein Datum oder Betrag, der nur in wenigen Zeilen vorkommt, steht klein und grau unter einer anderen Spalte statt in einer eigenen (Kautionen: Mietende unter der Einheit, Zinsen unter „Aufgelöst“). Ein bearbeitbares Kommentarfeld kann unter dem Namen in der Füllspalte stehen (`w-full`). Preis: Nach diesen Angaben lässt sich nicht mehr einzeln sortieren.
+- **Lange Statustexte kürzen** („Rest offen“ statt „Aufgelöst, Rest offen“), voller Text im `title`; ebenso lange Spaltenüberschriften (Zusatz in den Tooltip der Spalte).
 - **Beträge rechtsbündig** (`align: "right"`, `className: "whitespace-nowrap tabular-nums"`); der Sortierpfeil steht dann vor der Überschrift.
 - **`kompakt`** an der `DataTable` verringert den Spaltenabstand (`px-3` statt `px-4`).
 - **Ziel:** ab etwa 1080 px Fensterbreite kein seitliches Scrollen; Zeilen höchstens zwei Textzeilen hoch. Darunter (bis `md`) scrollt die Tabelle weiter in ihrem Kasten.
 - **Prüfen:** im Browser bei 1440 px `scrollWidth − clientWidth` des Tabellen-Kastens messen (muss 0 sein), siehe `docs/lokal-testen.md`.
 - **Preis der Füllspalte:** Zeilen mit Freitext sind zwei Textzeilen hoch (53 px). Wo der Freitext vorher einzeilig abgeschnitten in einer eigenen Spalte stand (Zahlungen: 39 px), passen dadurch weniger Zeilen auf den Bildschirm — dafür ist mehr vom Text lesbar und nichts ragt hinaus.
-- **Noch breiter als die Seite** (gemessen bei 1440 px): Mieter-Tabelle der Jahresübersicht, Positionen der Betriebskostenabrechnung, Kautionen, Dokumente, Mieterkonto am Mietvertrag, Mögliche Mieterhöhungen, BK-Anpassung, Offene Posten. Die ersten beiden haben 12–16 Betragsspalten und brauchen einen eigenen Ansatz (feststehende erste Spalten oder Spaltengruppen).
+- **Noch breiter als die Seite** (gemessen bei 1440 px): Mieter-Tabelle der Jahresübersicht, Positionen der Betriebskostenabrechnung, Dokumente, Mieterkonto am Mietvertrag, Mögliche Mieterhöhungen, BK-Anpassung, Offene Posten. Die ersten beiden haben 12–16 Betragsspalten und brauchen einen eigenen Ansatz (feststehende erste Spalten oder Spaltengruppen).
 - Verworfen: Spalten ein-/ausblendbar machen (zusätzliche Bedienung, Zustand müsste gespeichert werden); kleinere Schrift.
 - Offen: breitere Seite auf großen Bildschirmen (die Begrenzung gilt für alle Seiten; Formulare und Texte sollen nicht mitwachsen).
 
