@@ -58,10 +58,10 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
-          Nebenkostenausgleich
+          Betriebskostenausgleich
           {buchung.mietvertrag ? ` — ${buchung.mietvertrag.einheit.bezeichnung} (${mieterNamen})` : " — ohne Mietvertrag"}
         </h1>
-        <DeleteButton action={loescheUndZurueck.bind(null, id)} confirmText="Nebenkostenausgleich wirklich stornieren?" />
+        <DeleteButton action={loescheUndZurueck.bind(null, id)} confirmText="Betriebskostenausgleich wirklich stornieren?" />
       </div>
       <BuchungsartInfo code="NEBENKOSTENAUSGLEICH" erstelltAm={buchung.erstelltAm} erstelltVon={buchung.erstelltVon} />
       <div className="max-w-xl space-y-2 rounded-lg border border-neutral-800 p-4 text-sm">
@@ -135,7 +135,7 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
           {kannZusammenfuehren && (
             <DeleteButton
               action={hebeNebenkostenausgleichAufteilungAuf.bind(null, id)}
-              confirmText="Aufteilung wirklich rückgängig machen? Alle Teile werden zu einer Nebenkostenausgleich-Buchung zusammengeführt."
+              confirmText="Aufteilung wirklich rückgängig machen? Alle Teile werden zu einer Betriebskostenausgleich-Buchung zusammengeführt."
               label="Aufteilung rückgängig machen"
             />
           )}

@@ -1,4 +1,4 @@
-// Inhalt des Schreibens „Betriebskostenabrechnung“ an einen Mieter (eine Position der Nebenkostenabrechnung).
+// Inhalt des Schreibens „Betriebskostenabrechnung“ an einen Mieter (eine Position der Betriebskostenabrechnung).
 // Reine Funktion ohne Prisma — Daten kommen aus nk-schreiben-laden.ts oder direkt aus einem Skript. Das Layout
 // (Arial 10,5 pt, Abstände, Tabellen) liefert schreiben-pdf.ts nach der Vorlage in CLAUDE.md.
 import type { Baustein, SchreibenInhalt, TabellenZeile } from "./schreiben-pdf";

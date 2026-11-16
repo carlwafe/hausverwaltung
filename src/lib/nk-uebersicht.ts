@@ -1,4 +1,4 @@
-// Kostenaufschlüsselung einer Nebenkostenabrechnung, zusammengefasst über Positionen — für das
+// Kostenaufschlüsselung einer Betriebskostenabrechnung, zusammengefasst über Positionen — für das
 // gesamte Objekt (Kreis-Gesamtbeträge) oder für einen Ausschnitt (ein Haus/Gebäude: dessen Anteil
 // an den Kostenkreisen). Reine Auswertung der gespeicherten Aufschlüsselungen (details) der
 // Positionen, nichts wird neu berechnet.

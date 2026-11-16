@@ -69,8 +69,8 @@ export type SollZeile = {
   faelligAm: Date;
   betrag: number;
   // Kaltmiete-Anteil von betrag — für Aufschlüsselungen, die Kaltmiete getrennt von
-  // Nebenkosten/Mehrwertsteuer zeigen wollen (z.B. der Mieter-Jahresbericht). Der
-  // Nebenkosten-Anteil (inkl. ggf. Mehrwertsteuer bei Garagen) ergibt sich als betrag - kaltmiete.
+  // Betriebskosten/Mehrwertsteuer zeigen wollen (z.B. der Mieter-Jahresbericht). Der
+  // Betriebskosten-Anteil (inkl. ggf. Mehrwertsteuer bei Garagen) ergibt sich als betrag - kaltmiete.
   kaltmiete: number;
 };
 
@@ -151,7 +151,7 @@ export function sollAufschluesselung(
 /**
  * Soll = Summe der Monatsraten seit Mietbeginn (bis heute bzw. bis Mietende, falls dieses in der
  * Vergangenheit liegt) × Warmmiete (Kaltmiete + NK-Vorauszahlung + ggf. Mehrwertsteuer, bei
- * umsatzsteuerpflichtig vermieteten Garagen/Stellplätzen anstelle von Nebenkosten).
+ * umsatzsteuerpflichtig vermieteten Garagen/Stellplätzen anstelle von Betriebskosten).
  *
  * Liegt der Mietbeginn vor `buchhaltungAb` (z.B. weil dafür keine Kontoauszüge mehr vorliegen),
  * wird erst ab `buchhaltungAb` gerechnet — sonst würde ein jahrzehntealter Mietbeginn einen
@@ -166,7 +166,7 @@ export function berechneSoll(
 }
 
 /** Wie berechneSoll, aber nur der Kaltmiete-Anteil — für Aufschlüsselungen, die Kaltmiete
- * getrennt von Nebenkosten zeigen (siehe SollZeile.kaltmiete). */
+ * getrennt von Betriebskosten zeigen (siehe SollZeile.kaltmiete). */
 export function berechneSollKaltmiete(
   vertrag: MietvertragFuerSollIst,
   heute: Date = new Date(),

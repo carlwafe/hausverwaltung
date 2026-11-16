@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 // Ersatz für ein einfaches <button type="submit"> innerhalb eines Server-Action-<form> — zeigt
 // während der Aktion einen Drehkreis + optional einen anderen Text, statt dass der Nutzer nach dem
 // Klick ohne jede Rückmeldung wartet, ob überhaupt etwas passiert (z.B. "Neu berechnen" bei der
-// Nebenkostenabrechnung, das je nach Datenmenge spürbar dauert). useFormStatus findet automatisch
+// Betriebskostenabrechnung, das je nach Datenmenge spürbar dauert). useFormStatus findet automatisch
 // das nächste umschließende <form>, unabhängig davon, ob dieses von einer Server- oder
 // Client-Komponente gerendert wird.
 export function SubmitButton({

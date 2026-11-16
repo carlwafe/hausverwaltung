@@ -92,12 +92,12 @@ export function NebenkostenausgleichAufteilenForm({
   return (
     <div className="mt-4 rounded-lg border border-neutral-800 p-4">
       <p className="mb-1 text-sm font-medium text-white">
-        Nebenkostenausgleich ({betragGesamt.toFixed(2).replace(".", ",")} €) aufteilen
+        Betriebskostenausgleich ({betragGesamt.toFixed(2).replace(".", ",")} €) aufteilen
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Ersetzt diese Buchung durch die unten angegebenen Teile (Bankvorzeichen, Summe = Gesamtbetrag) — für eine Überweisung, die
         mehrere Mietverträge oder Abrechnungsjahre auf einmal betrifft. Ein mit ausgezahltes/abgezogenes Mietkonto-Guthaben oder
-        ein Rückstand gehört nicht hierher, sondern als &quot;Verrechnung Nebenkostenabrechnung&quot; unter Zahlungen → Neu.
+        ein Rückstand gehört nicht hierher, sondern als &quot;Verrechnung Betriebskostenabrechnung&quot; unter Zahlungen → Neu.
       </p>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (

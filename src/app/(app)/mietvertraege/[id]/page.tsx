@@ -31,7 +31,7 @@ const ANLAGEFORM_LABEL: Record<string, string> = {
 
 // Art der Erledigung / Weg je Buchungsart, die eine NK-Abrechnung begleicht (siehe nk-verrechnung.ts).
 const NK_ERLEDIGUNG: Record<string, { art: string; weg: string }> = {
-  NEBENKOSTENAUSGLEICH: { art: "Auszahlung / Zahlung", weg: "Banküberweisung (Nebenkostenausgleich)" },
+  NEBENKOSTENAUSGLEICH: { art: "Auszahlung / Zahlung", weg: "Banküberweisung (Betriebskostenausgleich)" },
   MAHNGEBUEHR: { art: "Verrechnung mit Miete", weg: "Forderung im Mieterkonto" },
   KAUTION_EINBEHALT: { art: "Verrechnung mit Kaution", weg: "Einbehalt aus der Kaution" },
 };
@@ -186,8 +186,8 @@ export default async function MietvertragDetailPage({
       periodeJahr: b.periodeJahr,
       ...(b.buchungsart.code === "KAUTION_EINBEHALT" ? { bezeichnung: "Verrechnung mit Kaution", href: "/kautionen" } : {}),
     }));
-  // Offene Nebenkostenabrechnung des Vorjahres je Jahr (wie in der Jahresübersicht): Saldo der
-  // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Nebenkostenausgleich.
+  // Offene Betriebskostenabrechnung des Vorjahres je Jahr (wie in der Jahresübersicht): Saldo der
+  // Abrechnung ./. tatsächlich gezahlte/erhaltene Summe aus dem Betriebskostenausgleich.
   const nkAusgleich = await prisma.buchung.findMany({
     where: { mietvertragId: id, ...NK_AUSGLEICH_ODER_VERRECHNUNG, ...AKTIVE_BUCHUNG_FILTER },
     select: { jahr: true, datum: true, betrag: true, buchungsart: { select: { code: true } } },
@@ -208,7 +208,7 @@ export default async function MietvertragDetailPage({
       return { ab: naechste.gueltigAb, betrag: naechste.nebenkostenVorauszahlung };
     return { ab: null, betrag: ermittleMieteFuerMonat(vertragFuerSollIst, jahr + 1, 1).nebenkostenVorauszahlung };
   };
-  // Reiter "Nebenkostenabrechnung": je Abrechnungsjahr die Position dieses Vertrags mit
+  // Reiter "Betriebskostenabrechnung": je Abrechnungsjahr die Position dieses Vertrags mit
   // Aufschlüsselung und den Buchungen, die sie begleichen (gleiche Zuordnung über Mietvertrag+Jahr).
   const kostenarten = await prisma.kostenart.findMany({ select: { id: true, name: true, betrKvNummer: true } });
   const warmeKostenartIds = kostenarten.filter(istWarmeKostenart).map((k) => k.id);

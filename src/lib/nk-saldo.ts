@@ -1,6 +1,6 @@
 import { ermittleMieteFuerMonat, type MietvertragFuerSollIst } from "./soll-ist";
 
-// Restsaldo einer Nebenkostenabrechnung nach Auszahlung/Verrechnung: Cent-genau gerundet, und ein Rest
+// Restsaldo einer Betriebskostenabrechnung nach Auszahlung/Verrechnung: Cent-genau gerundet, und ein Rest
 // von höchstens 1 Cent gilt als erledigt (Rundungsdifferenzen, z.B. durch den Restcent-Ausgleich oder
 // krumme Überweisungen) und wird auf 0 gesetzt.
 export function saldoMitToleranz(saldo: number): number {

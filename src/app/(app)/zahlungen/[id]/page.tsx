@@ -64,7 +64,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
       <div>
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">
-            {nkJahr ? `Verrechnung Nebenkostenabrechnung ${nkJahr}` : "Gebühren-Forderung"} —{" "}
+            {nkJahr ? `Verrechnung Betriebskostenabrechnung ${nkJahr}` : "Gebühren-Forderung"} —{" "}
             {zahlung.mietvertrag.einheit.bezeichnung} ({mieterNamen})
           </h1>
           <DeleteButton action={deleteZahlung.bind(null, id)} confirmText={nkJahr ? "Verrechnung wirklich stornieren?" : "Gebühren-Forderung wirklich stornieren?"} />
@@ -85,7 +85,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
           </p>
           <p className="pt-2 text-xs text-neutral-500">
             {nkJahr
-              ? "Verrechnet das Ergebnis der Nebenkostenabrechnung mit dem"
+              ? "Verrechnet das Ergebnis der Betriebskostenabrechnung mit dem"
               : "Berechnet dem Mieter eine Gebühr (z.B. Rücklastschrift-/Mahngebühr) — eine reine Forderung auf dem"}{" "}
             <Link href={`/mietvertraege/${zahlung.mietvertragId}`} className="underline hover:text-white">
               Mietkonto

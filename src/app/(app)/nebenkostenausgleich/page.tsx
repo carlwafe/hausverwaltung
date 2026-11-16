@@ -41,16 +41,16 @@ export default async function NebenkostenausgleichPage() {
     <div>
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Nebenkostenausgleich</h1>
+          <h1 className="text-2xl font-semibold text-white">Betriebskostenausgleich</h1>
           <p className="text-sm text-neutral-400">
             {zahlungen.length} Zahlung{zahlungen.length === 1 ? "" : "en"} — Rückzahlungen/
-            Nachzahlungen aus der Nebenkostenabrechnung, ohne Einfluss auf Soll/Ist. Mit
+            Nachzahlungen aus der Betriebskostenabrechnung, ohne Einfluss auf Soll/Ist. Mit
             Abrechnungsjahr wird eine Zahlung automatisch mit der passenden Position verknüpft,
             sobald eine Abrechnung für dieses Jahr erstellt oder neu berechnet wird; ohne Jahr
             bleibt sie rein archivarisch.
             Der Ausgleich ist immer der Bankbetrag; weicht er von der Abrechnung ab, weil ein
             Mietkonto-Guthaben oder ein Rückstand mit verrechnet wurde, wird die Differenz als
-            &quot;Verrechnung Nebenkostenabrechnung&quot; unter Zahlungen → Neu erfasst (nicht durch
+            &quot;Verrechnung Betriebskostenabrechnung&quot; unter Zahlungen → Neu erfasst (nicht durch
             Aufteilen der Buchung).
           </p>
         </div>

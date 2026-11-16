@@ -18,13 +18,13 @@ const SYMBOLE: Record<Reiter, string> = {
 
 const REITER: { id: Reiter; label: string }[] = [
   { id: "mieterkonto", label: "Mieterkonto" },
-  { id: "nebenkosten", label: "Nebenkostenabrechnung" },
+  { id: "nebenkosten", label: "Betriebskostenabrechnung" },
   { id: "kaution", label: "Kautionsabrechnung" },
 ];
 
 /**
- * Reiterleiste der Mietvertragsseite: Mieterkonto, Nebenkostenabrechnung und Kaution — immer nur
- * eine Tabelle sichtbar. Bei Mieterkonto und Nebenkostenabrechnung sitzt die Jahresauswahl mit in
+ * Reiterleiste der Mietvertragsseite: Mieterkonto, Betriebskostenabrechnung und Kaution — immer nur
+ * eine Tabelle sichtbar. Bei Mieterkonto und Betriebskostenabrechnung sitzt die Jahresauswahl mit in
  * der Leiste (je Reiter eigenes Jahr, weil die verfügbaren Jahre verschieden sind). Alle Daten
  * kommen fertig vom Server, der Wechsel passiert nur im Browser.
  */

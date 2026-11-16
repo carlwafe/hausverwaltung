@@ -110,7 +110,7 @@ function Zeile({
                 ermittleKostenjahrVorschlag(buchung.verwendungszweck, buchung.datum) ??
                 new Date(buchung.datum).getFullYear()
               }
-              title="Kostenjahr (nur Nebenkostenabrechnung)"
+              title="Kostenjahr (nur Betriebskostenabrechnung)"
               className="w-16 rounded-md border border-neutral-700 bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400"
             />
             <button

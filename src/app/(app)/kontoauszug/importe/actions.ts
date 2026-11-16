@@ -25,7 +25,7 @@ export async function pruefeImportVollstaendigkeit(
   }
 
   // Stornierte Buchungen (und Storno-Gegenbuchungen) zählen nicht: sonst meldet z.B. ein nach
-  // "Umbuchen" stornierter Nebenkostenausgleich neben der neuen Zahlung fälschlich "mehrfach erfasst".
+  // "Umbuchen" stornierter Betriebskostenausgleich neben der neuen Zahlung fälschlich "mehrfach erfasst".
   // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
   // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
   // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.

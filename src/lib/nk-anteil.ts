@@ -1,5 +1,5 @@
-// NK-Anteil einer Mietzahlung (Teilzahlung): gemeinsame Regel der Nebenkostenabrechnung
-// (Vorauszahlung) und der Aufstellung für die Steuererklärung (Mieten/Nebenkosten).
+// NK-Anteil einer Mietzahlung (Teilzahlung): gemeinsame Regel der Betriebskostenabrechnung
+// (Vorauszahlung) und der Aufstellung für die Steuererklärung (Mieten/Betriebskosten).
 //
 // Bis einschließlich Mietjahr 2024: zuerst auf die NK-Vorauszahlung bis zum NK-Soll, erst der Rest auf
 // die Kaltmiete. Ab Mietjahr 2025 (Entscheidung 23.10.2026): anteilig im Verhältnis der Beträge

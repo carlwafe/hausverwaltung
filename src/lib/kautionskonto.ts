@@ -16,7 +16,7 @@
 //  - KAUTION_VIRTUELLE_AUSZAHLUNG: − wie ein Einbehalt, aber keine Auszahlung: die Kaution wird mit
 //    einer vom Vermieter bezahlten Rechnung verrechnet (kein Geld an den Mieter, kein Bankfluss).
 //    Erscheint unter den Einbehalten ("mit bezahlter Rechnung verrechnet"), nicht unter
-//    "ausgezahlt" — analog zur Verrechnung mit dem Mieterkonto bzw. der Nebenkostenabrechnung
+//    "ausgezahlt" — analog zur Verrechnung mit dem Mieterkonto bzw. der Betriebskostenabrechnung
 //  - KAUTION_SONSTIGES: mit Buchungsvorzeichen (z.B. Zinsen +, Kontoführungsgebühr −)
 //  - Zinsen in der Auflösung (keine Buchung): kommt vom Kautionskonto mehr zurück als angelegt wurde,
 //    ist die Differenz Zins und steht dem Mieter zu — automatische Zeile "+" beim Auflösungsdatum
@@ -234,7 +234,7 @@ export function baueKautionskonto(input: {
   for (const e of input.einbehalte) {
     const nk =
       e.nkJahr !== null
-        ? `mit Nebenkostenabrechnung ${e.nkJahr} verrechnet`
+        ? `mit Betriebskostenabrechnung ${e.nkJahr} verrechnet`
         : e.mieterkonto
           ? "mit dem Mieterkonto verrechnet"
           : undefined;

@@ -1,5 +1,5 @@
-// Teilt vereinnahmte Mietzahlungen in Kaltmiete und Nebenkosten-Vorauszahlung (für die Aufstellung
-// Anlage V). Gleiche Regel wie in der Nebenkostenabrechnung (§ 366 Abs. 2 BGB, siehe nk-anteil.ts): je
+// Teilt vereinnahmte Mietzahlungen in Kaltmiete und Betriebskosten-Vorauszahlung (für die Aufstellung
+// Anlage V). Gleiche Regel wie in der Betriebskostenabrechnung (§ 366 Abs. 2 BGB, siehe nk-anteil.ts): je
 // Mietmonat wird eine Zahlung für Mietperioden bis 2024 zuerst auf die NK-Vorauszahlung angerechnet
 // (höchstens das NK-Soll des Monats), der Rest ist Kaltmiete; ab Mietperiode 2025 anteilig im Verhältnis
 // NK : Kaltmiete (NK-Anteil auf volle Euro gerundet). Gerechnet wird je Mietvertrag und Mietperiode

@@ -1,5 +1,5 @@
 // PDF „Jahresbericht nach Gruppen“: dieselben Buchungen wie das Monatsjournal, aber sachlich geordnet
-// (Mieten/Nebenkosten, Kosten umlagefähig, Kosten nicht umlagefähig, durchlaufende Posten) — je Gruppe
+// (Mieten/Betriebskosten, Kosten umlagefähig, Kosten nicht umlagefähig, durchlaufende Posten) — je Gruppe
 // nach Kostenart, darunter nach Haus/Gebäude. Die laufende Nummer entspricht der Nummer im Monatsjournal
 // (Querverweis); die Summe aller Gruppen ergibt genau die Kontobewegung des Jahres.
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -31,7 +31,7 @@ export type MieterUebersichtZeile = {
 type GruppeId = "EINNAHMEN" | "KOSTEN_UMLAGE" | "KOSTEN_NICHT" | "DURCHLAUFEND" | "OFFEN";
 
 const GRUPPEN: { id: GruppeId; titel: string; hinweis: string }[] = [
-  { id: "EINNAHMEN", titel: "Mieten und Nebenkosten (Einnahmen)", hinweis: "Mietzahlungen, Zahlungen auf Gebühren und Nebenkosten-Ausgleich (Nachzahlungen positiv, Erstattungen negativ), je Haus." },
+  { id: "EINNAHMEN", titel: "Mieten und Betriebskosten (Einnahmen)", hinweis: "Mietzahlungen, Zahlungen auf Gebühren und Betriebskosten-Ausgleich (Nachzahlungen positiv, Erstattungen negativ), je Haus." },
   { id: "KOSTEN_UMLAGE", titel: "Kosten, umlagefähig", hinweis: "Kostenpositionen mit umlagefähiger Kostenart; Ausgaben negativ, Gutschriften positiv, je Kostenart und Haus/Gebäude." },
   { id: "KOSTEN_NICHT", titel: "Kosten, nicht umlagefähig", hinweis: "Kostenpositionen mit nicht umlagefähiger Kostenart (Instandhaltung, Verwaltung, Versicherungen u. a.); Ausgaben negativ, Gutschriften positiv." },
   { id: "DURCHLAUFEND", titel: "Durchlaufende Posten", hinweis: "Mietweiterleitung an die Eigentümerin, Darlehenstilgung und Kautionen – bewegen den Kontostand, sind aber keine Einnahme oder Ausgabe im steuerlichen Sinn." },
@@ -98,8 +98,8 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   b.neueSeite();
   b.titel(ueberschrift, 12);
   b.absatz(
-    `Je Mietvertrag: Saldo zum 01.01.${jahr}, Soll (Kaltmiete und Nebenkosten-Vorauszahlung, bei Garagen mit Umsatzsteuer), gezahlte Miete nach Mietperiode, Gebühren und Saldo zum Ende. ` +
-      "Saldo = Saldo Anfang − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt (+ Nebenkostenabrechnung des Vorjahres und ihr Ausgleich). Negativer Saldo = der Mieter schuldet, positiv = Guthaben des Mieters.",
+    `Je Mietvertrag: Saldo zum 01.01.${jahr}, Soll (Kaltmiete und Betriebskosten-Vorauszahlung, bei Garagen mit Umsatzsteuer), gezahlte Miete nach Mietperiode, Gebühren und Saldo zum Ende. ` +
+      "Saldo = Saldo Anfang − Soll + Gezahlt − Gebühren gefordert + Gebühren gezahlt (+ Betriebskostenabrechnung des Vorjahres und ihr Ausgleich). Negativer Saldo = der Mieter schuldet, positiv = Guthaben des Mieters.",
     { farbe: GRAU },
   );
   b.abstand(4);
@@ -221,7 +221,7 @@ function zeichneMieterUebersicht(b: Bericht, d: Jahresjournal, mieter: MieterUeb
   }
   b.absatz(
     "Die Mieter-Übersicht ordnet Zahlungen dem Monat zu, für den sie bestimmt sind (Mietperiode); der Kontoauszug und der Bericht nach Monaten zählen nach dem Datum der Gutschrift. " +
-      "Spalten: „Gezahlt“ = gezahlte Miete (Kaltmiete + Nebenkosten zusammen, wie überwiesen); „Gebühren gef.“ = Rücklastschrift-/Mahngebühren u. ä.; „Gebühren gez.“ = Zahlungen darauf sowie Verrechnungen mit Kaution oder Nebenkostenabrechnung (ohne Geldfluss); „NK-Gutschrift“ = nicht gezahlte NK-Vorauszahlung nach Versand der Abrechnung; „NK-Abr.“ = Ergebnis der Nebenkostenabrechnung des Vorjahres (Guthaben +, Nachzahlung −); „NK-Ausgleich“ = dazu bisher ausgezahltes Guthaben (−), gezahlte oder verrechnete Nachzahlung (+). Abrechnung + Ausgleich = noch offener Rest. Der Ausgleich zählt alle bisher gebuchten Zahlungen, auch nach dem Berichtsjahr; die einzelnen Buchungen stehen in Abschnitt 4. Die Spalten zeigen nur Abrechnungen, die in der App erfasst sind; ausgezahlte Guthaben ohne Abrechnung in der App (z. B. 2024, vom Vorverwalter geführt) stehen nur in Abschnitt 4.",
+      "Spalten: „Gezahlt“ = gezahlte Miete (Kaltmiete + Betriebskosten zusammen, wie überwiesen); „Gebühren gef.“ = Rücklastschrift-/Mahngebühren u. ä.; „Gebühren gez.“ = Zahlungen darauf sowie Verrechnungen mit Kaution oder Betriebskostenabrechnung (ohne Geldfluss); „NK-Gutschrift“ = nicht gezahlte NK-Vorauszahlung nach Versand der Abrechnung; „NK-Abr.“ = Ergebnis der Betriebskostenabrechnung des Vorjahres (Guthaben +, Nachzahlung −); „NK-Ausgleich“ = dazu bisher ausgezahltes Guthaben (−), gezahlte oder verrechnete Nachzahlung (+). Abrechnung + Ausgleich = noch offener Rest. Der Ausgleich zählt alle bisher gebuchten Zahlungen, auch nach dem Berichtsjahr; die einzelnen Buchungen stehen in Abschnitt 4. Die Spalten zeigen nur Abrechnungen, die in der App erfasst sind; ausgezahlte Guthaben ohne Abrechnung in der App (z. B. 2024, vom Vorverwalter geführt) stehen nur in Abschnitt 4.",
     { farbe: GRAU },
   );
 }
@@ -314,7 +314,7 @@ export async function erzeugeGruppenPdf(d: Jahresjournal, mieter: MieterUebersic
   );
   b.abstand(6);
   b.absatz(
-    "Kosten sind je Kostenart netto dargestellt (Ausgaben abzüglich Gutschriften). Maßgeblich ist das Datum der Kontobewegung (Zu- und Abfluss), nicht das Kostenjahr; die Zuordnung zu einem Abrechnungsjahr für die Nebenkostenabrechnung steht in der Spalte „Zuordnung“. " +
+    "Kosten sind je Kostenart netto dargestellt (Ausgaben abzüglich Gutschriften). Maßgeblich ist das Datum der Kontobewegung (Zu- und Abfluss), nicht das Kostenjahr; die Zuordnung zu einem Abrechnungsjahr für die Betriebskostenabrechnung steht in der Spalte „Zuordnung“. " +
       "Buchungen ohne Geldfluss (Gebührenforderungen, Kautionseinbehalte) fehlen, weil sie den Kontostand nicht verändern.",
     { farbe: GRAU },
   );
@@ -332,15 +332,15 @@ export async function erzeugeGruppenPdf(d: Jahresjournal, mieter: MieterUebersic
   ];
   let kapitel = 4;
   for (const h of haupt) {
-    // Mietzahlungen stehen je Vertrag in der Mieter-Übersicht, hier nur Nebenkosten-Ausgleich und Gebührenzahlungen.
+    // Mietzahlungen stehen je Vertrag in der Mieter-Übersicht, hier nur Betriebskosten-Ausgleich und Gebührenzahlungen.
     const unterListe = h.id === "EINNAHMEN" ? h.unter.filter((u) => u.zeilen[0]?.artCode !== "MIETZAHLUNG") : h.unter;
     if (unterListe.length === 0) continue;
     const detailZeilen = unterListe.flatMap((u) => u.zeilen);
-    const titel = h.id === "EINNAHMEN" ? "Nebenkosten-Ausgleich und Gebührenzahlungen" : h.titel;
+    const titel = h.id === "EINNAHMEN" ? "Betriebskosten-Ausgleich und Gebührenzahlungen" : h.titel;
     b.neueSeite();
     b.titel(`${kapitel}  ${titel}`, 12);
     kapitel++;
-    b.absatz(h.id === "EINNAHMEN" ? "Nachzahlungen (positiv) und Erstattungen (negativ) aus der Nebenkostenabrechnung sowie Zahlungen auf Gebühren, je Haus und Wohnung. Die Mietzahlungen stehen je Mietvertrag in Abschnitt 3." : h.hinweis, { farbe: GRAU });
+    b.absatz(h.id === "EINNAHMEN" ? "Nachzahlungen (positiv) und Erstattungen (negativ) aus der Betriebskostenabrechnung sowie Zahlungen auf Gebühren, je Haus und Wohnung. Die Mietzahlungen stehen je Mietvertrag in Abschnitt 3." : h.hinweis, { farbe: GRAU });
     b.abstand(4);
     const zs: Zeile[] = [];
     for (const u of unterListe) {

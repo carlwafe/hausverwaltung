@@ -221,7 +221,7 @@ const aufteilungTeilSchema = z.object({
   // neue Abschläge (positiv); nur die Summe muss dem Gesamtbetrag entsprechen.
   betrag: z.coerce.number().refine((b) => b !== 0, "Betrag darf nicht 0 sein"),
   beschreibung: z.string().optional(),
-  // Kostenjahr je Teil (nur Nebenkostenabrechnung), z.B. Schlussrechnung fürs Vorjahr.
+  // Kostenjahr je Teil (nur Betriebskostenabrechnung), z.B. Schlussrechnung fürs Vorjahr.
   jahr: z.coerce.number().int().min(2000, "Kostenjahr ungültig").max(2100, "Kostenjahr ungültig").optional(),
 });
 
@@ -229,7 +229,7 @@ const aufteilungTeilSchema = z.object({
  * Teilt eine als eine Buchung importierte Kostenposition (z.B. eine Hausmeister-Rechnung mit
  * umlagefähigem Hausmeisterdienst + nicht umlagefähigem Winterdienst) in mehrere Positionen mit
  * je eigener Kostenart/Betrag auf. Die ursprüngliche Position wird storniert statt echt gelöscht
- * (Storno-Prinzip) — dadurch bleiben alle bestehenden Summen (Nebenkostenabrechnung,
+ * (Storno-Prinzip) — dadurch bleiben alle bestehenden Summen (Betriebskostenabrechnung,
  * Jahresübersicht, Kosten-Übersicht) automatisch korrekt, ohne dass sie von der Aufteilung
  * wissen müssen. `aufteilungGruppeId` verknüpft die neuen Positionen als zusammengehörig, damit
  * die Kosten-Übersicht sie wieder als eine Zeile darstellen kann.
@@ -459,7 +459,7 @@ export async function pruefeKostenDoppelzahlungen() {
   return ladeKostenDoppelzahlungen();
 }
 
-// „Kein Beleg nötig“ für eine umlagefähige Kostenposition (Belegprüfung der Nebenkostenabrechnung). Der Grund ist
+// „Kein Beleg nötig“ für eine umlagefähige Kostenposition (Belegprüfung der Betriebskostenabrechnung). Der Grund ist
 // Pflicht, damit die Markierung später nachvollziehbar bleibt; leer = nicht erlaubt (zum Entfernen
 // entferneBelegAusnahme). Gibt null bei Erfolg zurück, sonst die Meldung.
 export const setzeBelegAusnahme = mitMeldung(async function setzeBelegAusnahme(

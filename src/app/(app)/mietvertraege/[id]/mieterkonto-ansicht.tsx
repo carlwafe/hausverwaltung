@@ -214,7 +214,7 @@ export function MieterkontoAnsicht({
                 Auszahlung/Verrechnung). */}
             <tr>
               <td className="py-0.5 pr-4 text-neutral-300 md:pr-8">
-                Nebenkostenabrechnung {konto.jahr - 1} offen{" "}
+                Betriebskostenabrechnung {konto.jahr - 1} offen{" "}
                 <span className="text-xs text-neutral-500">
                   ({konto.nebenkostenabrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
                 </span>
@@ -224,7 +224,7 @@ export function MieterkontoAnsicht({
               </td>
             </tr>
             <tr className="border-t border-neutral-700 font-medium">
-              <td className="py-1 pr-4 text-white md:pr-8">Saldo inkl. offener Nebenkostenabrechnung</td>
+              <td className="py-1 pr-4 text-white md:pr-8">Saldo inkl. offener Betriebskostenabrechnung</td>
               <td className={`whitespace-nowrap py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>
                 {formatEuro(konto.saldoInklNebenkostenabrechnung)}
               </td>
@@ -236,10 +236,10 @@ export function MieterkontoAnsicht({
         <p>Positiver Saldo = Guthaben des Mieters, negativer Saldo = Mietrückstand. Der Endsaldo ist der Übertrag ins Folgejahr.</p>
         <p>
           „Gutschrift/Belastung NK-Vorauszahlung“ steht am Versanddatum der Abrechnung (unter „Als versendet markieren“
-          gepflegt); die Abrechnung selbst fließt nur in „Saldo inkl. offener Nebenkostenabrechnung“ ein.
+          gepflegt); die Abrechnung selbst fließt nur in „Saldo inkl. offener Betriebskostenabrechnung“ ein.
         </p>
         <p>
-          Bei Teilzahlungen ab 2025 zeigt die Bemerkung die Aufteilung auf Nebenkosten und Kaltmiete; der Saldo rechnet mit
+          Bei Teilzahlungen ab 2025 zeigt die Bemerkung die Aufteilung auf Betriebskosten und Kaltmiete; der Saldo rechnet mit
           dem Gesamtbetrag. Orange Zeilen = Sonderbuchungen (Monat des Buchungsdatums), Mietzahlungen stehen in ihrer
           Mietperiode.
         </p>

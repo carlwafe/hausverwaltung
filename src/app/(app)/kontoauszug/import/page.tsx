@@ -75,7 +75,7 @@ export default function KontoauszugImportPage() {
       <p className="mb-2 max-w-2xl text-sm text-neutral-400">
         CSV-, Excel- oder CAMT-Export (XML) deines Kontos einmal hochladen — jede Buchung erscheint unten in
         einer Tabelle mit einer vorgeschlagenen Buchungsart (Miete, Kosten, Mietweiterleitung,
-        Kaution, Nebenkostenausgleich, …), die du pro Zeile bestätigen oder ändern kannst.
+        Kaution, Betriebskostenausgleich, …), die du pro Zeile bestätigen oder ändern kannst.
       </p>
       <details className="mb-6 max-w-2xl">
         <summary className="cursor-pointer text-sm text-neutral-400 hover:text-white">Hinweise zum Import</summary>

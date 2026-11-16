@@ -205,8 +205,8 @@ export function NebenkostenausgleichZahlungenTable({ rows }: { rows: Nebenkosten
         }}
         columns={columns}
         rows={rows}
-        emptyMessage="Noch keine Nebenkostenausgleich-Zahlungen erfasst."
-        searchPlaceholder="Nebenkostenausgleich durchsuchen…"
+        emptyMessage="Noch keine Betriebskostenausgleich-Zahlungen erfasst."
+        searchPlaceholder="Betriebskostenausgleich durchsuchen…"
         selectable
         onSelectionChange={setAusgewaehlt}
         renderExpanded={(b, colSpan) =>

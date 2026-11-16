@@ -32,7 +32,7 @@ export function aufstellungZeilen(st: AnlageVAufstellung, jahr: number): {
     ...(st.umsatzsteuer !== 0
       ? [{ text: "Vereinnahmte Umsatzsteuer (Garagenmieten)", betrag: st.umsatzsteuer }]
       : []),
-    { text: "Vereinnahmte Nebenkosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − Erstattungen" },
+    { text: "Vereinnahmte Betriebskosten", betrag: st.nebenkosten, hinweis: "Vorauszahlungen + Nachzahlungen − Erstattungen" },
     { text: "davon Vorauszahlungen", betrag: st.nkVorauszahlungen, davon: true },
     {
       text: "davon Nachzahlungen aus der Abrechnung",

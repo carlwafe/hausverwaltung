@@ -102,7 +102,7 @@ export default async function NkAnpassungPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">NK-Anpassung</h1>
         <p className="text-sm text-neutral-400">
-          Nach einer Nebenkostenabrechnung darf die monatliche Vorauszahlung auf eine angemessene Höhe angepasst werden
+          Nach einer Betriebskostenabrechnung darf die monatliche Vorauszahlung auf eine angemessene Höhe angepasst werden
           (§ 560 Abs. 4 BGB, Erklärung in Textform). Gezeigt wird je aktivem Mietvertrag die neueste Abrechnung mit dem
           Rechenweg von links nach rechts: Kostenanteil des Abrechnungsjahres (bei unterjähriger Nutzung steht darunter
           „auf 12 Monate“, der hochgerechnete Jahreswert) → ÷ 12 = Kosten pro Monat → plus {STANDARD_ZUSCHLAG_PROZENT} % Zuschlag,

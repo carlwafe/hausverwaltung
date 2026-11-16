@@ -56,7 +56,7 @@ export function ZahlungForm({
   const [mietvertragId, setMietvertragId] = useState(initial?.mietvertragId ?? defaultMietvertragId ?? "");
   const [zahlungsart, setZahlungsart] = useState<Zahlungsart>("MIETZAHLUNG");
   const istGebuehr = Boolean(zeigeZahlungsartAuswahl) && zahlungsart === "MAHNGEBUEHR";
-  // Verrechnung einer Nebenkostenabrechnung aufs Mieterkonto (Nachzahlung als Forderung, Guthaben
+  // Verrechnung einer Betriebskostenabrechnung aufs Mieterkonto (Nachzahlung als Forderung, Guthaben
   // als Gutschrift) — wie eine Gebühr ein reiner Mieterkonto-Posten ohne Geldfluss.
   const istNkVerrechnung = Boolean(zeigeZahlungsartAuswahl) && zahlungsart === "NK_VERRECHNUNG";
   const keineMietzahlung = istGebuehr || istNkVerrechnung;
@@ -79,7 +79,7 @@ export function ZahlungForm({
           >
             <option value="MIETZAHLUNG">Miete</option>
             <option value="MAHNGEBUEHR">Gebühr (nicht EUR-relevant)</option>
-            <option value="NK_VERRECHNUNG">Verrechnung Nebenkostenabrechnung (nicht EUR-relevant)</option>
+            <option value="NK_VERRECHNUNG">Verrechnung Betriebskostenabrechnung (nicht EUR-relevant)</option>
           </select>
           {istGebuehr && (
             <p className="mt-1 text-xs text-neutral-500">
@@ -101,14 +101,14 @@ export function ZahlungForm({
           {istNkVerrechnung && (
             <>
             <p className="mt-1 text-xs text-neutral-500">
-              Verrechnet das Ergebnis einer Nebenkostenabrechnung mit dem Mieterkonto statt per
+              Verrechnet das Ergebnis einer Betriebskostenabrechnung mit dem Mieterkonto statt per
               Überweisung: eine Nachzahlung als positive Forderung, ein Guthaben als negative
               Gutschrift. Ohne Geldfluss, zählt nicht zu den Mieteinnahmen — die passende
               Abrechnung gilt danach automatisch als erledigt.
             </p>
             <p className="mt-1 text-xs text-neutral-500">
               <span className="text-neutral-300">Bevorzugte Form bei Abweichung zwischen Überweisung und Abrechnung:</span>{" "}
-              Der Nebenkostenausgleich bleibt immer der Bankbetrag (nicht aufteilen). Die Differenz zur Abrechnung, die
+              Der Betriebskostenausgleich bleibt immer der Bankbetrag (nicht aufteilen). Die Differenz zur Abrechnung, die
               über das Mietkonto lief, wird hier als Verrechnung erfasst, mit dem Vorzeichen als Wirkung aufs Mietkonto:{" "}
               <span className="text-neutral-300">Minus</span> = BK-Guthaben deckt einen Rückstand (z.B. −6 €),{" "}
               <span className="text-neutral-300">Plus</span> = Mietkonto-Guthaben wurde mit der BK ausgezahlt oder mit einer
@@ -161,7 +161,7 @@ export function ZahlungForm({
       {istNkVerrechnung && (
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="nkJahr">
-            Abrechnungsjahr der Nebenkostenabrechnung
+            Abrechnungsjahr der Betriebskostenabrechnung
           </label>
           <input
             id="nkJahr"
@@ -210,7 +210,7 @@ export function ZahlungForm({
           </div>
           <p className="col-span-2 text-xs text-neutral-400">
             Der Monat, für den die Miete gedacht ist — nicht der Zahlungstag. Er bestimmt, in welcher
-            Nebenkostenabrechnung die NK-Vorauszahlung zählt (z.B. Dezembermiete, im Januar gezahlt →
+            Betriebskostenabrechnung die NK-Vorauszahlung zählt (z.B. Dezembermiete, im Januar gezahlt →
             Dezember des Vorjahres).
           </p>
         </div>
@@ -229,7 +229,7 @@ export function ZahlungForm({
             istGebuehr
               ? "z.B. Rücklastschriftgebühr 09/2026"
               : istNkVerrechnung
-                ? "z.B. Nachzahlung Nebenkostenabrechnung 2025"
+                ? "z.B. Nachzahlung Betriebskostenabrechnung 2025"
                 : "z.B. Miete März 2026"
           }
           className="w-full rounded-md border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-400"

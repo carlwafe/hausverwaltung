@@ -19,7 +19,7 @@ export type BelegPruefung = {
   zeilen: BelegPruefZeile[];
 };
 
-// Belegprüfung einer Nebenkostenabrechnung: alle umlagefähigen, aktiven Kostenpositionen des Kostenjahres mit ihrem
+// Belegprüfung einer Betriebskostenabrechnung: alle umlagefähigen, aktiven Kostenpositionen des Kostenjahres mit ihrem
 // Belegstatus. Schmale Abfragen ohne Bankzeile (rohdaten) — die Seite rechnet nur auf Aufruf.
 export async function ladeBelegPruefung(jahr: number): Promise<BelegPruefung> {
   const positionen = await prisma.buchung.findMany({

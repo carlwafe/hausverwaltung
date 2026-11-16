@@ -251,7 +251,7 @@ function baueSpalten(vergleichName: string): Column<PositionRow>[] {
             betrag: ausgezahlt,
             label: ausgezahlt >= 0 ? "ausgezahlt" : "eingezogen",
             datum: p.auszahlungDatum,
-            title: "Tatsächliche Kontobewegung (Nebenkostenausgleich)",
+            title: "Tatsächliche Kontobewegung (Betriebskostenausgleich)",
             farbe: "bg-green-500/10 text-green-400",
           },
           {

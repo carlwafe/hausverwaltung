@@ -18,11 +18,11 @@ export type MietvertragFuerJahresbericht = MietvertragFuerSollIst & {
   // auf den Saldo (negativ = Gebühr an den Mieter, positiv = Zahlung darauf). Fließt wie beim
   // Mieterkonto und den Offenen Posten in den Saldo ein, damit alle drei denselben Saldo zeigen.
   sonderbewegungen: { datum: Date; betrag: number }[];
-  // Alle Nebenkostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Berichtsjahr — für
-  // "Nebenkostenabrechnung offen (Vorjahr)" wird gezielt die Position des Vorjahres der jeweiligen
+  // Alle Betriebskostenabrechnung-Positionen dieses Mietvertrags, unabhängig vom Berichtsjahr — für
+  // "Betriebskostenabrechnung offen (Vorjahr)" wird gezielt die Position des Vorjahres der jeweiligen
   // Abrechnung herausgesucht (siehe nebenkostenabrechnungOffenBetrag), nicht die Bewegung des
   // Berichtsjahres selbst. zahlungSumme = tatsächlich gezahlte/erhaltene Summe für
-  // Mietvertrag+Jahr aus dem Nebenkostenausgleich-Archiv (0 = noch nichts erfasst).
+  // Mietvertrag+Jahr aus dem Betriebskostenausgleich-Archiv (0 = noch nichts erfasst).
   // unbezahlteVorauszahlung = Gegenrechnung bei berechneten Positionen (siehe unbezahlteNkVorauszahlung
   // in nk-saldo.ts): NK-Soll, das schon als Rückstand im Mietsaldo steht, aber in der Abrechnung nicht
   // als gezahlt zählt. Fehlt sie (manuelle Positionen), gilt 0. versendetAm = Versanddatum der Abrechnung:
@@ -50,12 +50,12 @@ export type MieterJahresberichtZeile = {
   nebenkostenMtl: number;
   warmMtl: number;
   sollKaltmiete: number;
-  // Nebenkosten-Anteil von soll (inkl. ggf. Mehrwertsteuer bei Garagen) — soll - sollKaltmiete,
+  // Betriebskosten-Anteil von soll (inkl. ggf. Mehrwertsteuer bei Garagen) — soll - sollKaltmiete,
   // damit die Summe beider Spalten immer exakt soll ergibt.
   sollNebenkosten: number;
   miete: number;
   saldoNeu: number;
-  // null = keine Nebenkostenabrechnung-Position fürs Vorjahr vorhanden (unterscheidet sich in der
+  // null = keine Betriebskostenabrechnung-Position fürs Vorjahr vorhanden (unterscheidet sich in der
   // Anzeige bewusst nicht von "0" — beides zeigt "–", da ein bestätigter Nullsaldo von "nie
   // erfasst" ohnehin nicht unterscheidbar wäre).
   nebenkostenabrechnungOffen: number | null;
@@ -96,7 +96,7 @@ export function berechneMieterSonderbewegungen(
 }
 
 /**
- * Abrechnung und Ausgleich der Nebenkostenabrechnung des Vorjahres je Vertrag, beide im Vorzeichen des
+ * Abrechnung und Ausgleich der Betriebskostenabrechnung des Vorjahres je Vertrag, beide im Vorzeichen des
  * Mietsaldos (negativ = der Mieter schuldet): `abrechnung` = Saldo der Position (Guthaben +, Nachzahlung −),
  * `ausgleich` = bisher gebuchte Auszahlung/Zahlung/Verrechnung dazu mit umgekehrtem Vorzeichen (ausgezahltes
  * Guthaben −, gezahlte Nachzahlung +). Abrechnung + Ausgleich = „NK-Abrechnung offen“ (bis auf die Toleranz von
@@ -152,11 +152,11 @@ function istNachZuordnung(
  * Saldo (wie bei Offene Posten: ist - soll + saldovortrag) zu einem beliebigen Stichtag —
  * dieselbe Formel, nur zweimal aufgerufen (Jahresanfang/-ende) statt einmal, um die
  * Jahresbewegung als Differenz zu zeigen. Bewusst ohne jeden Bezug zur
- * Nebenkostenabrechnung selbst — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
+ * Betriebskostenabrechnung selbst — das ist eine eigene Abrechnungsperiode (meist das Vorjahr) mit eigener
  * Zahlungslogik, kein Bestandteil der laufenden Miet-Saldo-Fortschreibung. Ausnahme: die Gegenrechnung der
  * unbezahlten NK-Vorauszahlung versendeter Abrechnungen (Versanddatum ≤ Stichtag): nach dem Versand nicht mehr
  * geschuldet, gehört sie ab diesem Datum zum Saldo (im Zeitraum des Versands als Spalte „Gutschrift“ sichtbar,
- * danach in Saldo alt). Nachzahlung/Guthaben der Abrechnung des Vorjahres kommt als Spalte „Nebenkostenabrechnung
+ * danach in Saldo alt). Nachzahlung/Guthaben der Abrechnung des Vorjahres kommt als Spalte „Betriebskostenabrechnung
  * offen“ dazu.
  */
 function saldoZuStichtag(v: MietvertragFuerJahresbericht, bis: Date): number {
@@ -181,7 +181,7 @@ function gegenrechnungenVon(v: MietvertragFuerJahresbericht): { betrag: number; 
 /**
  * positiv = noch offenes Guthaben (Vermieter schuldet Mieter), negativ = noch offene Nachzahlung —
  * bewusst nur für das Vorjahr des Berichtsjahres (z.B. im Jahresbericht 2025 nur die
- * 2024er-Abrechnung): eine Nebenkostenabrechnung wird typischerweise erst im Folgejahr beglichen,
+ * 2024er-Abrechnung): eine Betriebskostenabrechnung wird typischerweise erst im Folgejahr beglichen,
  * gehört inhaltlich also in den Jahresbericht des Jahres, in dem die Zahlung tatsächlich erwartet
  * wird. Ältere, noch offene Jahre fließen hier bewusst nicht mehr mit ein (die vollständige
  * Historie bleibt über /nebenkostenabrechnungen einsehbar).
@@ -204,7 +204,7 @@ function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr:
  * Pro-Mietvertrag-Aufschlüsselung für den Jahresbericht: Saldo alt (1.1.), die Bewegungen des
  * Jahres (Soll, tatsächlich gezahlte Miete) und Saldo neu (31.12. bzw. `buchhaltungBis`, falls
  * das Jahr noch nicht vollständig erfasst ist) — Saldo neu = Saldo alt - Soll + Miete +
- * Nebenkostenabrechnung offen (Vorjahr). Der offene Vorjahres-NK-Saldo (siehe
+ * Betriebskostenabrechnung offen (Vorjahr). Der offene Vorjahres-NK-Saldo (siehe
  * nebenkostenabrechnungOffenBetrag) fließt bewusst nur in Saldo neu ein, nicht in Saldo alt — die
  * Vorjahresabrechnung entsteht/wird beglichen typischerweise erst im Laufe des Berichtsjahres,
  * war zu dessen Beginn also noch kein Bestandteil des Saldos.
@@ -218,7 +218,7 @@ function nebenkostenabrechnungOffenBetrag(v: MietvertragFuerJahresbericht, jahr:
  * Objekts): Verträge mit früherem Stichtag rechnen auch ihre früheren Jahre, die Summen der Tabelle mischen
  * dann unterschiedliche Stichtage (gewollt, in der Anzeige gekennzeichnet).
  *
- * Nur Mietverträge, die für das Jahr oder den offenen Nebenkostenabrechnung-Saldo tatsächlich
+ * Nur Mietverträge, die für das Jahr oder den offenen Betriebskostenabrechnung-Saldo tatsächlich
  * relevant sind, werden zurückgegeben — ein Vertrag ohne jede Bewegung/Saldo taucht nicht auf,
  * außer er steht in `immerAnzeigen` (nur bei berechneMieterBericht).
  */
@@ -236,7 +236,7 @@ export function berechneMieterJahresbericht(
 
 /**
  * Wie berechneMieterJahresbericht, aber für einen beliebigen Zeitraum [von, bis] innerhalb von
- * `jahr` (Quartalsübersicht). "Nebenkostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
+ * `jahr` (Quartalsübersicht). "Betriebskostenabrechnung offen (Vorjahr)" bezieht sich weiter auf die
  * Abrechnung des Vorjahres von `jahr` und fließt voll ein — außer bei `mitNkOffen: false` (Q1/Q2,
  * die Abrechnung liegt dann meist noch nicht vor): dann bleibt sie außen vor, Saldo neu ist der
  * reine Mietsaldo. Die Gutschrift der unbezahlten NK-Vorauszahlung zählt dagegen datumsgenau ab dem
@@ -288,8 +288,8 @@ export function berechneMieterBericht(
         (gegenrechnungBis(gegenrechnungenVon(v), saldoNeuBis) - gegenrechnungBis(gegenrechnungenVon(v), saldoAltBis)) * 100,
       ) /
         100 || 0;
-    // Inklusive der offenen Nebenkostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
-    // als "Saldo inkl. offener Nebenkostenabrechnung" unter der Jahressumme.
+    // Inklusive der offenen Betriebskostenabrechnung des Vorjahres — im Mieterkonto steht dieselbe Zahl
+    // als "Saldo inkl. offener Betriebskostenabrechnung" unter der Jahressumme.
     // Cent-genau gerundet (Gleitkomma-Reste wie -2,7e-14 würden sonst als "-0,00" bzw. nicht als 0 gelten).
     const saldoNeu =
       Math.round((saldoZuStichtag(v, saldoNeuBis) + (nebenkostenabrechnungOffen ?? 0)) * 100) / 100 || 0;

@@ -76,7 +76,7 @@ export function BelegeSektion({
 }: {
   /** Kostenposition, an der die gemeinsamen Belege (`mitbenutzt`) hängen — zum Lösen der Zuordnung. */
   mitbenutztBuchungId?: string;
-  /** Kostenbelege (Nachweis für Finanzamt/Nebenkostenabrechnung) lassen sich nicht löschen, nur ausblenden. */
+  /** Kostenbelege (Nachweis für Finanzamt/Betriebskostenabrechnung) lassen sich nicht löschen, nur ausblenden. */
   kostenbeleg?: boolean;
   maxBytes?: number;
   titel?: string;

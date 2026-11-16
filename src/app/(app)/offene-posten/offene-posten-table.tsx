@@ -125,7 +125,7 @@ const columns: Column<OffenePostenRow>[] = [
       ) : (
         <span
           className={z.nkGegenrechnung > 0 ? "text-green-400" : "text-amber-400"}
-          title="Unbezahlte (+) bzw. überzahlte (−) NK-Vorauszahlung einer versendeten Nebenkostenabrechnung: steht im Mietsaldo, ist aber durch die Abrechnung ausgeglichen."
+          title="Unbezahlte (+) bzw. überzahlte (−) NK-Vorauszahlung einer versendeten Betriebskostenabrechnung: steht im Mietsaldo, ist aber durch die Abrechnung ausgeglichen."
         >
           {formatEuro(z.nkGegenrechnung)}
         </span>

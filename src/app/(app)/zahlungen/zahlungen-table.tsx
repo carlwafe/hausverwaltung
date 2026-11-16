@@ -53,13 +53,13 @@ export type ZahlungRow = {
   importBatchId: string | null;
   importDateiname: string | null;
   aufteilungGruppeId: string | null;
-  // Abrechnungsjahr, falls diese Forderung/Gutschrift eine Nebenkostenabrechnung aufs Mieterkonto
+  // Abrechnungsjahr, falls diese Forderung/Gutschrift eine Betriebskostenabrechnung aufs Mieterkonto
   // verrechnet (nur bei art MAHNGEBUEHR), sonst null.
   nkJahr: number | null;
 };
 
 function artText(z: ZahlungRow) {
-  if (z.nkJahr !== null) return `Verrechnung Nebenkostenabrechnung ${z.nkJahr}`;
+  if (z.nkJahr !== null) return `Verrechnung Betriebskostenabrechnung ${z.nkJahr}`;
   return z.art === "SONDERZAHLUNG" ? "Gebühr (Zahlung)" : z.art === "MAHNGEBUEHR" ? "Gebühr (Forderung)" : "Miete";
 }
 
@@ -82,7 +82,7 @@ function ArtKennzeichen({ z }: { z: ZahlungRow }) {
   if (z.nkJahr !== null) {
     return (
       <span
-        title="Nebenkostenabrechnung aufs Mieterkonto verrechnet — ohne Geldfluss, nicht EUR-relevant"
+        title="Betriebskostenabrechnung aufs Mieterkonto verrechnet — ohne Geldfluss, nicht EUR-relevant"
         className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-400"
       >
         NK-Verrechnung {z.nkJahr}
@@ -150,7 +150,7 @@ const columns: Column<ZahlungRow>[] = [
     sortValue: (z) => z.art,
     searchValue: (z) =>
       z.nkJahr !== null
-        ? `Verrechnung Nebenkostenabrechnung ${z.nkJahr} nicht eur-relevant`
+        ? `Verrechnung Betriebskostenabrechnung ${z.nkJahr} nicht eur-relevant`
         : z.art === "SONDERZAHLUNG"
           ? "Gebühr Sonderzahlung"
           : z.art === "MAHNGEBUEHR"

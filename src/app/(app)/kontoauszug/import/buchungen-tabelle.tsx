@@ -41,7 +41,7 @@ const FAMILIE_LABELS: Record<BuchungsartGruppe, string> = {
   KOSTEN: "Kosten",
   MIETWEITERLEITUNG: "Mietweiterleitungen",
   KAUTION: "Kaution",
-  NEBENKOSTENAUSGLEICH: "Nebenkostenausgleich",
+  NEBENKOSTENAUSGLEICH: "Betriebskostenausgleich",
   SONDERZAHLUNG: "Gebühren-Zahlung (Mieter)",
   DARLEHEN: "Darlehensrate (Zins + Tilgung)",
   SONSTIGE: "Weitere Buchungsart…",
@@ -59,7 +59,7 @@ const FAMILIE_OPTIONEN: { value: "alle" | BuchungsartGruppe; label: string }[] =
 ];
 
 // Sucht eine vierstellige Jahreszahl im Buchungstext (z.B. "BK-Abr. 2024") als Vorschlag fürs
-// Abrechnungsjahr einer Nebenkostenausgleich-Zeile — findet sich keine (oder liegt der Treffer zu
+// Abrechnungsjahr einer Betriebskostenausgleich-Zeile — findet sich keine (oder liegt der Treffer zu
 // weit vom Buchungsdatum entfernt, um wirklich das Abrechnungsjahr zu sein), wird das Vorjahr des
 // Buchungsdatums vorgeschlagen (eine Abrechnung wird typischerweise fürs Vorjahr beglichen).
 function ermittleJahrVorschlag(verwendungszweck: string, buchungsdatum: string | null): string {
@@ -954,8 +954,8 @@ export function BuchungenTabelle({
                             placeholder="Jahr"
                             title={
                               r.datum && r.jahrEingabe !== r.datum.slice(0, 4)
-                                ? "Kostenjahr weicht vom Abbuchungsjahr ab (Vorjahres-Abrechnung erkannt) — zählt nur für die Nebenkostenabrechnung"
-                                : "Kostenjahr (nur Nebenkostenabrechnung)"
+                                ? "Kostenjahr weicht vom Abbuchungsjahr ab (Vorjahres-Abrechnung erkannt) — zählt nur für die Betriebskostenabrechnung"
+                                : "Kostenjahr (nur Betriebskostenabrechnung)"
                             }
                             className={`w-20 rounded-md border bg-transparent px-1 py-1 text-xs outline-none focus:border-neutral-400 ${
                               r.datum && r.jahrEingabe !== r.datum.slice(0, 4)

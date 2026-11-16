@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { MAX_BELEG_AUSNAHME_GRUND, type BelegStatus } from "@/lib/beleg-anzeige";
 
 // Belegprüfung: Jede Kostenposition braucht ein Dokument (Dokument.buchungId, nicht ausgeblendet) — für den Mieter, der die
-// Belege zur Nebenkostenabrechnung einsehen darf, und für eine Prüfung durch das Finanzamt — oder die ausdrückliche
+// Belege zur Betriebskostenabrechnung einsehen darf, und für eine Prüfung durch das Finanzamt — oder die ausdrückliche
 // Markierung „Kein Beleg nötig“ (BuchungBelegAusnahme, mit Begründung). Status-Bedeutung: siehe beleg-anzeige.ts.
 export type { BelegStatus };
 export { MAX_BELEG_AUSNAHME_GRUND };

@@ -231,7 +231,7 @@ export function NkAnpassungTabelle({ alle }: { alle: NkAnpassungZeile[] }) {
         rowHref={(z) => `/mietvertraege/${z.id}`}
         columns={columns}
         rows={rows}
-        emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit Nebenkostenabrechnung."}
+        emptyMessage={filterAktiv ? "Kein Vertrag erfüllt die Filter." : "Keine aktiven Mietverträge mit Betriebskostenabrechnung."}
         defaultSort={{ key: "einheit" }}
         mobileCard={(z) => <NkAnpassungKarte z={z} />}
         mobileCardInteraktiv

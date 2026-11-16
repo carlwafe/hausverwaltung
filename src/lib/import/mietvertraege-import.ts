@@ -57,7 +57,7 @@ const COLUMN_SYNONYMS: Record<string, string[]> = {
   beginn: ["mietbeginn", "beginn", "einzugsdatum", "von"],
   ende: ["mietende", "ende", "auszugsdatum", "bis"],
   kaltmiete: ["kaltmiete", "grundmiete", "nettomiete"],
-  nebenkosten: ["nebenkosten", "nkvorauszahlung", "nebenkostenvorauszahlung", "nkvz"],
+  nebenkosten: ["nebenkosten", "betriebskosten", "nkvorauszahlung", "nebenkostenvorauszahlung", "betriebskostenvorauszahlung", "nkvz"],
   warmmiete: ["warmmiete", "gesamtmiete", "bruttomiete"],
   email: ["email", "emailadresse", "mail"],
   telefon: ["telefon", "handynummer", "mobil", "handy", "telefonnummer"],

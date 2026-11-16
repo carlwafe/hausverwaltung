@@ -44,9 +44,9 @@ const gebuehrSchema = z.object({
   verwendungszweck: z.string().min(1, "Bezeichnung ist erforderlich"),
 });
 
-// Verrechnung einer Nebenkostenabrechnung aufs Mieterkonto: wie eine Gebühr eine MAHNGEBUEHR-
+// Verrechnung einer Betriebskostenabrechnung aufs Mieterkonto: wie eine Gebühr eine MAHNGEBUEHR-
 // Buchung (Forderung, kein Geldfluss, nicht EÜR-relevant), aber mit Abrechnungsjahr und Bezug auf
-// die Nebenkostenabrechnung — darüber gilt die Position des Mietvertrags für dieses Jahr als
+// die Betriebskostenabrechnung — darüber gilt die Position des Mietvertrags für dieses Jahr als
 // beglichen (siehe NK_AUSGLEICH_ODER_VERRECHNUNG). Positiv = Nachzahlung (Mieter schuldet),
 // negativ = Guthaben (Gutschrift aufs Mieterkonto).
 const nkVerrechnungSchema = z.object({
@@ -82,7 +82,7 @@ export const createZahlung = mitMeldung(async function createZahlung(formData: F
         bezugTyp: NK_VERRECHNUNG_BEZUG,
         verwendungszweck:
           verwendungszweck ??
-          `${rest.betrag > 0 ? "Nachzahlung" : "Guthaben"} Nebenkostenabrechnung ${nkJahr}`,
+          `${rest.betrag > 0 ? "Nachzahlung" : "Guthaben"} Betriebskostenabrechnung ${nkJahr}`,
         erstelltVon: benutzerLabel(user),
       },
     });

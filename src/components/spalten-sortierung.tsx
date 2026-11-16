@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 export type SortRichtung = "asc" | "desc";
 
 /** Gemeinsame Klick-auf-Spaltenkopf-Sortierung für die handgeschriebenen Import-Tabellen
- * (Zahlungen/Kosten/Mietweiterleitungen/Kaution/Nebenkostenausgleich) — gleiches Prinzip wie die
+ * (Zahlungen/Kosten/Mietweiterleitungen/Kaution/Betriebskostenausgleich) — gleiches Prinzip wie die
  * generische DataTable (siehe data-table.tsx), hier aber pro Sektion selbst verdrahtet, da jede
  * eigene Editier-Felder pro Zeile hat und nicht auf DataTable umgestellt werden kann. */
 export function useSpaltenSortierung<T>(

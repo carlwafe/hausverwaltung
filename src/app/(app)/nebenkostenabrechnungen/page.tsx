@@ -20,7 +20,7 @@ export default async function NebenkostenabrechnungenPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Nebenkostenabrechnung</h1>
+        <h1 className="text-2xl font-semibold text-white">Betriebskostenabrechnung</h1>
         <p className="text-sm text-neutral-400">
           Eine Abrechnung pro Jahr fürs ganze Objekt — verteilt die umlagefähigen Kosten nach
           Verteilerschlüssel auf alle Einheiten.

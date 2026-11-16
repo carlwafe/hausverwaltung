@@ -31,7 +31,7 @@ export type MieterkontoJahr = {
   uebertragVorjahr: number;
   sollKaltmieteMonatlich: number;
   sollNebenkostenMonatlich: number;
-  // Offener Saldo der Nebenkostenabrechnung des Vorjahres selbst (positiv = noch auszuzahlendes Guthaben,
+  // Offener Saldo der Betriebskostenabrechnung des Vorjahres selbst (positiv = noch auszuzahlendes Guthaben,
   // negativ = noch einzuziehende Nachzahlung), null = keine Abrechnung vorhanden. Wie in der
   // Jahresübersicht fließt sie nur in den Saldo am Jahresende ein, nicht in den Übertrag. Die Gegenrechnung
   // der unbezahlten NK-Vorauszahlung ist dagegen Teil des Saldos (Zeile in der Tabelle, siehe
@@ -97,10 +97,10 @@ export function verfuegbareKontoJahre(sollZeilen: SollZeile[], bis: Date): numbe
 const formatEuro = (v: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(v);
 
 /**
- * Hinweis zur Aufteilung einer Teilzahlung auf Nebenkosten und Kaltmiete, je Zahlungs-ID. Nur ab
+ * Hinweis zur Aufteilung einer Teilzahlung auf Betriebskosten und Kaltmiete, je Zahlungs-ID. Nur ab
  * Mietjahr ANTEILIG_AB_JAHR und nur für Zahlungen, bei denen die Summe der Zahlungen des Monats davor noch
  * unter dem Soll lag (Kaltmiete + NK, ohne Umsatzsteuer) — wer das Soll voll zahlt, braucht keinen Hinweis.
- * Dieselbe Regel wie in der Nebenkostenabrechnung (nkAnteilEinerZahlung); das Konto selbst rechnet weiter
+ * Dieselbe Regel wie in der Betriebskostenabrechnung (nkAnteilEinerZahlung); das Konto selbst rechnet weiter
  * mit dem Gesamtbetrag, der Hinweis ändert den Saldo nicht.
  */
 function teilzahlungsHinweise(pays: Zahlung[], soll: SollZeile | undefined, mehrwertsteuer: number, jahr: number): Map<string, string> {
@@ -142,7 +142,7 @@ export function baueMieterkontoJahr(input: {
   // gegenrechnungenJeJahr in nk-saldo.ts). Sie steht als Zeile am Versanddatum der Abrechnung; was vor dem
   // Jahresanfang versendet wurde, steckt im Übertrag, was nach `bis` liegt, fehlt noch.
   gegenrechnungen?: { jahr: number; betrag: number; datum: Date }[];
-  // Monatliche Umsatzsteuer (Garagen) im Soll — gehört nicht zu den Nebenkosten und wird für den Hinweis zur
+  // Monatliche Umsatzsteuer (Garagen) im Soll — gehört nicht zu den Betriebskosten und wird für den Hinweis zur
   // anteiligen Aufteilung von Teilzahlungen vom Soll abgezogen.
   mehrwertsteuerMonatlich?: number;
 }): MieterkontoJahr {
@@ -253,7 +253,7 @@ export function baueMieterkontoJahr(input: {
           sollKaltmiete: null, sollNebenkosten: null, sollGesamt: null,
           buchungsart: `${g.betrag > 0 ? "Gutschrift unbezahlte" : "Belastung überzahlte"} NK-Vorauszahlung ${g.jahr}`,
           datum: e.datum, betrag: null, differenz: g.betrag, saldo,
-          bemerkung: `Nebenkostenabrechnung ${g.jahr} versendet: nicht gezahlte NK-Vorauszahlung ist nicht mehr geschuldet`,
+          bemerkung: `Betriebskostenabrechnung ${g.jahr} versendet: nicht gezahlte NK-Vorauszahlung ist nicht mehr geschuldet`,
           sonderbuchung: true,
         });
         summe.differenz += g.betrag;

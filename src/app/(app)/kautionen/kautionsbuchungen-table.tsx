@@ -78,7 +78,7 @@ export type KautionsbuchungRow = {
   // Nur bei kategorie === "EINBEHALT" gesetzt; id der Zeile ist dann die KautionEinbehalt-id.
   einbehalt: {
     status: KautionEinbehaltStatus;
-    // Abrechnungsjahr der Nebenkostenabrechnung, mit der der Einbehalt verrechnet wurde.
+    // Abrechnungsjahr der Betriebskostenabrechnung, mit der der Einbehalt verrechnet wurde.
     nkJahr: number | null;
     // Mit einer Forderung aus dem Mieterkonto (Mietrückstand, Gebühren) verrechnet.
     mieterkonto: boolean;

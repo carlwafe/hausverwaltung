@@ -105,7 +105,7 @@ export function AufteilenForm({
         „Abschlag HS 14 — &lt;Originaltext&gt;“, damit die Kundennummer erhalten bleibt.
       </p>
       <p className="mb-3 text-xs text-neutral-500">
-        Kostenjahr gilt nur für die Nebenkostenabrechnung; die Jahresübersicht zählt alle Teile im
+        Kostenjahr gilt nur für die Betriebskostenabrechnung; die Jahresübersicht zählt alle Teile im
         Jahr der Abbuchung.
       </p>
       <form action={submit} className="space-y-2">

@@ -36,7 +36,7 @@ export default async function KostenartenPage() {
           </p>
           <p className="mt-1 max-w-2xl text-xs text-neutral-500">
             Umlagefähig ohne Verteilerschlüssel heißt: die Kosten werden erfasst, aber nicht in die
-            Nebenkostenabrechnung umgelegt (z.B. &bdquo;Wartungsarbeiten Heizung (über Techem
+            Betriebskostenabrechnung umgelegt (z.B. &bdquo;Wartungsarbeiten Heizung (über Techem
             verrechnet)&ldquo;, weil Techem sie in der Heizkostenabrechnung berechnet). Die Warnung
             &bdquo;kein Verteilerschlüssel&ldquo; in der Abrechnung ist dann erwartet.
           </p>
@@ -44,7 +44,7 @@ export default async function KostenartenPage() {
             &bdquo;Winterdienst&ldquo; nicht mehr verwenden: Immo-Runner-Rechnungen (Hausmeister,
             Treppenhaus, Garten, Winterdienst) werden einheitlich unter &bdquo;Hauswart&ldquo; gebucht,
             auch eine separate Winterdienst-Zeile. Die Kostenart bleibt nur wegen der Buchung
-            11/2025 (535,50 €) bestehen, die so vom Vorverwalter kam und in der Nebenkostenabrechnung
+            11/2025 (535,50 €) bestehen, die so vom Vorverwalter kam und in der Betriebskostenabrechnung
             2025 unberücksichtigt blieb (Abrechnung abgeschlossen).
           </p>
         </div>

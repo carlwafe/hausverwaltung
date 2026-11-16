@@ -1,4 +1,4 @@
-// Vorschlag für die neue monatliche Betriebskostenvorauszahlung nach einer Nebenkostenabrechnung
+// Vorschlag für die neue monatliche Betriebskostenvorauszahlung nach einer Betriebskostenabrechnung
 // (§ 560 Abs. 4 BGB: Anpassung auf eine "angemessene Höhe" per Erklärung in Textform). Maßstab ist
 // der Kostenanteil des Mieters aus der letzten Abrechnung, auf ein volles Jahr hochgerechnet.
 //

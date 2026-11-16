@@ -1,4 +1,4 @@
-// Berechnungs-Engine für die Nebenkostenabrechnung. Reine Funktionen auf einfachen Datenstrukturen
+// Berechnungs-Engine für die Betriebskostenabrechnung. Reine Funktionen auf einfachen Datenstrukturen
 // (kein Prisma-Import hier) — die aufrufende Server Action lädt die Daten und übergibt sie, das
 // macht die Berechnung isoliert testbar (z.B. per tsx-Skript gegen echte Daten). Kosten können auf
 // fünf Ebenen liegen (Objekt gesamt, Haus, Kostengruppe, einzelnes Gebäude, einzelne Einheit) —
@@ -489,14 +489,14 @@ function berechneEinheitAnteile(
 }
 
 /**
- * Berechnet eine vollständige Nebenkostenabrechnung für ein Jahr. Erzeugt pro Einheit und
+ * Berechnet eine vollständige Betriebskostenabrechnung für ein Jahr. Erzeugt pro Einheit und
  * Mietvertrag eine Position — bei einem Mieterwechsel während des Jahres also mehrere Positionen
  * für dieselbe Einheit, jede zeitanteilig nur für den Zeitraum, den der jeweilige Mietvertrag die
  * Einheit tatsächlich innehatte. Zeiten ohne aktiven Mietvertrag (Leerstand) erzeugen bewusst
  * keine Position — der Kostenanteil für diesen Zeitraum bleibt unberechnet (trägt der
  * Eigentümer), verzerrt aber nicht den Anteil der anderen Einheiten, da die Verteilerschlüssel-
  * Berechnung unabhängig vom Vermietungsstatus auf der vollen Wohnfläche/Einheitenzahl/Verbrauch
- * basiert. Garagen werden komplett ausgelassen (keine Nebenkosten laut Mietvertragsstruktur).
+ * basiert. Garagen werden komplett ausgelassen (keine Betriebskosten laut Mietvertragsstruktur).
  */
 export function berechneNebenkostenabrechnung(
   jahr: number,

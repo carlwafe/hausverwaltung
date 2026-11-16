@@ -57,7 +57,7 @@ export default async function NkSchreibenPage({ params }: { params: Promise<{ id
   return (
     <div>
       <Link href={`/nebenkostenabrechnungen/${id}`} className="mb-2 inline-block text-sm text-neutral-400 hover:text-white">
-        ← Nebenkostenabrechnung {abrechnung.jahr}
+        ← Betriebskostenabrechnung {abrechnung.jahr}
       </Link>
       <h1 className="text-2xl font-semibold text-white">Schreiben Betriebskostenabrechnung {abrechnung.jahr}</h1>
       <p className="mb-4 mt-1 max-w-3xl text-sm text-neutral-400">

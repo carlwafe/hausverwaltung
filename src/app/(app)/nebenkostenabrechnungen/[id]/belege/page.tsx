@@ -46,7 +46,7 @@ export default async function BelegPruefungPage({ params }: { params: Promise<{ 
   return (
     <div>
       <Link href={`/nebenkostenabrechnungen/${id}`} className="mb-2 inline-block text-sm text-neutral-400 hover:text-white">
-        ← Nebenkostenabrechnung {abrechnung.jahr}
+        ← Betriebskostenabrechnung {abrechnung.jahr}
       </Link>
       <h1 className="text-2xl font-semibold text-white">Belegprüfung {abrechnung.jahr}</h1>
       <p className="mb-6 max-w-3xl text-sm text-neutral-400">

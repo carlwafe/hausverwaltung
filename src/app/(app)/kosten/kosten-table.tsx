@@ -38,7 +38,7 @@ export type KostenpositionRow = {
   beschreibung: string | null;
   // Die Bankzeile selbst wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
   hatRohdaten: boolean;
-  // Belegprüfung der Nebenkostenabrechnung: Dokument vorhanden / fehlt / „Kein Beleg nötig“ / nicht beleg-pflichtig.
+  // Belegprüfung der Betriebskostenabrechnung: Dokument vorhanden / fehlt / „Kein Beleg nötig“ / nicht beleg-pflichtig.
   belegStatus: BelegStatus;
   importBatchId: string | null;
   importDateiname: string | null;
@@ -121,7 +121,7 @@ const columns: Column<KostenpositionRow>[] = [
     // Wie auf der Handy-Karte: nur ein Kennzeichen, wenn es zutrifft — leer = nicht umlagefähig.
     key: "umlagefaehig",
     label: "Uml.",
-    title: "Umlagefähig (Kostenart wird in der Nebenkostenabrechnung auf die Mieter umgelegt)",
+    title: "Umlagefähig (Kostenart wird in der Betriebskostenabrechnung auf die Mieter umgelegt)",
     sortValue: (k) => (k.umlagefaehig ? 1 : 0),
     render: (k) =>
       k.umlagefaehig ? (

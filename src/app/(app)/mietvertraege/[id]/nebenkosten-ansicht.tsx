@@ -134,7 +134,7 @@ function KostenBlock({
 }
 
 /**
- * Nebenkostenabrechnung eines Mietvertrags für ein Jahr im Aufbau des Musters: kalte und warme
+ * Betriebskostenabrechnung eines Mietvertrags für ein Jahr im Aufbau des Musters: kalte und warme
  * Betriebskosten mit Gesamtkosten, Verteilerschlüssel, Umlagefaktor und Anteil, darunter Abrechnung
  * & Saldo (Nachzahlung + / Guthaben −), Erledigung des Saldos und die neue Vorauszahlung.
  */
@@ -154,8 +154,8 @@ export function NebenkostenAnsicht({
     return (
       <div className="rounded-lg border border-neutral-800 px-4 py-8 text-center text-sm text-neutral-500">
         {jahr === null
-          ? "Für diesen Mietvertrag gibt es noch keine Nebenkostenabrechnung."
-          : `Für ${jahr} gibt es keine Nebenkostenabrechnung für diesen Mietvertrag.`}
+          ? "Für diesen Mietvertrag gibt es noch keine Betriebskostenabrechnung."
+          : `Für ${jahr} gibt es keine Betriebskostenabrechnung für diesen Mietvertrag.`}
       </div>
     );
   }
@@ -183,7 +183,7 @@ export function NebenkostenAnsicht({
     <div>
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-base font-medium text-white">
-          Nebenkostenabrechnung für den Zeitraum 01.01.{daten.jahr} – 31.12.{daten.jahr}
+          Betriebskostenabrechnung für den Zeitraum 01.01.{daten.jahr} – 31.12.{daten.jahr}
         </h3>
         <Link href={`/nebenkostenabrechnungen/${daten.abrechnungId}`} className="text-xs text-neutral-400 hover:text-white hover:underline">
           Gesamtabrechnung {daten.jahr} ({daten.abrechnungStatus === "FINAL" ? "final" : "Entwurf"}) →

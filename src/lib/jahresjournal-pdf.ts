@@ -410,7 +410,7 @@ export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Ar
   );
   b.abstand(3);
   b.absatz(
-    "Ergebnis-wirksam sind Mieten, Nebenkosten-Ausgleich und Kosten (fließen in die Einnahmen-Überschuss-Rechnung ein). " +
+    "Ergebnis-wirksam sind Mieten, Betriebskosten-Ausgleich und Kosten (fließen in die Einnahmen-Überschuss-Rechnung ein). " +
       "Durchlaufende Posten (Mietweiterleitung, Darlehenstilgung, Kautionen) bewegen den Kontostand, sind aber weder Einnahme noch Ausgabe im steuerlichen Sinn.",
     { farbe: GRAU },
   );

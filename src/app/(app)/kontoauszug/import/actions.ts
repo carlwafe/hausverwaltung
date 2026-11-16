@@ -285,7 +285,7 @@ function berechneBestehendeImportSets({
 }
 
 // Refresh-Endpunkt für den Client: nach jedem erfolgreichen Import in einem beliebigen Abschnitt
-// (Zahlungen, Kosten, Mietweiterleitungen, Kaution, Nebenkostenausgleich) direkt aufgerufen, um
+// (Zahlungen, Kosten, Mietweiterleitungen, Kaution, Betriebskostenausgleich) direkt aufgerufen, um
 // die "bereits importiert"-Listen aller Abschnitte auf den aktuellen DB-Stand zu bringen — ohne
 // die Datei erneut hochzuladen. Eigenes, schlankeres Promise.all als previewImport (nur die für
 // die Dedup-Listen nötigen Felder, keine Kandidatenlisten/Historie fürs Zeilen-Matching).
@@ -997,7 +997,7 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
     }
   }
 
-  // Mietweiterleitung/Kaution/Nebenkostenausgleich nutzen dieselbe Dedup-Formel
+  // Mietweiterleitung/Kaution/Betriebskostenausgleich nutzen dieselbe Dedup-Formel
   // (datumBetragZweckSchluessel), aber jeweils gegen ihre eigene Buchungsart-Familie geprüft —
   // exakt wie bisher, nur jetzt in einer Schleife statt drei fast identischen Funktionen.
   const sonstigeFamilien: { gruppe: BuchungsartGruppe; code?: string; kontokreis?: string }[] = [
@@ -1125,7 +1125,7 @@ export const commitBuchungen = mitMeldung(async function commitBuchungen(_prev: 
     });
   }
 
-  // Importierter Nebenkostenausgleich ohne Position in der Abrechnung des Jahres: Platzhalter anlegen.
+  // Importierter Betriebskostenausgleich ohne Position in der Abrechnung des Jahres: Platzhalter anlegen.
   const nkPaare = new Set(
     neu
       .filter((r) => r.gruppe === "NEBENKOSTENAUSGLEICH" && r.mietvertragId && r.jahr)

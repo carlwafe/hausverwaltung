@@ -5,7 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 //    Mieter schuldet uns das): trägt bezugTyp = NK_VERRECHNUNG_BEZUG und jahr = Abrechnungsjahr;
 //  - mit der Kaution verrechnet (Buchungsart KAUTION_EINBEHALT, negativer Betrag): die Buchung eines
 //    KautionEinbehalt mit NK-Bezug trägt jahr = Abrechnungsjahr (bezugTyp "KautionEinbehalt").
-// Die Verknüpfung läuft über Mietvertrag+Jahr (wie beim Nebenkostenausgleich), nicht über die bei
+// Die Verknüpfung läuft über Mietvertrag+Jahr (wie beim Betriebskostenausgleich), nicht über die bei
 // "Neu berechnen" wechselnde Positions-ID.
 export const NK_VERRECHNUNG_BEZUG = "Nebenkostenabrechnung";
 export const KAUTION_EINBEHALT_BEZUG = "KautionEinbehalt";

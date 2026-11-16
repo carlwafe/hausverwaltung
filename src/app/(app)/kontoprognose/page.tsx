@@ -61,7 +61,7 @@ export default async function KontoprognosePage({ searchParams }: { searchParams
           Kontostand
         </Link>
         ) Monat für Monat in die Zukunft fort: erwartete Mieteingänge, laufende Kosten, Darlehensraten laut Tilgungsplan, Weiterleitung an die
-        Eigentümerin und der Nebenkostenausgleich. Das ist eine Schätzung aus den Zahlen der letzten Monate, keine Zusage — die Annahmen stehen
+        Eigentümerin und der Betriebskostenausgleich. Das ist eine Schätzung aus den Zahlen der letzten Monate, keine Zusage — die Annahmen stehen
         unter dem Diagramm und lassen sich hier überschreiben.
       </p>
 
@@ -86,7 +86,7 @@ export default async function KontoprognosePage({ searchParams }: { searchParams
         </div>
         <div>
           <label htmlFor="nk" className="mb-1 block text-xs text-neutral-400">
-            Nebenkostenausgleich
+            Betriebskostenausgleich
           </label>
           <select id="nk" name="nk" defaultValue={parameter.nkAusgleich} className={feld}>
             <option value="vorjahr" className="bg-neutral-950">
@@ -128,7 +128,7 @@ export default async function KontoprognosePage({ searchParams }: { searchParams
             <span className="text-white">Weiterleitung je Monat:</span> was monatlich an die Eigentümerin überwiesen wird. Leer = typischer Betrag der letzten 3 Monate (Median).
           </li>
           <li>
-            <span className="text-white">Nebenkostenausgleich:</span> Guthaben-Auszahlungen und Nachzahlungen aus der Abrechnung. „Wie im Vorjahr“ plant dieselben Beträge im selben Monat ein; die Höhe der nächsten Abrechnung ist offen.
+            <span className="text-white">Betriebskostenausgleich:</span> Guthaben-Auszahlungen und Nachzahlungen aus der Abrechnung. „Wie im Vorjahr“ plant dieselben Beträge im selben Monat ein; die Höhe der nächsten Abrechnung ist offen.
           </li>
           <li>
             <span className="text-white">Verwaltungskosten, Reparaturen, Sonstige Kosten (% von bisher):</span> diese Kostenarten waren beim Vorverwalter besonders hoch. Hier tragen Sie ein, wie viel davon künftig noch anfällt, bezogen auf
@@ -207,7 +207,7 @@ function Ergebnis({ e }: { e: NonNullable<Awaited<ReturnType<typeof ladeKontopro
               <th className="px-4 py-2 text-right">Laufende Kosten</th>
               <th className="px-4 py-2 text-right">Darlehensraten</th>
               <th className="px-4 py-2 text-right">Weiterleitung</th>
-              <th className="px-4 py-2 text-right">Nebenkostenausgleich</th>
+              <th className="px-4 py-2 text-right">Betriebskostenausgleich</th>
               <th className="px-4 py-2 text-right">Veränderung</th>
               <th className="px-4 py-2 text-right">Kontostand Monatsende</th>
             </tr>
@@ -254,7 +254,7 @@ function Ergebnis({ e }: { e: NonNullable<Awaited<ReturnType<typeof ladeKontopro
         <h2 className="mb-2 text-sm font-medium text-white">Annahmen</h2>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
-            <span className="text-white">Mieteingang:</span> Soll der {e.vertraegeInPrognose} laufenden bzw. geplanten Mietverträge (Kaltmiete, Nebenkosten, Umsatzsteuer; bereits
+            <span className="text-white">Mieteingang:</span> Soll der {e.vertraegeInPrognose} laufenden bzw. geplanten Mietverträge (Kaltmiete, Betriebskosten, Umsatzsteuer; bereits
             eingetragene Mieterhöhungen und Vertragsenden sind berücksichtigt) mal Zahlungsquote{" "}
             <span className="text-white">{prozent(e.quote)}</span> (der Anteil des Solls, der in den letzten 6 Monaten tatsächlich einging, höchstens 100 %; Rückstände und Ausfälle drücken ihn). Leerstehende Wohnungen
             werden nicht neu vermietet.
@@ -282,7 +282,7 @@ function Ergebnis({ e }: { e: NonNullable<Awaited<ReturnType<typeof ladeKontopro
             .
           </li>
           <li>
-            <span className="text-white">Nebenkostenausgleich:</span>{" "}
+            <span className="text-white">Betriebskostenausgleich:</span>{" "}
             {parameter.nkAusgleich === "vorjahr"
               ? `wie in den letzten 12 Monaten (insgesamt ${euro0(e.nkVorjahr)}), im jeweils gleichen Monat. Wie hoch Guthaben und Nachzahlungen der nächsten Abrechnung ausfallen, ist offen — im Zweifel mit dem Vorjahreswert planen.`
               : "nicht berücksichtigt."}

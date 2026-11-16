@@ -81,7 +81,7 @@ export async function ladeAnpassungsschreiben(
   const nkHinweis = nk
     ? null
     : !position
-      ? "Für diesen Mietvertrag gibt es noch keine Nebenkostenabrechnung — der Vorschlag baut auf dem Kostenanteil einer Abrechnung auf."
+      ? "Für diesen Mietvertrag gibt es noch keine Betriebskostenabrechnung — der Vorschlag baut auf dem Kostenanteil einer Abrechnung auf."
       : Number(position.kostenanteilGesamt) <= 0
         ? `Die Abrechnung ${position.abrechnung.jahr} enthält für diesen Vertrag keinen Kostenanteil (z.B. automatisch angelegte Platzhalter-Position) — ohne Kostenanteil gibt es keinen Vorschlag.`
         : `Der Mietvertrag endet bis zum Jahresende ${position.abrechnung.jahr} — eine Anpassung der Vorauszahlung ist nicht mehr nötig.`;

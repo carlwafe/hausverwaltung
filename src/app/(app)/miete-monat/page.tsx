@@ -146,7 +146,7 @@ export default async function MieteMonatPage({
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Miete diesen Monat</h1>
         <p className="text-sm text-neutral-400">
-          Wer hat die Miete (Kaltmiete + Nebenkosten-Vorauszahlung) für den gewählten Monat noch nicht
+          Wer hat die Miete (Kaltmiete + Betriebskosten-Vorauszahlung) für den gewählten Monat noch nicht
           vollständig gezahlt? Gezählt werden Mietzahlungen nach Mietperiode; fällig ist die Miete
           am 3. Werktag des Monats. Ältere Rückstände und Sonderforderungen stehen unter{" "}
           <Link href="/offene-posten" className="underline hover:text-white">

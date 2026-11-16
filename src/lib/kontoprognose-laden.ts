@@ -223,7 +223,7 @@ export async function ladeKontoprognose(parameter: PrognoseParameter, heute: Dat
   const weiterleitungAutomatisch = typischeWeiterleitung(weiterleitungNetto);
   const weiterleitung = parameter.weiterleitung ?? weiterleitungAutomatisch;
 
-  // Nebenkostenausgleich: je Kalendermonat der Wert des Vorjahresmonats.
+  // Betriebskostenausgleich: je Kalendermonat der Wert des Vorjahresmonats.
   const nkJeKalendermonat = new Array<number>(12).fill(0);
   let nkBereitsGebucht = 0;
   let nkVorjahr = 0;

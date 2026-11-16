@@ -46,7 +46,7 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
  * Absichtlich hinter einem eingeklappten Link versteckt (Vorbild: Aufteilen-Formulare bei
  * Kosten/Zahlungen) — für Fälle, die sich nicht aus einer einzelnen importierten Kontobuchung
  * ergeben, z.B. ein einbehaltener Kautionsrest, der teils für eine Reparatur verwendet und teils
- * in einer Nebenkostenabrechnung verrechnet wurde, ohne dass dafür je eine als "Kaution"
+ * in einer Betriebskostenabrechnung verrechnet wurde, ohne dass dafür je eine als "Kaution"
  * erkennbare Auszahlung überwiesen wurde.
  */
 export function NeueKautionsbuchungForm({
@@ -95,7 +95,7 @@ export function NeueKautionsbuchungForm({
           text ||
             (istMieterkontoVerrechnung
               ? "Verrechnung mit Mieterkonto"
-              : `Verrechnung mit Nebenkostenabrechnung ${formData.get("nkJahr") ?? ""}`.trim()),
+              : `Verrechnung mit Betriebskostenabrechnung ${formData.get("nkJahr") ?? ""}`.trim()),
         );
         formData.set("betrag", String(Math.abs(Number(formData.get("betrag")))));
         formData.set("status", istNkVerrechnung || istPauschal || istMieterkontoVerrechnung ? "UNSTRITTIG" : einbehaltStatus);
@@ -136,7 +136,7 @@ export function NeueKautionsbuchungForm({
       <p className="mb-3 text-sm font-medium text-white">Kautionsbuchung manuell hinzufügen</p>
       <p className="mb-3 text-xs text-neutral-500">
         Auch für Fälle ohne eigene Kontobuchung — z.B. ein einbehaltener Kautionsrest, der anderweitig
-        verrechnet wurde (Reparaturkosten, Verrechnung in der Nebenkostenabrechnung).
+        verrechnet wurde (Reparaturkosten, Verrechnung in der Betriebskostenabrechnung).
       </p>
       <p className="mb-3 text-xs text-neutral-500">
         Einbehalte: <em>vorläufig</em>, solange die Rechnung noch fehlt — liegt sie vor, Einbehalt löschen und als
@@ -241,7 +241,7 @@ export function NeueKautionsbuchungForm({
         {istNkVerrechnung && (
           <div>
             <label className="mb-1 block text-xs text-neutral-400" htmlFor="nkJahr">
-              Abrechnungsjahr der Nebenkostenabrechnung
+              Abrechnungsjahr der Betriebskostenabrechnung
             </label>
             <input
               id="nkJahr"

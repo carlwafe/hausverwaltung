@@ -6,7 +6,7 @@ export const PLATZHALTER_KOMMENTAR_PRAEFIX = "Automatisch angelegt";
 const PLATZHALTER_KOMMENTAR = `${PLATZHALTER_KOMMENTAR_PRAEFIX}, weil eine Verrechnung/Zahlung ohne Position erfasst wurde — ohne Beträge, bitte Kostenanteil/Vorauszahlung von Hand eintragen oder die Zuordnung prüfen.`;
 
 /**
- * Stellt sicher, dass eine bestehende Nebenkostenabrechnung für das Jahr eine Position für den
+ * Stellt sicher, dass eine bestehende Betriebskostenabrechnung für das Jahr eine Position für den
  * Mietvertrag hat, sobald dafür eine Begleichung (Ausgleich, Verrechnung aufs Mieterkonto oder mit
  * der Kaution) gebucht wurde — sonst bliebe sie auf der Abrechnungsseite unsichtbar (z.B. bei
  * manuell angelegten Abrechnungen, in denen die Position vergessen wurde). Die Platzhalter-Position

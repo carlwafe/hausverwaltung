@@ -31,7 +31,7 @@ const aufteilungTeilSchema = z.object({
 });
 
 /**
- * Teilt eine Nebenkostenausgleich-Buchung (eine Überweisung) in mehrere Teile auf — z.B. eine Überweisung,
+ * Teilt eine Betriebskostenausgleich-Buchung (eine Überweisung) in mehrere Teile auf — z.B. eine Überweisung,
  * die zwei Abrechnungsjahre/Mietverträge auf einmal begleicht. Ein mit ausgezahltes Mietkonto-Guthaben
  * bzw. ein damit verrechneter Rückstand wird dagegen als NK-Verrechnung (MAHNGEBUEHR, siehe
  * nk-verrechnung.ts) gebucht, nicht durch Aufteilen. Alle Teile tragen das Bankvorzeichen und
@@ -61,7 +61,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
   const original = await prisma.buchung.findFirst({
     where: { id, buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
   });
-  if (!original) return "Nebenkostenausgleich nicht gefunden.";
+  if (!original) return "Betriebskostenausgleich nicht gefunden.";
 
   // Ohne Mietvertrag genügt ein Teil: das ist dann die nachträgliche Zuordnung (Storno + Neuanlage).
   if (teile.length < 2 && original.mietvertragId) return "Mindestens zwei Teile nötig";
@@ -106,7 +106,7 @@ export const teileNebenkostenausgleichAuf = mitMeldung(async function teileNeben
 
 /**
  * Macht die Aufteilung rückgängig: alle aktiven Teile werden storniert und zu einer einzigen
- * Nebenkostenausgleich-Buchung (Betrag = Summe) zusammengeführt — mit Mietvertrag/Jahr des
+ * Betriebskostenausgleich-Buchung (Betrag = Summe) zusammengeführt — mit Mietvertrag/Jahr des
  * größten Ausgleich-Teils (bzw. des ursprünglichen Originals).
  */
 export async function hebeNebenkostenausgleichAufteilungAuf(id: string) {
@@ -126,7 +126,7 @@ export async function hebeNebenkostenausgleichAufteilungAuf(id: string) {
     .filter((b) => b.buchungsart.code === "NEBENKOSTENAUSGLEICH")
     .sort((a, b) => Math.abs(Number(b.betrag)) - Math.abs(Number(a.betrag)));
   const vorlage = original ?? ausgleichTeile[0];
-  if (!vorlage) throw new AktionsFehler("Keine Nebenkostenausgleich-Buchung in dieser Aufteilung gefunden.");
+  if (!vorlage) throw new AktionsFehler("Keine Betriebskostenausgleich-Buchung in dieser Aufteilung gefunden.");
 
   const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
   const erstelltVon = benutzerLabel(user);

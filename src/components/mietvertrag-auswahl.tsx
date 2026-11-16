@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 // Tippen), filtert die Kandidaten per Teilstring-Suche und schließt beim Verlassen des Felds
 // wieder — ein Klick auf einen Dropdown-Eintrag löst dank onMouseDown-preventDefault kein Blur
 // aus, bevor der Klick ausgewertet wird. Generisch gehalten (nicht nur Mietverträge) — wird auch
-// für die Auswahl offener Nebenkostenabrechnung-Positionen wiederverwendet.
+// für die Auswahl offener Betriebskostenabrechnung-Positionen wiederverwendet.
 export function MietvertragAuswahl({
   kandidaten,
   defaultKandidaten,

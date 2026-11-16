@@ -45,7 +45,7 @@ export type KautionRow = {
   // bzw. bei einer Bar-Kaution (nie angelegt, keine Auflösung), sobald etwas abgerechnet wurde.
   aufgeloest: number;
   ausgezahlt: number;
-  // Mit einer Nebenkostenabrechnung, dem Mieterkonto oder einer vom Vermieter bezahlten Rechnung
+  // Mit einer Betriebskostenabrechnung, dem Mieterkonto oder einer vom Vermieter bezahlten Rechnung
   // verrechneter Teil ("Verrechnung mit NK-Abrechnung" / "…Mieterkonto" / "…Rechnung") — ist der
   // Kaution ebenfalls endgültig entzogen, aber ohne Auszahlung.
   verrechnet: number;
@@ -65,7 +65,7 @@ export type KautionRow = {
 };
 
 // Mehrzeilig, wächst mit dem Inhalt; speichert beim Verlassen des Felds, nur bei Änderung — wie die
-// Kommentarspalte der Nebenkostenabrechnung (pruefung-zellen.tsx).
+// Kommentarspalte der Betriebskostenabrechnung (pruefung-zellen.tsx).
 function KommentarFeld({ kautionId, notizen }: { kautionId: string; notizen: string }) {
   const [wert, setWert] = useState(notizen);
   const [gespeichert, setGespeichert] = useState(notizen);

@@ -7,7 +7,7 @@
 //  * Laufende Kosten je Kostenart aus den letzten 12 Monaten: wer in mindestens 8 davon vorkommt, gilt als
 //    regelmäßig (Monatsmittel), sonst als unregelmäßig (Betrag im jeweiligen Vorjahresmonat).
 //  * Darlehensraten laut Tilgungsplan, soweit noch nicht gebucht.
-//  * Mietweiterleitung als fester Monatsbetrag, Nebenkostenausgleich wie im Vorjahr.
+//  * Mietweiterleitung als fester Monatsbetrag, Betriebskostenausgleich wie im Vorjahr.
 // Zahlungen sind positiv (Eingang), Ausgaben negativ — wie ein Kontoauszug.
 
 export const KOSTEN_RUECKBLICK_MONATE = 12;
@@ -115,7 +115,7 @@ export type PrognoseEingabe = {
   /** Monatlich weitergeleiteter Betrag (positiv). */
   weiterleitung: number;
   weiterleitungBereitsGebucht: number;
-  /** Nebenkostenausgleich je Kalendermonat (Index 0 = Januar), Bankvorzeichen; leer = nicht berücksichtigen. */
+  /** Betriebskostenausgleich je Kalendermonat (Index 0 = Januar), Bankvorzeichen; leer = nicht berücksichtigen. */
   nkAusgleichJeKalendermonat: number[] | null;
   nkAusgleichBereitsGebucht: number;
   mindestbestand: number;

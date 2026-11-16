@@ -27,7 +27,7 @@ export type GruppierterImportRow = {
   anzahlMietweiterleitungen: number;
   anzahlKautionsbuchungen: number;
   /** Bewusst nicht weiter verfolgte Buchungen (siehe SonstigeBuchung), z.B. eine
-   * Nebenkostenabrechnungs-Rückzahlung für ein Jahr ohne Abrechnung in dieser App. */
+   * Betriebskostenabrechnungs-Rückzahlung für ein Jahr ohne Abrechnung in dieser App. */
   anzahlSonstige: number;
   /** Beim Import bewusst als "nicht kategorisiert" geparkt (siehe NichtZugeordneteBuchung) —
    * zählt als erklärt, nicht als offen, solange die Zeile nicht wieder gelöscht wird. */

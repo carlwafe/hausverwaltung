@@ -127,7 +127,7 @@ export default async function OffenePostenPage() {
           {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
           = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
           sind im Saldo enthalten und in der Spalte &bdquo;davon Sonderforderung&ldquo; ausgewiesen. Ebenso die
-          Gegenrechnung der NK-Vorauszahlung versendeter Nebenkostenabrechnungen (Spalte &bdquo;davon
+          Gegenrechnung der NK-Vorauszahlung versendeter Betriebskostenabrechnungen (Spalte &bdquo;davon
           NK-Gegenrechnung&ldquo;): Eine nicht gezahlte NK-Vorauszahlung steht zwar als Rückstand im Soll, ist
           nach dem Versand der Abrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) steht
           nicht im Saldo.

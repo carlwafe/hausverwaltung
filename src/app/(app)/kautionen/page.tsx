@@ -113,7 +113,7 @@ async function ladeKautionen(): Promise<KautionRow[]> {
     // Betrag ist der Kaution endgültig entzogen, ohne dass Geld an den Mieter fließt oder eine
     // Kontobewegung entsteht (Gegenbuchung auf der Kosten-Seite, Buchung.bezugId).
     else if (code === "KAUTION_VIRTUELLE_AUSZAHLUNG") eintrag.verrechnet += Math.abs(betrag);
-    // Mit der Nebenkostenabrechnung verrechneter Einbehalt (KAUTION_EINBEHALT mit Abrechnungsjahr,
+    // Mit der Betriebskostenabrechnung verrechneter Einbehalt (KAUTION_EINBEHALT mit Abrechnungsjahr,
     // siehe NK_VERRECHNUNG_BEZUG): der Betrag ist dem Kautionsrest ebenfalls entzogen und mindert
     // deshalb "Einbehalten". Ein einfacher Einbehalt ohne Abrechnungsjahr bleibt dagegen Teil des
     // einbehaltenen Restbetrags.
@@ -428,7 +428,7 @@ export default async function KautionenPage() {
         <p className="mt-1 max-w-2xl text-xs text-neutral-500">
           Trägt der Mieter eine Rechnung über die Kaution: &bdquo;Verrechnung mit Rechnung&ldquo; mit Verknüpfung zur
           Kostenposition buchen (die Gegenbuchung &bdquo;Verrechnet mit Kaution&ldquo; entsteht automatisch, Kosten
-          netto 0). Das ist keine Auszahlung &mdash; es zählt unter &bdquo;Verrechnet&ldquo;, wie die Verrechnung mit Nebenkostenabrechnung oder Mieterkonto.
+          netto 0). Das ist keine Auszahlung &mdash; es zählt unter &bdquo;Verrechnet&ldquo;, wie die Verrechnung mit Betriebskostenabrechnung oder Mieterkonto.
           Ohne Rechnung (z.B. Schlüssel) einen pauschalen Einbehalt buchen &mdash; er zählt als Einnahme.
         </p>
       </div>

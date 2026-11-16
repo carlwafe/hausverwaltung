@@ -317,7 +317,7 @@ export default async function NebenkostenabrechnungDetailPage({
       <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">
-            Nebenkostenabrechnung {abrechnung.jahr}
+            Betriebskostenabrechnung {abrechnung.jahr}
           </h1>
           <p className="text-sm text-neutral-400">
             Status: {STATUS_LABEL[abrechnung.status] ?? abrechnung.status} · {abrechnung.manuell ? "manuell geführt" : "berechnet"} · erstellt am{" "}
@@ -508,11 +508,11 @@ export default async function NebenkostenabrechnungDetailPage({
             <strong className="text-neutral-300">Saldo</strong> = Vorauszahlung − Kostenanteil (positiv
             = Guthaben, negativ = Nachzahlung).{" "}
             <strong className="text-neutral-300">Rückzahlung/Gutschrift</strong> zeigt die Summe der
-            tatsächlich importierten/erfassten Nebenkostenausgleich-Zahlungen für Mietvertrag und Jahr
+            tatsächlich importierten/erfassten Betriebskostenausgleich-Zahlungen für Mietvertrag und Jahr
             — die echte Kontobewegung, unabhängig vom berechneten Saldo. Einzelne Zahlungen lassen sich
             unter{" "}
             <Link href="/nebenkostenausgleich" className="underline hover:text-white">
-              Nebenkostenausgleich
+              Betriebskostenausgleich
             </Link>{" "}
             einsehen und korrigieren. <strong className="text-neutral-300">Saldo nach Gutschrift</strong>{" "}
             = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen

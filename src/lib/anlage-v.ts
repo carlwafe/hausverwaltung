@@ -1,5 +1,5 @@
 // Aufstellung für die Steuererklärung (Anlage V): Einnahmen und Kosten so gegliedert, wie der
-// Steuerberater sie braucht — Mieten und Nebenkosten getrennt, Instandhaltung separat, übrige Kosten
+// Steuerberater sie braucht — Mieten und Betriebskosten getrennt, Instandhaltung separat, übrige Kosten
 // nach umlagefähig / nicht umlagefähig. Reine Rechenlogik ohne Prisma, damit auch Client-Komponenten
 // die Bezeichnungen nutzen.
 
@@ -96,7 +96,7 @@ export type AnlageVAufstellung = {
   nkGuthaben: number; // ausgezahlt, als positiver Betrag
   // Einbehalte aus Kautionen, nach Art den Zeilen zugeordnet (Summen sind schon in mieten/nebenkosten/
   // sonstigeEinnahmen enthalten, hier nur für Hinweise und die Auflistung)
-  kautionMitNk: number; // mit Nachzahlung der Nebenkostenabrechnung verrechnet
+  kautionMitNk: number; // mit Nachzahlung der Betriebskostenabrechnung verrechnet
   kautionMitMiete: number; // mit Mietrückstand/Miete (Mieterkonto) verrechnet
   kautionPauschal: number; // pauschal einbehalten (Schlüssel, Gebühren …)
   sonstigeEinnahmen: number;
@@ -132,7 +132,7 @@ const gerundet = (n: number) => Math.round(n * 100) / 100;
 
 // Setzt die Summen des Jahresberichts in der Gliederung des Steuerberaters zusammen. Das Ergebnis
 // ist dasselbe wie im Jahresbericht (Einnahmen − Ausgaben); ausgezahlte NK-Guthaben mindern hier die
-// Nebenkosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen. Die Mietzahlungen sind nach der
+// Betriebskosten-Einnahmen (Anlage V, Z. 13) statt als Ausgabe zu erscheinen. Die Mietzahlungen sind nach der
 // 10-Tage-Regel dem Jahr zugeordnet (siehe zuflussJahrMiete); die Abweichung zum Bericht steht in `abgrenzung`.
 export function baueAnlageVAufstellung(eingabe: {
   kaltmiete: number; // netto, ohne Umsatzsteuer

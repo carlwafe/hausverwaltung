@@ -151,7 +151,7 @@ function VertragKarte({ v }: { v: VertragRow }) {
       <KarteWerte
         werte={[
           { label: "Kaltmiete", wert: formatEuro(v.kaltmiete) },
-          { label: "Nebenkosten", wert: formatEuro(v.nebenkostenVorauszahlung) },
+          { label: "Betriebskosten", wert: formatEuro(v.nebenkostenVorauszahlung) },
         ]}
       />
     </>
