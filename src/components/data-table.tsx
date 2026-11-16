@@ -70,6 +70,7 @@ export function DataTable<T extends { id: string }>({
   mobileSort,
   mobileSummary,
   kompakt = false,
+  zeilenSchritt,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -159,6 +160,10 @@ export function DataTable<T extends { id: string }>({
   /** Engerer Abstand zwischen den Spalten — für Tabellen mit vielen Spalten, die am Computer ohne
    * seitliches Scrollen in die Seitenbreite passen sollen. */
   kompakt?: boolean;
+  /** Seitenaufteilung der Tabelle am Computer: zunächst nur so viele Zeilen, weitere per Knopf „Weitere anzeigen“
+   * (die Kartenansicht am Handy zeigt immer 50 + Knopf). Suche, Filter, Sortierung und `renderFooter` gelten
+   * weiter für alle Zeilen. Für lange Listen setzen — jede gezeichnete Zeile kostet Ladezeit. */
+  zeilenSchritt?: number;
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
@@ -171,6 +176,7 @@ export function DataTable<T extends { id: string }>({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [kartenAnzahl, setKartenAnzahl] = useState(KARTEN_SCHRITT);
+  const [tabellenAnzahl, setTabellenAnzahl] = useState(zeilenSchritt ?? Infinity);
   const router = useRouter();
   const extraSpalten = (selectable ? 1 : 0) + (rowHref ? 1 : 0);
   const zellAbstand = kompakt ? "px-3" : "px-4";
@@ -426,7 +432,7 @@ export function DataTable<T extends { id: string }>({
             </tr>
           </thead>
           <tbody>
-            {sortiert.map((row) => {
+            {sortiert.slice(0, tabellenAnzahl).map((row) => {
               const expanded = expandedId === row.id;
               const ctx: RenderContext = {
                 expanded,
@@ -485,6 +491,27 @@ export function DataTable<T extends { id: string }>({
           )}
         </table>
       </div>
+      {zeilenSchritt && sortiert.length > tabellenAnzahl && (
+        <div className={`mt-3 flex flex-wrap items-center gap-2 text-sm text-neutral-400 ${mobileCard ? "hidden md:flex" : ""}`}>
+          <button
+            type="button"
+            onClick={() => setTabellenAnzahl((n) => n + zeilenSchritt)}
+            className="h-10 rounded-md border border-neutral-700 px-4 font-medium text-neutral-200 hover:border-neutral-400"
+          >
+            Weitere {Math.min(zeilenSchritt, sortiert.length - tabellenAnzahl)} anzeigen
+          </button>
+          <button
+            type="button"
+            onClick={() => setTabellenAnzahl(Infinity)}
+            className="h-10 rounded-md border border-neutral-700 px-4 hover:border-neutral-400"
+          >
+            Alle anzeigen
+          </button>
+          <span>
+            {tabellenAnzahl} von {sortiert.length} Zeilen
+          </span>
+        </div>
+      )}
     </div>
   );
 }

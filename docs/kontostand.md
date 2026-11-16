@@ -19,6 +19,13 @@ Der **echte Kontostand** kommt aus den Salden (Anfangs-/Endsaldo) der CAMT-XML-D
 - **Lücken** (`findeSaldoLuecken`): Endsaldo eines Tages ≠ Anfangssaldo des nächsten heißt, dass dazwischen eine Tagesdatei fehlt; die Seite warnt.
 - Buchungen **nach** dem letzten Bank-Tag (noch keine XML) erscheinen erst im Buchungsverlauf und in der Karte „Laut Buchungen“, nicht in der Differenz.
 
+## Darstellung (Reiter, Zeitraum, Seitenaufteilung)
+
+- Die Seite zeigt oben die Kopfkarten und die Lücken-Warnung, darunter drei Reiter: **Abweichungen** (nur Tage mit neuer Abweichung, über alle Zeiträume; beim Öffnen vorgewählt, wenn es welche gibt), **Tagesstände Bank** und **Buchungsverlauf**. Der Reiterwechsel läuft im Browser (kostet keine Serverzeit); gezeichnet wird nur der offene Reiter.
+- **Zeitraum** (30 Tage, 90 Tage — Standard —, 1 Jahr, Alles) gilt für Tagesstände und Buchungsverlauf und ist ein Link (`?zeitraum=…&ansicht=…`): Der Server schickt nur die Zeilen des Zeitraums, weil jede Zeile Ladezeit kostet. „Kontostand danach“ und die Differenz bleiben über den ganzen Verlauf gerechnet.
+- Beide Tabellen zeigen am Computer zunächst 50 Zeilen (`zeilenSchritt` an der `DataTable`) mit „Weitere anzeigen“/„Alle anzeigen“; Suche und Filter durchsuchen alle Zeilen des Zeitraums.
+- Offen: Der Server lädt für die Rechnung weiterhin alle Buchungen (`ladeKontostandEintraege`). Eine Summe für die Zeit vor dem Zeitraum statt der Einzelbuchungen würde das entlasten.
+
 ## Von Hand eingetragene Prüfwerte
 
 `KontostandKontrolle` bleibt (eingeklappt auf der Seite) für Auszüge ohne XML. **Der Jahresbericht und die Verifikation nutzen weiterhin nur diese Prüfwerte**, nicht die Bank-Salden (`src/lib/jahresjournal.ts`). Die Prüfwerte rechnen gegen den von Hand gesetzten Anker, falls vorhanden.

@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { KontostandKontrolleForm } from "./kontostand-kontrolle-form";
 import { loescheKontostandKontrolle } from "./actions";
 import { KontostandTable, type KontostandRow } from "./kontostand-table";
+import { KontostandAnsicht, type AnsichtTab } from "./kontostand-ansicht";
 import { SaldenTable, type SaldoRow } from "./salden-table";
 import { SaldenEinlesenForm } from "./salden-einlesen-form";
 import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteNotiz, KarteWerte } from "@/components/karte";
@@ -20,7 +21,23 @@ function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
 }
 
-export default async function KontostandPage() {
+// Zeitraumfilter der Tabellen: Der Server schickt nur die Zeilen des Zeitraums (Standard 90 Tage), weil jede Zeile Ladezeit kostet.
+const ZEITRAEUME = [
+  { wert: "30", label: "30 Tage", tage: 30 },
+  { wert: "90", label: "90 Tage", tage: 90 },
+  { wert: "365", label: "1 Jahr", tage: 365 },
+  { wert: "alle", label: "Alles", tage: null },
+];
+
+export default async function KontostandPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ zeitraum?: string; ansicht?: string }>;
+}) {
+  const { zeitraum: zeitraumParam, ansicht: ansichtParam } = await searchParams;
+  const zeitraum = ZEITRAEUME.find((z) => z.wert === zeitraumParam) ?? ZEITRAEUME[1];
+  // Ab diesem Tag (ISO) zeigen die Tabellen Zeilen; Stände („Kontostand danach“, Differenz) sind trotzdem über den ganzen Verlauf gerechnet.
+  const ab = zeitraum.tage === null ? null : new Date(new Date().getTime() - zeitraum.tage * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [objekt, salden] = await Promise.all([
     prisma.objekt.findFirst({ select: { kontostandAnkerDatum: true, kontostandAnkerBetrag: true } }),
     ladeKontosalden(),
@@ -92,6 +109,7 @@ export default async function KontostandPage() {
   const rows: KontostandRow[] = verlauf
     .slice()
     .reverse()
+    .filter((z) => ab === null || z.datum.toISOString().slice(0, 10) >= ab)
     .map((z) => ({
       id: z.id,
       datum: z.datum.toISOString(),
@@ -101,7 +119,45 @@ export default async function KontostandPage() {
       kontostand: z.kontostand,
     }));
 
-  const aktuellerStand = rows[0]?.kontostand ?? anker.betrag;
+  const tageImZeitraum = saldoZeilen.filter((z) => ab === null || z.datum >= ab);
+  const zeitraumHinweis = (zeilen: number, gesamt: number, einheit: string) =>
+    ab === null
+      ? undefined
+      : `Zeigt die letzten ${zeitraum.label} (ab ${formatDate(parseStrengesDatum(ab)!)}): ${zeilen} von ${gesamt} ${einheit}. Der Stand ist trotzdem über den ganzen Verlauf gerechnet.`;
+
+  const tabs: AnsichtTab[] = [
+    ...(saldoZeilen.length > 0
+      ? [
+          {
+            key: "abweichungen",
+            label: "Abweichungen",
+            anzahl: abweichungen.length,
+            hinweis: "Die Tage, an denen sich die Differenz zur Bank ändert — dort fehlt eine Buchung oder ist falsch erfasst. Über alle Zeiträume.",
+            inhalt: <SaldenTable rows={abweichungen} />,
+          },
+          {
+            key: "tage",
+            label: "Tagesstände Bank",
+            anzahl: tageImZeitraum.length,
+            mitZeitraum: true,
+            hinweis: zeitraumHinweis(tageImZeitraum.length, saldoZeilen.length, "Tagen"),
+            inhalt: <SaldenTable rows={tageImZeitraum} />,
+          },
+        ]
+      : []),
+    {
+      key: "buchungen",
+      label: "Buchungsverlauf",
+      anzahl: rows.length,
+      mitZeitraum: true,
+      hinweis: zeitraumHinweis(rows.length, verlauf.length, "Buchungen"),
+      inhalt: <KontostandTable rows={rows} />,
+    },
+  ];
+  // Beim Öffnen zuerst die Abweichungen, wenn es welche gibt; sonst die Tagesstände (bzw. der Verlauf ohne Bank-Salden).
+  const start = ansichtParam ?? (abweichungen.length > 0 ? "abweichungen" : saldoZeilen.length > 0 ? "tage" : "buchungen");
+
+  const aktuellerStand = rows[0]?.kontostand ?? verlauf[verlauf.length - 1]?.kontostand ?? anker.betrag;
   const stimmtAktuell = letzterTag ? Math.abs(letzterTag.differenz) < 0.005 : null;
 
   return (
@@ -168,12 +224,9 @@ export default async function KontostandPage() {
         </div>
       )}
 
-      {saldoZeilen.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-2 text-sm font-medium text-white">Tagesstände laut Bank</h2>
-          <SaldenTable rows={saldoZeilen} />
-        </div>
-      )}
+      <div className="mb-6">
+        <KontostandAnsicht tabs={tabs} start={start} zeitraum={zeitraum.wert} zeitraeume={ZEITRAEUME} />
+      </div>
 
       <details className="mb-6 rounded-lg border border-neutral-800 p-4">
         <summary className="cursor-pointer text-sm font-medium text-white">Salden aus XML-Dateien einlesen</summary>
@@ -284,9 +337,6 @@ export default async function KontostandPage() {
           </div>
         )}
       </details>
-
-      <h2 className="mb-2 text-sm font-medium text-white">Buchungen und Stand laut App</h2>
-      <KontostandTable rows={rows} />
     </div>
   );
 }

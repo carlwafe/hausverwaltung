@@ -79,6 +79,7 @@ export function KontostandTable({ rows }: { rows: KontostandRow[] }) {
       rows={rows}
       emptyMessage="Keine Buchungen erfasst."
       searchPlaceholder="Kontostand-Verlauf durchsuchen…"
+      zeilenSchritt={50}
       mobileCard={(z) => (
         <>
           <KarteKopf

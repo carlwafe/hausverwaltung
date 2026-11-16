@@ -88,6 +88,7 @@ export function SaldenTable({ rows }: { rows: SaldoRow[] }) {
       emptyMessage="Noch keine Salden gespeichert."
       searchPlaceholder="Tage durchsuchen (z.B. 03.2026)…"
       defaultSort={{ key: "datum", dir: "desc" }}
+      zeilenSchritt={50}
       rowClassName={(z) => (stimmt(z) ? "" : "bg-red-500/5")}
       selectFilter={{
         label: "Ergebnis",
