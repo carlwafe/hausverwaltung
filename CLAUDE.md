@@ -21,7 +21,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 | `docs/schreiben-mieter.md` | Indexmiete, BK-Anpassung, Layout „klar“, BK-Abrechnung als PDF, Arbeitskosten (§ 35a), Mahnung/Kündigung, Garagen-Schreiben, Mietrechtsreform. |
 | `docs/mietvertraege-mieter.md` | Kontaktdaten und Bankverbindung des Objekts, Mieternamen, Notiz, Mieter-Status, Garagen (Umsatzsteuer, Vertragsformular), Buchhaltungs-Stichtag je Vertrag. |
 | `docs/zahlungen-kautionen.md` | Kommentar zur Buchung, Kautionen, Zahlungsweg, Tilgungsreihenfolge, Mietperiode der Zahlung, Gebühren und Rücklastschriften. |
-| `docs/sepa-lastschrift.md` | Gläubiger-ID, Mandate, Mandatsseite, Einzugsdatei pain.008, Auszug lesen. |
+| `docs/sepa-lastschrift.md` | Gläubiger-ID, Mandate, Mandatsseite, Einzugsdatei pain.008, Seite Lastschrift-Einzug (Download, Merker „eingereicht“), Auszug lesen. |
 | `docs/berichte-steuer.md` | Jahres-/Quartalsübersicht, Aufstellung für die Steuererklärung, Jahresbericht Kontoführung (PDF), Anschaffung/AfA, Kontenrahmen. |
 | `docs/darlehen.md` | Zins/Tilgung-Buchung, Zuordnung zum Darlehen, Tilgungsplan-Rechnung, Soll/Ist-Darlehenskonto, Jahreswerte „Zinsen von anderen Konten“. |
 | `docs/kontostand.md` | Kontostand-Seite: Bank-Salden aus der CAMT-XML (Tabelle `kontosalden`), Anker, Tagesabgleich mit den Buchungen, Lücken. |
