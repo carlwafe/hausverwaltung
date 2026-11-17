@@ -15,26 +15,28 @@ export default async function NeuesTicketPage({
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-white">Neues Ticket</h1>
-      <TicketForm
-        optionen={optionen}
-        action={createTicket}
-        kannPrivatAendern
-        initial={{
-          privat: false,
-          titel: "",
-          beschreibung: "",
-          status: "OFFEN",
-          prioritaet: "NORMAL",
-          kategorie: "BUCHHALTUNG",
-          faelligAm: "",
-          einheitId: mietvertrag?.einheitId ?? q.einheitId ?? "",
-          mietvertragId: mietvertrag?.id ?? "",
-          gebaeudeId: q.gebaeudeId ?? "",
-          hausId: q.hausId ?? "",
-          dienstleisterId: q.dienstleisterId ?? "",
-          zugewiesenAnId: "",
-        }}
-      />
+      <div className="grid max-w-3xl gap-6">
+        <TicketForm
+          optionen={optionen}
+          action={createTicket}
+          kannPrivatAendern
+          initial={{
+            privat: false,
+            titel: "",
+            beschreibung: "",
+            status: "OFFEN",
+            prioritaet: "NORMAL",
+            kategorie: "BUCHHALTUNG",
+            faelligAm: "",
+            einheitId: mietvertrag?.einheitId ?? q.einheitId ?? "",
+            mietvertragId: mietvertrag?.id ?? "",
+            gebaeudeId: q.gebaeudeId ?? "",
+            hausId: q.hausId ?? "",
+            dienstleisterId: q.dienstleisterId ?? "",
+            zugewiesenAnId: "",
+          }}
+        />
+      </div>
     </div>
   );
 }

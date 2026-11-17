@@ -22,6 +22,9 @@ const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { timeZone:
 
 const badge = "rounded-full px-2 py-0.5 text-xs whitespace-nowrap";
 
+// Feste Breiten (im <div> der Zelle) für alle Spalten außer dem Titel: Die beiden Tabellen der Seite
+// (Mängel/Sonstiges und Buchhaltung) stehen untereinander, ihre Spalten sollen bündig sein — der Titel nimmt
+// als Füllspalte den Rest.
 const columns: Column<TicketRow>[] = [
   {
     key: "nummer",
@@ -31,28 +34,36 @@ const columns: Column<TicketRow>[] = [
     render: (t) => <span className="text-neutral-400">#{t.nummer}</span>,
   },
   {
+    // Titel und Bezug teilen sich die Füllspalte (Bezug klein darunter): eigene Bezug-Spalte machte die Titel
+    // zu schmal und die Zeilen zwei bis drei Textzeilen hoch.
     key: "titel",
-    label: "Titel",
+    label: "Titel · Bezug",
+    title: "Sortiert nach Titel",
+    fuellend: true,
     sortValue: (t) => t.titel,
-    searchValue: (t) => t.titel,
+    searchValue: (t) => `${t.titel} ${t.bezug}`,
     render: (t) => (
-      <Link prefetch={false} href={`/tickets/${t.id}`} className={TABELLEN_LINK}>
-        {t.titel}
-      </Link>
+      <>
+        <div className="truncate" title={t.titel}>
+          <Link prefetch={false} href={`/tickets/${t.id}`} className={TABELLEN_LINK}>
+            {t.titel}
+          </Link>
+        </div>
+        {t.bezug && (
+          <div className="truncate text-xs text-neutral-400" title={t.bezug}>
+            {t.bezug}
+          </div>
+        )}
+      </>
     ),
   },
   {
     key: "kategorie",
     label: "Kategorie",
     sortValue: (t) => t.kategorie,
-    render: (t) => TICKET_KATEGORIE.find((k) => k.value === t.kategorie)?.label ?? t.kategorie,
-  },
-  {
-    key: "bezug",
-    label: "Bezug",
-    sortValue: (t) => t.bezug,
-    searchValue: (t) => t.bezug,
-    render: (t) => t.bezug || "–",
+    render: (t) => (
+      <div className="w-32">{TICKET_KATEGORIE.find((k) => k.value === t.kategorie)?.label ?? t.kategorie}</div>
+    ),
   },
   {
     key: "status",
@@ -60,38 +71,55 @@ const columns: Column<TicketRow>[] = [
     sortValue: (t) => TICKET_STATUS.findIndex((s) => s.value === t.status),
     render: (t) => {
       const s = TICKET_STATUS.find((x) => x.value === t.status);
-      return <span className={`${badge} ${s?.farbe ?? ""}`}>{s?.label ?? t.status}</span>;
+      return (
+        <div className="w-28">
+          <span className={`${badge} ${s?.farbe ?? ""}`}>{s?.label ?? t.status}</span>
+        </div>
+      );
     },
   },
   {
+    // Fast alle Tickets sind „Normal“ — das Kennzeichen steht nur, wenn die Priorität davon abweicht.
     key: "prioritaet",
-    label: "Priorität",
+    label: "Prio",
+    title: "Priorität — „Normal“ wird nicht angezeigt",
     sortValue: (t) => TICKET_PRIORITAET.findIndex((p) => p.value === t.prioritaet),
     render: (t) => {
       const p = TICKET_PRIORITAET.find((x) => x.value === t.prioritaet);
-      return <span className={`${badge} ${p?.farbe ?? ""}`}>{p?.label ?? t.prioritaet}</span>;
+      return (
+        <div className="w-20">
+          {t.prioritaet !== "NORMAL" && <span className={`${badge} ${p?.farbe ?? ""}`}>{p?.label ?? t.prioritaet}</span>}
+        </div>
+      );
     },
   },
   {
     key: "faelligAm",
     label: "Fällig",
     sortValue: (t) => t.faelligAm ?? "9999-12-31",
-    render: (t) =>
-      t.faelligAm ? (
-        <span className={t.ueberfaellig ? "font-medium text-red-400" : ""}>
-          {formatDate(t.faelligAm)}
-          {t.ueberfaellig && " (überfällig)"}
-        </span>
-      ) : (
-        "–"
-      ),
+    render: (t) => (
+      <div className="w-24 whitespace-nowrap">
+        {t.faelligAm ? (
+          <span className={t.ueberfaellig ? "font-medium text-red-400" : ""}>
+            {formatDate(t.faelligAm)}
+            {t.ueberfaellig && <span className="block text-xs font-normal">überfällig</span>}
+          </span>
+        ) : (
+          <span className="text-neutral-500">–</span>
+        )}
+      </div>
+    ),
   },
   {
     key: "zustaendig",
     label: "Zuständig",
     sortValue: (t) => t.zustaendig,
     searchValue: (t) => t.zustaendig,
-    render: (t) => t.zustaendig || "–",
+    render: (t) => (
+      <div className="w-28 truncate" title={t.zustaendig || undefined}>
+        {t.zustaendig || <span className="text-neutral-500">–</span>}
+      </div>
+    ),
   },
 ];
 

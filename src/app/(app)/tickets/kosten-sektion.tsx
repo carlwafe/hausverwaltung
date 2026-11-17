@@ -10,7 +10,7 @@ const formatDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: "UT
 const kurz = (s: string | null, n = 40) => (s && s.length > n ? `${s.slice(0, n)}…` : (s ?? ""));
 
 // Kostenpositionen eines Tickets (z.B. Handwerkerrechnung) plus Auswahl zum Verknüpfen weiterer.
-export async function KostenSektion({ ticketId }: { ticketId: string }) {
+export async function KostenSektion({ ticketId, className = "" }: { ticketId: string; className?: string }) {
   const [verknuepft, kandidaten] = await Promise.all([
     prisma.ticketKosten.findMany({
       where: { ticketId, buchung: AKTIVE_BUCHUNG_FILTER },
@@ -32,8 +32,10 @@ export async function KostenSektion({ ticketId }: { ticketId: string }) {
   const summe = verknuepft.reduce((s, v) => s + Number(v.buchung.betrag), 0);
 
   return (
-    <div className="mt-8 max-w-3xl rounded-lg border border-neutral-800 p-4">
-      <h2 className="mb-3 text-lg font-medium text-white">Kosten ({verknuepft.length})</h2>
+    // Selten genutzt: ohne verknüpfte Kosten eingeklappt, damit der Verlauf im Blick bleibt.
+    <details open={verknuepft.length > 0} className={`min-w-0 rounded-lg border border-neutral-800 p-4 ${className}`}>
+      <summary className="cursor-pointer text-lg font-medium text-white">Kosten ({verknuepft.length})</summary>
+      <div className="mt-3">
       <div className="mb-4 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
@@ -103,6 +105,7 @@ export async function KostenSektion({ ticketId }: { ticketId: string }) {
         Zur Auswahl stehen die 500 neuesten Kostenpositionen. Wird eine Kostenposition bearbeitet (Storno + Neuanlage),
         muss sie hier neu verknüpft werden.
       </p>
-    </div>
+      </div>
+    </details>
   );
 }
