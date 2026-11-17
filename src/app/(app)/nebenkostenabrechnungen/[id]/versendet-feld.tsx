@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { DateInput } from "@/components/date-input";
 import { runFormAction } from "@/lib/form-utils";
 import { speichereVersendetAm } from "../actions";
+import { SCHRITT_KARTE, SCHRITT_KNOPF, SCHRITT_TITEL } from "./panel";
 
 /**
  * Versanddatum der Abrechnung. Erst ab diesem Datum zählt die Gegenrechnung der unbezahlten BK-Vorauszahlung
@@ -28,7 +29,21 @@ export function VersendetFeld({
   const [t, m, j] = (versendetAm ?? "").split("-").reverse();
 
   return (
-    <div className="mb-6 max-w-3xl rounded-md border border-neutral-800 px-3 py-2">
+    <div className={SCHRITT_KARTE}>
+      <p className={SCHRITT_TITEL}>3 · Versand</p>
+      <p className={`mt-1 text-sm font-medium ${versendetAm ? "text-green-400" : "text-white"}`}>
+        {versendetAm ? `Versendet am ${t}.${m}.${j}` : "Noch nicht versendet"}
+      </p>
+      <details className="mb-3 mt-1 text-xs text-neutral-500">
+        <summary className="cursor-pointer select-none hover:text-white">Was bewirkt das Versanddatum?</summary>
+        <p className="mt-1.5">
+          Ab dem Versanddatum zählt die Gutschrift der nicht gezahlten BK-Vorauszahlung im Mietsaldo und (bei berechneten
+          Abrechnungen) die Nachzahlung/das Guthaben in der Jahresübersicht; vorher besteht der Rückstand noch. Unabhängig
+          vom Status Entwurf/Final. Datum bei späterem Zugang beim Mieter nachtragen. Bei manuellen Positionen mit
+          Vorauszahlung &gt; 0 wird die Gutschrift als Soll minus eingetragene Vorauszahlung gerechnet — vor dem Markieren
+          prüfen, ob das stimmt.
+        </p>
+      </details>
       <form
         action={formAction}
         onSubmit={(e) => {
@@ -42,16 +57,13 @@ export function VersendetFeld({
             e.preventDefault();
           }
         }}
-        className="flex flex-wrap items-center gap-3"
+        className="mt-auto flex flex-wrap items-center gap-2"
       >
-        <span className={`text-sm ${versendetAm ? "text-green-400" : "text-neutral-300"}`}>
-          {versendetAm ? `Versendet am ${t}.${m}.${j}` : "Noch nicht versendet"}
-        </span>
         <DateInput key={versendetAm ?? "leer"} name="datum" defaultValue={versendetAm ?? heute} size="sm" />
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-neutral-700 px-3 py-1 text-xs font-medium text-white hover:bg-neutral-900 disabled:opacity-50"
+          className={SCHRITT_KNOPF}
         >
           {versendetAm ? "Datum ändern" : "Als versendet markieren"}
         </button>
@@ -61,19 +73,13 @@ export function VersendetFeld({
             name="aktion"
             value="zuruecknehmen"
             disabled={pending}
-            className="rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-900 disabled:opacity-50"
+            className={`${SCHRITT_KNOPF} font-normal text-neutral-300`}
           >
-            Versand zurücknehmen
+            Zurücknehmen
           </button>
         )}
       </form>
-      {fehler && <p className="mt-1 text-xs text-red-400">{fehler}</p>}
-      <p className="mt-1.5 text-xs text-neutral-500">
-        Ab dem Versanddatum zählt die Gutschrift der nicht gezahlten BK-Vorauszahlung im Mietsaldo und (bei berechneten
-        Abrechnungen) die Nachzahlung/das Guthaben in der Jahresübersicht; vorher besteht der Rückstand noch. Unabhängig vom
-        Status Entwurf/Final. Datum bei späterem Zugang beim Mieter nachtragen. Bei manuellen Positionen mit Vorauszahlung &gt; 0
-        wird die Gutschrift als Soll minus eingetragene Vorauszahlung gerechnet — vor dem Markieren prüfen, ob das stimmt.
-      </p>
+      {fehler && <p className="mt-2 text-xs text-red-400">{fehler}</p>}
     </div>
   );
 }

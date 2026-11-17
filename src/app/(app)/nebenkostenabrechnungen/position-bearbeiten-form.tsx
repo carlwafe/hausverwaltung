@@ -28,6 +28,7 @@ export function PositionBearbeitenForm({
   initialKostenanteil,
   initialVorauszahlung,
   berechnet = false,
+  offen = false,
 }: {
   positionId: string;
   initialZeitraumVon: string;
@@ -36,6 +37,8 @@ export function PositionBearbeitenForm({
   initialVorauszahlung: number;
   // Berechnete Position: Speichern ersetzt sie durch eine manuelle (die Berechnung läuft daneben mit).
   berechnet?: boolean;
+  /** Formular gleich aufgeklappt zeigen (die Zeile wurde dafür schon geöffnet). */
+  offen?: boolean;
 }) {
   const [kostenanteil, setKostenanteil] = useState(initialKostenanteil.toFixed(2).replace(".", ","));
   const [vorauszahlung, setVorauszahlung] = useState(initialVorauszahlung.toFixed(2).replace(".", ","));
@@ -45,7 +48,7 @@ export function PositionBearbeitenForm({
   const saldo = parseKommaBetrag(vorauszahlung) - parseKommaBetrag(kostenanteil);
 
   return (
-    <details className="mt-2 text-xs">
+    <details className="text-xs" open={offen}>
       <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
         {berechnet ? "Manuell überschreiben" : "Position bearbeiten"}
       </summary>

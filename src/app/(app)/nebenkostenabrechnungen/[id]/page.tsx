@@ -7,7 +7,7 @@ import { gebaeudeOderHausLabel, hausLabel, vergleicheHaus } from "@/lib/gebaeude
 import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { baueKostenUebersicht, type Uebersicht } from "@/lib/nk-uebersicht";
 import { Kostenuebersicht, type UebersichtAuswahl } from "./kostenuebersicht";
-import { PositionenTable } from "./positionen-table";
+import { PositionenTable, type PositionRow } from "./positionen-table";
 import { saldoMitToleranz } from "@/lib/nk-saldo";
 import { QmAbweichungen, type QmKostenkreis, type QmAbweichungZeile } from "./qm-abweichungen";
 import { ermittleNichtBeruecksichtigteKostenarten, berechneNebenkostenabrechnung } from "@/lib/nebenkostenabrechnung";
@@ -26,6 +26,8 @@ import { zaehleBelegLuecken } from "@/lib/beleg-pruefung";
 import { VorverteilteKostenanteileForm, type VorverteilteZeile, type LeerstandZeile } from "../vorverteilte-kostenanteile-form";
 import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
 import { mieterName } from "@/lib/mieter-name";
+import { KARTE_KENNZEICHEN } from "@/components/karte";
+import { PANEL, PANEL_INHALT, PANEL_KOPF, SCHRITT_KARTE, SCHRITT_KNOPF, SCHRITT_TITEL } from "./panel";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -312,34 +314,96 @@ export default async function NebenkostenabrechnungDetailPage({
     );
   }
 
+  const positionRows: PositionRow[] = abrechnung.positionen.map((p) => {
+    const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
+    const gutschriftSumme = eintrag?.summe ?? 0;
+    const saldoNachGutschrift = saldoMitToleranz(Number(p.saldo) - gutschriftSumme);
+    return {
+      id: p.id,
+      einheitId: p.einheitId,
+      einheitBezeichnung: p.einheit.bezeichnung,
+      gebaeudeLabel: gebaeudeOderHausLabel(p.einheit.gebaeude, p.einheit.gebaeude.haus),
+      gebaeudeSortSchluessel:
+        (p.einheit.gebaeude.haus?.reihenfolge ?? 999) * 1000 + Number(p.einheit.gebaeude.hausnummer),
+      mieterNamen: p.mietvertrag
+        ? p.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ")
+        : "–",
+      zeitraumVon: p.zeitraumVon.toISOString(),
+      zeitraumBis: p.zeitraumBis.toISOString(),
+      kostenanteilGesamt: Number(p.kostenanteilGesamt),
+      vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
+      saldo: Number(p.saldo),
+      gutschriftSumme: eintrag ? eintrag.summe : null,
+      gutschriftDatum: eintrag ? eintrag.juengstesDatum.toISOString() : null,
+      saldoNachGutschrift,
+      verrechnetSumme: eintrag ? eintrag.davonVerrechnet : 0,
+      kautionSumme: eintrag ? eintrag.davonKaution : 0,
+      auszahlungDatum: eintrag?.datumAuszahlung?.toISOString() ?? null,
+      verrechnetDatum: eintrag?.datumVerrechnet?.toISOString() ?? null,
+      kautionDatum: eintrag?.datumKaution?.toISOString() ?? null,
+      erledigt: saldoNachGutschrift === 0,
+      mietvertragId: p.mietvertragId,
+      abrechnungId: id,
+      kostenanteilSimuliert: p.mietvertragId
+        ? (simulierterKostenanteil.get(`${p.mietvertragId}|${p.einheitId}`) ?? null)
+        : null,
+      manuell: p.details === null,
+      berechnet: p.details === null ? (berechnet.get(`${p.mietvertragId}|${p.einheitId}`) ?? null) : null,
+      stimmtMitVerwalter: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.stimmtMitVerwalter ?? false) : false,
+      kommentar: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.kommentar ?? "") : "",
+      details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
+    };
+  });
+  const erledigtAnzahl = positionRows.filter((p) => p.erledigt).length;
+  const summeGuthaben = positionRows.reduce((s, p) => s + Math.max(p.saldo, 0), 0);
+  const summeNachzahlung = positionRows.reduce((s, p) => s + Math.max(-p.saldo, 0), 0);
+  const statusKlasse = abrechnung.status === "FINAL" ? "bg-green-500/10 text-green-400" : "bg-amber-500/10 text-amber-400";
+  const belegText =
+    belegLuecken.gesamt === 0
+      ? "Keine umlagefähigen Kostenpositionen zu belegen."
+      : belegLuecken.fehlt === 0
+        ? `Alle ${belegLuecken.gesamt} umlagefähigen Positionen sind belegt oder markiert.`
+        : `Beleg fehlt bei ${belegLuecken.fehlt} von ${belegLuecken.gesamt} umlagefähigen Positionen.`;
+  // Gleiche Höhe wie `DeleteButton` daneben (Rahmen + py-2).
+  const kopfKnopf = "rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900";
+
   return (
     <div>
-      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
+      <Link prefetch={false} href="/nebenkostenabrechnungen" className="mb-2 inline-block text-sm text-neutral-400 hover:text-white">
+        ← Alle Abrechnungen
+      </Link>
+      <div className="mb-6 flex flex-col items-start gap-4 lg:flex-row lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">
-            Betriebskostenabrechnung {abrechnung.jahr}
-          </h1>
-          <p className="text-sm text-neutral-400">
-            Status: {STATUS_LABEL[abrechnung.status] ?? abrechnung.status} · {abrechnung.manuell ? "manuell geführt" : "berechnet"} · erstellt am{" "}
-            {formatDate(abrechnung.erstelltAm)}
-          </p>
+          <h1 className="text-2xl font-semibold text-white">Betriebskostenabrechnung {abrechnung.jahr}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-neutral-400">
+            <span className={`${KARTE_KENNZEICHEN} ${statusKlasse}`}>{STATUS_LABEL[abrechnung.status] ?? abrechnung.status}</span>
+            <span
+              className={`${KARTE_KENNZEICHEN} ${abrechnung.manuell ? "bg-violet-500/10 text-violet-400" : "bg-neutral-800 text-neutral-300"}`}
+            >
+              {abrechnung.manuell ? "manuell geführt" : "berechnet"}
+            </span>
+            <span
+              className={`${KARTE_KENNZEICHEN} ${abrechnung.versendetAm ? "bg-green-500/10 text-green-400" : "bg-neutral-800 text-neutral-300"}`}
+            >
+              {abrechnung.versendetAm ? `versendet am ${formatDate(abrechnung.versendetAm)}` : "nicht versendet"}
+            </span>
+            <span>erstellt am {formatDate(abrechnung.erstelltAm)}</span>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <form action={neuBerechnenAction} title={neuBerechnenGesperrt ? "Gesperrt: Diese Abrechnung wird manuell geführt — zum Berechnen erst „Auf berechnet umstellen“." : "Übernimmt geänderte Zahlungen, Kosten und Rechenregeln in die gespeicherten Positionen — vorher zeigen Abrechnung und Mieterseite den alten Stand."}>
-            <SubmitButton
-              pendingLabel="Berechne…"
-              disabled={neuBerechnenGesperrt}
-              className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-            >
+            <SubmitButton pendingLabel="Berechne…" disabled={neuBerechnenGesperrt} className={kopfKnopf}>
               Neu berechnen
+            </SubmitButton>
+          </form>
+          <form action={naechsterStatusAction}>
+            <SubmitButton pendingLabel="Speichere…" className={kopfKnopf}>
+              Als {STATUS_LABEL[naechsterStatus]} markieren
             </SubmitButton>
           </form>
           {abrechnung.manuell ? (
             <form action={modusAction}>
-              <SubmitButton
-                pendingLabel="Berechne…"
-                className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-              >
+              <SubmitButton pendingLabel="Berechne…" className={kopfKnopf}>
                 Auf berechnet umstellen
               </SubmitButton>
             </form>
@@ -350,14 +414,6 @@ export default async function NebenkostenabrechnungDetailPage({
               label="Auf manuell umstellen"
             />
           )}
-          <form action={naechsterStatusAction}>
-            <SubmitButton
-              pendingLabel="Speichere…"
-              className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
-            >
-              Als {STATUS_LABEL[naechsterStatus]} markieren
-            </SubmitButton>
-          </form>
           <DeleteButton
             action={deleteAbrechnung.bind(null, id)}
             confirmText="Abrechnung wirklich löschen? Alle Positionen gehen dabei verloren."
@@ -365,37 +421,37 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       </div>
 
-      <div className="mb-3 max-w-3xl rounded-md border border-neutral-800 px-3 py-2 text-sm">
-        <span className={belegLuecken.fehlt > 0 ? "text-amber-400" : "text-green-400"}>
-          {belegLuecken.gesamt === 0
-            ? "Keine umlagefähigen Kostenpositionen zu belegen."
-            : belegLuecken.fehlt === 0
-              ? `Alle ${belegLuecken.gesamt} umlagefähigen Positionen sind belegt oder markiert.`
-              : `Beleg fehlt bei ${belegLuecken.fehlt} von ${belegLuecken.gesamt} umlagefähigen Positionen.`}
-        </span>{" "}
-        <Link href={`/nebenkostenabrechnungen/${id}/belege`} className="text-neutral-300 underline hover:text-white">
-          Belegprüfung öffnen
-        </Link>
-        <p className="mt-0.5 text-xs text-neutral-500">
-          Der Mieter darf die Belege zur Abrechnung einsehen — am besten vor dem Versand vervollständigen.
-        </p>
+      {/* Die drei Schritte bis zum Versand, in Arbeitsreihenfolge. */}
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className={SCHRITT_KARTE}>
+          <p className={SCHRITT_TITEL}>1 · Belege</p>
+          <p className={`mt-1 text-sm font-medium ${belegLuecken.fehlt > 0 ? "text-amber-400" : "text-green-400"}`}>{belegText}</p>
+          <p className="mb-3 mt-1 text-xs text-neutral-500">
+            Der Mieter darf die Belege zur Abrechnung einsehen — am besten vor dem Versand vervollständigen.
+          </p>
+          <div className="mt-auto">
+            <Link prefetch={false} href={`/nebenkostenabrechnungen/${id}/belege`} className={SCHRITT_KNOPF}>
+              Belegprüfung öffnen
+            </Link>
+          </div>
+        </div>
+        <div className={SCHRITT_KARTE}>
+          <p className={SCHRITT_TITEL}>2 · Schreiben</p>
+          <p className="mt-1 text-sm font-medium text-white">Abrechnung je Mietvertrag als Brief (PDF)</p>
+          <p className="mb-3 mt-1 text-xs text-neutral-500">Einzeln oder alle auf einmal erstellen.</p>
+          <div className="mt-auto">
+            <Link prefetch={false} href={`/nebenkostenabrechnungen/${id}/schreiben`} className={SCHRITT_KNOPF}>
+              Schreiben an die Mieter
+            </Link>
+          </div>
+        </div>
+        <VersendetFeld
+          abrechnungId={id}
+          belegFehlt={belegLuecken.fehlt}
+          versendetAm={abrechnung.versendetAm ? abrechnung.versendetAm.toISOString().slice(0, 10) : null}
+          heute={new Date().toISOString().slice(0, 10)}
+        />
       </div>
-
-      <div className="mb-3 max-w-3xl rounded-md border border-neutral-800 px-3 py-2 text-sm">
-        <Link href={`/nebenkostenabrechnungen/${id}/schreiben`} className="text-neutral-300 underline hover:text-white">
-          Schreiben an die Mieter (PDF)
-        </Link>
-        <p className="mt-0.5 text-xs text-neutral-500">
-          Betriebskostenabrechnung je Mietvertrag als Brief — einzeln oder alle auf einmal.
-        </p>
-      </div>
-
-      <VersendetFeld
-        abrechnungId={id}
-        belegFehlt={belegLuecken.fehlt}
-        versendetAm={abrechnung.versendetAm ? abrechnung.versendetAm.toISOString().slice(0, 10) : null}
-        heute={new Date().toISOString().slice(0, 10)}
-      />
 
       {nichtBeruecksichtigt.some((n) => n.grund === "kein_verteilerschluessel") && (
         <div className="mb-6 rounded-lg border border-amber-900 bg-amber-950/30 p-4">
@@ -440,130 +496,60 @@ export default async function NebenkostenabrechnungDetailPage({
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Summe Kostenanteil</p>
-          <p className="mt-1 text-lg font-semibold text-white">{formatEuro(summeKostenanteil)}</p>
+          <p className="mt-1 whitespace-nowrap text-lg font-semibold tabular-nums text-white">{formatEuro(summeKostenanteil)}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {positionRows.length} {positionRows.length === 1 ? "Position" : "Positionen"}
+          </p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Summe Vorauszahlung</p>
-          <p className="mt-1 text-lg font-semibold text-white">{formatEuro(summeVorauszahlung)}</p>
+          <p className="mt-1 whitespace-nowrap text-lg font-semibold tabular-nums text-white">{formatEuro(summeVorauszahlung)}</p>
+          <p className="mt-1 text-xs text-neutral-500">tatsächlich gezahlt</p>
         </div>
         <div className="rounded-lg border border-neutral-800 p-4">
           <p className="text-xs text-neutral-400">Summe Saldo</p>
-          <p className="mt-1 text-lg font-semibold text-white">{formatEuro(summeSaldo)}</p>
+          <p className="mt-1 whitespace-nowrap text-lg font-semibold tabular-nums text-white">{formatEuro(summeSaldo)}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Guthaben {formatEuro(summeGuthaben)} · Nachzahlungen {formatEuro(summeNachzahlung)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-neutral-800 p-4">
+          <p className="text-xs text-neutral-400">Erledigt</p>
+          <p className="mt-1 whitespace-nowrap text-lg font-semibold tabular-nums text-white">
+            {erledigtAnzahl} von {positionRows.length}
+          </p>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-800" aria-hidden="true">
+            <div
+              className="h-full rounded-full bg-green-500"
+              style={{ width: `${positionRows.length === 0 ? 0 : Math.round((erledigtAnzahl / positionRows.length) * 100)}%` }}
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-neutral-500">nach Gutschrift nichts mehr offen</p>
         </div>
       </div>
 
+      <h2 className="mb-3 text-lg font-medium text-white">Positionen</h2>
       <PositionenTable
         vergleichName={verwalterFlaechen ? "mit korrekten Flächen" : "Flächen wie Verwalter"}
-        rows={abrechnung.positionen.map((p) => {
-          const eintrag = p.mietvertragId ? nebenkostenausgleichSummen.get(p.mietvertragId) : undefined;
-          const gutschriftSumme = eintrag?.summe ?? 0;
-          const saldoNachGutschrift = saldoMitToleranz(Number(p.saldo) - gutschriftSumme);
-          return {
-            id: p.id,
-            einheitId: p.einheitId,
-            einheitBezeichnung: p.einheit.bezeichnung,
-            gebaeudeLabel: gebaeudeOderHausLabel(p.einheit.gebaeude, p.einheit.gebaeude.haus),
-            gebaeudeSortSchluessel:
-              (p.einheit.gebaeude.haus?.reihenfolge ?? 999) * 1000 + Number(p.einheit.gebaeude.hausnummer),
-            mieterNamen: p.mietvertrag
-              ? p.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ")
-              : "–",
-            zeitraumVon: p.zeitraumVon.toISOString(),
-            zeitraumBis: p.zeitraumBis.toISOString(),
-            kostenanteilGesamt: Number(p.kostenanteilGesamt),
-            vorauszahlungGesamt: Number(p.vorauszahlungGesamt),
-            saldo: Number(p.saldo),
-            gutschriftSumme: eintrag ? eintrag.summe : null,
-            gutschriftDatum: eintrag ? eintrag.juengstesDatum.toISOString() : null,
-            saldoNachGutschrift,
-            verrechnetSumme: eintrag ? eintrag.davonVerrechnet : 0,
-            kautionSumme: eintrag ? eintrag.davonKaution : 0,
-            auszahlungDatum: eintrag?.datumAuszahlung?.toISOString() ?? null,
-            verrechnetDatum: eintrag?.datumVerrechnet?.toISOString() ?? null,
-            kautionDatum: eintrag?.datumKaution?.toISOString() ?? null,
-            erledigt: saldoNachGutschrift === 0,
-            mietvertragId: p.mietvertragId,
-            abrechnungId: id,
-            kostenanteilSimuliert: p.mietvertragId
-              ? (simulierterKostenanteil.get(`${p.mietvertragId}|${p.einheitId}`) ?? null)
-              : null,
-            manuell: p.details === null,
-            berechnet: p.details === null ? (berechnet.get(`${p.mietvertragId}|${p.einheitId}`) ?? null) : null,
-            stimmtMitVerwalter: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.stimmtMitVerwalter ?? false) : false,
-            kommentar: p.mietvertragId ? (pruefungen.get(p.mietvertragId)?.kommentar ?? "") : "",
-            details: (p.details as KostenanteilDetailEintrag[] | null) ?? [],
-          };
-        })}
+        vergleichKurz={verwalterFlaechen ? "korr. Fl." : "Verw.-Fl."}
+        rows={positionRows}
       />
 
-      <details className="mb-6 mt-6">
-        <summary className="cursor-pointer select-none text-sm text-neutral-400 hover:text-white">
-          Hinweise zur Berechnung
-        </summary>
-        <div className="mt-3">
-          <p className="mb-3 text-sm text-neutral-400">
-            <strong className="text-neutral-300">Saldo</strong> = Vorauszahlung − Kostenanteil (positiv
-            = Guthaben, negativ = Nachzahlung).{" "}
-            <strong className="text-neutral-300">Rückzahlung/Gutschrift</strong> zeigt die Summe der
-            tatsächlich importierten/erfassten Betriebskostenausgleich-Zahlungen für Mietvertrag und Jahr
-            — die echte Kontobewegung, unabhängig vom berechneten Saldo. Einzelne Zahlungen lassen sich
-            unter{" "}
-            <Link href="/nebenkostenausgleich" className="underline hover:text-white">
-              Betriebskostenausgleich
-            </Link>{" "}
-            einsehen und korrigieren. <strong className="text-neutral-300">Saldo nach Gutschrift</strong>{" "}
-            = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
-            ist, falls einer offen ist; ist er 0 (ein Rest bis 1 Cent zählt als 0), gilt die Position als erledigt.
-          </p>
-          <p className="mb-3 text-sm text-neutral-400">
-            <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
-            &quot;Automatisch angelegt …&quot;) entstehen, wenn für einen Mietvertrag eine Zahlung oder
-            Verrechnung dieses Jahres gebucht wurde, die Abrechnung aber keine Position für ihn enthält.
-            Sie enthalten bewusst keine Beträge (alles 0): Kostenanteil/Vorauszahlung von Hand eintragen
-            oder kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine
-            Wohnungs-Auszahlung fälschlich auf dem Garagenvertrag). &quot;Neu berechnen&quot; lässt von
-            Hand erfasste Positionen unverändert.
-          </p>
-          <p className="mb-3 text-sm text-neutral-400">
-            <strong className="text-neutral-300">Manuelle und berechnete Positionen:</strong> Positionen
-            mit dem Etikett &quot;manuell&quot; sind von Hand angelegt oder bearbeitet und bleiben bei
-            &quot;Neu berechnen&quot; sowie beim Umstellen auf &quot;manuell&quot; erhalten; berechnete
-            Positionen entstehen nur bei &quot;berechnet&quot; (für Mietverträge ohne manuelle Position)
-            und verschwinden beim Umstellen auf &quot;manuell&quot;. Bei einer manuellen Position zeigt
-            die berechnete Abrechnung in Kostenanteil, Vorauszahlung, Saldo und Saldo nach Gutschrift zusätzlich zwei Zeilen:
-            &quot;manuell&quot; und &quot;berechnet&quot; (live, nicht gespeichert). Eine berechnete
-            Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
-          </p>
-          <p className="mb-3 text-sm text-neutral-400">
-            <strong className="text-neutral-300">Manuelle Positionen und unbezahlte Vorauszahlung:</strong>{" "}
-            Die nicht gezahlte BK-Vorauszahlung steht im Mietrückstand (BK-Soll) und würde zusätzlich in der
-            Nachzahlung stehen. Deshalb wird sie ab dem Versand der Abrechnung gutgeschrieben (BK-Soll
-            minus Vorauszahlung der Position). Das gilt für berechnete Positionen und für manuelle mit
-            eingetragener Vorauszahlung &gt; 0; automatisch angelegte Positionen (Vorauszahlung 0) und
-            manuelle Positionen einer noch nicht versendeten Abrechnung (z.B. Beträge des Vorverwalters
-            2021–2024) bleiben ausgenommen. Wer eine Position von Hand auf den Betrag des Vorverwalters
-            setzt, ändert damit auch die Gutschrift — der eingetragene Wert gilt als gezahlte Vorauszahlung.
-          </p>
-          <p className="mb-3 text-sm text-neutral-400">
-            <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
-            Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
-            dort angerechnet: bis Mietjahr 2024 zuerst auf die BK-Vorauszahlung bis zum BK-Soll, erst der
-            Rest auf die Kaltmiete; ab 2025 bei einer Teilzahlung anteilig im Verhältnis BK : Kaltmiete (BK-Anteil
-            auf volle Euro gerundet, § 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in
-            einem Monat weniger als das Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € BK zählen ab 2025
-            von 380 € gezahlt 172 € als BK (380 × 280 ÷ 620), 208 € als Kaltmiete (bis 2024: 280 € BK, 100 €
-            Kaltmiete); ein Monat ohne Zahlung bringt 0 € BK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
-            berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
-            an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
-          </p>
-        </div>
-      </details>
+      <ManuellePositionForm
+        abrechnungId={id}
+        jahr={abrechnung.jahr}
+        mietvertragKandidaten={mietvertragKandidaten}
+      />
+
+
 
       {uebersichtDaten.objekt.zeilen.length > 0 && (
-        <Kostenuebersicht jahr={abrechnung.jahr} auswahl={uebersichtAuswahl} daten={uebersichtDaten} />
+        <div className="mt-10">
+          <Kostenuebersicht jahr={abrechnung.jahr} auswahl={uebersichtAuswahl} daten={uebersichtDaten} />
+        </div>
       )}
 
       {nichtBeruecksichtigt.some((n) => n.grund === "in_abrechnung_enthalten") && (
@@ -577,12 +563,15 @@ export default async function NebenkostenabrechnungDetailPage({
         </p>
       )}
 
+      <h2 className="mb-3 mt-10 text-lg font-medium text-white">Einstellungen und Hinweise</h2>
+      <div className="flex flex-col gap-3">
       {vorverteilteGruppen.length > 0 && (
-        <details className="mb-6">
-          <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300 hover:text-white">
+        <details className={PANEL}>
+          <summary className={PANEL_KOPF}>
             Extern vorverteilte Kostenarten — hier bewusst nicht selbst berechnet ({vorverteilteGruppen.length})
           </summary>
-          <p className="mb-3 mt-2 text-xs text-neutral-500">
+          <div className={PANEL_INHALT}>
+          <p className="mb-3 text-xs text-neutral-500">
             Die Pro-Mieter-Aufteilung liegt extern vor (z.B. Techem-Gesamtabrechnung) — trag den
             jeweiligen Betrag pro Mietvertrag ein und klicke danach auf &quot;Neu berechnen&quot;,
             damit er in den Kostenanteil einfließt.
@@ -616,6 +605,7 @@ export default async function NebenkostenabrechnungDetailPage({
               </div>
             );
           })()}
+          </div>
         </details>
       )}
 
@@ -628,11 +618,69 @@ export default async function NebenkostenabrechnungDetailPage({
         manuell={abrechnung.manuell}
       />
 
-      <ManuellePositionForm
-        abrechnungId={id}
-        jahr={abrechnung.jahr}
-        mietvertragKandidaten={mietvertragKandidaten}
-      />
+        <details className={PANEL}>
+          <summary className={PANEL_KOPF}>
+          Hinweise zur Berechnung
+        </summary>
+        <div className={`${PANEL_INHALT} max-w-4xl`}>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Saldo</strong> = Vorauszahlung − Kostenanteil (positiv
+            = Guthaben, negativ = Nachzahlung).{" "}
+            <strong className="text-neutral-300">Rückzahlung/Gutschrift</strong> zeigt die Summe der
+            tatsächlich importierten/erfassten Betriebskostenausgleich-Zahlungen für Mietvertrag und Jahr
+            — die echte Kontobewegung, unabhängig vom berechneten Saldo. Einzelne Zahlungen lassen sich
+            unter{" "}
+            <Link href="/nebenkostenausgleich" className="underline hover:text-white">
+              Betriebskostenausgleich
+            </Link>{" "}
+            einsehen und korrigieren. <strong className="text-neutral-300">Noch offen</strong>{" "}
+            (Saldo nach Gutschrift) = Saldo − Rückzahlung/Gutschrift — der Betrag, der nach der echten Kontobewegung noch offen
+            ist, falls einer offen ist; ist er 0 (ein Rest bis 1 Cent zählt als 0), gilt die Position als erledigt.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Automatisch angelegte Positionen</strong> (Kommentar
+            &quot;Automatisch angelegt …&quot;) entstehen, wenn für einen Mietvertrag eine Zahlung oder
+            Verrechnung dieses Jahres gebucht wurde, die Abrechnung aber keine Position für ihn enthält.
+            Sie enthalten bewusst keine Beträge (alles 0): Kostenanteil/Vorauszahlung von Hand eintragen
+            oder kontrollieren, ob die Buchung beim richtigen Mietvertrag liegt (z.B. eine
+            Wohnungs-Auszahlung fälschlich auf dem Garagenvertrag). &quot;Neu berechnen&quot; lässt von
+            Hand erfasste Positionen unverändert.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Manuelle und berechnete Positionen:</strong> Positionen
+            mit dem Etikett &quot;manuell&quot; sind von Hand angelegt oder bearbeitet und bleiben bei
+            &quot;Neu berechnen&quot; sowie beim Umstellen auf &quot;manuell&quot; erhalten; berechnete
+            Positionen entstehen nur bei &quot;berechnet&quot; (für Mietverträge ohne manuelle Position)
+            und verschwinden beim Umstellen auf &quot;manuell&quot;. Bei einer manuellen Position zeigt
+            die berechnete Abrechnung in Kostenanteil, Vorauszahlung, Saldo und „Noch offen“ zusätzlich zwei Zeilen:
+            &quot;manuell&quot; und &quot;berechnet&quot; (live, nicht gespeichert). Eine berechnete
+            Position lässt sich über &quot;Manuell überschreiben&quot; zur manuellen machen.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Manuelle Positionen und unbezahlte Vorauszahlung:</strong>{" "}
+            Die nicht gezahlte BK-Vorauszahlung steht im Mietrückstand (BK-Soll) und würde zusätzlich in der
+            Nachzahlung stehen. Deshalb wird sie ab dem Versand der Abrechnung gutgeschrieben (BK-Soll
+            minus Vorauszahlung der Position). Das gilt für berechnete Positionen und für manuelle mit
+            eingetragener Vorauszahlung &gt; 0; automatisch angelegte Positionen (Vorauszahlung 0) und
+            manuelle Positionen einer noch nicht versendeten Abrechnung (z.B. Beträge des Vorverwalters
+            2021–2024) bleiben ausgenommen. Wer eine Position von Hand auf den Betrag des Vorverwalters
+            setzt, ändert damit auch die Gutschrift — der eingetragene Wert gilt als gezahlte Vorauszahlung.
+          </p>
+          <p className="mb-3 text-sm text-neutral-400">
+            <strong className="text-neutral-300">Vorauszahlung</strong> = tatsächlich gezahlt, nicht das
+            Soll: Jede Mietzahlung zählt für ihren Mietmonat (&quot;Für Monat&quot; der Zahlung) und wird
+            dort angerechnet: bis Mietjahr 2024 zuerst auf die BK-Vorauszahlung bis zum BK-Soll, erst der
+            Rest auf die Kaltmiete; ab 2025 bei einer Teilzahlung anteilig im Verhältnis BK : Kaltmiete (BK-Anteil
+            auf volle Euro gerundet, § 366 Abs. 2 BGB). Ein Rückstand kürzt die Vorauszahlung also nur, wenn in
+            einem Monat weniger als das Soll gezahlt wurde — z.B. bei 340 € Kaltmiete + 280 € BK zählen ab 2025
+            von 380 € gezahlt 172 € als BK (380 × 280 ÷ 620), 208 € als Kaltmiete (bis 2024: 280 € BK, 100 €
+            Kaltmiete); ein Monat ohne Zahlung bringt 0 € BK. Eine abweichende Zweckangabe des Mieters (&quot;nur Kaltmiete&quot;) oder Vertragsklausel
+            berücksichtigt die Berechnung nicht — dann die Position von Hand korrigieren. Nach Änderungen
+            an Zahlungen oder Rechenregeln gilt der neue Stand erst nach &quot;Neu berechnen&quot;.
+          </p>
+        </div>
+      </details>
+      </div>
     </div>
   );
 }

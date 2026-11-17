@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { DeleteButton } from "@/components/delete-button";
 import { runFormAction } from "@/lib/form-utils";
 import { speichereQmAbweichung, loescheQmAbweichung, setVerwalterFlaechen } from "../actions";
+import { PANEL, PANEL_INHALT, PANEL_KOPF } from "./panel";
 
 function formatQm(value: number) {
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 3 }).format(value)} m²`;
@@ -43,11 +44,12 @@ export function QmAbweichungen({
   const echt = kostenkreise.find((k) => k.value === kreis)?.qmEcht;
 
   return (
-    <details className="mb-6" open={abweichungen.length > 0}>
-      <summary className="cursor-pointer select-none text-sm font-medium text-neutral-300 hover:text-white">
+    <details className={PANEL}>
+      <summary className={PANEL_KOPF}>
         Verwalter: abweichende Gesamtfläche je Kostenkreis ({abweichungen.length})
       </summary>
-      <p className="mb-3 mt-2 text-xs text-neutral-500">
+      <div className={PANEL_INHALT}>
+      <p className="mb-3 text-xs text-neutral-500">
         Hat der Verwalter für einen Kostenkreis eine falsche Gesamtwohnfläche angesetzt, trag sie hier ein.{" "}
         {verwalterFlaechen
           ? "Die Abrechnung rechnet mit diesen Flächen; in der Positionstabelle erscheint zum Vergleich der Kostenanteil mit unseren korrekten Flächen."
@@ -172,6 +174,7 @@ export function QmAbweichungen({
         </button>
         {fehler && <p className="w-full text-sm text-red-400">{fehler}</p>}
       </form>
+      </div>
     </details>
   );
 }

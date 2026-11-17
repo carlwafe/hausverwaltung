@@ -33,7 +33,7 @@ function StatusKennzeichen({ row }: { row: AbrechnungZeile }) {
       {row.manuell && (
         <span
           title="Manuell geführt: Positionen von Hand, „Neu berechnen“ ist gesperrt."
-          className={`${KARTE_KENNZEICHEN} bg-neutral-800 text-neutral-300`}
+          className={`${KARTE_KENNZEICHEN} bg-violet-500/10 text-violet-400`}
         >
           manuell
         </span>

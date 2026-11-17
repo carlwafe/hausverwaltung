@@ -53,17 +53,23 @@ export function KommentarFeld({
   abrechnungId,
   mietvertragId,
   kommentar,
+  rows = 2,
+  breite = "w-56",
 }: {
   abrechnungId: string;
   mietvertragId: string;
   kommentar: string;
+  /** Mindesthöhe in Zeilen; das Feld wächst mit dem Inhalt. */
+  rows?: number;
+  /** Breitenklasse, z.B. `w-full` in einer Füllspalte. */
+  breite?: string;
 }) {
   const [wert, setWert] = useState(kommentar);
   const [gespeichert, setGespeichert] = useState(kommentar);
   const [isPending, startTransition] = useTransition();
   const ref = useRef<HTMLTextAreaElement>(null);
 
-  // Höhe an den Inhalt anpassen (mindestens zwei Zeilen, per rows).
+  // Höhe an den Inhalt anpassen (Mindesthöhe per rows).
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -82,14 +88,14 @@ export function KommentarFeld({
   return (
     <textarea
       ref={ref}
-      rows={2}
+      rows={rows}
       value={wert}
       onChange={(e) => setWert(e.target.value)}
       onBlur={speichern}
       disabled={isPending}
       placeholder="Kommentar…"
       maxLength={300}
-      className="block w-56 resize-none rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50"
+      className={`block ${breite} resize-none rounded-md border border-neutral-800 bg-transparent px-2 py-1 text-xs text-white outline-none placeholder:text-neutral-600 focus:border-neutral-500 disabled:opacity-50`}
     />
   );
 }
