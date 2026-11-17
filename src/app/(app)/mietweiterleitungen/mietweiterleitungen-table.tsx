@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { DataTable, type Column } from "@/components/data-table";
-import { RohdatenDialog } from "@/components/rohdaten-dialog";
+import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
 import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 import { deleteMietweiterleitungen } from "./actions";
 import {
@@ -27,23 +27,11 @@ export type MietweiterleitungRow = {
   betrag: number;
   empfaenger: string | null;
   verwendungszweck: string | null;
-  rohdaten: Record<string, string> | null;
+  // Die Bankzeile selbst wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
+  hatRohdaten: boolean;
   importBatchId: string | null;
   importDateiname: string | null;
 };
-
-function RohdatenZelle({ m }: { m: MietweiterleitungRow }) {
-  if (!m.rohdaten) {
-    return <span className="text-xs text-neutral-600">manuell</span>;
-  }
-  return (
-    <RohdatenDialog
-      rohdaten={m.rohdaten}
-      downloadHref={m.importBatchId ? `/api/import-batches/${m.importBatchId}/download` : undefined}
-      downloadLabel={`Originaldatei herunterladen${m.importDateiname ? ` (${m.importDateiname})` : ""}`}
-    />
-  );
-}
 
 const columns: Column<MietweiterleitungRow>[] = [
   {
@@ -89,7 +77,12 @@ const columns: Column<MietweiterleitungRow>[] = [
   {
     key: "quelle",
     label: "Quelle",
-    render: (m) => <RohdatenZelle m={m} />,
+    render: (m, { expanded, toggleExpanded }) =>
+      m.hatRohdaten ? (
+        <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
+      ) : (
+        <span className="text-xs text-neutral-600">manuell</span>
+      ),
   },
 ];
 
@@ -148,7 +141,18 @@ export function MietweiterleitungenTable({ rows }: { rows: MietweiterleitungRow[
         emptyMessage="Noch keine Mietweiterleitungen erfasst."
         searchPlaceholder="Mietweiterleitungen durchsuchen…"
         selectable
+        zeilenSchritt={100}
         onSelectionChange={setAusgewaehlt}
+        renderExpanded={(m, colSpan) =>
+          m.hatRohdaten ? (
+            <RohdatenNachladenZeile
+              buchungId={m.id}
+              colSpan={colSpan}
+              downloadHref={m.importBatchId ? `/api/import-batches/${m.importBatchId}/download` : undefined}
+              downloadLabel={`Originaldatei herunterladen${m.importDateiname ? ` (${m.importDateiname})` : ""}`}
+            />
+          ) : null
+        }
         mobileCard={(m) => (
           <>
             <KarteKopf

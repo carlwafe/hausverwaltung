@@ -2,13 +2,21 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { MietweiterleitungenTable, type MietweiterleitungRow } from "./mietweiterleitungen-table";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
+import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
+import type { Prisma } from "@/generated/prisma/client";
 
 async function ladeMietweiterleitungen(): Promise<MietweiterleitungRow[]> {
-  const buchungen = await prisma.buchung.findMany({
-    where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...AKTIVE_BUCHUNG_FILTER },
-    orderBy: { datum: "desc" },
-    include: { importBatch: true },
-  });
+  const where: Prisma.BuchungWhereInput = { buchungsart: { code: "MIETWEITERLEITUNG" }, ...AKTIVE_BUCHUNG_FILTER };
+  const [buchungen, mitRohdaten] = await Promise.all([
+    prisma.buchung.findMany({
+      where,
+      // Die Bankzeile (rohdaten) wird erst beim Aufklappen nachgeladen (ladeBuchungRohdaten).
+      omit: { rohdaten: true },
+      orderBy: { datum: "desc" },
+      include: { importBatch: true },
+    }),
+    idsMitRohdaten(where),
+  ]);
 
   return buchungen.map((m) => ({
     id: m.id,
@@ -16,7 +24,7 @@ async function ladeMietweiterleitungen(): Promise<MietweiterleitungRow[]> {
     betrag: Number(m.betrag),
     empfaenger: m.empfaenger,
     verwendungszweck: m.verwendungszweck,
-    rohdaten: (m.rohdaten as Record<string, string> | null) ?? null,
+    hatRohdaten: mitRohdaten.has(m.id),
     importBatchId: m.importBatchId,
     importDateiname: m.importBatch?.dateiname ?? null,
   }));
