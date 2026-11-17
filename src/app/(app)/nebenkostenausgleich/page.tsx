@@ -6,16 +6,12 @@ import {
   type NebenkostenausgleichZahlungRow,
 } from "./nebenkostenausgleich-zahlungen-table";
 import { mieterName } from "@/lib/mieter-name";
+import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
+import type { Prisma } from "@/generated/prisma/client";
 
 async function ladeNebenkostenausgleichZahlungen(): Promise<NebenkostenausgleichZahlungRow[]> {
-  const zahlungen = await prisma.buchung.findMany({
-    where: { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER },
-    orderBy: { datum: "desc" },
-    include: {
-      importBatch: true,
-      mietvertrag: { include: { einheit: true, mieter: true } },
-    },
-  });
+  const where: Prisma.BuchungWhereInput = { buchungsart: { code: "NEBENKOSTENAUSGLEICH" }, ...AKTIVE_BUCHUNG_FILTER };
+  const [zahlungen, mitRohdaten] = await Promise.all([ladeZeilen(where), idsMitRohdaten(where)]);
 
   return zahlungen.map((b) => ({
     id: b.id,
@@ -27,11 +23,24 @@ async function ladeNebenkostenausgleichZahlungen(): Promise<Nebenkostenausgleich
     mietvertragId: b.mietvertragId,
     einheitBezeichnung: b.mietvertrag?.einheit.bezeichnung ?? null,
     mieterNamen: b.mietvertrag?.mieter.map((m) => mieterName(m)).join(" & ") ?? null,
-    rohdaten: (b.rohdaten as Record<string, string> | null) ?? null,
+    hatRohdaten: mitRohdaten.has(b.id),
     importBatchId: b.importBatchId,
     importDateiname: b.importBatch?.dateiname ?? null,
     aufteilungGruppeId: b.aufteilungGruppeId,
   }));
+}
+
+function ladeZeilen(where: Prisma.BuchungWhereInput) {
+  return prisma.buchung.findMany({
+    where,
+    // Die Bankzeile (rohdaten) wird erst beim Aufklappen nachgeladen (ladeBuchungRohdaten).
+    omit: { rohdaten: true },
+    orderBy: { datum: "desc" },
+    include: {
+      importBatch: true,
+      mietvertrag: { include: { einheit: true, mieter: true } },
+    },
+  });
 }
 
 export default async function NebenkostenausgleichPage() {

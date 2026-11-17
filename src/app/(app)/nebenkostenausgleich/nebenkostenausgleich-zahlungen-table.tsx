@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
-import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { RohdatenToggleButton, RohdatenNachladenZeile } from "@/components/rohdaten-inline";
 import { KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 import { deleteNebenkostenausgleichZahlungen } from "./actions";
 import {
@@ -32,7 +32,8 @@ export type NebenkostenausgleichZahlungRow = {
   mietvertragId: string | null;
   einheitBezeichnung: string | null;
   mieterNamen: string | null;
-  rohdaten: Record<string, string> | null;
+  // Die Bankzeile selbst wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
+  hatRohdaten: boolean;
   importBatchId: string | null;
   importDateiname: string | null;
   aufteilungGruppeId: string | null;
@@ -113,7 +114,7 @@ const columns: Column<NebenkostenausgleichZahlungRow>[] = [
     key: "quelle",
     label: "Quelle",
     render: (b, { expanded, toggleExpanded }) =>
-      b.rohdaten ? (
+      b.hatRohdaten ? (
         <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
       ) : (
         <span className="text-xs text-neutral-600">manuell</span>
@@ -208,11 +209,12 @@ export function NebenkostenausgleichZahlungenTable({ rows }: { rows: Nebenkosten
         emptyMessage="Noch keine Betriebskostenausgleich-Zahlungen erfasst."
         searchPlaceholder="Betriebskostenausgleich durchsuchen…"
         selectable
+        zeilenSchritt={100}
         onSelectionChange={setAusgewaehlt}
         renderExpanded={(b, colSpan) =>
-          b.rohdaten ? (
-            <RohdatenZeile
-              rohdaten={b.rohdaten}
+          b.hatRohdaten ? (
+            <RohdatenNachladenZeile
+              buchungId={b.id}
               colSpan={colSpan}
               downloadHref={b.importBatchId ? `/api/import-batches/${b.importBatchId}/download` : undefined}
               downloadLabel={`Originaldatei herunterladen${b.importDateiname ? ` (${b.importDateiname})` : ""}`}
