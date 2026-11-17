@@ -1,6 +1,7 @@
 import { ladeEinzugslauf } from "@/lib/lastschrift-einzug";
 import { naechsterEinzugsmonat } from "@/lib/target-tage";
 import { MarkierenForm, MerkerEntfernen } from "./merker-knoepfe";
+import { DateInput } from "@/components/date-input";
 
 const euro = (cent: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cent / 100);
 const terminText = (iso: string) =>
@@ -24,6 +25,15 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
   const standardMonat = `${standard.jahr}-${String(standard.monat).padStart(2, "0")}`;
   const gewaehlt = /^(\d{4})-(\d{2})$/.exec(sp.monat ?? "");
   const angefordert = !!gewaehlt && Number(gewaehlt[2]) >= 1 && Number(gewaehlt[2]) <= 12;
+  // Auswahl statt <input type="month">: Safari kennt das Feld nicht. Von 3 Monaten davor bis 3 danach, plus ein per Adresse gewählter Monat.
+  const monatsOptionen: { wert: string; label: string }[] = [];
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(Date.UTC(standard.jahr, standard.monat - 1 + i, 1));
+    monatsOptionen.push({ wert: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`, label: monatLang(d.getUTCFullYear(), d.getUTCMonth() + 1) });
+  }
+  if (angefordert && !monatsOptionen.some((o) => o.wert === sp.monat)) {
+    monatsOptionen.push({ wert: sp.monat!, label: monatLang(Number(gewaehlt![1]), Number(gewaehlt![2])) });
+  }
   const ohne = (Array.isArray(sp.ohne) ? sp.ohne : sp.ohne ? [sp.ohne] : []).filter(Boolean);
 
   const lauf = angefordert
@@ -53,17 +63,27 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
             <label htmlFor="monat" className="mb-1 block text-xs text-neutral-400">
               Mietmonat
             </label>
-            <input id="monat" type="month" name="monat" defaultValue={gewaehlt ? `${gewaehlt[1]}-${gewaehlt[2]}` : standardMonat} className={feld} />
+            <select id="monat" name="monat" defaultValue={gewaehlt ? `${gewaehlt[1]}-${gewaehlt[2]}` : standardMonat} className={feld}>
+              {monatsOptionen.map((o) => (
+                <option key={o.wert} value={o.wert} className="bg-neutral-950">
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <label htmlFor="datum" className="mb-1 block text-xs text-neutral-400" title="Leer = 3. Bankarbeitstag des Monats (vertraglicher Fälligkeitstermin).">
-              Einzugstermin (optional)
+            <label htmlFor="datum" className="mb-1 block text-xs text-neutral-400">
+              Anderer Einzugstermin
             </label>
-            <input id="datum" type="date" name="datum" defaultValue={sp.datum ?? ""} className={feld} />
+            <DateInput id="datum" name="datum" defaultValue={sp.datum ?? ""} />
           </div>
           <button type="submit" className="h-10 w-44 rounded-md bg-white px-3 text-sm font-medium text-black hover:bg-neutral-200">
             {lauf ? "Neu berechnen" : "Berechnen"}
           </button>
+          <p className="w-full text-xs text-neutral-500">
+            Den Termin nur ausfüllen, wenn er vom Standard abweichen soll. Leer gilt der <span className="text-neutral-300">3. Bankarbeitstag des Monats</span>{" "}
+            (vertraglicher Fälligkeitstermin); den tatsächlichen Termin zeigt die Seite nach „Berechnen“.
+          </p>
         </div>
 
         {lauf && (
