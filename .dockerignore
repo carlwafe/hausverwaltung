@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.vercel
+.env*
+var
+daten
+scripts-tmp
+tsconfig.tsbuildinfo
+*.dump

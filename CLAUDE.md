@@ -16,6 +16,7 @@ Die Fachregeln, Entscheidungen und Stolperfallen je Bereich stehen in `docs/`. *
 |---|---|
 | `docs/lokal-testen.md` | Seiten und Kontoauszug-Import lokal im Browser prüfen, Testnutzer, Browser-Pane-Kniffe, Testdaten wieder entfernen. |
 | `docs/deployment-vercel.md` | Vercel-CPU-Kontingent: Regeln, damit Seiten und Server Actions wenig CPU kosten; Zwischenspeicher der Startseite. |
+| `docs/mini-pc.md` | App auf dem eigenen Mini-PC statt Vercel: Docker Compose, Umzug von Neon und Blob, Cloudflare Tunnel, Updates, Backup. |
 | `docs/nebenkosten.md` | Berechnung, Gegenrechnung der unbezahlten Vorauszahlung, Versanddatum, manuelle/berechnete Positionen, Verrechnungen, Betriebskosten der Garagen. |
 | `docs/schreiben-mieter.md` | Indexmiete, BK-Anpassung, Layout „klar“, BK-Abrechnung als PDF, Arbeitskosten (§ 35a), Mahnung/Kündigung, Garagen-Schreiben, Mietrechtsreform. |
 | `docs/mietvertraege-mieter.md` | Kontaktdaten und Bankverbindung des Objekts, Mieternamen, Notiz, Mieter-Status, Garagen (Umsatzsteuer, Vertragsformular), Buchhaltungs-Stichtag je Vertrag. |

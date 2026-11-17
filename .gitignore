@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!.env.server.example
+
+# Daten des Mini-PC-Servers (Datenbank, Dateien, Dumps) — docs/mini-pc.md
+/daten
+*.dump
 
 # vercel
 .vercel
