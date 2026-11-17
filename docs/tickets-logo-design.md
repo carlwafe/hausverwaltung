@@ -79,7 +79,7 @@ Breite Tabellen sind auf dem Handy schwer lesbar. `DataTable` kann deshalb unter
 
 ## Tabellen am Computer: nie breiter als die Seite
 
-Der Seiteninhalt ist höchstens 1152 px breit (`max-w-6xl` im Layout), auch auf großen Bildschirmen. Eine Tabelle mit vielen Spalten ragt sonst rechts hinaus und muss seitlich gescrollt werden. Regeln, umgesetzt auf der Kosten-, Zahlungen-, Kautionen-, Offene-Posten-, BK-Anpassung- und Mieterhöhung-Tabelle (Muster: `kosten/kosten-table.tsx`, `zahlungen/zahlungen-table.tsx`):
+Der Seiteninhalt ist höchstens 1536 px breit (`max-w-[96rem]` in Layout und `NavBar`, ab `lg` mit `px-8` Rand), damit Tabellen auf Laptop- und großen Bildschirmen den Platz nutzen. Formulare und Texte begrenzen sich selbst (`max-w-2xl`, `max-w-3xl` …) und wachsen nicht mit. Eine Tabelle mit vielen Spalten ragt sonst rechts hinaus und muss seitlich gescrollt werden. Regeln, umgesetzt auf der Kosten-, Zahlungen-, Kautionen-, Offene-Posten-, BK-Anpassung- und Mieterhöhung-Tabelle (Muster: `kosten/kosten-table.tsx`, `zahlungen/zahlungen-table.tsx`):
 
 - **Zwei Freitext-Spalten teilen sich eine Füllspalte** (`fuellend: true` an der Spalte): oben die Hauptangabe (Empfänger), darunter klein und grau der Freitext (Beschreibung), beide einzeilig abgeschnitten (`truncate`), voller Text im `title` und — wo vorhanden — in der aufgeklappten Bankzeile. Die Füllspalte nimmt die Breite, die die anderen Spalten übrig lassen (mindestens 208 px), und macht die Tabelle nie breiter. Höchstens eine je Tabelle; die Suche durchsucht beide Texte.
 - **Ja/Nein-Spalten werden Kennzeichen:** kurze Überschrift mit Tooltip („Uml.“), Kennzeichen nur wenn es zutrifft (wie auf der Karte). Die Spalte bleibt sortierbar.
@@ -95,7 +95,8 @@ Der Seiteninhalt ist höchstens 1152 px breit (`max-w-6xl` im Layout), auch auf 
 - **Import-Vorschau des Kontoauszugs** (`kontoauszug/import/buchungen-tabelle.tsx`, bearbeitbare Zeilen ohne `DataTable`): Name und Verwendungszweck als Füllspalte, die KI-Einschätzung darunter; der Hinweis (Vorschlag, bitte prüfen, bereits importiert) klein unter der Buchungsart; Rohdaten und „Nicht kategorisiert importieren“ als Symbol-Knöpfe in einer Spalte ohne Überschrift (`NichtKategorisiertButton symbol`). Buchungsart (`w-40`) und Details (`w-56`) haben feste Breiten. Zellen oben ausgerichtet (`align-top`), weil die Details je nach Buchungsart unterschiedlich hoch sind.
 - **Noch breiter als die Seite** (gemessen bei 1440 px): Mieter-Tabelle der Jahresübersicht, Positionen der Betriebskostenabrechnung, Dokumente, Mieterkonto am Mietvertrag. Die ersten beiden haben 12–16 Betragsspalten und brauchen einen eigenen Ansatz (feststehende erste Spalten oder Spaltengruppen).
 - Verworfen: Spalten ein-/ausblendbar machen (zusätzliche Bedienung, Zustand müsste gespeichert werden); kleinere Schrift.
-- Offen: breitere Seite auf großen Bildschirmen (die Begrenzung gilt für alle Seiten; Formulare und Texte sollen nicht mitwachsen).
+- Die Tabellen-Regeln oben gelten weiter für schmalere Fenster (bis etwa 1080 px); die breitere Seite ist kein Ersatz dafür.
+- Verworfen: Seite ganz ohne Obergrenze (auf sehr breiten Monitoren werden Zeilen zu lang zum Lesen).
 
 ## Formularzeilen: Felder und Knöpfe gleich groß
 

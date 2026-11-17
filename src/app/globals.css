@@ -118,3 +118,9 @@ body {
     box-shadow: none;
   }
 }
+
+/* Die Seite ist bis 1536 px breit, damit Tabellen Platz haben (docs/tickets-logo-design.md). Fließtext und
+   Hinweise bleiben höchstens so breit wie vorher (70rem = 1120 px), sonst werden die Zeilen zu lang zum Lesen. */
+main p {
+  max-width: 70rem;
+}

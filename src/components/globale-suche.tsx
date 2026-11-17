@@ -43,7 +43,7 @@ export function GlobaleSuche() {
   }, [q, abfragbar]);
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 max-w-[70rem]">
       <input
         type="search"
         value={eingabe}

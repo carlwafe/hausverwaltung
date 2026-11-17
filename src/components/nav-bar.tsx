@@ -361,7 +361,7 @@ export function NavBar({
 
   return (
     <header className="border-b border-neutral-800">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
+      <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-4 px-4 py-3 lg:px-8">
         <div className="flex min-w-0 items-center gap-8">
           <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold text-white">
             <Logo size={26} className="text-white" />
