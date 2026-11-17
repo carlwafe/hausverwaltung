@@ -22,12 +22,14 @@ export default async function NeueKostenpositionPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Neue Kostenposition</h1>
-      <KostenpositionForm
-        kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name, anschaffung: k.anlageVZeile === "ANSCHAFFUNG" }))}
-        gebaeude={gruppiereGebaeude(gebaeude, einheiten)}
-        virtuelleAuszahlungen={virtuelleAuszahlungen}
-        action={createKostenposition}
-      />
+      <div className="max-w-2xl">
+        <KostenpositionForm
+          kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name, anschaffung: k.anlageVZeile === "ANSCHAFFUNG" }))}
+          gebaeude={gruppiereGebaeude(gebaeude, einheiten)}
+          virtuelleAuszahlungen={virtuelleAuszahlungen}
+          action={createKostenposition}
+        />
+      </div>
     </div>
   );
 }

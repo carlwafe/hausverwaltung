@@ -126,142 +126,162 @@ export default async function KostenpositionDetailPage({
     kostenposition.einheit,
   );
 
+  const betrag = Number(kostenposition.betrag);
+  const kannBearbeiten = user !== null && user.role !== "GAST";
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">
+      <Link href="/kosten" className="text-sm text-neutral-400 hover:text-white">
+        ← Alle Kosten
+      </Link>
+      <div className="mb-2 mt-3 flex flex-wrap items-start justify-between gap-4">
+        <h1 className="min-w-0 text-2xl font-semibold">
           {kostenposition.kostenart!.name} — {gebaeudeLabel} ({kostenposition.jahr})
         </h1>
-        <DeleteButton
-          action={deleteKostenposition.bind(null, id)}
-          confirmText="Kostenposition wirklich löschen?"
-        />
-      </div>
-      <BuchungsartInfo code="KOSTENPOSITION" erstelltAm={kostenposition.erstelltAm} erstelltVon={kostenposition.erstelltVon} />
-      <KostenpositionForm
-        kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name, anschaffung: k.anlageVZeile === "ANSCHAFFUNG" }))}
-        gebaeude={gebaeudeGruppen}
-        virtuelleAuszahlungen={virtuelleAuszahlungen}
-        istImportiert={kostenposition.rohdaten !== null}
-        initial={{
-          kostenartId: kostenposition.kostenartId!,
-          gebaeudeAuswahl: gebaeudeAuswahlWert(
-            kostenposition.gebaeudeId,
-            kostenposition.hausId,
-            kostenposition.kostengruppeId,
-            kostenposition.einheitId,
-          ),
-          jahr: kostenposition.jahr!,
-          datum: kostenposition.datum ? kostenposition.datum.toISOString().slice(0, 10) : null,
-          betrag: kostenposition.betrag.toString(),
-          beschreibung: kostenposition.verwendungszweck,
-          empfaenger: kostenposition.empfaenger,
-          virtuelleKautionBuchungId: virtuelleKautionBuchung?.id ?? null,
-          bezugsbereitAb: kostenposition.bezugsbereitAb ? kostenposition.bezugsbereitAb.toISOString().slice(0, 10) : null,
-        }}
-        action={updateKostenposition.bind(null, id)}
-      />
-
-      {virtuelleKautionBuchung && virtuelleKautionBuchung.datum && (
-        <div className="mt-4 rounded-lg border border-purple-900/40 bg-purple-500/5 p-4">
-          <p className="text-sm text-purple-300">
-            Virtuelle Gutschrift — verknüpft mit Kautionsbuchung vom{" "}
-            {new Intl.DateTimeFormat("de-DE").format(virtuelleKautionBuchung.datum)} (
-            {formatEuro(Number(virtuelleKautionBuchung.betrag))}).{" "}
-            <Link
-              href={`/kautionen#kautionsbuchung-${virtuelleKautionBuchung.id}`}
-              className="underline hover:text-purple-200"
-            >
-              Kautionsbuchung anzeigen
-            </Link>
-          </p>
-        </div>
-      )}
-
-      {aufteilungGeschwister.length > 0 ? (
-        <div className="mt-4 rounded-lg border border-neutral-800 p-4">
-          <p className="mb-1 text-sm font-medium text-white">
-            Teil einer Aufteilung ({aufteilungGeschwister.length} Positionen, ursprünglich{" "}
-            {formatEuro(aufteilungGeschwister.reduce((s, p) => s + Number(p.betrag), 0))})
-          </p>
-          <p className="mb-3 text-xs text-neutral-500">
-            Entstanden aus einer einzelnen importierten Buchung, die auf mehrere Kostenarten
-            aufgeteilt wurde.
-          </p>
-          <ul className="mb-3 space-y-1 text-sm">
-            {aufteilungGeschwister.map((p) => (
-              <li key={p.id} className="flex items-center justify-between">
-                {p.id === id ? (
-                  <span className="text-neutral-400">{p.kostenart!.name} (diese Position)</span>
-                ) : (
-                  <Link href={`/kosten/${p.id}`} className="text-white hover:underline">
-                    {p.kostenart!.name}
-                  </Link>
-                )}
-                <span className="text-neutral-300">{formatEuro(Number(p.betrag))}</span>
-              </li>
-            ))}
-          </ul>
+        <div className="flex items-center gap-5">
+          <div className="text-right">
+            <div className="text-2xl font-semibold tabular-nums">{formatEuro(betrag)}</div>
+            <div className="text-xs text-neutral-400">{betrag < 0 ? "Gutschrift" : "Ausgabe"}</div>
+          </div>
           <DeleteButton
-            action={hebeAufteilungAuf.bind(null, id)}
-            confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Positionen werden zu einer Position unter "${kostenposition.kostenart!.name}" zusammengeführt.`}
-            label="Aufteilung rückgängig machen"
+            action={deleteKostenposition.bind(null, id)}
+            confirmText="Kostenposition wirklich löschen?"
           />
         </div>
-      ) : (
-        <AufteilenForm
-          kostenpositionId={id}
-          betragGesamt={Number(kostenposition.betrag)}
-          kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
-          aktuelleKostenartId={kostenposition.kostenartId!}
-          kostenjahr={kostenposition.jahr!}
-        />
-      )}
-
-      <BuchungsartAendern
-        buchungId={id}
-        aktuellerCode="KOSTENPOSITION"
-        aktuelleMietvertragId={null}
-        rueckPfad="/kosten"
-        datum={kostenposition.datum!}
-      />
-
-      {eingangTreffer.length > 0 && (
-        <div className="mt-6">
-          <EingangHinweis buchungId={id} treffer={eingangTreffer} />
-        </div>
-      )}
-
-      <div className="mt-6">
-        <BelegeSektion
-          dokumente={belegZeilen}
-          mitbenutztBuchungId={id}
-          uploadAction={uploadDokument.bind(null, {
-            buchungId: id,
-            revalidatePath: `/kosten/${id}`,
-          })}
-          revalidatePath={`/kosten/${id}`}
-          kostenbeleg
-        />
       </div>
+      <BuchungsartInfo code="KOSTENPOSITION" erstelltAm={kostenposition.erstelltAm} erstelltVon={kostenposition.erstelltVon} />
 
-      <BelegAusnahme
-        buchungId={id}
-        status={belegStatus}
-        grund={belegAusnahme?.grund ?? ""}
-        gesetztVon={belegAusnahme?.gesetztVon ?? ""}
-        ueberAndereTeile={belegStatus === "BELEGT" && eigeneBelege === 0}
-        bearbeitbar={user !== null && user.role !== "GAST"}
-      />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,42rem)_minmax(0,1fr)]">
+        {/* Links: die Buchung selbst (Stammdaten bearbeiten, aufteilen, umbuchen) */}
+        <div className="min-w-0 max-w-2xl space-y-4">
+          <KostenpositionForm
+            kostenarten={kostenarten.map((k) => ({ id: k.id, label: k.name, anschaffung: k.anlageVZeile === "ANSCHAFFUNG" }))}
+            gebaeude={gebaeudeGruppen}
+            virtuelleAuszahlungen={virtuelleAuszahlungen}
+            istImportiert={kostenposition.rohdaten !== null}
+            initial={{
+              kostenartId: kostenposition.kostenartId!,
+              gebaeudeAuswahl: gebaeudeAuswahlWert(
+                kostenposition.gebaeudeId,
+                kostenposition.hausId,
+                kostenposition.kostengruppeId,
+                kostenposition.einheitId,
+              ),
+              jahr: kostenposition.jahr!,
+              datum: kostenposition.datum ? kostenposition.datum.toISOString().slice(0, 10) : null,
+              betrag: kostenposition.betrag.toString(),
+              beschreibung: kostenposition.verwendungszweck,
+              empfaenger: kostenposition.empfaenger,
+              virtuelleKautionBuchungId: virtuelleKautionBuchung?.id ?? null,
+              bezugsbereitAb: kostenposition.bezugsbereitAb ? kostenposition.bezugsbereitAb.toISOString().slice(0, 10) : null,
+            }}
+            action={updateKostenposition.bind(null, id)}
+          />
 
-      {kostenposition.kostenart?.umlagefaehig && belegPflichtig(kostenposition) && (
-        <ArbeitskostenBox
-          buchungId={id}
-          rechnungsbetrag={Number(kostenposition.betrag)}
-          startwert={arbeitskosten ? Number(arbeitskosten.betrag) : null}
-          bearbeitbar={user !== null && user.role !== "GAST"}
-        />
-      )}
+          {virtuelleKautionBuchung && virtuelleKautionBuchung.datum && (
+            <div className="rounded-lg border border-purple-900/40 bg-purple-500/5 p-4">
+              <p className="text-sm text-purple-300">
+                Virtuelle Gutschrift — verknüpft mit Kautionsbuchung vom{" "}
+                {new Intl.DateTimeFormat("de-DE").format(virtuelleKautionBuchung.datum)} (
+                {formatEuro(Number(virtuelleKautionBuchung.betrag))}).{" "}
+                <Link
+                  href={`/kautionen#kautionsbuchung-${virtuelleKautionBuchung.id}`}
+                  className="underline hover:text-purple-200"
+                >
+                  Kautionsbuchung anzeigen
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {aufteilungGeschwister.length > 0 && (
+            <div className="rounded-lg border border-neutral-800 p-4">
+              <p className="mb-1 text-sm font-medium text-white">
+                Teil einer Aufteilung ({aufteilungGeschwister.length} Positionen, ursprünglich{" "}
+                {formatEuro(aufteilungGeschwister.reduce((s, p) => s + Number(p.betrag), 0))})
+              </p>
+              <p className="mb-3 text-xs text-neutral-500">
+                Entstanden aus einer einzelnen importierten Buchung, die auf mehrere Kostenarten
+                aufgeteilt wurde.
+              </p>
+              <ul className="mb-3 space-y-1 text-sm">
+                {aufteilungGeschwister.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between">
+                    {p.id === id ? (
+                      <span className="text-neutral-400">{p.kostenart!.name} (diese Position)</span>
+                    ) : (
+                      <Link href={`/kosten/${p.id}`} className="text-white hover:underline">
+                        {p.kostenart!.name}
+                      </Link>
+                    )}
+                    <span className="text-neutral-300">{formatEuro(Number(p.betrag))}</span>
+                  </li>
+                ))}
+              </ul>
+              <DeleteButton
+                action={hebeAufteilungAuf.bind(null, id)}
+                confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Positionen werden zu einer Position unter "${kostenposition.kostenart!.name}" zusammengeführt.`}
+                label="Aufteilung rückgängig machen"
+              />
+            </div>
+          )}
+
+          {/* Seltene Sonderfälle: je ein Knopf, der sich zu einer Karte über die ganze Breite aufklappt. */}
+          <div className="-mt-2 flex flex-wrap items-start gap-x-3">
+            {aufteilungGeschwister.length === 0 && (
+              <AufteilenForm
+                kostenpositionId={id}
+                betragGesamt={betrag}
+                kostenarten={kostenarten.map((k) => ({ id: k.id, name: k.name }))}
+                aktuelleKostenartId={kostenposition.kostenartId!}
+                kostenjahr={kostenposition.jahr!}
+              />
+            )}
+            <BuchungsartAendern
+              buchungId={id}
+              aktuellerCode="KOSTENPOSITION"
+              aktuelleMietvertragId={null}
+              rueckPfad="/kosten"
+              datum={kostenposition.datum!}
+            />
+          </div>
+        </div>
+
+        {/* Rechts: Nachweise (Belege, Beleg-Status, Arbeitskosten) */}
+        <div className="min-w-0 space-y-4">
+          {eingangTreffer.length > 0 && <EingangHinweis buchungId={id} treffer={eingangTreffer} />}
+
+          <BelegeSektion
+            dokumente={belegZeilen}
+            mitbenutztBuchungId={id}
+            uploadAction={uploadDokument.bind(null, {
+              buchungId: id,
+              revalidatePath: `/kosten/${id}`,
+            })}
+            revalidatePath={`/kosten/${id}`}
+            kostenbeleg
+            kompakt
+          />
+
+          <BelegAusnahme
+            buchungId={id}
+            status={belegStatus}
+            grund={belegAusnahme?.grund ?? ""}
+            gesetztVon={belegAusnahme?.gesetztVon ?? ""}
+            ueberAndereTeile={belegStatus === "BELEGT" && eigeneBelege === 0}
+            bearbeitbar={kannBearbeiten}
+          />
+
+          {kostenposition.kostenart?.umlagefaehig && belegPflichtig(kostenposition) && (
+            <ArbeitskostenBox
+              buchungId={id}
+              rechnungsbetrag={betrag}
+              startwert={arbeitskosten ? Number(arbeitskosten.betrag) : null}
+              bearbeitbar={kannBearbeiten}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

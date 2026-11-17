@@ -71,7 +71,7 @@ export function BelegAusnahme({
   }
 
   return (
-    <div className="mt-6 max-w-xl rounded-lg border border-neutral-800 p-4">
+    <div className="rounded-lg border border-neutral-800 p-4">
       <p className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
         Beleg <BelegBadge status={status} />
       </p>

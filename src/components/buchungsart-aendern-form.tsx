@@ -47,7 +47,7 @@ export function BuchungsartAendernForm({
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-neutral-800 p-4">
+    <div className="mt-4 w-full rounded-lg border border-neutral-800 p-4">
       <p className="mb-1 text-sm font-medium text-white">Buchungsart ändern</p>
       <p className="mb-3 text-xs text-neutral-500">
         Bucht diese Buchung mit anderer Buchungsart um: das Original wird storniert und neu angelegt, die

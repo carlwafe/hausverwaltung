@@ -73,7 +73,10 @@ export function BelegeSektion({
   maxBytes = MAX_DATEIGROESSE_BYTES,
   kostenbeleg = false,
   mitbenutztBuchungId,
+  kompakt = false,
 }: {
+  /** Schmale Spalte: Upload-Datum und Größe stehen klein unter dem Dateinamen statt in eigenen Spalten. */
+  kompakt?: boolean;
   /** Kostenposition, an der die gemeinsamen Belege (`mitbenutzt`) hängen — zum Lösen der Zuordnung. */
   mitbenutztBuchungId?: string;
   /** Kostenbelege (Nachweis für Finanzamt/Betriebskostenabrechnung) lassen sich nicht löschen, nur ausblenden. */
@@ -117,8 +120,8 @@ export function BelegeSektion({
             <tr>
               <th className="py-2 pr-3">Datei</th>
               <th className="px-3 py-2">Belegdatum</th>
-              <th className="px-3 py-2">Upload-Datum</th>
-              <th className="px-3 py-2 text-right">Größe</th>
+              <th className={`px-3 py-2 ${kompakt ? "hidden" : ""}`}>Upload-Datum</th>
+              <th className={`px-3 py-2 text-right ${kompakt ? "hidden" : ""}`}>Größe</th>
               <th className="py-2 pl-3" />
             </tr>
           </thead>
@@ -133,6 +136,12 @@ export function BelegeSektion({
                   >
                     {d.dateiname}
                   </a>
+                  {kompakt && (
+                    <span className="block text-xs text-neutral-500">
+                      hochgeladen {formatDate(d.createdAt)}
+                      {d.groesseBytes !== null && ` · ${formatBytes(d.groesseBytes)}`}
+                    </span>
+                  )}
                   {d.mitbenutzt && (
                     <Link href={`/dokumente/${d.id}`} prefetch={false} className="block text-xs text-neutral-400 underline hover:text-white">
                       Gemeinsamer Beleg — gehört auch zu anderen Kostenpositionen
@@ -147,8 +156,8 @@ export function BelegeSektion({
                 <td className="px-3 py-2">
                   <BelegDatumFeld id={d.id} wert={d.belegDatum} revalidatePath={revalidatePath} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs text-neutral-500">{formatDate(d.createdAt)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-neutral-500">
+                <td className={`whitespace-nowrap px-3 py-2 text-xs text-neutral-500 ${kompakt ? "hidden" : ""}`}>{formatDate(d.createdAt)}</td>
+                <td className={`whitespace-nowrap px-3 py-2 text-right text-xs text-neutral-500 ${kompakt ? "hidden" : ""}`}>
                   {formatBytes(d.groesseBytes)}
                 </td>
                 <td className="py-2 pl-3 text-right">

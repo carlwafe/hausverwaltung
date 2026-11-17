@@ -87,7 +87,7 @@ export function AufteilenForm({
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-neutral-800 p-4">
+    <div className="mt-4 w-full rounded-lg border border-neutral-800 p-4">
       <p className="mb-3 text-sm font-medium text-white">
         Buchung ({betragGesamt.toFixed(2)} €) auf mehrere Kostenarten aufteilen
       </p>

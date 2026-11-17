@@ -166,7 +166,7 @@ export function ArbeitskostenBox({
   }
 
   return (
-    <div className="mt-6 max-w-xl rounded-lg border border-neutral-800 p-4">
+    <div className="rounded-lg border border-neutral-800 p-4">
       <p className="mb-1 text-sm font-medium text-white">Arbeitskosten (§ 35a EStG)</p>
       <p className="text-xs text-neutral-500">
         Lohnanteil der Rechnung einschließlich Umsatzsteuer, ohne Material und Fahrtkosten. Der Mieter bekommt daraus in der
