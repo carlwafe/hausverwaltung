@@ -4,15 +4,11 @@ import { ladeKontostandEintraege, ladeKontostandTagessummen } from "@/lib/buchun
 import { berechneKontostandVerlaufAb, kontostandAmStichtag } from "@/lib/kontostand";
 import { findeSaldoLuecken, ladeKontosalden, standAnTagen } from "@/lib/kontosalden";
 import { parseStrengesDatum } from "@/lib/zod-datum";
-import { DeleteButton } from "@/components/delete-button";
-import { KontostandKontrolleForm } from "./kontostand-kontrolle-form";
-import { loescheKontostandKontrolle } from "./actions";
 import { KontostandTable, type KontostandRow } from "./kontostand-table";
 import { KontostandAnsicht, type AnsichtTab } from "./kontostand-ansicht";
 import { KontostandChart } from "./kontostand-chart";
 import { SaldenTable, type SaldoRow } from "./salden-table";
 import { SaldenEinlesenForm } from "./salden-einlesen-form";
-import { KARTE_KENNZEICHEN, KARTE_LISTE, KARTE_RAHMEN, KarteAktionen, KarteKopf, KarteNotiz, KarteWerte } from "@/components/karte";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -44,7 +40,7 @@ export default async function KontostandPage({
     ladeKontosalden(),
   ]);
 
-  // Von Hand gesetzter Anker (Objekt-Einstellungen) — nur noch Rückfall und Grundlage der von Hand eingetragenen Prüfwerte.
+  // Von Hand gesetzter Anker (Objekt-Einstellungen) — nur noch Rückfall ohne Salden.
   const manuellerAnker =
     objekt?.kontostandAnkerDatum && objekt.kontostandAnkerBetrag !== null
       ? { datum: objekt.kontostandAnkerDatum, betrag: Number(objekt.kontostandAnkerBetrag) }
@@ -74,13 +70,12 @@ export default async function KontostandPage({
     );
   }
 
-  // Stände (Anker, Tagesabgleich, Prüfwerte, Stand vor dem Zeitraum) rechnet die Datenbank als Tagessummen; einzeln
+  // Stände (Anker, Tagesabgleich, Stand vor dem Zeitraum) rechnet die Datenbank als Tagessummen; einzeln
   // geladen werden nur die Buchungen des gewählten Zeitraums (siehe docs/kontostand.md → „Darstellung“).
   const abDatum = ab === null ? null : parseStrengesDatum(ab)!;
-  const [{ tage: eintraege, anzahl: anzahlBuchungen }, zeitraumEintraege, kontrollen] = await Promise.all([
+  const [{ tage: eintraege, anzahl: anzahlBuchungen }, zeitraumEintraege] = await Promise.all([
     ladeKontostandTagessummen(),
     ladeKontostandEintraege(abDatum ?? undefined),
-    prisma.kontostandKontrolle.findMany({ orderBy: { datum: "desc" } }),
   ]);
   const verlauf = berechneKontostandVerlaufAb(eintraege, zeitraumEintraege, anker, abDatum ?? new Date(0));
 
@@ -101,15 +96,6 @@ export default async function KontostandPage({
   const letzterTag = saldoZeilen[saldoZeilen.length - 1] ?? null;
   const luecken = findeSaldoLuecken(salden);
   const abweichungen = saldoZeilen.filter((z) => z.neu);
-
-  // Von Hand eingetragene Prüfwerte: simulierter Stand am Ende des Kontrolltags (Buchungen des Tages zählen mit) gegen den echten Stand.
-  const kontrollAnker = manuellerAnker ?? anker;
-  const kontrollZeilen = kontrollen.map((k) => {
-    const simuliert = kontostandAmStichtag(eintraege, kontrollAnker, new Date(k.datum.getTime() + 24 * 60 * 60 * 1000 - 1));
-    const bank = Number(k.betrag);
-    const differenz = Math.round((simuliert - bank) * 100) / 100;
-    return { id: k.id, datum: k.datum, notiz: k.notiz, bank, simuliert, differenz };
-  });
 
   const rows: KontostandRow[] = verlauf
     .slice()
@@ -246,107 +232,6 @@ export default async function KontostandPage({
           Import werden die Salden automatisch gespeichert.
         </p>
         <SaldenEinlesenForm />
-      </details>
-
-      <details className="mb-6 rounded-lg border border-neutral-800 p-4" open={kontrollZeilen.length > 0 && !letzterTag}>
-        <summary className="cursor-pointer text-sm font-medium text-white">Kontostand von Hand prüfen</summary>
-        <p className="mb-3 mt-2 text-xs text-neutral-500">
-          Ohne XML: Trag den echten Kontostand von einem Kontoauszug ein (Stand am Ende des Tages). Er wird mit dem
-          simulierten Kontostand desselben Tages verglichen — eine Abweichung heißt, dass eine Buchung fehlt oder
-          falsch erfasst ist. Die Prüfwerte ändern den Verlauf nicht und gehen in den Jahresbericht ein.
-        </p>
-        <KontostandKontrolleForm />
-        {/* Handy: je Prüfwert eine Karte statt der Tabelle. */}
-        {kontrollZeilen.length > 0 && (
-          <ul className={`mt-4 ${KARTE_LISTE}`}>
-            {kontrollZeilen.map((k) => {
-              const stimmt = Math.abs(k.differenz) < 0.005;
-              return (
-                <li key={k.id} className={KARTE_RAHMEN}>
-                  <KarteKopf
-                    titel={formatDate(k.datum)}
-                    wert={
-                      <span
-                        className={`${KARTE_KENNZEICHEN} ${stimmt ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}
-                      >
-                        {stimmt ? "stimmt" : "Abweichung"}
-                      </span>
-                    }
-                  />
-                  <KarteWerte
-                    werte={[
-                      { label: "Laut Kontoauszug", wert: formatEuro(k.bank) },
-                      { label: "Simuliert", wert: formatEuro(k.simuliert) },
-                      !stimmt && { label: "Differenz", wert: formatEuro(k.differenz), klasse: "text-red-400" },
-                    ]}
-                  />
-                  {k.notiz && <KarteNotiz>{k.notiz}</KarteNotiz>}
-                  <KarteAktionen>
-                    <DeleteButton
-                      action={loescheKontostandKontrolle.bind(null, k.id)}
-                      confirmText="Prüfwert wirklich entfernen?"
-                      label="Entfernen"
-                    />
-                  </KarteAktionen>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {kontrollZeilen.length > 0 && (
-          <div className="mt-4 hidden overflow-x-auto md:block">
-            <table className="w-full text-sm">
-              <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-                <tr>
-                  <th className="py-2 pr-4">Datum</th>
-                  <th className="px-4 py-2 text-right">Laut Kontoauszug</th>
-                  <th className="px-4 py-2 text-right">Simuliert</th>
-                  <th className="px-4 py-2 text-right">Differenz</th>
-                  <th className="px-4 py-2">Ergebnis</th>
-                  <th className="px-4 py-2">Notiz</th>
-                  <th className="py-2 pl-4" />
-                </tr>
-              </thead>
-              <tbody>
-                {kontrollZeilen.map((k) => {
-                  const stimmt = Math.abs(k.differenz) < 0.005;
-                  return (
-                    <tr key={k.id} className="border-t border-neutral-800">
-                      <td className="py-2 pr-4 text-white">{formatDate(k.datum)}</td>
-                      <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(k.bank)}</td>
-                      <td className="px-4 py-2 text-right text-neutral-200">{formatEuro(k.simuliert)}</td>
-                      <td className={`px-4 py-2 text-right ${stimmt ? "text-neutral-500" : "text-red-400"}`}>
-                        {formatEuro(k.differenz)}
-                      </td>
-                      <td className="px-4 py-2">
-                        {stimmt ? (
-                          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">stimmt</span>
-                        ) : (
-                          <span
-                            className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-400"
-                            title="Simulierter Stand minus Kontoauszug: negativ = im Journal fehlen Einnahmen/es sind zu viele Ausgaben erfasst, positiv = umgekehrt"
-                          >
-                            Abweichung
-                          </span>
-                        )}
-                      </td>
-                      <td className="max-w-[240px] truncate px-4 py-2 text-xs text-neutral-500" title={k.notiz ?? ""}>
-                        {k.notiz}
-                      </td>
-                      <td className="py-2 pl-4 text-right">
-                        <DeleteButton
-                          action={loescheKontostandKontrolle.bind(null, k.id)}
-                          confirmText="Prüfwert wirklich entfernen?"
-                          label="Entfernen"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </details>
     </div>
   );

@@ -98,7 +98,6 @@ export type StornoZeile = {
   storniertVon: string | null;
 };
 
-export type Kontrollwert = { datum: Date; bank: number; berechnet: number; differenz: number; notiz: string | null };
 
 export type Jahresjournal = {
   jahr: number;
@@ -113,7 +112,6 @@ export type Jahresjournal = {
   zeilen: JournalZeile[];
   arten: ArtSumme[];
   monate: MonatsSumme[];
-  kontrollen: Kontrollwert[];
   verifikation: { bank: number; berechnet: number; differenz: number } | null;
   stornoAnzahl: number;
   stornos: StornoZeile[] | null; // nur auf Wunsch geladen
@@ -222,7 +220,7 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
   const bis = new Date(Date.UTC(jahr, 11, 31, 23, 59, 59, 999));
   const vorjahresende = new Date(von.getTime() - 1);
 
-  const [eintraege, buchungen, geparkt, stornoAnzahl, kontrollenRoh, verifikationRoh, hausRoh, fruehere] = await Promise.all([
+  const [eintraege, buchungen, geparkt, stornoAnzahl, verifikationRoh, hausRoh, fruehere] = await Promise.all([
     ladeKontostandEintraege(),
     ladeBuchungen(von, bis),
     prisma.nichtZugeordneteBuchung.findMany({
@@ -232,7 +230,6 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
     prisma.buchung.count({
       where: { buchungsart: { zahlungswirksam: true }, datum: { gte: von, lte: bis }, storniertDurchBuchungId: { not: null } },
     }),
-    prisma.kontostandKontrolle.findMany({ where: { datum: { gte: von, lte: bis } }, orderBy: { datum: "asc" } }),
     prisma.kontenabgleichVerifikation.findUnique({ where: { jahr_quartal: { jahr, quartal: 0 } } }),
     prisma.haus.findMany({ select: { id: true, reihenfolge: true, gebaeude: { select: { strasse: true, hausnummer: true } } } }),
     // Mietzahlungen für Monate dieses Jahres, die außerhalb des Jahres eingegangen sind (z. B. im Vorjahr im Voraus).
@@ -359,11 +356,6 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
   const einnahmen = rund(zeilen.filter((z) => z.betrag >= 0).reduce((s, z) => s + z.betrag, 0));
   const ausgaben = rund(zeilen.filter((z) => z.betrag < 0).reduce((s, z) => s + z.betrag, 0));
 
-  const kontrollen: Kontrollwert[] = kontrollenRoh.map((k) => {
-    const berechnet = rund(kontostandAmStichtag(eintraege, anker, new Date(k.datum.getTime() + 24 * 60 * 60 * 1000 - 1)));
-    const bank = Number(k.betrag);
-    return { datum: k.datum, bank, berechnet, differenz: rund(berechnet - bank), notiz: k.notiz };
-  });
   const verifikation = verifikationRoh
     ? (() => {
         const bank = Number(verifikationRoh.kontostandLautBankauszug);
@@ -410,7 +402,6 @@ export async function ladeJahresjournal(jahr: number, optionen: { mitStornos?: b
     zeilen,
     arten,
     monate,
-    kontrollen,
     verifikation,
     stornoAnzahl,
     stornos,

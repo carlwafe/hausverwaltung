@@ -305,24 +305,13 @@ function zeichneAbstimmung(b: Bericht, d: Jahresjournal, ueberschrift: string) {
   const jahr = d.jahr;
   const bis = `31.12.${jahr}`;
   b.titel(ueberschrift);
-  if (d.kontrollen.length === 0 && !d.verifikation) {
+  if (!d.verifikation) {
     b.absatz(
-      "Für dieses Jahr sind keine Kontostände aus Kontoauszügen hinterlegt – der Endbestand ist rein rechnerisch aus dem Journal ermittelt. " +
-        "Empfehlung: den Kontostand laut Kontoauszug zum 31.12. unter „Kontostand → Kontostand prüfen“ eintragen.",
+      "Für dieses Jahr ist kein Kontostand aus einem Kontoauszug hinterlegt – der Endbestand ist rein rechnerisch aus dem Journal ermittelt.",
       { farbe: ROT },
     );
   } else {
-    const kz: Zeile[] = d.kontrollen.map((k) => ({
-      cells: [
-        `Kontostand ${datum(k.datum)}`,
-        euro(k.bank),
-        euro(k.berechnet),
-        euro(k.differenz),
-        Math.abs(k.differenz) < 0.005 ? "stimmt" : "Abweichung",
-        k.notiz ?? "",
-      ],
-      farbe: Math.abs(k.differenz) < 0.005 ? undefined : ROT,
-    }));
+    const kz: Zeile[] = [];
     if (d.verifikation) {
       kz.push({
         cells: [
@@ -431,13 +420,11 @@ export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Ar
   // ───────────── Seite 2: Monatsübersicht ─────────────
   b.neueSeite();
   b.titel("4  Monatsübersicht");
-  const kontrollNachMonat = new Map<number, string>();
-  for (const k of d.kontrollen) kontrollNachMonat.set(k.datum.getUTCMonth() + 1, `${datumKurz(k.datum)}: ${euro(k.bank)}`);
   const monatsZeilen: Zeile[] = d.monate.map((m) => ({
-    cells: [MONATE[m.monat - 1], euro(m.anfang), euro(m.einnahmen), euro(m.ausgaben), euro(m.ende), String(m.anzahl), kontrollNachMonat.get(m.monat) ?? ""],
+    cells: [MONATE[m.monat - 1], euro(m.anfang), euro(m.einnahmen), euro(m.ausgaben), euro(m.ende), String(m.anzahl)],
   }));
   monatsZeilen.push({
-    cells: ["Jahr", euro(d.anfangsbestand), euro(d.einnahmen), euro(d.ausgaben), euro(d.endbestand), String(d.zeilen.length), ""],
+    cells: ["Jahr", euro(d.anfangsbestand), euro(d.einnahmen), euro(d.ausgaben), euro(d.endbestand), String(d.zeilen.length)],
     fett: true,
     fill: HELLGRAU,
     linieOben: true,
@@ -450,7 +437,6 @@ export async function erzeugeJahresjournalPdf(d: Jahresjournal): Promise<Uint8Ar
       { titel: "Ausgaben", w: 100, rechts: true },
       { titel: "Kontostand Monatsende", w: 120, rechts: true },
       { titel: "Buchungen", w: 70, rechts: true },
-      { titel: "Kontoauszug (Kontrollwert)", w: 182 },
     ],
     monatsZeilen,
     { groesse: 8.5 },

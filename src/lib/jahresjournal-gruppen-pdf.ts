@@ -277,9 +277,9 @@ export async function erzeugeGruppenPdf(d: Jahresjournal, mieter: MieterUebersic
       : `ACHTUNG Rechenprobe: Anfangsbestand + Gruppensummen = ${euro(d.anfangsbestand + summeGruppen)} EUR, Endbestand ${euro(d.endbestand)} EUR, unabhängig berechnet ${euro(d.endbestandUnabhaengig)} EUR.`,
     { farbe: probeOk ? GRUEN : ROT },
   );
-  if (d.kontrollen.length === 0 && !d.verifikation) {
+  if (!d.verifikation) {
     b.absatz("Für dieses Jahr ist kein Kontostand aus einem Kontoauszug hinterlegt – der Endbestand ist rein rechnerisch ermittelt.", { farbe: ROT });
-  } else if (d.verifikation) {
+  } else {
     const ok = Math.abs(d.verifikation.differenz) < 0.005;
     b.absatz(
       `Abstimmung: Kontostand ${bis} laut Kontoauszug ${euro(d.verifikation.bank)} EUR, laut Journal ${euro(d.verifikation.berechnet)} EUR – ${ok ? "stimmt" : `Abweichung ${euro(d.verifikation.differenz)} EUR`}.`,
