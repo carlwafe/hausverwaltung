@@ -21,11 +21,17 @@ Auf der Detailseite einer Zahlung (`/zahlungen/[id]`, alle drei Ansichten: Mietz
 - Überweisung "1. Miete und Kaution" → Zahlung aufteilen mit Teil "Kaution".
 - Fehlt zu einer Kaution der Anlage-Abgang im Kontoauszug (und beim Verwalter die Anlage-Zeile auf 3500), war sie vermutlich nie angelegt: keine Zinsen, keine `KAUTION_AUFLOESUNG` buchen, Anlageform „Bar“.
 
+**Kautionsseite** (`kautionen/`, Einordnung `src/lib/kaution-schritt.ts`, Daten `src/lib/kautionen-uebersicht.ts`)
+- Reiter statt zweier Tabellen: *Zu tun*, *Hinterlegt*, *Erledigt* und *Alle Buchungen* (Journal zum Suchen, Kategorie ändern, Löschen). Gerechnet wird wie in der Kautionsabrechnung am Mietvertrag (`baueKautionskonto`), damit beide dasselbe sagen.
+- *Zu tun* mit „Nächster Schritt“, in dieser Reihenfolge: Warnung (kein Stammdatensatz, keine Einzahlung gefunden) → zu viel ausgezahlt bzw. nachzufordern → strittiger Einbehalt → vorläufiger Einbehalt (Rechnung fehlt) → Einzahlung fehlt (laufender Vertrag) → Mietende erreicht: Kautionskonto auflösen bzw. Rest abrechnen. Bis 1 Cent Differenz gilt als erledigt.
+- Ein laufender Vertrag bleibt *Hinterlegt*, auch nach Auflösung und neuer Anlage (Kontowechsel).
+- Zeile aufklappen zeigt die Bewegungen mit laufendem Guthaben: Buchungen öffnen über › ihre Detailseite (Kategorie, Aufteilen, Stornieren, Bankzeile), Einbehalte werden dort direkt umgestellt; „+ Buchung zu dieser Kaution“ öffnet das Formular mit vorausgewähltem Mietvertrag.
+- „Liegt auf“ (Kautions- oder Geschäftskonto) nur, wenn die Einzahlung gebucht ist — vor Buchhaltungsbeginn fehlt die Anlage im Journal.
+
 **Einbehalte**
 - *Vorläufig* (Rechnung folgt): liegt sie vor → Einbehalt löschen und „Verrechnung mit Rechnung“ anlegen (siehe unten).
 - *Pauschal* (endgültig ohne Rechnung, z.B. Abnutzung, Sperrmüll, 8 € Briefkastenschlüssel): Einnahme, EÜR-relevant. **Nicht** als Verrechnung mit Rechnung buchen — sonst erscheint der Betrag weder unter Kosten noch in der Jahresübersicht.
 - Verrechnung mit BK-Abrechnung (Nachzahlung) oder mit dem Mieterkonto (Rückstand/Gebühren). Mietsaldo/Sonderforderungen immer über `SONDERBUCHUNGEN_FILTER` + `sonderWirkung` (`sonderforderungen.ts`) berechnen, sonst fehlt die Verrechnung Kaution ↔ Mieterkonto (`KAUTION_EINBEHALT` mit `bezugTyp = MIETERKONTO_VERRECHNUNG_BEZUG` zählt dort als Zahlung).
-- Übersicht: Offen = einbehalten − pauschal → erledigt / Rest offen / überzahlt.
 
 **Verrechnung mit Rechnung** (technisch `KAUTION_VIRTUELLE_AUSZAHLUNG`; Kautionen → Neu, mit Verknüpfung zur Kostenposition). Trägt der Mieter eine Rechnung über die Kaution (z.B. Schlossaustausch 71,40 €): Die Rechnung bleibt als `KOSTENPOSITION` stehen, die Kautionsbuchung legt automatisch eine Gegen-Kostenposition "Verrechnet mit Kaution" (−71,40 €) an — Kosten netto 0, die Kaution sinkt, die Verrechnung ist nicht EÜR-relevant.
 - Vorzeichen: Die Kautionsbuchung ist immer negativ (das Formular erzwingt es). Sie hebt sich im Kontostand mit der Gegen-Kostenposition auf; positiv gebucht weicht der Kontostand um den doppelten Betrag von der Bank ab.

@@ -43,8 +43,8 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
 ];
 
 /**
- * Absichtlich hinter einem eingeklappten Link versteckt (Vorbild: Aufteilen-Formulare bei
- * Kosten/Zahlungen) — für Fälle, die sich nicht aus einer einzelnen importierten Kontobuchung
+ * Öffnet sich über „+ Kautionsbuchung“ oben auf der Seite oder aus einer aufgeklappten Kaution (dann mit
+ * vorausgewähltem Mietvertrag) — für Fälle, die sich nicht aus einer einzelnen importierten Kontobuchung
  * ergeben, z.B. ein einbehaltener Kautionsrest, der teils für eine Reparatur verwendet und teils
  * in einer Betriebskostenabrechnung verrechnet wurde, ohne dass dafür je eine als "Kaution"
  * erkennbare Auszahlung überwiesen wurde.
@@ -52,14 +52,17 @@ const KATEGORIE_OPTIONEN: { value: string; label: string }[] = [
 export function NeueKautionsbuchungForm({
   mietvertraege,
   virtuelleGutschriften,
+  vorauswahlMietvertragId = "",
+  onSchliessen,
 }: {
   mietvertraege: { id: string; label: string }[];
   /** Kostenpositionen mit negativem Betrag (Gutschriften) — mögliche Gegenbuchungen für eine
    * virtuelle Auszahlung. */
   virtuelleGutschriften: VirtuelleGutschrift[];
+  vorauswahlMietvertragId?: string;
+  onSchliessen: () => void;
 }) {
-  const [offen, setOffen] = useState(false);
-  const [mietvertragId, setMietvertragId] = useState("");
+  const [mietvertragId, setMietvertragId] = useState(vorauswahlMietvertragId);
   const [datum, setDatum] = useState("");
   const [kategorie, setKategorie] = useState("");
   const [kostenpositionId, setKostenpositionId] = useState("");
@@ -110,29 +113,12 @@ export function NeueKautionsbuchungForm({
         return;
       }
       setFehler(null);
-      setMietvertragId("");
-      setDatum("");
-      setKategorie("");
-      setKostenpositionId("");
-      setEinbehaltStatus("UNSTRITTIG");
-      setOffen(false);
+      onSchliessen();
     });
   }
 
-  if (!offen) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOffen(true)}
-        className="mb-4 text-sm text-neutral-400 hover:text-white hover:underline"
-      >
-        Kautionsbuchung manuell hinzufügen…
-      </button>
-    );
-  }
-
   return (
-    <div className="mb-4 rounded-lg border border-neutral-800 p-4">
+    <div className="mb-4 max-w-3xl rounded-lg border border-neutral-800 p-4">
       <p className="mb-3 text-sm font-medium text-white">Kautionsbuchung manuell hinzufügen</p>
       <p className="mb-3 text-xs text-neutral-500">
         Auch für Fälle ohne eigene Kontobuchung — z.B. ein einbehaltener Kautionsrest, der anderweitig
@@ -281,7 +267,7 @@ export function NeueKautionsbuchungForm({
           </button>
           <button
             type="button"
-            onClick={() => setOffen(false)}
+            onClick={onSchliessen}
             className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
           >
             Abbrechen

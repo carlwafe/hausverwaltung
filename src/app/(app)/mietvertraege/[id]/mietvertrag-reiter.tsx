@@ -7,16 +7,16 @@ import { MieterkontoAnsicht } from "./mieterkonto-ansicht";
 import { NebenkostenAnsicht, type NkJahrDaten } from "./nebenkosten-ansicht";
 import { KautionAnsicht } from "./kaution-ansicht";
 
-type Reiter = "mieterkonto" | "nebenkosten" | "kaution";
+export type MietvertragReiterId = "mieterkonto" | "nebenkosten" | "kaution";
 
 // Symbole (Heroicons-Umrisse), damit die Reiter als Navigation auffallen und nicht wie Überschriften wirken.
-const SYMBOLE: Record<Reiter, string> = {
+const SYMBOLE: Record<MietvertragReiterId, string> = {
   mieterkonto: "M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z",
   nebenkosten: "M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25V13.5Zm0 2.25h.008v.008H8.25v-.008Zm0 2.25h.008v.008H8.25V18Zm2.498-6.75h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007V13.5Zm0 2.25h.007v.008h-.007v-.008Zm0 2.25h.007v.008h-.007V18Zm2.504-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V13.5Zm0 2.25h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V18Zm2.498-6.75h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V13.5ZM8.25 6h7.5v2.25h-7.5V6ZM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 0 0 2.25 2.25h10.5a2.25 2.25 0 0 0 2.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0 0 12 2.25Z",
   kaution: "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z",
 };
 
-const REITER: { id: Reiter; label: string }[] = [
+const REITER: { id: MietvertragReiterId; label: string }[] = [
   { id: "mieterkonto", label: "Mieterkonto" },
   { id: "nebenkosten", label: "Betriebskostenabrechnung" },
   { id: "kaution", label: "Kautionsabrechnung" },
@@ -29,6 +29,7 @@ const REITER: { id: Reiter; label: string }[] = [
  * kommen fertig vom Server, der Wechsel passiert nur im Browser.
  */
 export function MietvertragReiter({
+  startReiter,
   mietvertragId,
   kontoJahre,
   konten,
@@ -39,6 +40,7 @@ export function MietvertragReiter({
   kaution,
   kopf,
 }: {
+  startReiter: MietvertragReiterId;
   mietvertragId: string;
   // Absteigend sortiert (neuestes Jahr zuerst).
   kontoJahre: number[];
@@ -51,7 +53,7 @@ export function MietvertragReiter({
   kaution: { konto: Kautionskonto; anlageform: string | null; mietende: Date | null };
   kopf: { mieter: string; einheit: string; wohnflaeche: number; mietbeginn: Date | null };
 }) {
-  const [reiter, setReiter] = useState<Reiter>("mieterkonto");
+  const [reiter, setReiter] = useState<MietvertragReiterId>(startReiter);
   const [kontoJahr, setKontoJahr] = useState(kontoJahre.includes(standardKontoJahr) ? standardKontoJahr : kontoJahre[0]);
   const [nkJahr, setNkJahr] = useState<number | null>(nkJahre[0] ?? null);
 

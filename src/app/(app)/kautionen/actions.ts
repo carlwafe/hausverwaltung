@@ -67,15 +67,16 @@ const KATEGORIE_ZU_CODE: Record<KautionBuchungKategorie, string> = {
 // aufteilungGruppeId wandern dabei mit auf die neue Zeile (anders als beim reinen Storno-
 // Gegeneintrag), weil die neue Zeile weiterhin dieselbe reale Buchung repräsentiert und z.B. in
 // der Vollständigkeitsprüfung ihres ursprünglichen Import-Batches mitzählen soll.
-export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie: KautionBuchungKategorie) {
+// Liefert die Id der neuen Buchung (die Detailseite springt dorthin).
+export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie: KautionBuchungKategorie): Promise<string | null> {
   const user = await requireEditor();
-  if (!KATEGORIE_WERTE.includes(kategorie)) return;
+  if (!KATEGORIE_WERTE.includes(kategorie)) return null;
   const buchungsart = await prisma.buchungsart.findUniqueOrThrow({ where: { code: KATEGORIE_ZU_CODE[kategorie] } });
   const erstelltVon = benutzerLabel(user);
-  await prisma.$transaction(async (tx) => {
+  const neu = await prisma.$transaction(async (tx) => {
     const original = await tx.buchung.findUniqueOrThrow({ where: { id } });
     await storniereBuchung(tx, id, erstelltVon);
-    await tx.buchung.create({
+    return tx.buchung.create({
       data: {
         mietvertragId: original.mietvertragId,
         buchungsartId: buchungsart.id,
@@ -89,9 +90,12 @@ export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie
         aufteilungGruppeId: original.aufteilungGruppeId,
         erstelltVon,
       },
+      select: { id: true, mietvertragId: true },
     });
   });
   revalidatePath("/kautionen");
+  if (neu.mietvertragId) revalidatePath(`/mietvertraege/${neu.mietvertragId}`);
+  return neu.id;
 }
 
 const kautionAufteilungSchema = z.object({

@@ -71,6 +71,7 @@ export function DataTable<T extends { id: string }>({
   mobileSummary,
   kompakt = false,
   zeilenSchritt,
+  zeileKlappt = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -164,6 +165,9 @@ export function DataTable<T extends { id: string }>({
    * (die Kartenansicht am Handy zeigt immer 50 + Knopf). Suche, Filter, Sortierung und `renderFooter` gelten
    * weiter für alle Zeilen. Für lange Listen setzen — jede gezeichnete Zeile kostet Ladezeit. */
   zeilenSchritt?: number;
+  /** Ein Klick auf die Zeile (neben Links und Knöpfen) klappt `renderExpanded` auf und zu — für Zeilen ohne
+   * `rowHref`, deren Details unter der Zeile stehen (Beispiel: Bewegungen einer Kaution). */
+  zeileKlappt?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [von, setVon] = useState("");
@@ -179,6 +183,7 @@ export function DataTable<T extends { id: string }>({
   const [tabellenAnzahl, setTabellenAnzahl] = useState(zeilenSchritt ?? Infinity);
   const router = useRouter();
   const extraSpalten = (selectable ? 1 : 0) + (rowHref ? 1 : 0);
+  const klappbar = zeileKlappt && !!renderExpanded;
   const zellAbstand = kompakt ? "px-3" : "px-4";
 
   function zeilenKlick(e: React.MouseEvent, href: string) {
@@ -443,8 +448,19 @@ export function DataTable<T extends { id: string }>({
                 <Fragment key={row.id}>
                   <tr
                     id={rowId?.(row)}
-                    onClick={href ? (e) => zeilenKlick(e, href) : undefined}
-                    className={`group border-t border-neutral-800 ${href ? "cursor-pointer" : ""} hover:bg-neutral-900 ${rowClassName?.(row) ?? ""}`}
+                    onClick={
+                      href
+                        ? (e) => zeilenKlick(e, href)
+                        : klappbar
+                          ? (e) => {
+                              if (e.button !== 0 || (e.target as HTMLElement).closest(INTERAKTIV)) return;
+                              if (window.getSelection()?.toString()) return;
+                              ctx.toggleExpanded();
+                            }
+                          : undefined
+                    }
+                    aria-expanded={klappbar ? expanded : undefined}
+                    className={`group border-t border-neutral-800 ${href || klappbar ? "cursor-pointer" : ""} hover:bg-neutral-900 ${expanded && klappbar ? "bg-neutral-900" : ""} ${rowClassName?.(row) ?? ""}`}
                   >
                     {selectable && (
                       <td className={`${zellAbstand} py-2`}>

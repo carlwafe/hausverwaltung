@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
-import { RohdatenToggleButton, RohdatenZeile } from "@/components/rohdaten-inline";
+import { RohdatenNachladenZeile, RohdatenToggleButton } from "@/components/rohdaten-inline";
 import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz } from "@/components/karte";
 import {
   aktualisiereKautionsbuchungKategorie,
@@ -67,7 +67,8 @@ export type KautionsbuchungRow = {
   betrag: number;
   empfaenger: string | null;
   verwendungszweck: string | null;
-  rohdaten: Record<string, string> | null;
+  // Bankzeile vorhanden — sie wird erst beim Aufklappen geladen (RohdatenNachladenZeile).
+  hatRohdaten: boolean;
   importBatchId: string | null;
   importDateiname: string | null;
   kategorie: KautionBuchungKategorie;
@@ -165,9 +166,9 @@ function KategorieZelle({ k }: { k: KautionsbuchungRow }) {
       value={k.kategorie}
       disabled={pending}
       onChange={(e) =>
-        startTransition(() =>
-          aktualisiereKautionsbuchungKategorie(k.id, e.target.value as UmstellbareKategorie),
-        )
+        startTransition(async () => {
+          await aktualisiereKautionsbuchungKategorie(k.id, e.target.value as UmstellbareKategorie);
+        })
       }
       className="rounded-md border border-neutral-700 bg-transparent px-1.5 py-1 text-xs text-white outline-none focus:border-neutral-400 disabled:opacity-50"
     >
@@ -273,7 +274,7 @@ const columns: Column<KautionsbuchungRow>[] = [
     key: "quelle",
     label: "Quelle",
     render: (k, { expanded, toggleExpanded }) =>
-      k.rohdaten ? (
+      k.hatRohdaten ? (
         <RohdatenToggleButton expanded={expanded} onClick={toggleExpanded} />
       ) : (
         <span className="text-xs text-neutral-600">manuell</span>
@@ -360,10 +361,11 @@ export function KautionsbuchungenTable({ rows }: { rows: KautionsbuchungRow[] })
         selectable
         onSelectionChange={setAusgewaehlt}
         rowId={(k) => `kautionsbuchung-${k.id}`}
+        zeilenSchritt={100}
         renderExpanded={(k, colSpan) =>
-          k.rohdaten ? (
-            <RohdatenZeile
-              rohdaten={k.rohdaten}
+          k.hatRohdaten ? (
+            <RohdatenNachladenZeile
+              buchungId={k.id}
               colSpan={colSpan}
               downloadHref={k.importBatchId ? `/api/import-batches/${k.importBatchId}/download` : undefined}
               downloadLabel={`Originaldatei herunterladen${k.importDateiname ? ` (${k.importDateiname})` : ""}`}

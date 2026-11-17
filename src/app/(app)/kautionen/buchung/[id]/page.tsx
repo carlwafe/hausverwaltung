@@ -6,6 +6,18 @@ import { mieterName } from "@/lib/mieter-name";
 import { DeleteButton } from "@/components/delete-button";
 import { KautionAufteilenForm } from "../../kaution-aufteilen-form";
 import { deleteKautionsbuchungen, hebeKautionAufteilungAuf } from "../../actions";
+import { RohdatenAnsicht } from "@/components/rohdaten-ansicht";
+import type { KautionBuchungKategorie } from "../../kautionsbuchungen-table";
+import { KategorieAuswahl } from "./kategorie-auswahl";
+
+const CODE_ZU_KATEGORIE: Record<string, KautionBuchungKategorie> = {
+  KAUTION_EINZAHLUNG: "EINZAHLUNG_MIETER",
+  KAUTION_ANLAGE: "ANLAGE",
+  KAUTION_AUFLOESUNG: "AUFLOESUNG",
+  KAUTION_AUSZAHLUNG: "AUSZAHLUNG_MIETER",
+  KAUTION_SONSTIGES: "SONSTIGES",
+  KAUTION_VIRTUELLE_AUSZAHLUNG: "VIRTUELLE_AUSZAHLUNG",
+};
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -21,10 +33,16 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
   const { id } = await params;
   const buchung = await prisma.buchung.findFirst({
     where: { id, buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } }, ...AKTIVE_BUCHUNG_FILTER },
-    include: { buchungsart: true, mietvertrag: { include: { einheit: true, mieter: true } } },
+    include: {
+      buchungsart: true,
+      mietvertrag: { include: { einheit: true, mieter: true } },
+      importBatch: { select: { dateiname: true } },
+    },
   });
   if (!buchung || !buchung.mietvertrag || !buchung.datum) notFound();
   const mieterNamen = buchung.mietvertrag.mieter.map((m) => mieterName(m)).join(" & ");
+  const kategorie = CODE_ZU_KATEGORIE[buchung.buchungsart.code];
+  const rohdaten = (buchung.rohdaten as Record<string, string> | null) ?? null;
 
   const geschwister = buchung.aufteilungGruppeId
     ? await prisma.buchung.findMany({
@@ -41,6 +59,9 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
 
   return (
     <div>
+      <Link href="/kautionen" className="mb-2 inline-block text-sm text-neutral-400 hover:text-white">
+        ← Kautionen
+      </Link>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">
           Kautionsbuchung — {buchung.mietvertrag.einheit.bezeichnung} ({mieterNamen})
@@ -56,9 +77,13 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
           <span className="text-neutral-400">Betrag</span>
           <span className="text-white">{formatEuro(Number(buchung.betrag))}</span>
         </p>
-        <p className="flex justify-between">
+        <p className="flex items-center justify-between gap-6">
           <span className="text-neutral-400">Kategorie</span>
-          <span className="text-white">{buchung.buchungsart.bezeichnung}</span>
+          {kategorie ? (
+            <KategorieAuswahl key={buchung.id} id={buchung.id} kategorie={kategorie} />
+          ) : (
+            <span className="text-white">{buchung.buchungsart.bezeichnung}</span>
+          )}
         </p>
         <p className="flex justify-between gap-6">
           <span className="text-neutral-400">Empfänger/Absender</span>
@@ -70,7 +95,7 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
         </p>
         <p className="flex justify-between">
           <span className="text-neutral-400">Mietvertrag</span>
-          <Link href={`/mietvertraege/${buchung.mietvertragId}`} className="text-white hover:underline">
+          <Link prefetch={false} href={`/mietvertraege/${buchung.mietvertragId}?reiter=kaution`} className="text-white hover:underline">
             {buchung.mietvertrag.einheit.bezeichnung} — {mieterNamen}
           </Link>
         </p>
@@ -82,6 +107,20 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
           </span>
         </p>
       </div>
+
+      {rohdaten && (
+        <details className="mt-4 max-w-5xl rounded-lg border border-neutral-800 p-4">
+          <summary className="cursor-pointer text-sm font-medium text-white">Bankzeile (Rohdaten)</summary>
+          <div className="mt-3">
+            {buchung.importBatchId && (
+              <a href={`/api/import-batches/${buchung.importBatchId}/download`} className="mb-3 block text-sm text-white underline">
+                Originaldatei herunterladen{buchung.importBatch?.dateiname ? ` (${buchung.importBatch.dateiname})` : ""}
+              </a>
+            )}
+            <RohdatenAnsicht rohdaten={rohdaten} />
+          </div>
+        </details>
+      )}
 
       {geschwister.length > 0 && (
         <div className="mt-4 rounded-lg border border-neutral-800 p-4">

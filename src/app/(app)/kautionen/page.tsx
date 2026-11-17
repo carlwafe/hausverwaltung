@@ -1,42 +1,16 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { KautionenTable, type KautionRow } from "./kautionen-table";
-import {
-  KautionsbuchungenTable,
-  type KautionsbuchungRow,
-  type KautionBuchungKategorie,
-} from "./kautionsbuchungen-table";
-import { NeueKautionsbuchungForm } from "./neue-kautionsbuchung-form";
+import { KautionenAnsicht, type KautionenReiter } from "./kautionen-ansicht";
+import { ANLAGEFORM_LABEL } from "@/lib/kaution-schritt";
+import type { KautionsbuchungRow, KautionBuchungKategorie } from "./kautionsbuchungen-table";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
-import { baueKautionskonto, ZINSEN_ZEILE_ID } from "@/lib/kautionskonto";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { KAUTION_EINBEHALT_BEZUG } from "@/lib/nk-verrechnung";
-import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
+import { ladeKautionsuebersicht } from "@/lib/kautionen-uebersicht";
+import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
 import { mieterName } from "@/lib/mieter-name";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
-}
-
-const ANLAGEFORM_LABEL: Record<string, string> = {
-  KAUTIONSKONTO: "Kautionskonto",
-  SPARBUCH: "Sparbuch",
-  BUERGSCHAFT: "Bürgschaft",
-  BAR: "Bar",
-};
-
-// Cent-Rundungstoleranz beim Vergleich zweier Beträge (z.B. Kaution.betrag gegen die Summe der
-// Einzahlung-Mieter-Buchungen, oder "Einbehalten" gegen 0 beim Erledigt-Status).
-const TOLERANZ = 0.01;
-
-const STATUS_SORT: Record<KautionRow["status"], number> = { AKTIV: 0, UEBERZAHLT: 1, AUFGELOEST: 2, ERLEDIGT: 3 };
-
-// Status aus dem offenen Rest einer abgerechneten Kaution (aufgelöst, oder Bar ohne Auflösung): ~0
-// erledigt, positiv noch offen, negativ überzahlt (mehr an den Mieter geflossen bzw. einbehalten
-// als die Kaution hergab).
-function statusAusRest(abgerechnet: boolean, rest: number | null): KautionRow["status"] {
-  if (!abgerechnet || rest === null) return "AKTIV";
-  if (rest < -TOLERANZ) return "UEBERZAHLT";
-  return rest <= TOLERANZ ? "ERLEDIGT" : "AUFGELOEST";
 }
 
 // Kehrt KATEGORIE_ZU_CODE aus actions.ts um — kann von dort nicht importiert werden ("use server"-
@@ -50,245 +24,31 @@ const CODE_ZU_KATEGORIE: Record<string, KautionBuchungKategorie> = {
   KAUTION_VIRTUELLE_AUSZAHLUNG: "VIRTUELLE_AUSZAHLUNG",
 };
 
-async function ladeKautionen(): Promise<KautionRow[]> {
-  const [kautionen, buchungen] = await Promise.all([
-    prisma.kaution.findMany({
-      include: {
-        mietvertrag: { include: { einheit: true, mieter: true } },
-        einbehalte: { where: { pauschal: true }, select: { betrag: true } },
-      },
-    }),
-    prisma.buchung.findMany({
-      where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, mietvertragId: { not: null }, ...AKTIVE_BUCHUNG_FILTER },
-      select: {
-        id: true,
-        datum: true,
-        mietvertragId: true,
-        betrag: true,
-        jahr: true,
-        bezugTyp: true,
-        aufteilungGruppeId: true,
-        buchungsart: { select: { code: true } },
-      },
-    }),
-  ]);
-
-  // Pro Mietvertrag nach Kategorie aufsummieren, statt einer eigenen Query pro Kaution — die
-  // Gesamtmenge an Kautionsbuchungen ist klein genug, um sie einmal komplett zu laden. Mehrere
-  // Auszahlungen (z.B. ein späterer Nachschlag auf einen zunächst nur teilweise ausgezahlten
-  // Betrag) summieren sich hier automatisch.
-  const summenProMietvertrag = new Map<
-    string,
-    { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number; sonstiges: number }
-  >();
-  for (const b of buchungen) {
-    const key = b.mietvertragId!;
-    const eintrag = summenProMietvertrag.get(key) ?? {
-      einzahlung: 0,
-      anlage: 0,
-      aufgeloest: 0,
-      ausgezahlt: 0,
-      verrechnet: 0,
-      sonstiges: 0,
-    };
-    const betrag = Number(b.betrag);
-    const code = b.buchungsart.code;
-    if (code === "KAUTION_EINZAHLUNG") eintrag.einzahlung += betrag;
-    // Interne Überweisung Geschäfts- -> Kautionskonto — setzt eigentlich eine bereits erfolgte
-    // Einzahlung des Mieters voraus. Wird unten als Fallback-Betrag für einen fehlenden
-    // Kaution-Stammdatensatz genutzt und liefert außerdem das Signal für die "keine Einzahlung
-    // gefunden"-Warnung (siehe warnungFuer).
-    // Mit Bankvorzeichen: eine positive Anlage ist eine Rückbuchung vom Kautionskonto (siehe
-    // kautionskonto.ts) und mindert den angelegten Betrag.
-    else if (code === "KAUTION_ANLAGE") eintrag.anlage -= betrag;
-    // Auflösung/Auszahlung kommen aus dem Kontoauszug mit ihrem tatsächlichen Vorzeichen
-    // (Auflösung eingehend = positiv, Auszahlung ausgehend = negativ) — hier auf positive
-    // Beträge normalisiert, damit "Einbehalten" als einfache Differenz berechnet werden kann.
-    else if (code === "KAUTION_AUFLOESUNG") eintrag.aufgeloest += betrag;
-    // Eine echte Auszahlung zählt mit Bankvorzeichen: eine Rücküberweisung (positiv, z.B. "Konto
-    // aufgelöst") mindert die ausgezahlte Summe wieder, statt als zweite Auszahlung zu zählen.
-    else if (code === "KAUTION_AUSZAHLUNG") eintrag.ausgezahlt -= betrag;
-    // VIRTUELLE_AUSZAHLUNG ist keine Auszahlung, sondern eine Verrechnung der Kaution mit einer vom
-    // Vermieter bezahlten Rechnung (wie die Verrechnung mit BK-Abrechnung/Mieterkonto unten): der
-    // Betrag ist der Kaution endgültig entzogen, ohne dass Geld an den Mieter fließt oder eine
-    // Kontobewegung entsteht (Gegenbuchung auf der Kosten-Seite, Buchung.bezugId).
-    else if (code === "KAUTION_VIRTUELLE_AUSZAHLUNG") eintrag.verrechnet += Math.abs(betrag);
-    // Mit der Betriebskostenabrechnung verrechneter Einbehalt (KAUTION_EINBEHALT mit Abrechnungsjahr,
-    // siehe NK_VERRECHNUNG_BEZUG): der Betrag ist dem Kautionsrest ebenfalls entzogen und mindert
-    // deshalb "Einbehalten". Ein einfacher Einbehalt ohne Abrechnungsjahr bleibt dagegen Teil des
-    // einbehaltenen Restbetrags.
-    else if (code === "KAUTION_EINBEHALT" && b.bezugTyp === KAUTION_EINBEHALT_BEZUG && b.jahr !== null)
-      eintrag.verrechnet += Math.abs(betrag);
-    // Mit dem Mieterkonto verrechnet (Mietrückstand, Gebühren) — ebenso endgültig beglichen.
-    else if (code === "KAUTION_EINBEHALT" && b.bezugTyp === MIETERKONTO_VERRECHNUNG_BEZUG)
-      eintrag.verrechnet += Math.abs(betrag);
-    else if (code === "KAUTION_SONSTIGES") eintrag.sonstiges += betrag;
-    summenProMietvertrag.set(key, eintrag);
-  }
-
-  // Kautionsgeld, das direkt aufs Geschäftskonto ging und nie aufs Kautionskonto angelegt wurde (z.B.
-  // Gellusch: nur ein Drittel lag auf dem Kautionskonto, der Rest kam direkt) — steht für Auszahlungen
-  // zusätzlich zur Auflösung zur Verfügung. Liegt alles auf dem Kautionskonto, ist es 0.
-  function direktEingegangen(summen: { einzahlung: number; sonstiges: number; anlage: number } | undefined): number {
-    if (!summen) return 0;
-    return Math.max(0, Math.round((summen.einzahlung + summen.sonstiges - summen.anlage) * 100) / 100);
-  }
-
-  // Warnt, wenn für einen Mietvertrag zwar eine Kautionsbewegung (Anlage/Auflösung/Auszahlung)
-  // vorliegt, aber nie eine "Einzahlung Mieter"-Buchung erfasst wurde — typischerweise, weil die
-  // tatsächliche Einzahlung fälschlich als normale Zahlung statt als Kautionsbuchung importiert
-  // wurde. Ohne diese Warnung fällt so ein Fall sonst nur auf, wenn man gezielt danach sucht.
-  function warnungFuer(
-    summen: { einzahlung: number; anlage: number; aufgeloest: number; ausgezahlt: number; verrechnet: number; sonstiges: number } | undefined,
-    einzahlungUnbekannt = false,
-  ): string | null {
-    if (!summen || summen.einzahlung > 0 || einzahlungUnbekannt) return null;
-    if (Math.abs(summen.anlage) < TOLERANZ && summen.aufgeloest === 0 && summen.ausgezahlt === 0 && summen.verrechnet === 0) return null;
-    return "Keine Einzahlung des Mieters in den Kautionsbuchungen gefunden — vermutlich wurde die tatsächliche Einzahlung fälschlich als normale Zahlung importiert.";
-  }
-
-  // Zinsen aus der Auflösung — dieselbe Rechnung wie im Kautionskonto der Mietvertragsseite.
-  function zinsenFuer(
-    mietvertragId: string,
-    sollBetrag: number,
-    einzahlungUnbekannt: boolean,
-    mietbeginn: Date | null,
-  ): number | null {
-    const bewegungen = buchungen
-      .filter((b) => b.mietvertragId === mietvertragId && b.buchungsart.code !== "KAUTION_EINBEHALT")
-      .map((b) => ({
-        id: b.id,
-        datum: b.datum,
-        code: b.buchungsart.code,
-        bezeichnung: b.buchungsart.code,
-        betrag: Number(b.betrag),
-        verwendungszweck: null,
-      }));
-    const konto = baueKautionskonto({ sollBetrag, einzahlungUnbekannt, mietbeginn, bewegungen, einbehalte: [] });
-    return konto.zeilen.find((z) => z.id === ZINSEN_ZEILE_ID)?.wirkung ?? null;
-  }
-
-  const kautionZeilen = kautionen.map((k) => {
-    const summen = summenProMietvertrag.get(k.mietvertragId);
-    const betrag = Number(k.betrag);
-    const einzahlungSumme = summen && summen.einzahlung > 0 ? summen.einzahlung : null;
-    const aufgeloest = summen?.aufgeloest ?? 0;
-    const ausgezahlt = summen?.ausgezahlt ?? 0;
-    const verrechnet = summen?.verrechnet ?? 0;
-    const pauschalEinbehalten = k.einbehalte.reduce((s, e) => s + Number(e.betrag), 0);
-    // Bar / nie angelegt: Es gibt keine Auflösung (das Geld lag nie auf einem Kautionskonto). Sobald
-    // etwas ausgezahlt, verrechnet oder pauschal einbehalten ist, gilt die Kaution als abgerechnet
-    // und der Rest ergibt sich direkt aus der Einzahlung (bzw. dem Soll bei Einzahlung vor
-    // Buchhaltungsbeginn) — sonst bliebe sie ewig "Aktiv".
-    const barAbgerechnet =
-      k.anlageform === "BAR" && aufgeloest === 0 && ausgezahlt + verrechnet + pauschalEinbehalten > TOLERANZ;
-    const eingegangenBar = summen && summen.einzahlung > 0 ? direktEingegangen(summen) : k.einzahlungUnbekannt ? betrag : 0;
-    // Nur aussagekräftig, sobald überhaupt eine Auflösung stattgefunden hat — vorher ist noch
-    // nichts vom Kautionskonto abgeflossen, das der Auszahlung gegenübergestellt werden könnte.
-    const einbehalten =
-      aufgeloest > 0
-        ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100
-        : barAbgerechnet
-          ? Math.round((eingegangenBar - ausgezahlt - verrechnet) * 100) / 100
-          : null;
-    // Erledigt, sobald der einbehaltene Rest vollständig aus pauschalen, dem Vermieter endgültig
-    // gutgeschriebenen Einbehalten besteht — ein vorläufiger Einbehalt (Rechnung folgt noch) oder ein
-    // unbegründeter Rest lässt den Fall offen.
-    const offen = einbehalten !== null ? Math.round((einbehalten - pauschalEinbehalten) * 100) / 100 : null;
-    const status = statusAusRest(aufgeloest > 0 || barAbgerechnet, offen);
-
-    return {
-      id: k.id,
-      mietvertragId: k.mietvertragId,
-      einheitBezeichnung: k.mietvertrag.einheit.bezeichnung,
-      mietende: k.mietvertrag.ende?.toISOString() ?? null,
-      mieterNamen: k.mietvertrag.mieter.map((m) => mieterName(m)).join(" & "),
-      betrag,
-      betragAbweichung: einzahlungSumme !== null && Math.abs(einzahlungSumme - betrag) > TOLERANZ,
-      einzahlungSumme,
-      anlageform: k.anlageform as string | null,
-      aufgeloest,
-      ausgezahlt,
-      verrechnet,
-      einbehalten,
-      offen,
-      status,
-      warnung: warnungFuer(summen, k.einzahlungUnbekannt),
-      kautionId: k.id,
-      zinsen: zinsenFuer(k.mietvertragId, betrag, k.einzahlungUnbekannt, k.mietvertrag.beginn),
-      notizen: k.notizen,
-    };
-  });
-
-  // Mietverträge mit Kautionsbuchungen, aber ganz ohne eigenen Kaution-Stammdatensatz (z.B. weil
-  // "+ Kaution erfassen" nie ausgeführt wurde) — würden sonst in dieser Tabelle komplett fehlen,
-  // obwohl echte Kautionsbuchungen (z.B. eine Anlage) für sie existieren.
-  const bekannteMietvertragIds = new Set(kautionen.map((k) => k.mietvertragId));
-  const verwaisteMietvertragIds = [...summenProMietvertrag.keys()].filter((id) => !bekannteMietvertragIds.has(id));
-  const verwaisteVertraege = verwaisteMietvertragIds.length
-    ? await prisma.mietvertrag.findMany({
-        where: { id: { in: verwaisteMietvertragIds } },
-        include: { einheit: true, mieter: true },
-      })
-    : [];
-
-  const virtuelleZeilen = verwaisteVertraege.map((v) => {
-    const summen = summenProMietvertrag.get(v.id)!;
-    const aufgeloest = summen.aufgeloest;
-    const ausgezahlt = summen.ausgezahlt;
-    const verrechnet = summen.verrechnet;
-    const einbehalten = aufgeloest > 0 ? Math.round((aufgeloest + direktEingegangen(summen) - ausgezahlt - verrechnet) * 100) / 100 : null;
-    const status = statusAusRest(aufgeloest > 0, einbehalten);
-
-    return {
-      id: `verwaist-${v.id}`,
-      mietvertragId: v.id,
-      einheitBezeichnung: v.einheit.bezeichnung,
-      mietende: v.ende?.toISOString() ?? null,
-      mieterNamen: v.mieter.map((m) => mieterName(m)).join(" & "),
-      // Kein Kaution-Stammdatensatz vorhanden — die Anlage-Buchung (interne Überweisung
-      // Geschäfts- -> Kautionskonto) ist der verlässlichste Hinweis auf den eigentlich gemeinten
-      // Betrag, sonst 0.
-      betrag: Math.round(summen.anlage * 100) / 100,
-      betragAbweichung: false,
-      einzahlungSumme: summen.einzahlung > 0 ? summen.einzahlung : null,
-      anlageform: null,
-      aufgeloest,
-      ausgezahlt,
-      verrechnet,
-      einbehalten,
-      offen: einbehalten,
-      status,
-      warnung:
-        warnungFuer(summen) ??
-        "Kein Kaution-Stammdatensatz angelegt — aber Kautionsbuchungen für diesen Mietvertrag vorhanden.",
-      kautionId: null,
-      zinsen: null,
-      notizen: null,
-    };
-  });
-
-  return [...kautionZeilen, ...virtuelleZeilen].sort(
-    (a, b) =>
-      STATUS_SORT[a.status] - STATUS_SORT[b.status] ||
-      vergleicheEinheitBezeichnung(a.einheitBezeichnung, b.einheitBezeichnung),
-  );
-}
+const REITER: KautionenReiter[] = ["zu-tun", "hinterlegt", "erledigt", "buchungen"];
 
 async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
-  const buchungen = await prisma.buchung.findMany({
+  const where: Prisma.BuchungWhereInput = {
+    buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } },
+    ...AKTIVE_BUCHUNG_FILTER,
+  };
+  const [buchungen, mitRohdaten] = await Promise.all([
+    prisma.buchung.findMany({
     // KAUTION_EINBEHALT bewusst ausgeschlossen — diese Buchungen werden ausschließlich über die
     // Einbehalt-Zeilen (ladeKautionEinbehalte, KautionEinbehalt.buchungId) verwaltet; würde man sie hier zusätzlich zum
     // Bearbeiten/Löschen anbieten, liefe das an synchronisiereKautionEinbehaltBuchung vorbei und
     // hinterließe eine verwaiste buchungId auf der KautionEinbehalt-Zeile.
-    where: { buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } }, ...AKTIVE_BUCHUNG_FILTER },
+    where,
     orderBy: { datum: "desc" },
+    // Die Bankzeile lädt erst das Aufklappen (RohdatenNachladenZeile), siehe docs/deployment-vercel.md.
+    omit: { rohdaten: true },
     include: {
       mietvertrag: { include: { einheit: true, mieter: true } },
-      importBatch: true,
+      importBatch: { select: { dateiname: true } },
       buchungsart: { select: { code: true } },
     },
-  });
+    }),
+    idsMitRohdaten(where),
+  ]);
 
   // Verknüpfte virtuelle Gutschriften (früher Kostenposition.virtuelleKautionBuchungId, jetzt
   // bezugTyp/bezugId — kein echter FK mehr, deshalb hier per Hand nachgeschlagen statt per
@@ -313,7 +73,7 @@ async function ladeKautionsbuchungen(): Promise<KautionsbuchungRow[]> {
     betrag: Number(k.betrag),
     empfaenger: k.empfaenger,
     verwendungszweck: k.verwendungszweck,
-    rohdaten: (k.rohdaten as Record<string, string> | null) ?? null,
+    hatRohdaten: mitRohdaten.has(k.id),
     importBatchId: k.importBatchId,
     importDateiname: k.importBatch?.dateiname ?? null,
     kategorie: CODE_ZU_KATEGORIE[k.buchungsart.code]!,
@@ -362,7 +122,7 @@ async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
     betrag: -Number(e.betrag),
     empfaenger: null,
     verwendungszweck: e.positionText,
-    rohdaten: null,
+    hatRohdaten: false,
     importBatchId: null,
     importDateiname: null,
     kategorie: "EINBEHALT" as const,
@@ -391,28 +151,26 @@ async function ladeMietvertraege(): Promise<{ id: string; label: string }[]> {
     }));
 }
 
-export default async function KautionenPage() {
+export default async function KautionenPage({ searchParams }: { searchParams: Promise<{ ansicht?: string }> }) {
+  const { ansicht } = await searchParams;
+  const startReiter = REITER.find((r) => r === ansicht) ?? "zu-tun";
   const [kautionen, kautionsbuchungen, mietvertraege, virtuelleGutschriften, kautionEinbehalte] = await Promise.all([
-    ladeKautionen(),
+    ladeKautionsuebersicht(),
     ladeKautionsbuchungen(),
     ladeMietvertraege(),
     ladeVirtuelleGutschriften(),
     ladeKautionEinbehalte(),
   ]);
   const alleBuchungen = [...kautionsbuchungen, ...kautionEinbehalte].sort((a, b) => b.datum.localeCompare(a.datum));
-  const offen = kautionen.filter((k) => k.status !== "ERLEDIGT");
-  const aufgeloest = kautionen.filter((k) => k.status === "AUFGELOEST");
-  // Für die Verbindlichkeiten-Summe zählt bei einer bereits aufgelösten Kaution nur noch der
-  // tatsächlich einbehaltene Rest, nicht mehr der ursprüngliche Gesamtbetrag.
-  // Eine Überzahlung ist eine Forderung an den Mieter, keine negative Verbindlichkeit.
-  const summeOffen = offen.reduce((s, k) => s + Math.max(0, k.offen ?? k.betrag), 0);
 
-  // Zeilen ohne eigenen Kaution-Stammdatensatz (anlageform === null, siehe warnungFuer) haben
-  // keine echte Anlageform und fließen hier bewusst nicht mit ein — sie stehen ohnehin schon per
-  // Warnsymbol sichtbar in der Tabelle.
-  const summeJeAnlageform = offen.reduce<Record<string, number>>((acc, k) => {
+  // Verbindlichkeit = Kautionsguthaben der Mieter (Einzahlung + Zinsen − Einbehalte − Auszahlungen). Eine
+  // Überzahlung ist eine Forderung an den Mieter, keine negative Verbindlichkeit.
+  const mitGuthaben = kautionen.filter((k) => k.stand > 0.005);
+  const summe = mitGuthaben.reduce((s, k) => s + k.stand, 0);
+  // Zeilen ohne Kaution-Stammdatensatz haben keine Anlageform und fehlen hier — sie stehen mit ⚠ unter „Zu tun“.
+  const summeJeAnlageform = mitGuthaben.reduce<Record<string, number>>((acc, k) => {
     if (!k.anlageform) return acc;
-    acc[k.anlageform] = (acc[k.anlageform] ?? 0) + Math.max(0, k.offen ?? k.betrag);
+    acc[k.anlageform] = (acc[k.anlageform] ?? 0) + k.stand;
     return acc;
   }, {});
 
@@ -420,41 +178,40 @@ export default async function KautionenPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Kautionen</h1>
-        <p className="text-sm text-neutral-400">
-          {offen.length} offene Kaution{offen.length === 1 ? "" : "en"}
-          {aufgeloest.length > 0 && ` (davon ${aufgeloest.length} aufgelöst, noch nicht vollständig ausgezahlt)`}
-          {kautionen.length !== offen.length && `, ${kautionen.length - offen.length} erledigt`}.
-        </p>
-        <p className="mt-1 max-w-2xl text-xs text-neutral-500">
-          Trägt der Mieter eine Rechnung über die Kaution: &bdquo;Verrechnung mit Rechnung&ldquo; mit Verknüpfung zur
-          Kostenposition buchen (die Gegenbuchung &bdquo;Verrechnet mit Kaution&ldquo; entsteht automatisch, Kosten
-          netto 0). Das ist keine Auszahlung &mdash; es zählt unter &bdquo;Verrechnet&ldquo;, wie die Verrechnung mit Betriebskostenabrechnung oder Mieterkonto.
-          Ohne Rechnung (z.B. Schlüssel) einen pauschalen Einbehalt buchen &mdash; er zählt als Einnahme.
-        </p>
+        <details className="mt-1 max-w-3xl text-xs text-neutral-500">
+          <summary className="cursor-pointer text-neutral-400 hover:text-white">So wird gebucht</summary>
+          <p className="mt-1">
+            Eine Zeile anklicken zeigt die Bewegungen der Kaution; über › öffnet sich die einzelne Buchung (Kategorie
+            ändern, aufteilen, stornieren). Einbehalte werden direkt in der aufgeklappten Zeile umgestellt.
+          </p>
+          <p className="mt-1">
+            Trägt der Mieter eine Rechnung über die Kaution: &bdquo;Verrechnung mit Rechnung&ldquo; mit Verknüpfung zur
+            Kostenposition buchen (die Gegenbuchung &bdquo;Verrechnet mit Kaution&ldquo; entsteht automatisch, Kosten netto 0).
+            Ohne Rechnung (z.B. Schlüssel) einen pauschalen Einbehalt buchen &mdash; er zählt als Einnahme.
+          </p>
+        </details>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-400">Kautionsverbindlichkeiten gesamt (offen)</p>
-          <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summeOffen)}</p>
+          <p className="text-xs text-neutral-400">Kautionsguthaben der Mieter</p>
+          <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summe)}</p>
         </div>
-        {Object.entries(summeJeAnlageform).map(([anlageform, summe]) => (
+        {Object.entries(summeJeAnlageform).map(([anlageform, betrag]) => (
           <div key={anlageform} className="rounded-lg border border-neutral-800 p-4">
-            <p className="text-xs text-neutral-400">davon {ANLAGEFORM_LABEL[anlageform]}</p>
-            <p className="mt-1 text-xl font-semibold text-white">{formatEuro(summe)}</p>
+            <p className="text-xs text-neutral-400">davon {ANLAGEFORM_LABEL[anlageform] ?? anlageform}</p>
+            <p className="mt-1 text-xl font-semibold text-white">{formatEuro(betrag)}</p>
           </div>
         ))}
       </div>
 
-      <KautionenTable rows={kautionen} />
-
-      <div className="mt-10">
-        <h2 className="mb-4 text-lg font-medium text-white">
-          Kautionsbuchungen ({alleBuchungen.length})
-        </h2>
-        <NeueKautionsbuchungForm mietvertraege={mietvertraege} virtuelleGutschriften={virtuelleGutschriften} />
-        <KautionsbuchungenTable rows={alleBuchungen} />
-      </div>
+      <KautionenAnsicht
+        startReiter={startReiter}
+        kautionen={kautionen}
+        buchungen={alleBuchungen}
+        mietvertraege={mietvertraege}
+        virtuelleGutschriften={virtuelleGutschriften}
+      />
     </div>
   );
 }

@@ -187,7 +187,7 @@ export default async function KostenpositionDetailPage({
                 {new Intl.DateTimeFormat("de-DE").format(virtuelleKautionBuchung.datum)} (
                 {formatEuro(Number(virtuelleKautionBuchung.betrag))}).{" "}
                 <Link
-                  href={`/kautionen#kautionsbuchung-${virtuelleKautionBuchung.id}`}
+                  href={`/kautionen/buchung/${virtuelleKautionBuchung.id}`}
                   className="underline hover:text-purple-200"
                 >
                   Kautionsbuchung anzeigen

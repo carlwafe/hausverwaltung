@@ -5,67 +5,25 @@ import Link from "next/link";
 import { DataTable, TABELLEN_LINK, type Column } from "@/components/data-table";
 import { speichereKautionNotiz } from "./actions";
 import { KARTE_KENNZEICHEN, KarteKopf, KarteMeta, KarteNotiz, KarteWerte, KarteZeile } from "@/components/karte";
+import type { KautionUebersichtZeile } from "@/lib/kautionen-uebersicht";
+import { ANLAGEFORM_LABEL, type KautionPhase, type KautionSchrittTon } from "@/lib/kaution-schritt";
+import { KautionBewegungen } from "./kaution-bewegungen";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
 }
 
-const STATUS_LABEL = {
-  AKTIV: "Aktiv",
-  AUFGELOEST: "Aufgelöst, Rest offen",
-  // Mehr ausgezahlt als eingenommen (z.B. Kaution doppelt überwiesen) — Rückforderung offen.
-  UEBERZAHLT: "Überzahlt",
-  ERLEDIGT: "Erledigt",
-} as const;
+function formatDatum(iso: string) {
+  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
+}
 
-// Kurzform für die Tabelle am Computer (voller Text im Tooltip); Karte und Filter zeigen die Langform.
-const STATUS_KURZ: Record<keyof typeof STATUS_LABEL, string> = { ...STATUS_LABEL, AUFGELOEST: "Rest offen" };
-
-const STATUS_FARBE: Record<keyof typeof STATUS_LABEL, string> = {
-  AKTIV: "bg-green-500/10 text-green-400",
-  AUFGELOEST: "bg-amber-500/10 text-amber-400",
-  UEBERZAHLT: "bg-red-500/10 text-red-400",
-  ERLEDIGT: "bg-neutral-800 text-neutral-300",
+const TON_FARBE: Record<KautionSchrittTon, string> = {
+  warnung: "bg-amber-500/10 text-amber-400",
+  fehler: "bg-red-500/10 text-red-400",
+  hinweis: "bg-neutral-800 text-neutral-300",
 };
 
-export type KautionRow = {
-  id: string;
-  mietvertragId: string;
-  einheitBezeichnung: string;
-  mieterNamen: string;
-  // Vertragsende als ISO-Datum; null = Vertrag läuft (noch) ohne Ende.
-  mietende: string | null;
-  betrag: number;
-  // true, wenn es mindestens eine "Einzahlung Mieter"-Kautionsbuchung gibt und ihre Summe
-  // (einzahlungSumme) von betrag abweicht.
-  betragAbweichung: boolean;
-  einzahlungSumme: number | null;
-  // null = kein eigener Kaution-Stammdatensatz vorhanden (siehe warnung) — betrifft nur einen
-  // synthetisch aus Kautionsbuchungen gebildeten Zeileneintrag.
-  anlageform: string | null;
-  // Summe der "Auflösung"- bzw. "Auszahlung Mieter"-Kautionsbuchungen dieses Mietvertrags (0,
-  // wenn keine vorhanden). einbehalten ist nur gesetzt (nicht null), sobald aufgeloest > 0 ist —
-  // bzw. bei einer Bar-Kaution (nie angelegt, keine Auflösung), sobald etwas abgerechnet wurde.
-  aufgeloest: number;
-  ausgezahlt: number;
-  // Mit einer Betriebskostenabrechnung, dem Mieterkonto oder einer vom Vermieter bezahlten Rechnung
-  // verrechneter Teil ("Verrechnung mit BK-Abrechnung" / "…Mieterkonto" / "…Rechnung") — ist der
-  // Kaution ebenfalls endgültig entzogen, aber ohne Auszahlung.
-  verrechnet: number;
-  einbehalten: number | null;
-  // Davon noch offen: einbehalten ohne die pauschalen, dem Vermieter endgültig gutgeschriebenen
-  // Einbehalte — also vorläufig einbehalten (Rechnung folgt) oder gar nicht begründet.
-  offen: number | null;
-  status: keyof typeof STATUS_LABEL;
-  // z.B. "keine Einzahlung Mieter gefunden" oder "kein Kaution-Stammdatensatz angelegt" — siehe
-  // warnungFuer in page.tsx. null = nichts Auffälliges.
-  warnung: string | null;
-  // Id des Kaution-Stammdatensatzes; null bei einer Zeile ohne eigenen Datensatz (dann kein Kommentar).
-  kautionId: string | null;
-  notizen: string | null;
-  // Zinsen, die in der Auflösung enthalten waren (Auflösung über angelegter Kaution); null = keine.
-  zinsen: number | null;
-};
+const offenFarbe = (v: number) => (v > 0.015 ? "text-amber-400" : v < -0.015 ? "text-red-400" : "text-neutral-500");
 
 // Mehrzeilig, wächst mit dem Inhalt; speichert beim Verlassen des Felds, nur bei Änderung — wie die
 // Kommentarspalte der Betriebskostenabrechnung (pruefung-zellen.tsx).
@@ -107,205 +65,281 @@ function KommentarFeld({ kautionId, notizen }: { kautionId: string; notizen: str
 
 const BETRAG = { align: "right", className: "whitespace-nowrap tabular-nums" } as const;
 
-function formatDatum(iso: string) {
-  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso));
+function warnTexte(r: KautionUebersichtZeile) {
+  return [r.warnung, r.abweichung].filter((t): t is string => !!t);
 }
 
-// Am Computer darf die Tabelle nicht breiter als die Seite sein (siehe „Tabellen am Computer“ in
-// docs/tickets-logo-design.md): Mietende steht unter der Einheit, der Kommentar unter dem Mieter
-// (Füllspalte), die Zinsen unter „Aufgelöst“.
-const columns: Column<KautionRow>[] = [
-  {
-    key: "einheit",
-    label: "Einheit",
-    title: "Darunter das Mietende, falls der Vertrag beendet ist",
-    sortValue: (r) => r.einheitBezeichnung,
-    searchValue: (r) => r.einheitBezeichnung,
-    render: (r) => (
-      // Feste Breite über das div (nicht die Zelle), sonst drückt die Füllspalte die Spalte zusammen.
-      <div className="w-24">
-        <Link prefetch={false} href={`/mietvertraege/${r.mietvertragId}`} className={TABELLEN_LINK}>
-          {r.einheitBezeichnung}
-        </Link>
-        {r.warnung && (
-          <span title={r.warnung} className="ml-1 text-amber-400">
-            ⚠
-          </span>
-        )}
-        {r.mietende && (
-          <div title="Mietende" className="text-xs text-neutral-400">
-            bis {formatDatum(r.mietende)}
-          </div>
-        )}
-      </div>
-    ),
-  },
-  {
-    key: "mieter",
-    label: "Mieter · Kommentar",
-    title: "Sortiert nach Mieter",
-    fuellend: true,
-    sortValue: (r) => r.mieterNamen,
-    searchValue: (r) => `${r.mieterNamen} ${r.notizen ?? ""}`,
-    render: (r) => (
-      <>
-        <div title={r.mieterNamen} className="truncate">
-          {r.mieterNamen}
+const einheitSpalte: Column<KautionUebersichtZeile> = {
+  key: "einheit",
+  label: "Einheit",
+  title: "Darunter das Mietende, falls bekannt",
+  sortValue: (r) => r.einheitBezeichnung,
+  searchValue: (r) => r.einheitBezeichnung,
+  render: (r) => (
+    // Feste Breite über das div (nicht die Zelle), sonst drückt die Füllspalte die Spalte zusammen.
+    <div className="w-28">
+      <Link prefetch={false} href={`/mietvertraege/${r.mietvertragId}?reiter=kaution`} className={TABELLEN_LINK}>
+        {r.einheitBezeichnung}
+      </Link>
+      {warnTexte(r).length > 0 && (
+        <span title={warnTexte(r).join("\n")} className="ml-1 text-amber-400">
+          ⚠
+        </span>
+      )}
+      {r.mietende && (
+        <div title="Mietende" className="text-xs text-neutral-400">
+          bis {formatDatum(r.mietende)}
         </div>
-        {r.kautionId && <KommentarFeld kautionId={r.kautionId} notizen={r.notizen ?? ""} />}
-      </>
-    ),
-  },
-  {
-    key: "betrag",
-    label: "Betrag",
-    ...BETRAG,
-    sortValue: (r) => r.betrag,
-    render: (r) => (
-      <span className="inline-flex items-center gap-1">
-        {r.betragAbweichung && (
-          <span
-            title={`Weicht von der Summe der "Einzahlung Mieter"-Kautionsbuchungen ab: ${formatEuro(r.einzahlungSumme!)}`}
-            className="text-amber-400"
-          >
-            ⚠
-          </span>
-        )}
-        {formatEuro(r.betrag)}
-      </span>
-    ),
-  },
-  {
-    key: "aufgeloest",
-    label: "Aufgelöst",
-    title: "Darunter die in der Auflösung enthaltenen Zinsen",
-    ...BETRAG,
-    sortValue: (r) => r.aufgeloest,
-    render: (r) => (
-      <>
-        {r.aufgeloest > 0 ? formatEuro(r.aufgeloest) : "–"}
-        {r.zinsen ? <div className="text-xs text-neutral-400">Zinsen {formatEuro(r.zinsen)}</div> : null}
-      </>
-    ),
-  },
-  {
-    key: "ausgezahlt",
-    label: "Ausgezahlt",
-    ...BETRAG,
-    sortValue: (r) => r.ausgezahlt,
-    render: (r) => (r.ausgezahlt > 0 ? formatEuro(r.ausgezahlt) : "–"),
-  },
-  {
-    key: "verrechnet",
-    label: "Verrechnet",
-    title: "Verrechnet mit Betriebskostenabrechnung, Mieterkonto oder Rechnung",
-    ...BETRAG,
-    sortValue: (r) => r.verrechnet,
-    render: (r) => (r.verrechnet > 0 ? formatEuro(r.verrechnet) : "–"),
-  },
-  {
-    key: "einbehalten",
-    label: "Einbeh.",
-    title: "Einbehalten",
-    ...BETRAG,
-    sortValue: (r) => r.einbehalten ?? -1,
-    render: (r) =>
-      r.einbehalten === null ? (
-        "–"
-      ) : (
-        <span className="text-neutral-300">{formatEuro(r.einbehalten)}</span>
-      ),
-  },
-  {
-    key: "offen",
-    label: "Offen",
-    ...BETRAG,
-    sortValue: (r) => r.offen ?? -1,
-    render: (r) =>
-      r.offen === null ? (
-        "–"
-      ) : (
-        <span className={r.offen > 0.005 ? "text-amber-400" : r.offen < -0.005 ? "text-red-400" : "text-neutral-500"}>
-          {formatEuro(r.offen)}
+      )}
+    </div>
+  ),
+};
+
+const mieterSpalte: Column<KautionUebersichtZeile> = {
+  key: "mieter",
+  label: "Mieter · Kommentar",
+  title: "Sortiert nach Mieter",
+  fuellend: true,
+  sortValue: (r) => r.mieterNamen,
+  searchValue: (r) => `${r.mieterNamen} ${r.notizen ?? ""} ${r.schritt ?? ""}`,
+  render: (r) => (
+    <>
+      <div title={r.mieterNamen} className="truncate">
+        {r.mieterNamen}
+      </div>
+      {r.kautionId && <KommentarFeld kautionId={r.kautionId} notizen={r.notizen ?? ""} />}
+    </>
+  ),
+};
+
+// Pfeil am Zeilenende: zeigt, dass sich die Zeile aufklappen lässt (Klick irgendwo auf die Zeile).
+const klappSpalte: Column<KautionUebersichtZeile> = {
+  key: "klappen",
+  label: "",
+  className: "w-8",
+  render: (_r, { expanded, toggleExpanded }) => (
+    <button
+      type="button"
+      onClick={toggleExpanded}
+      aria-label={expanded ? "Bewegungen ausblenden" : "Bewegungen anzeigen"}
+      aria-expanded={expanded}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-800 hover:text-white"
+    >
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}>
+        <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  ),
+};
+
+const guthabenSpalte: Column<KautionUebersichtZeile> = {
+  key: "guthaben",
+  label: "Kaution",
+  title: "Eingezahlte Kaution einschließlich Zinsen",
+  ...BETRAG,
+  sortValue: (r) => r.guthaben,
+  render: (r) => (
+    <>
+      {formatEuro(r.guthaben)}
+      {r.zinsen > 0.005 && <div className="text-xs text-neutral-400">inkl. Zinsen {formatEuro(r.zinsen)}</div>}
+    </>
+  ),
+};
+
+const ausgezahltSpalte: Column<KautionUebersichtZeile> = {
+  key: "ausgezahlt",
+  label: "Ausgezahlt",
+  ...BETRAG,
+  sortValue: (r) => r.ausgezahlt,
+  render: (r) => (Math.abs(r.ausgezahlt) > 0.005 ? formatEuro(r.ausgezahlt) : "–"),
+};
+
+const einbehaltenSpalte: Column<KautionUebersichtZeile> = {
+  key: "einbehalten",
+  label: "Einbehalten",
+  title: "Einbehalte und Verrechnungen (BK-Abrechnung, Mieterkonto, Rechnung); darunter strittig zurückbehaltene",
+  ...BETRAG,
+  sortValue: (r) => r.einbehalten + r.strittig,
+  render: (r) => (
+    <>
+      {r.einbehalten > 0.005 ? formatEuro(r.einbehalten) : "–"}
+      {r.strittig > 0.005 && <div className="text-xs text-amber-400">strittig {formatEuro(r.strittig)}</div>}
+    </>
+  ),
+};
+
+const SPALTEN: Record<KautionPhase, Column<KautionUebersichtZeile>[]> = {
+  ZU_TUN: [
+    einheitSpalte,
+    mieterSpalte,
+    guthabenSpalte,
+    ausgezahltSpalte,
+    einbehaltenSpalte,
+    {
+      key: "offen",
+      label: "Offen",
+      title: "Noch an den Mieter auszuzahlen (negativ: zu viel ausgezahlt bzw. vom Mieter nachzufordern)",
+      ...BETRAG,
+      sortValue: (r) => r.nochOffen,
+      render: (r) => <span className={offenFarbe(r.nochOffen)}>{formatEuro(r.nochOffen)}</span>,
+    },
+    {
+      key: "schritt",
+      label: "Nächster Schritt",
+      sortValue: (r) => r.schritt ?? "",
+      render: (r) =>
+        r.schritt && r.ton ? (
+          <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs ${TON_FARBE[r.ton]}`}>{r.schritt}</span>
+        ) : null,
+    },
+    klappSpalte,
+  ],
+  HINTERLEGT: [
+    einheitSpalte,
+    mieterSpalte,
+    {
+      key: "soll",
+      label: "Kaution",
+      title: "Vereinbarte Kaution",
+      ...BETRAG,
+      sortValue: (r) => r.soll ?? 0,
+      render: (r) => (
+        <span className="inline-flex items-center gap-1">
+          {r.abweichung && (
+            <span title={r.abweichung} className="text-amber-400">
+              ⚠
+            </span>
+          )}
+          {r.soll !== null ? formatEuro(r.soll) : "–"}
         </span>
       ),
-  },
-  {
-    key: "status",
-    label: "Status",
-    className: "whitespace-nowrap",
-    sortValue: (r) => STATUS_LABEL[r.status],
-    searchValue: (r) => STATUS_LABEL[r.status],
-    render: (r) => (
-      <span title={STATUS_LABEL[r.status]} className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[r.status]}`}>
-        {STATUS_KURZ[r.status]}
-      </span>
-    ),
-  },
-];
+    },
+    {
+      key: "erhalten",
+      label: "Eingezahlt",
+      className: "whitespace-nowrap",
+      sortValue: (r) => r.erhaltenAm ?? "",
+      render: (r) =>
+        r.erhaltenAm ? (
+          formatDatum(r.erhaltenAm)
+        ) : r.eingezahlt > 0.005 ? (
+          <span className="text-xs text-neutral-400">vor Buchhaltungsbeginn</span>
+        ) : (
+          "–"
+        ),
+    },
+    {
+      key: "anlage",
+      label: "Anlage",
+      className: "whitespace-nowrap",
+      sortValue: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] ?? r.anlageform : ""),
+      render: (r) => (r.anlageform ? ANLAGEFORM_LABEL[r.anlageform] ?? r.anlageform : "–"),
+    },
+    {
+      key: "stand",
+      label: "Guthaben",
+      title: "Kautionsguthaben des Mieters (Einzahlung, Zinsen, abzüglich Einbehalte)",
+      ...BETRAG,
+      sortValue: (r) => r.stand,
+      render: (r) => formatEuro(r.stand),
+    },
+    klappSpalte,
+  ],
+  ERLEDIGT: [
+    einheitSpalte,
+    mieterSpalte,
+    guthabenSpalte,
+    ausgezahltSpalte,
+    einbehaltenSpalte,
+    {
+      key: "erledigt",
+      label: "Letzte Bewegung",
+      className: "whitespace-nowrap",
+      sortValue: (r) => r.letzteBewegung ?? "",
+      render: (r) => (r.letzteBewegung ? formatDatum(r.letzteBewegung) : "–"),
+    },
+    klappSpalte,
+  ],
+};
 
-// Karte fürs Handy (siehe `mobileCard` an DataTable). Beträge erscheinen nur, wenn sie etwas aussagen; Warnungen
-// stehen als Text in der Karte (Tooltips gibt es auf dem Handy nicht). Der Kommentar ist hier nur lesbar.
-function KautionKarte({ r }: { r: KautionRow }) {
+// Karte fürs Handy (siehe `mobileCard` an DataTable): führt zum Kautionskonto am Mietvertrag, weil sich
+// die Bewegungen in der Kartenansicht nicht aufklappen lassen. Warnungen stehen als Text in der Karte.
+function KautionKarte({ r }: { r: KautionUebersichtZeile }) {
   return (
     <>
       <KarteKopf
         titel={r.einheitBezeichnung}
-        wert={<span className={`${KARTE_KENNZEICHEN} ${STATUS_FARBE[r.status]}`}>{STATUS_LABEL[r.status]}</span>}
+        wert={
+          r.schritt && r.ton ? <span className={`${KARTE_KENNZEICHEN} ${TON_FARBE[r.ton]}`}>{r.schritt}</span> : undefined
+        }
       />
       <KarteZeile>{r.mieterNamen}</KarteZeile>
       {r.mietende && (
         <KarteMeta>
-          <span>Mietende {new Intl.DateTimeFormat("de-DE").format(new Date(r.mietende))}</span>
+          <span>Mietende {formatDatum(r.mietende)}</span>
         </KarteMeta>
       )}
       <KarteWerte
-        werte={[
-          { label: "Kaution", wert: formatEuro(r.betrag) },
-          r.zinsen ? { label: "Zinsen", wert: formatEuro(r.zinsen) } : null,
-          r.aufgeloest > 0 && { label: "Aufgelöst", wert: formatEuro(r.aufgeloest) },
-          r.ausgezahlt > 0 && { label: "Ausgezahlt", wert: formatEuro(r.ausgezahlt) },
-          r.verrechnet > 0 && { label: "Verrechnet", wert: formatEuro(r.verrechnet) },
-          r.einbehalten !== null && { label: "Einbehalten", wert: formatEuro(r.einbehalten) },
-          r.offen !== null && {
-            label: "Offen",
-            wert: formatEuro(r.offen),
-            klasse: r.offen > 0.005 ? "text-amber-400" : r.offen < -0.005 ? "text-red-400" : "text-neutral-500",
-          },
-        ]}
+        werte={
+          r.phase === "HINTERLEGT"
+            ? [
+                { label: "Kaution", wert: r.soll !== null ? formatEuro(r.soll) : "–" },
+                { label: "Guthaben", wert: formatEuro(r.stand) },
+                r.anlageform ? { label: "Anlage", wert: ANLAGEFORM_LABEL[r.anlageform] ?? r.anlageform } : null,
+              ]
+            : [
+                { label: "Kaution", wert: formatEuro(r.guthaben) },
+                Math.abs(r.ausgezahlt) > 0.005 && { label: "Ausgezahlt", wert: formatEuro(r.ausgezahlt) },
+                r.einbehalten > 0.005 && { label: "Einbehalten", wert: formatEuro(r.einbehalten) },
+                r.strittig > 0.005 && { label: "Strittig", wert: formatEuro(r.strittig), klasse: "text-amber-400" },
+                r.phase === "ZU_TUN" && { label: "Offen", wert: formatEuro(r.nochOffen), klasse: offenFarbe(r.nochOffen) },
+              ]
+        }
       />
-      {r.betragAbweichung && (
-        <div className="mt-1.5 text-xs text-amber-400">
-          ⚠ Einzahlungen des Mieters: {formatEuro(r.einzahlungSumme!)}
+      {warnTexte(r).map((t) => (
+        <div key={t} className="mt-1.5 text-xs text-amber-400">
+          ⚠ {t}
         </div>
-      )}
-      {r.warnung && <div className="mt-1.5 text-xs text-amber-400">⚠ {r.warnung}</div>}
+      ))}
       {r.notizen && <KarteNotiz>{r.notizen}</KarteNotiz>}
     </>
   );
 }
 
-export function KautionenTable({ rows }: { rows: KautionRow[] }) {
+const LEER: Record<KautionPhase, string> = {
+  ZU_TUN: "Bei keiner Kaution ist etwas zu tun.",
+  HINTERLEGT: "Keine hinterlegten Kautionen.",
+  ERLEDIGT: "Noch keine abgerechneten Kautionen.",
+};
+
+export function KautionenTable({
+  phase,
+  rows,
+  onBuchungErfassen,
+}: {
+  phase: KautionPhase;
+  rows: KautionUebersichtZeile[];
+  onBuchungErfassen: (mietvertragId: string) => void;
+}) {
   return (
     <DataTable
-      rowHref={(r) => `/mietvertraege/${r.mietvertragId}`}
-      mobileCard={(r) => <KautionKarte r={r} />}
-      columns={columns}
+      // Neu montieren beim Reiterwechsel: Suche, Sortierung und aufgeklappte Zeile gehören zum Reiter.
+      key={phase}
+      columns={SPALTEN[phase]}
       rows={rows}
       kompakt
-      emptyMessage="Noch keine Kautionen erfasst."
-      searchPlaceholder="Kautionen durchsuchen…"
-      selectFilter={{
-        label: "Status",
-        placeholder: "Alle Status",
-        value: (r) => r.status,
-        options: [
-          { value: "AKTIV", label: "Aktiv" },
-          { value: "AUFGELOEST", label: "Offen (aufgelöst, Rest offen)" },
-          { value: "UEBERZAHLT", label: "Überzahlt" },
-          { value: "ERLEDIGT", label: "Erledigt" },
-        ],
-      }}
+      zeileKlappt
+      renderExpanded={(r, colSpan) => (
+        <tr className="bg-neutral-900">
+          <td colSpan={colSpan} className="px-3 pb-4 pt-1">
+            <KautionBewegungen zeile={r} onBuchungErfassen={() => onBuchungErfassen(r.mietvertragId)} />
+          </td>
+        </tr>
+      )}
+      mobileCard={(r) => <KautionKarte r={r} />}
+      mobileCardHref={(r) => `/mietvertraege/${r.mietvertragId}?reiter=kaution`}
+      emptyMessage={LEER[phase]}
+      searchPlaceholder="Einheit, Mieter, Kommentar…"
     />
   );
 }

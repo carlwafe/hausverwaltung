@@ -43,8 +43,11 @@ function formatDate(d: Date) {
 
 export default async function MietvertragDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  // `?reiter=kaution` öffnet den Reiter Kaution (Links von der Kautionsseite).
+  searchParams: Promise<{ reiter?: string }>;
 }) {
   const { id } = await params;
   const [vertrag, objekt] = await Promise.all([
@@ -417,6 +420,7 @@ export default async function MietvertragDetailPage({
       </div>
 
       <MietvertragReiter
+        startReiter={(await searchParams).reiter === "kaution" ? "kaution" : "mieterkonto"}
         mietvertragId={vertrag.id}
         kontoJahre={kontoJahre}
         konten={konten}
