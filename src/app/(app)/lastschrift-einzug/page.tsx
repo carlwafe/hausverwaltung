@@ -140,8 +140,8 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
                     <th className="px-3 py-2.5">Mieter</th>
                     <th className="px-3 py-2.5 text-right">Betrag</th>
                     <th className="px-3 py-2.5 text-right" title="Letzter Monatseinzug laut Kontoauszug">Letzter Einzug</th>
-                    <th className="w-full px-3 py-2.5">Hinweis</th>
                     <th className="px-3 py-2.5 text-center" title="Haken = diesmal nicht einziehen">Diesmal nicht</th>
+                    <th className="w-full px-3 py-2.5">Hinweis</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,17 +157,10 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
                     return (
                       <tr key={z.vertragId} className={`border-t border-neutral-800 ${z.ausgenommen ? "opacity-50" : ""}`}>
                         <td className="whitespace-nowrap px-3 py-2 text-white">{z.einheit}</td>
-                        <td className="px-3 py-2 text-neutral-200">{z.mieter}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-neutral-200">{z.mieter}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-200">{euro(z.betragCent)}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-400">
                           {z.letzterEinzugCent === null ? "–" : euro(z.letzterEinzugCent)}
-                        </td>
-                        <td className="px-3 py-2 text-xs">
-                          {hinweise.map((h) => (
-                            <div key={h.text} className={h.farbe}>
-                              {h.text}
-                            </div>
-                          ))}
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input
@@ -180,6 +173,13 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
                             aria-label={`${z.einheit} diesmal nicht einziehen`}
                             className="h-4 w-4 accent-white"
                           />
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          {hinweise.map((h) => (
+                            <div key={h.text} className={h.farbe}>
+                              {h.text}
+                            </div>
+                          ))}
                         </td>
                       </tr>
                     );
