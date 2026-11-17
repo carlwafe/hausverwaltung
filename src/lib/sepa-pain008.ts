@@ -74,10 +74,14 @@ function euro(cent: number): string {
   return `${Math.floor(cent / 100)}.${String(cent % 100).padStart(2, "0")}`;
 }
 
-/** Zeitstempel ohne Zeitzone und Millisekunden: yyyy-mm-ddThh:mm:ss (lokale Zeit). */
+/** Zeitstempel ohne Zeitzone und Millisekunden: yyyy-mm-ddThh:mm:ss (deutsche Zeit, auch auf einem Server in UTC). */
 function zeitstempel(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hourCycle: "h23",
+  }).format(d).replace(" ", "T");
 }
 
 /** Gründe, warum die Eingabe nicht als Datei taugt; leer = in Ordnung. */

@@ -52,6 +52,7 @@ const GELD: NavGruppe = {
         { href: "/kontoauszug/import", label: "Kontoauszug importieren" },
         { href: "/miete-monat", label: "Miete diesen Monat" },
         { href: "/offene-posten", label: "Offene Posten" },
+        { href: "/lastschrift-einzug", label: "Lastschrift-Einzug" },
       ],
     },
     {

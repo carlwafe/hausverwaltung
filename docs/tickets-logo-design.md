@@ -51,7 +51,7 @@ Gruppiert nach Aufgabe, nicht nach Datentyp (Definition als Daten oben in `src/c
 
 - **Direkt:** Dashboard, Tickets, Dokumente.
 - **Vermietung** (alles am Mieter): Verträge (Mietverträge, Mieter, Kautionen, Lastschrift-Mandate), Jährlich und Anpassungen (Mieterhöhung, BK-Anpassung, Betriebskostenabrechnung, Betriebskostenausgleich).
-- **Geld** (laufender Zahlungsverkehr): Laufend (Kontoauszug importieren, Miete diesen Monat, Offene Posten), Buchungen (Zahlungen, Kosten, Mietweiterleitungen), Konto und Darlehen (Kontostand, Kontoprognose, Darlehen, Tilgungspläne), Auswertung (Jahresübersicht).
+- **Geld** (laufender Zahlungsverkehr): Laufend (Kontoauszug importieren, Miete diesen Monat, Offene Posten, Lastschrift-Einzug), Buchungen (Zahlungen, Kosten, Mietweiterleitungen), Konto und Darlehen (Kontostand, Kontoprognose, Darlehen, Tilgungspläne), Auswertung (Jahresübersicht).
 - **Objekt:** Gebäude, Einheiten, Zeitachse, Leerstand, Handwerker & Dienstleister.
 - **Einstellungen** (nur Admin): Objekt (Kontakt & Bank), Buchungsarten, Kostenarten, VPI-Werte, Benutzer.
 

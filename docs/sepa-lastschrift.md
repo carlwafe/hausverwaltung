@@ -32,7 +32,11 @@ Menü Vermietung → `/mietvertraege/lastschrift-mandate`, Einzelmandat `/mietve
 
 ## Einzugsdatei pain.008
 
-Sammellastschrift als **pain.008.001.08** (`src/lib/sepa-pain008.ts`: reine Funktionen, Prüfung von IBAN/Referenzen/Längen, SEPA-Zeichensatz, gegen die offizielle XSD geprüft). Erzeugt wird sie bisher mit dem Leseskript `scripts-tmp/pain008-erzeugen.ts --monat JJJJ-MM [--datum JJJJ-MM-TT] [--ohne "HS 2 WHG 3,Garage 2"] [--vergleich JJJJ-MM]` gegen die Produktions-DB (schreibt nichts; eine Seite in der App gibt es noch nicht). Jeden Monat neu erzeugen und selbst bei der Bank einreichen; die Einzüge sind nach dem ersten Lauf ohne Rückläufer durchgegangen.
+Sammellastschrift als **pain.008.001.08** (`src/lib/sepa-pain008.ts`: reine Funktionen, Prüfung von IBAN/Referenzen/Längen, SEPA-Zeichensatz, gegen die offizielle XSD geprüft). Erzeugt wird sie auf der Seite **Geld → Lastschrift-Einzug** (`/lastschrift-einzug`, Rechnung `src/lib/lastschrift-einzug.ts`, Download `/api/lastschrift-einzug`): Mietmonat (Vorschlag: der nächste noch offene Einzug) und optional ein Einzugstermin wählen, „Berechnen“, Vorschau prüfen, „Datei herunterladen“. Die Seite schreibt nichts (weder ins Journal noch „eingereicht“-Merker), rechnet erst auf Knopfdruck und ist für Gäste gesperrt (enthält IBANs). Jeden Monat neu erzeugen und selbst bei der Bank hochladen; jede Datei bekommt eine neue Nachrichten-ID, eine schon eingereichte Datei nicht noch einmal hochladen. Das ältere Leseskript `scripts-tmp/pain008-erzeugen.ts` (mit `--vergleich`) bleibt als Gegenprobe; beide liefern für denselben Monat dieselben Einzüge.
+
+- **Vorschau:** je Einzug Betrag, letzter Monatseinzug aus dem Journal und Hinweise (Betrag geändert → Mieterhöhung muss angekündigt sein; kein Monatseinzug im Journal; Rücklastschriften der letzten 6 Monate; erster Einzug = FRST). Mit „Diesmal nicht“ lässt sich ein Vertrag einmalig ausnehmen (nach Ändern der Haken „Neu berechnen“); dauerhaft geht das über den Zahlungsweg `UEBERWEISUNG`. Verträge, die nicht in die Datei kommen (Mandat unvollständig, Vertrag zu Ende …), stehen mit Grund darunter.
+- **Termin:** Warnung, wenn er kein TARGET-Bankarbeitstag ist oder heute/in der Vergangenheit liegt. Die Einreichungsfrist der eigenen Bank kennt die App nicht.
+- **Zeitzone:** Datumsrechnung in UTC wie die Datumsfelder der App, Zeitstempel der Datei in deutscher Zeit (`CreDtTm`), auch auf einem Server in UTC.
 
 - **Wer:** ein Einzug je Vertrag mit Zahlungsweg `LASTSCHRIFT`, Status `AKTIV`/`GEPLANT`, Mietbeginn ≤ Monatsende, Vertragsende nicht vor dem Einzugstermin, vollständigem Mandat (Referenz, IBAN mit Prüfziffer, Kontoinhaber) und der Gläubiger-ID des Objekts. Wer nicht mehr eingezogen werden soll (z.B. weil die Lastschrift jeden Monat zurückgegeben wird), bekommt den Zahlungsweg `UEBERWEISUNG` am Vertrag — dann fällt er dauerhaft heraus; `--ohne` nur für eine einmalige Ausnahme.
 - **Betrag** = Kaltmiete + BK-Vorauszahlung + ggf. Mehrwertsteuer des Monats nach Mieterhöhungen, abzüglich Mietnachlass (`ermittleMieteFuerMonat`). Gegenprobe mit `--vergleich`: Für Oktober 2026 stimmten alle berechneten Beträge mit den eingezogenen überein.
@@ -44,7 +48,7 @@ Sammellastschrift als **pain.008.001.08** (`src/lib/sepa-pain008.ts`: reine Funk
 - **Abnahme vor dem Einreichen:** gegen die XSD prüfen, Kopfsumme/Anzahl nachrechnen, IBAN und Referenz je Einzug mit dem letzten echten Einzug vergleichen, Beträge mit dem letzten Einzug vergleichen (Abweichung = Mieterhöhung, die angekündigt sein muss), nach Rückbelastungen suchen (negative `MIETZAHLUNG` mit „RUECKLASTSCHRIFT“ in Bemerkung/Verwendungszweck; die Rückbelastungs-Tabelle von `scripts-tmp/pain008-abnahme.ts` ist ein Fehlalarm, ihr Suchbegriff trifft jede Zeile).
 - Der Einzug selbst erzeugt keine Buchung, erst die Bankgutschrift (Import).
 
-**Noch nicht gebaut:** eigene Mandatstabelle mit Status/Historie, Einzugslauf mit Vorschau als Seite, Abgleich der Gutschriften aus dem Import mit dem Einzugslauf.
+**Noch nicht gebaut:** eigene Mandatstabelle mit Status/Historie, Merker „Datei eingereicht“ je Monat (Schutz vor Doppeleinreichung), Abgleich der Gutschriften aus dem Import mit dem Einzugslauf.
 
 ## Lastschriften im Kontoauszug lesen
 
