@@ -1289,7 +1289,7 @@ export function BuchungenTabelle({
                     <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-white">
                       {r.betrag !== null ? formatEuro(r.betrag) : "–"}
                     </td>
-                    <td className="w-full max-w-0 px-3 py-1.5">
+                    <td className="px-3 py-1.5">
                       <div title={[r.name, r.verwendungszweck].filter(Boolean).join("\n")}>
                         {r.name && <div className="truncate text-neutral-200">{r.name}</div>}
                         <div className={`line-clamp-2 [overflow-wrap:anywhere] ${r.name ? "text-xs text-neutral-500" : "text-neutral-300"}`}>
@@ -1418,10 +1418,12 @@ export function BuchungenTabelle({
         </div>
       ) : (
       <div className="mb-4 max-h-[560px] overflow-auto rounded-lg border border-neutral-800 pb-32">
-        <table className="w-full text-sm">
+        {/* Feste Spaltenbreiten (table-fixed): „Name / Zweck“ bekommt den Rest. Der Kniff max-w-0 an der Füllzelle
+            wirkt in Safari nicht verlässlich — lange Namen drückten die Spalte dort auf und die Tabelle über den Rand. */}
+        <table className="w-full min-w-[61rem] table-fixed text-sm">
           <thead className="sticky top-0 border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
-              <th className="px-3 py-2">
+              <th className="w-10 px-3 py-2">
                 <input
                   type="checkbox"
                   checked={alleAusgewaehlt}
@@ -1434,14 +1436,14 @@ export function BuchungenTabelle({
                   className="h-4 w-4 rounded border-neutral-700 bg-transparent"
                 />
               </th>
-              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} className="text-right" />
-              <SortableTh label="Name / Zweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} className="min-w-52" />
-              <th className="px-3 py-2" title="Buchungsart, darunter der Hinweis (Vorschlag, bitte prüfen, bereits importiert)">
+              <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} className="w-24" />
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} className="w-[7.5rem] text-right" />
+              <SortableTh label="Name / Zweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
+              <th className="w-[11.5rem] px-3 py-2" title="Buchungsart, darunter der Hinweis (Vorschlag, bitte prüfen, bereits importiert)">
                 Buchungsart
               </th>
-              <th className="px-3 py-2">Details</th>
-              <th className="px-2 py-2">
+              <th className="w-[15.5rem] px-3 py-2">Details</th>
+              <th className="w-20 px-2 py-2">
                 <span className="sr-only">Rohdaten und Parken</span>
               </th>
             </tr>
