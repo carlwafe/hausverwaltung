@@ -34,6 +34,14 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“). Vor
 - Endet er auf „Rücklastschriftgebühr" (z.B. 5,22 €), ist es eine Zahlung auf die Rücklastschrift-Forderung → **Gebühren-Zahlung** (Sonderzahlung), keine Mietzahlung (siehe `docs/zahlungen-kautionen.md` → „Rücklastschrift-Gebühren buchen“).
 - Summen aus beidem in einer Zeile (z.B. 7,13 €) werden nicht erkannt und von Hand aufgeteilt.
 
+## Kreditkartenabrechnung
+
+Die Sammelabbuchung einer Kreditkarte („Eigene Kreditkartenabrechnung“, Zweck „MASTERCARD…XXXXXX… EINZUG DES RECHNUNGSB…“) nennt nur die Summe; was abgerechnet wurde (Jahresgebühr, Einkäufe …), steht allein auf der Abrechnung der Karte.
+
+- **Erkennung** (`KREDITKARTE_ABRECHNUNG_PATTERN` in `bank-csv.ts`, `kreditkarte` in `kosten-import.ts`): nur ausgehende Zeilen. Kandidat `KOSTENPOSITION` als „prüfen“, **ohne Kostenart-Vorschlag** (die Empfänger-Historie der Bank würde jede Abrechnung als Bankgebühr vorschlagen) und damit nicht ausgewählt; die Tabelle zeigt einen Hinweis.
+- **Buchen:** Kostenart von Hand wählen, die Abrechnung nach dem Import als Beleg an die Kostenposition hängen (Belegpflicht gilt). Enthält sie mehrere Posten, die Buchung mit „Aufteilen“ in Teile mit je eigener Kostenart zerlegen; ein Beleg an einem Teil deckt die ganze Gruppe.
+- Rückwärtstest über alle aktiven Buchungen mit Rohdaten: keine Treffer, also keine Fehlalarme.
+
 ## CAMT-Import (Standardweg)
 
 Das Online-Banking der Sparkasse liefert CAMT als **eine XML-Datei je Buchungstag** (nur Tage mit Umsätzen; Export „camt52“ = camt.052, Version 001.08 oder 001.02). Im Import alle Dateien des Zeitraums auf einmal markieren (nur XML, nicht mit CSV mischen). Parser `src/lib/import/camt.ts` (`parseCamtDateien`, `fast-xml-parser`, Namespace/Präfixe ignoriert; V2 und V8 ergeben bis auf den `Transaktionscode` dieselben Zeilen; camt.053 mit `Stmt` ist vorgesehen, aber nicht mit echten Dateien getestet).

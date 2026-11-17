@@ -1167,6 +1167,12 @@ export function BuchungenTabelle({
                           bereits importiert{!r.ausgewaehlt ? " – wird übersprungen" : ""}
                         </span>
                       )}
+                      {r.errors.length === 0 && !bereitsImportiert && r.kreditkarte && (
+                        <div className="mt-1 text-amber-400">
+                          Kreditkartenabrechnung: Was abgerechnet wurde, steht nur auf der Abrechnung der Karte. Kostenart
+                          wählen, nach dem Import die Abrechnung als Beleg anhängen und bei mehreren Posten aufteilen.
+                        </div>
+                      )}
                       {r.errors.length === 0 && !bereitsImportiert && r.doppelzahlungHinweis && (
                         <div className="mt-1 text-amber-400">{r.doppelzahlungHinweis}</div>
                       )}

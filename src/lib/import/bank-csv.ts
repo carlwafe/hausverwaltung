@@ -219,6 +219,14 @@ export const MAHNGEBUEHR_EINGANG_PATTERN = /m(ah|ha)ngeb\w*\s*$/i;
 export const RUECKLASTSCHRIFTGEBUEHR_PATTERN = /r(ue|ü)ckl\w*schriftgeb/i;
 export const GEBUEHR_MAX_BETRAG = 15;
 
+// Sammelabbuchung einer Kreditkartenabrechnung ("EIGENE KREDITKARTENABRECHNUNG", Verwendungszweck
+// "MASTERCARD558404XXXXXX6828 EINZUG DES RECHNUNGSB…"). Der Kontoauszug nennt nur die Summe — was
+// abgerechnet wurde (Jahresgebühr, Einkäufe …) steht allein auf der Abrechnung der Karte. Der Import
+// schlägt deshalb keine Kostenart vor und wählt die Zeile nicht aus; die Abrechnung wird nach dem
+// Import als Beleg angehängt, bei mehreren Posten wird die Buchung aufgeteilt (docs/kontoauszug-import.md).
+export const KREDITKARTE_ABRECHNUNG_PATTERN =
+  /kreditkartenabrechn|einzug\s+des\s+rechnungsb|\b(?:master|visa)card\s*\d{4,}x{2,}/i;
+
 // Versorger wie Techem verschicken für dasselbe Gebäude/dieselbe Kostengruppe wiederkehrend
 // Sammellastschriften mit stets derselben SEPA-Mandatsreferenz, aber ohne verlässlichen
 // Adresstext (das oft mitgelieferte "Ext.Ref."-Feld ist häufig leer oder nicht brauchbar). Die

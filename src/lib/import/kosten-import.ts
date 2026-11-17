@@ -6,6 +6,7 @@ import {
   KLEINREPARATUR_PATTERN,
   leseBetrag,
   MAHNGEBUEHR_EINGANG_PATTERN,
+  KREDITKARTE_ABRECHNUNG_PATTERN,
   GEBUEHR_MAX_BETRAG,
   RUECKLASTSCHRIFTGEBUEHR_PATTERN,
   MIETMINDERUNG_PATTERN,
@@ -88,6 +89,7 @@ export type ParsedKostenRow = {
   gutschrift: boolean;
   kaution: boolean; // Kautionszahlung/-rückzahlung – keine Kostenposition, auch wenn der Empfänger die Eigentümerin ist (Kautionskonto)
   mahngebuehr: boolean; // kleiner Eingang mit Mahngebühr im Verwendungszweck – negative Kostenposition der Kostenart "Mahngebühren", keine Miete (siehe MAHNGEBUEHR_EINGANG_PATTERN)
+  kreditkarte: boolean; // ausgehende Sammelabbuchung einer Kreditkartenabrechnung – Einzelposten stehen nur auf der Abrechnung, keine Kostenart-Vorschläge (siehe KREDITKARTE_ABRECHNUNG_PATTERN)
   mietminderung: boolean; // ausgehende Erstattung einer Mietminderung – Kostenposition der Kostenart "Mietminderung"
   nebenkostenausgleich: boolean; // Rückzahlung/Nachzahlung aus der Nebenkostenabrechnung – keine Kostenposition, gehört gegen eine offene NebenkostenabrechnungPosition abgeglichen
   // Erstattung einer vom Mieter zu tragenden Kleinreparatur (siehe KLEINREPARATUR_PATTERN) —
@@ -605,6 +607,8 @@ export function mapKostenRows(
       MAHNGEBUEHR_EINGANG_PATTERN.test(verwendungszweck) &&
       !RUECKLASTSCHRIFTGEBUEHR_PATTERN.test(verwendungszweck);
     const mietminderung = !istEingehend && MIETMINDERUNG_PATTERN.test(verwendungszweck);
+    const kreditkarte =
+      rohBetrag !== null && !istEingehend && KREDITKARTE_ABRECHNUNG_PATTERN.test(`${verwendungszweck} ${empfaenger}`);
     // Ein Kaution-Treffer hat Vorrang vor der Eigentümer-Erkennung: eine Kaution landet oft auf
     // einem Konto, das rechtlich auf die Eigentümerin läuft (Kautionskonto), ist aber weder eine
     // Mietweiterleitung/Einlage an sie persönlich noch eine normale Kosten-Gutschrift. Bewusst
@@ -716,7 +720,12 @@ export function mapKostenRows(
       if (mietminderung && mietminderungKostenartId) {
         vorgeschlageneKostenartId = mietminderungKostenartId;
       }
-      if (dienstleisterTreffer) {
+      if (kreditkarte) {
+        // Die Empfänger-Historie der Bank ("Nebenkosten des Geldverkehrs") würde jede Abrechnung als Bankgebühr
+        // vorschlagen — was abgerechnet wurde, steht aber nur auf der Abrechnung. Von Hand zuordnen/aufteilen.
+        vorgeschlageneKostenartId = null;
+        vorgeschlageneGebaeudeAuswahl = undefined;
+      } else if (dienstleisterTreffer) {
         // Genau eine Kostenart: fest. Mehrere: der Verlaufs-Vorschlag bleibt, ein Vorschlag
         // außerhalb der Kostenarten des Dienstleisters wird verworfen (die Zeile bleibt dann
         // offen zur Prüfung). Keine Kostenart hinterlegt: Verlauf gilt unverändert.
@@ -745,6 +754,7 @@ export function mapKostenRows(
       nebenkostenausgleich,
       kleinreparatur,
       mahngebuehr,
+      kreditkarte,
       mietminderung,
       ignorieren,
       rohdaten: row,

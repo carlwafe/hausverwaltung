@@ -52,6 +52,9 @@ export type VereinheitlichteZeile = {
   // Hinweis "Mögliche Doppelzahlung …" (gleiche Rechnungsnummer, gleicher Betrag, gleicher
   // Empfänger bereits gebucht oder in der Datei), siehe doppelzahlung.ts — wird in previewImport gesetzt.
   doppelzahlungHinweis?: string | null;
+  // Sammelabbuchung einer Kreditkartenabrechnung: Zeile bleibt ohne Kostenart und unausgewählt, die Tabelle zeigt
+  // einen Hinweis (Einzelposten nur auf der Abrechnung der Karte, siehe KREDITKARTE_ABRECHNUNG_PATTERN).
+  kreditkarte?: boolean;
 };
 
 /**
@@ -66,6 +69,8 @@ export type VereinheitlichteZeile = {
  * 4. Nebenkostenausgleich -> NEBENKOSTENAUSGLEICH, sicher
  * 4a. Kleiner Eingang, dessen Verwendungszweck auf "Mahngebühr" endet -> KOSTENPOSITION, sicher (negativer
  *    Betrag, Kostenart "Mahngebühren"; siehe MAHNGEBUEHR_EINGANG_PATTERN)
+ * 4a'. Ausgehende Kreditkartenabrechnung -> KOSTENPOSITION, "pruefen" (Kostenart nicht ermittelbar, Einzelposten
+ *    stehen nur auf der Abrechnung der Karte)
  * 4b. Erstattung einer Mietminderung (ausgehend) -> KOSTENPOSITION, sicher (Kostenart "Mietminderung")
  * 5. Kleinreparatur -> KOSTENPOSITION, sicher (Kostenart bereits von mapKostenRows auf
  *    "Reparaturen" vorbelegt)
@@ -101,6 +106,9 @@ export function ermittleBuchungsartKandidaten(
   }
   if (kostenZeile.mahngebuehr) {
     return [{ code: "KOSTENPOSITION", hinweis: "vorschlag" }];
+  }
+  if (kostenZeile.kreditkarte) {
+    return [{ code: "KOSTENPOSITION", hinweis: "pruefen" }];
   }
   if (kostenZeile.mietminderung) {
     return [{ code: "KOSTENPOSITION", hinweis: "vorschlag" }];
@@ -187,6 +195,7 @@ export function vereinheitlicheZeilen(
       rohdaten: z.rohdaten,
       errors: [...z.errors, ...k.errors],
       kandidaten: ermittleBuchungsartKandidaten(z, k),
+      kreditkarte: k.kreditkarte,
       vorgeschlagenerMietvertragId: z.vorgeschlagenerMietvertragId,
       vorgeschlageneKostenartId: k.vorgeschlageneKostenartId,
       vorgeschlageneGebaeudeAuswahl: k.vorgeschlageneGebaeudeAuswahl,
