@@ -40,6 +40,7 @@ Die Sammelabbuchung einer Kreditkarte („Eigene Kreditkartenabrechnung“, Zwec
 
 - **Erkennung** (`KREDITKARTE_ABRECHNUNG_PATTERN` in `bank-csv.ts`, `kreditkarte` in `kosten-import.ts`): nur ausgehende Zeilen. Kandidat `KOSTENPOSITION` als „prüfen“, **ohne Kostenart-Vorschlag** (die Empfänger-Historie der Bank würde jede Abrechnung als Bankgebühr vorschlagen) und damit nicht ausgewählt; die Tabelle zeigt einen Hinweis.
 - **Buchen:** Kostenart von Hand wählen, die Abrechnung nach dem Import als Beleg an die Kostenposition hängen (Belegpflicht gilt). Enthält sie mehrere Posten, die Buchung mit „Aufteilen“ in Teile mit je eigener Kostenart zerlegen; ein Beleg an einem Teil deckt die ganze Gruppe.
+- **Jahresgebühr der Karte** (Entscheidung 17.11.2026): Kostenart „Nebenkosten des Geldverkehrs“ (wie Bankgebühren), Abrechnung als Beleg, nicht aufteilen.
 - Rückwärtstest über alle aktiven Buchungen mit Rohdaten: keine Treffer, also keine Fehlalarme.
 
 ## CAMT-Import (Standardweg)

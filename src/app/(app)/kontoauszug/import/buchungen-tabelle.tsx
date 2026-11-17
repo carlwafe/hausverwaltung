@@ -1170,7 +1170,7 @@ export function BuchungenTabelle({
                       {r.errors.length === 0 && !bereitsImportiert && r.kreditkarte && (
                         <div className="mt-1 text-amber-400">
                           Kreditkartenabrechnung: Was abgerechnet wurde, steht nur auf der Abrechnung der Karte. Kostenart
-                          wählen, nach dem Import die Abrechnung als Beleg anhängen und bei mehreren Posten aufteilen.
+                          wählen (Jahresgebühr der Karte: Nebenkosten des Geldverkehrs), nach dem Import die Abrechnung als Beleg anhängen und bei mehreren Posten aufteilen.
                         </div>
                       )}
                       {r.errors.length === 0 && !bereitsImportiert && r.doppelzahlungHinweis && (
