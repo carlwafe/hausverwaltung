@@ -19,6 +19,7 @@ export function NichtKategorisiertButton({
   quelle,
   bereitsGemerkt,
   onParked,
+  symbol = false,
 }: {
   datum: string | null;
   betrag: number | null;
@@ -29,6 +30,8 @@ export function NichtKategorisiertButton({
   quelle: string;
   bereitsGemerkt: boolean;
   onParked: () => void;
+  /** Nur ein Symbol statt Text (schmale Aktions-Spalte der Import-Tabelle am Computer). */
+  symbol?: boolean;
 }) {
   const [message, formAction, pending] = useActionState(async () => {
     if (datum === null || betrag === null) return null;
@@ -44,9 +47,44 @@ export function NichtKategorisiertButton({
   }, [message]);
 
   if (bereitsGemerkt) {
+    if (symbol) {
+      return (
+        <span
+          title="Bereits als nicht kategorisiert gemerkt"
+          aria-label="Bereits als nicht kategorisiert gemerkt"
+          className="flex h-7 w-7 items-center justify-center text-green-400"
+        >
+          ✓
+        </span>
+      );
+    }
     return <span className="whitespace-nowrap text-xs text-green-400">Bereits gemerkt</span>;
   }
   if (datum === null || betrag === null) return null;
+
+  const titel = "Nicht kategorisiert importieren: Buchung ohne Zuordnung parken — erscheint danach oben auf /kosten zur späteren Klärung";
+  if (symbol) {
+    return (
+      <form action={formAction}>
+        <button
+          type="submit"
+          disabled={pending}
+          title={titel}
+          aria-label="Nicht kategorisiert importieren"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+        >
+          {pending ? (
+            "…"
+          ) : (
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4">
+              <path d="M3 11.5h4l1 2h4l1-2h4" strokeLinejoin="round" />
+              <path d="M5 4.5h10l2 7v4h-14v-4z" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+      </form>
+    );
+  }
 
   return (
     <form action={formAction}>

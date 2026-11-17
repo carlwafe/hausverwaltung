@@ -1272,26 +1272,56 @@ export function BuchungenTabelle({
                   </div>
                 );
               }
+              // Am Computer nie breiter als die Seite (docs/tickets-logo-design.md): Name und Verwendungszweck
+              // teilen sich die Füllspalte, die KI-Einschätzung steht darunter, der Hinweis unter der Buchungsart,
+              // Rohdaten und Parken sind Symbol-Knöpfe in einer Spalte.
               return (
                 <Fragment key={r.rowNumber}>
-                  <tr className={`border-t border-neutral-800 ${zeilenKlasse}`}>
-                    <td className="px-3 py-1.5">{checkboxFeld}</td>
-                    <td className="px-3 py-1.5 text-white">{r.datum ?? "–"}</td>
-                    <td className="px-3 py-1.5 text-white">{r.betrag !== null ? formatEuro(r.betrag) : "–"}</td>
-                    <td
-                      className="max-w-[220px] truncate px-3 py-1.5 text-neutral-300"
-                      title={`${r.verwendungszweck} ${r.name}`}
-                    >
-                      {r.verwendungszweck || r.name || "–"}
+                  <tr className={`border-t border-neutral-800 align-top ${zeilenKlasse}`}>
+                    <td className="px-3 py-2">{checkboxFeld}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-white">{r.datum ?? "–"}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-white">
+                      {r.betrag !== null ? formatEuro(r.betrag) : "–"}
                     </td>
-                    <td className="px-3 py-1.5">{artFelder}</td>
-                    <td className="px-3 py-1.5">{detailFelder}</td>
-                    <td className="px-3 py-1.5 text-xs">{hinweisFeld}</td>
-                    <td className="max-w-[260px] px-3 py-1.5 text-xs">{kiFeld}</td>
-                    <td className="px-3 py-1.5">{rohdatenKnopf}</td>
-                    <td className="px-3 py-1.5">{aktionKnopf}</td>
+                    <td className="w-full max-w-0 px-3 py-1.5">
+                      <div title={[r.name, r.verwendungszweck].filter(Boolean).join("\n")}>
+                        {r.name && <div className="truncate text-neutral-200">{r.name}</div>}
+                        <div className={`line-clamp-2 [overflow-wrap:anywhere] ${r.name ? "text-xs text-neutral-500" : "text-neutral-300"}`}>
+                          {r.verwendungszweck || (r.name ? "" : "–")}
+                        </div>
+                      </div>
+                      {r.ki && (
+                        <div className={`mt-1 text-xs ${r.ki.passt === false ? "" : "line-clamp-2"}`}>{kiFeld}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <div className="w-40">
+                        {artFelder}
+                        <div className="mt-1 text-[11px] leading-snug">{hinweisFeld}</div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <div className="w-56">{detailFelder}</div>
+                    </td>
+                    <td className="px-2 py-1">
+                      <div className="flex items-center gap-0.5">
+                        <RohdatenToggleButton symbol expanded={expanded} onClick={() => setExpandedRow(expanded ? null : r.rowNumber)} />
+                        <NichtKategorisiertButton
+                          symbol
+                          datum={r.datum}
+                          betrag={r.betrag}
+                          empfaenger={r.name}
+                          verwendungszweck={r.verwendungszweck}
+                          rohdaten={r.rohdaten}
+                          importBatchId={importBatchId}
+                          quelle="Buchungen"
+                          bereitsGemerkt={bereitsGemerkt}
+                          onParked={onCommitted}
+                        />
+                      </div>
+                    </td>
                   </tr>
-                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={10} />}
+                  {expanded && <RohdatenZeile rohdaten={r.rohdaten} colSpan={7} />}
                 </Fragment>
               );
   });
@@ -1399,21 +1429,22 @@ export function BuchungenTabelle({
                 />
               </th>
               <SortableTh label="Datum" spalteKey="datum" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <SortableTh label="Verwendungszweck / Name" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} />
-              <th className="min-w-[160px] px-3 py-2">Buchungsart</th>
-              <th className="min-w-[220px] px-3 py-2">Details</th>
-              <th className="px-3 py-2">Hinweis</th>
-              <th className="min-w-[200px] px-3 py-2">KI-Einschätzung</th>
-              <th className="px-3 py-2">Rohdaten</th>
-              <th className="px-3 py-2">Aktion</th>
+              <SortableTh label="Betrag" spalteKey="betrag" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} className="text-right" />
+              <SortableTh label="Name / Zweck" spalteKey="text" aktiveSpalte={sortSpalte} richtung={sortRichtung} onSort={toggleSort} className="min-w-52" />
+              <th className="px-3 py-2" title="Buchungsart, darunter der Hinweis (Vorschlag, bitte prüfen, bereits importiert)">
+                Buchungsart
+              </th>
+              <th className="px-3 py-2">Details</th>
+              <th className="px-2 py-2">
+                <span className="sr-only">Rohdaten und Parken</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {zeilenJsx}
             {gefilterteRows.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
                   Keine Buchungen für diesen Filter.
                 </td>
               </tr>
