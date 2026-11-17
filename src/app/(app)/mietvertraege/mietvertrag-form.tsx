@@ -291,6 +291,9 @@ export function MietvertragForm({
               </>
             )}
           </p>
+          <p className="mt-1 text-xs text-neutral-400">
+            Neue Garagenverträge haben eine Pauschalmiete mit Betriebskosten: die Gesamtmiete als Kaltmiete eintragen, BK-Vorauszahlung leer lassen (es wird nicht abgerechnet).
+          </p>
         </div>
       )}
 
