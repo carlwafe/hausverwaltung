@@ -296,6 +296,7 @@ export function ZahlungenTable({ rows }: { rows: ZahlungRow[] }) {
         searchPlaceholder="Zahlungen durchsuchen…"
         selectable
         kompakt
+        zeilenSchritt={100}
         rowHref={(z) => `/zahlungen/${z.id}`}
         mobileCard={(z) => <ZahlungKarte z={z} />}
         mobileSort={{

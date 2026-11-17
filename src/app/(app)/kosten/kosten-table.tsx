@@ -294,6 +294,7 @@ export function KostenTable({ rows }: { rows: KostenpositionRow[] }) {
         searchPlaceholder="Kosten durchsuchen…"
         selectable
         kompakt
+        zeilenSchritt={100}
         rowHref={(k) => `/kosten/${k.id}`}
         mobileCard={(k) => <KostenKarte k={k} />}
         mobileSort={{
