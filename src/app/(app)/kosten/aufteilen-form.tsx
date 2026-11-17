@@ -91,23 +91,24 @@ export function AufteilenForm({
       <p className="mb-3 text-sm font-medium text-white">
         Buchung ({betragGesamt.toFixed(2)} €) auf mehrere Kostenarten aufteilen
       </p>
-      <p className="mb-3 text-xs text-neutral-500">
-        Ersetzt diese Position durch die unten angegebenen — z.B. eine Rechnung, die Kosten
-        verschiedener Kostenarten oder Gebäude enthält. Hausmeister-Rechnungen mit Winterdienst
-        werden nicht aufgeteilt, sondern komplett als Hauswart gebucht.
-      </p>
-      <p className="mb-3 text-xs text-neutral-500">
-        Stadtwerke Wasser/Abwasser: Der Kontoauszug zeigt pro Haus nur den Saldo aus Schlussrechnung
-        und neuen Abschlägen — in zwei Teile aufteilen (Wasser und Abwasser nicht trennen): Saldo
-        der Schlussrechnung (Vorjahr als Kostenjahr) und neuer Abschlag (Jahr der Abbuchung).
-        Vorzeichen umgekehrt zum Kontoauszug: Guthaben negativ, Nachzahlung/Abschlag positiv
-        (z.B. 42,62 + 131,00 = 173,62 €). Beschreibung z.B. „SR 2025 HS 14 — &lt;Originaltext&gt;“ und
-        „Abschlag HS 14 — &lt;Originaltext&gt;“, damit die Kundennummer erhalten bleibt.
-      </p>
-      <p className="mb-3 text-xs text-neutral-500">
-        Kostenjahr gilt nur für die Betriebskostenabrechnung; die Jahresübersicht zählt alle Teile im
+      <p className="mb-2 text-xs text-neutral-500">
+        Ersetzt diese Position durch die unten angegebenen — z.B. eine Rechnung, die Kosten verschiedener Kostenarten oder
+        Gebäude enthält. Das Kostenjahr gilt nur für die Betriebskostenabrechnung; die Jahresübersicht zählt alle Teile im
         Jahr der Abbuchung.
       </p>
+      <details className="mb-3 text-xs text-neutral-500">
+        <summary className="cursor-pointer hover:text-neutral-300">Sonderfälle: Hausmeister, Stadtwerke Wasser/Abwasser</summary>
+        <p className="mt-2">
+          Hausmeister-Rechnungen mit Winterdienst werden nicht aufgeteilt, sondern komplett als Hauswart gebucht.
+        </p>
+        <p className="mt-2">
+          Stadtwerke Wasser/Abwasser: Der Kontoauszug zeigt pro Haus nur den Saldo aus Schlussrechnung und neuen Abschlägen —
+          in zwei Teile aufteilen (Wasser und Abwasser nicht trennen): Saldo der Schlussrechnung (Vorjahr als Kostenjahr) und
+          neuer Abschlag (Jahr der Abbuchung). Vorzeichen umgekehrt zum Kontoauszug: Guthaben negativ, Nachzahlung/Abschlag
+          positiv (z.B. 42,62 + 131,00 = 173,62 €). Beschreibung z.B. „SR 2025 HS 14 — &lt;Originaltext&gt;“ und „Abschlag HS
+          14 — &lt;Originaltext&gt;“, damit die Kundennummer erhalten bleibt.
+        </p>
+      </details>
       <form action={submit} className="space-y-2">
         {zeilen.map((zeile, i) => (
           <div key={i} className="flex items-end gap-2">

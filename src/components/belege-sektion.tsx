@@ -74,7 +74,10 @@ export function BelegeSektion({
   kostenbeleg = false,
   mitbenutztBuchungId,
   kompakt = false,
+  children,
 }: {
+  /** Zusatz am Ende der Karte (z.B. Belegstatus). */
+  children?: React.ReactNode;
   /** Schmale Spalte: Upload-Datum und Größe stehen klein unter dem Dateinamen statt in eigenen Spalten. */
   kompakt?: boolean;
   /** Kostenposition, an der die gemeinsamen Belege (`mitbenutzt`) hängen — zum Lösen der Zuordnung. */
@@ -248,6 +251,7 @@ export function BelegeSektion({
       </p>
       <GroessenFehler text={groessenFehler} />
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {children}
     </div>
   );
 }

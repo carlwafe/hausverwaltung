@@ -7,7 +7,6 @@ import { AufteilenForm } from "../aufteilen-form";
 import { uploadDokument } from "../../dokumente/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartAendern } from "@/components/buchungsart-aendern";
-import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { BelegeSektion } from "@/components/belege-sektion";
 import { gruppiereGebaeude, gebaeudeOderHausLabel, gebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { ladeVirtuelleAuszahlungen } from "../virtuelle-auszahlungen";
@@ -134,7 +133,7 @@ export default async function KostenpositionDetailPage({
       <Link href="/kosten" className="text-sm text-neutral-400 hover:text-white">
         ← Alle Kosten
       </Link>
-      <div className="mb-2 mt-3 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-1 mt-3 flex flex-wrap items-start justify-between gap-4">
         <h1 className="min-w-0 text-2xl font-semibold">
           {kostenposition.kostenart!.name} — {gebaeudeLabel} ({kostenposition.jahr})
         </h1>
@@ -149,7 +148,10 @@ export default async function KostenpositionDetailPage({
           />
         </div>
       </div>
-      <BuchungsartInfo code="KOSTENPOSITION" erstelltAm={kostenposition.erstelltAm} erstelltVon={kostenposition.erstelltVon} />
+      <p className="mb-5 text-xs text-neutral-400">
+        Erstellt: <span className="text-neutral-200">{new Intl.DateTimeFormat("de-DE").format(kostenposition.erstelltAm)}</span>
+        {kostenposition.erstelltVon && ` von ${kostenposition.erstelltVon}`}
+      </p>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,42rem)_minmax(0,1fr)]">
         {/* Links: die Buchung selbst (Stammdaten bearbeiten, aufteilen, umbuchen) */}
@@ -261,16 +263,16 @@ export default async function KostenpositionDetailPage({
             revalidatePath={`/kosten/${id}`}
             kostenbeleg
             kompakt
-          />
-
-          <BelegAusnahme
-            buchungId={id}
-            status={belegStatus}
-            grund={belegAusnahme?.grund ?? ""}
-            gesetztVon={belegAusnahme?.gesetztVon ?? ""}
-            ueberAndereTeile={belegStatus === "BELEGT" && eigeneBelege === 0}
-            bearbeitbar={kannBearbeiten}
-          />
+          >
+            <BelegAusnahme
+              buchungId={id}
+              status={belegStatus}
+              grund={belegAusnahme?.grund ?? ""}
+              gesetztVon={belegAusnahme?.gesetztVon ?? ""}
+              ueberAndereTeile={belegStatus === "BELEGT" && eigeneBelege === 0}
+              bearbeitbar={kannBearbeiten}
+            />
+          </BelegeSektion>
 
           {kostenposition.kostenart?.umlagefaehig && belegPflichtig(kostenposition) && (
             <ArbeitskostenBox

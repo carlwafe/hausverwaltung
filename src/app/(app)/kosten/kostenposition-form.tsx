@@ -140,7 +140,7 @@ export function KostenpositionForm({
 
       <section className="space-y-3 border-t border-neutral-800 pt-5">
         <h2 className={abschnitt}>Betrag und Zeitraum</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-[minmax(0,1fr)_7rem_auto]">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-[minmax(0,1fr)_7rem_7rem]">
           <div className="col-span-2 sm:col-span-1">
             <label className={label} htmlFor="betrag">
               Betrag (€)
@@ -168,20 +168,23 @@ export function KostenpositionForm({
               className={feld}
             />
           </div>
-          <div>
-            <DateInput
-              id="datum"
-              name="datum"
-              label="Datum (optional)"
-              disabled={istImportiert}
-              defaultValue={initial?.datum ?? ""}
-            />
-          </div>
+          {istImportiert ? (
+            <div>
+              <span className={label}>Datum</span>
+              <p className="flex h-10 items-center text-sm tabular-nums">
+                {initial?.datum ? initial.datum.split("-").reverse().join(".") : "–"}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <DateInput id="datum" name="datum" label="Datum (optional)" defaultValue={initial?.datum ?? ""} />
+            </div>
+          )}
         </div>
         <p className="text-xs text-neutral-500">
           Ausgabe positiv, Gutschrift negativ. Das Kostenjahr gilt nur für die Betriebskostenabrechnung, die
           Jahresübersicht zählt nach Datum (Abbuchung).
-          {istImportiert && " Das Datum stammt aus dem Kontoauszug und lässt sich nicht ändern."}
+          {istImportiert && " Das Datum stammt aus dem Kontoauszug."}
         </p>
       </section>
 

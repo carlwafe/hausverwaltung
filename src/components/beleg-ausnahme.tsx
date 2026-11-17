@@ -71,14 +71,17 @@ export function BelegAusnahme({
   }
 
   return (
-    <div className="rounded-lg border border-neutral-800 p-4">
-      <p className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
-        Beleg <BelegBadge status={status} />
+    <div className="mt-5 border-t border-neutral-800 pt-4">
+      <p className="flex items-center gap-2 text-sm font-medium text-white">
+        Belegstatus <BelegBadge status={status} />
       </p>
-      <p className="text-xs text-neutral-500">
-        Jede Kostenposition sollte ein Dokument haben (Rechnung, Bescheid, Abrechnung): der Mieter darf die Belege zur
-        Betriebskostenabrechnung einsehen, und das Finanzamt kann sie bei einer Prüfung verlangen.
-      </p>
+      <details className="mt-1 text-xs text-neutral-500">
+        <summary className="cursor-pointer hover:text-neutral-300">Warum braucht jede Position einen Beleg?</summary>
+        <p className="mt-1">
+          Jede Kostenposition sollte ein Dokument haben (Rechnung, Bescheid, Abrechnung): der Mieter darf die Belege zur
+          Betriebskostenabrechnung einsehen, und das Finanzamt kann sie bei einer Prüfung verlangen.
+        </p>
+      </details>
       {status === "BELEGT" && ueberAndereTeile && (
         <p className="mt-2 text-xs text-neutral-400">
           Der Beleg hängt an einem anderen Teil derselben Aufteilung und deckt diese Position mit ab.
@@ -103,7 +106,7 @@ export function BelegAusnahme({
       {status === "FEHLT" && bearbeitbar && (
         <div className="mt-3">
           <p className="mb-1 text-xs text-neutral-400">
-            Beleg oben hochladen oder zuordnen. Gibt es dazu bewusst kein Dokument (z.B. Pauschale), mit Grund
+            Beleg hochladen oder zuordnen. Gibt es dazu bewusst kein Dokument (z.B. Pauschale), mit Grund
             markieren:
           </p>
           <div className="flex flex-wrap items-center gap-2">

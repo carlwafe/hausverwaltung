@@ -169,10 +169,16 @@ export function ArbeitskostenBox({
     <div className="rounded-lg border border-neutral-800 p-4">
       <p className="mb-1 text-sm font-medium text-white">Arbeitskosten (§ 35a EStG)</p>
       <p className="text-xs text-neutral-500">
-        Lohnanteil der Rechnung einschließlich Umsatzsteuer, ohne Material und Fahrtkosten. Der Mieter bekommt daraus in der
-        Betriebskostenabrechnung einen Ausweis seines Anteils (Anlage). Leer lassen, wenn die Rechnung nicht begünstigt ist —
-        eine Kostenart erscheint in der Anlage erst, wenn <em>alle</em> ihre Positionen des Jahres eine Angabe haben.
+        Lohnanteil der Rechnung einschließlich Umsatzsteuer, ohne Material und Fahrtkosten. Daraus entsteht der Ausweis des
+        Mieteranteils in der Betriebskostenabrechnung (Anlage).
       </p>
+      <details className="mt-1 text-xs text-neutral-500">
+        <summary className="cursor-pointer hover:text-neutral-300">Wann leer lassen?</summary>
+        <p className="mt-1">
+          Leer lassen, wenn die Rechnung nicht begünstigt ist — eine Kostenart erscheint in der Anlage erst, wenn{" "}
+          <em>alle</em> ihre Positionen des Jahres eine Angabe haben.
+        </p>
+      </details>
       {bearbeitbar ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
