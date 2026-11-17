@@ -1339,3 +1339,21 @@ model Darlehen {
 
   @@map("darlehen")
 }
+
+// Merker „Einzugsdatei eingereicht“ (Seite Lastschrift-Einzug): welche Verträge für welchen Mietmonat schon in einer bei
+// der Bank eingereichten Datei standen. Schützt vor Doppeleinzug — spätere Dateien desselben Monats lassen diese Verträge
+// aus. Kein Buchungsjournal: ein falscher Merker darf gelöscht werden.
+model LastschriftEinreichung {
+  id          String   @id @default(cuid())
+  jahr        Int
+  monat       Int
+  faelligAm   DateTime @db.Date
+  anzahl      Int
+  summeCent   Int
+  vertragIds  String[]
+  erstelltVon String?
+  erstelltAm  DateTime @default(now())
+
+  @@index([jahr, monat])
+  @@map("lastschrift_einreichungen")
+}

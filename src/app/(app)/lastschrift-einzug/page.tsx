@@ -1,11 +1,16 @@
 import { ladeEinzugslauf } from "@/lib/lastschrift-einzug";
 import { naechsterEinzugsmonat } from "@/lib/target-tage";
+import { MarkierenForm, MerkerEntfernen } from "./merker-knoepfe";
 
 const euro = (cent: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cent / 100);
 const terminText = (iso: string) =>
   new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 const monatLang = (jahr: number, monat: number) =>
   new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(jahr, monat - 1, 1)));
+
+const kurzDatum = (iso: string) => iso.slice(0, 10).split("-").reverse().join(".");
+const zeitpunkt = (iso: string) =>
+  new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(iso));
 
 const feld = "h-10 w-44 rounded-md border border-neutral-700 bg-transparent px-2 text-sm text-white outline-none focus:border-neutral-400";
 
@@ -76,7 +81,12 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
                 Gläubigerangaben unvollständig: {lauf.glaeubigerProbleme.join("; ")}. Zu pflegen unter Einstellungen → Objekt.
               </p>
             )}
-            {lauf.dateiFehler && lauf.glaeubigerProbleme.length === 0 && (
+            {lauf.anzahl === 0 && lauf.einreichungen.length > 0 && (
+              <p className="rounded-md border border-green-900 bg-green-950/30 p-3 text-sm text-green-300">
+                Alle Lastschrift-Verträge dieses Monats stehen schon in einer als eingereicht markierten Datei — es ist nichts mehr einzuziehen.
+              </p>
+            )}
+            {lauf.dateiFehler && lauf.glaeubigerProbleme.length === 0 && !(lauf.anzahl === 0 && lauf.einreichungen.length > 0) && (
               <p className="whitespace-pre-line rounded-md border border-red-900 bg-red-950/30 p-3 text-sm text-red-300">{lauf.dateiFehler}</p>
             )}
 
@@ -123,6 +133,7 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
                     if (z.ruecklastschriften > 0)
                       hinweise.push({ text: `${z.ruecklastschriften} Rücklastschrift${z.ruecklastschriften > 1 ? "en" : ""} in 6 Monaten`, farbe: "text-red-400" });
                     if (z.folge === "FRST") hinweise.push({ text: "erster Einzug (FRST)", farbe: "text-amber-300" });
+                    if (z.bereitsEingereicht) hinweise.unshift({ text: `schon eingereicht (markiert am ${kurzDatum(z.bereitsEingereicht)})`, farbe: "text-green-400" });
                     return (
                       <tr key={z.vertragId} className={`border-t border-neutral-800 ${z.ausgenommen ? "opacity-50" : ""}`}>
                         <td className="whitespace-nowrap px-3 py-2 text-white">{z.einheit}</td>
@@ -144,6 +155,8 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
                             name="ohne"
                             value={z.vertragId}
                             defaultChecked={z.ausgenommen}
+                            disabled={z.bereitsEingereicht !== null}
+                            title={z.bereitsEingereicht ? "Schon eingereicht — Merker unten entfernen, um den Vertrag wieder einzuziehen." : undefined}
                             aria-label={`${z.einheit} diesmal nicht einziehen`}
                             className="h-4 w-4 accent-white"
                           />
@@ -178,11 +191,48 @@ export default async function LastschriftEinzugPage({ searchParams }: { searchPa
         )}
       </form>
 
+      {lauf && (
+        <section className="mb-6 space-y-3 rounded-lg border border-neutral-800 p-4">
+          <h2 className="font-medium text-white">Eingereicht für {monatLang(lauf.jahr, lauf.monat)}</h2>
+          {lauf.einreichungen.length === 0 ? (
+            <p className="text-sm text-neutral-400">Noch keine Datei als eingereicht markiert.</p>
+          ) : (
+            <ul className="space-y-2 text-sm text-neutral-300">
+              {lauf.einreichungen.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>
+                    <span className="text-white">{e.anzahl} Einzüge, {euro(e.summeCent)}</span> · Termin {kurzDatum(e.faelligAm)} · markiert {zeitpunkt(e.erstelltAm)}
+                    {e.erstelltVon ? ` von ${e.erstelltVon}` : ""}
+                  </span>
+                  <MerkerEntfernen id={e.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+          {lauf.xml && lauf.anzahl > 0 && (
+            <div>
+              <p className="mb-2 text-xs text-neutral-500">
+                Nach dem Hochladen bei der Bank die Datei als eingereicht markieren: Die {lauf.anzahl} Einzüge der Vorschau gelten dann als eingezogen und werden
+                in weiteren Dateien dieses Monats ausgelassen.
+              </p>
+              <MarkierenForm
+                monat={`${lauf.jahr}-${String(lauf.monat).padStart(2, "0")}`}
+                datum={lauf.faelligAm}
+                ohne={ohne}
+                anzahl={lauf.anzahl}
+                summe={euro(lauf.summeCent)}
+              />
+            </div>
+          )}
+        </section>
+      )}
+
       <details className="rounded-lg border border-neutral-800 p-4 text-sm text-neutral-300">
         <summary className="cursor-pointer font-medium text-white">So geht es weiter</summary>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-neutral-400">
           <li>Hinweise prüfen: geänderte Beträge müssen den Mietern angekündigt sein, bei Rücklastschriften ggf. „Diesmal nicht“ setzen.</li>
           <li>Datei herunterladen und im Online-Banking als Sammellastschrift (Basis-Lastschrift, Folgelastschrift) hochladen; Einzugstermin und Summe dort gegenprüfen.</li>
+          <li>Danach hier „Als eingereicht markieren“ klicken — so kann dieselbe Datei nicht versehentlich ein zweites Mal vorgeschlagen werden.</li>
           <li>Wer künftig gar nicht mehr eingezogen werden soll: am Mietvertrag den Zahlungsweg auf „Überweisung“ stellen.</li>
           <li>Die Gutschriften erscheinen nach dem nächsten Kontoauszug-Import als Mietzahlungen; der Einzug selbst erzeugt keine Buchung.</li>
         </ol>

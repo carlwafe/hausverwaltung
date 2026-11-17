@@ -23,7 +23,19 @@ export type EinzugsZeile = {
   /** Anzahl Rücklastschriften auf diesem Vertrag in den letzten 6 Monaten. */
   ruecklastschriften: number;
   folge: SepaEinzug["folge"];
+  /** Diesmal nicht eingezogen (vom Nutzer ausgenommen oder schon in einer als eingereicht markierten Datei). */
   ausgenommen: boolean;
+  /** Datum (yyyy-mm-dd), an dem der Vertrag in einer Datei dieses Monats als eingereicht markiert wurde. */
+  bereitsEingereicht: string | null;
+};
+
+export type EinreichungsMerker = {
+  id: string;
+  faelligAm: string;
+  anzahl: number;
+  summeCent: number;
+  erstelltVon: string | null;
+  erstelltAm: string;
 };
 
 export type AusgelasseneZeile = { vertragId: string; einheit: string; mieter: string; grund: string };
@@ -38,6 +50,10 @@ export type Einzugslauf = {
   glaeubigerProbleme: string[];
   zeilen: EinzugsZeile[];
   ausgelassen: AusgelasseneZeile[];
+  /** Für diesen Mietmonat als eingereicht markierte Dateien. */
+  einreichungen: EinreichungsMerker[];
+  /** Verträge, die in der aktuellen Datei stehen (für den Merker „eingereicht“). */
+  vertragIds: string[];
   /** Summe und Anzahl der tatsächlich enthaltenen (nicht ausgenommenen) Einzüge. */
   anzahl: number;
   summeCent: number;
@@ -89,6 +105,10 @@ export async function ladeEinzugslauf({ jahr, monat, faelligAm: terminWunsch, oh
   const sortiert = sortEinheitenNachGebaeude(vertraege.map((v) => ({ v, bezeichnung: v.einheit.bezeichnung, gebaeude: v.einheit.gebaeude }))).map((x) => x.v);
 
   const ids = sortiert.map((v) => v.id);
+  // Schon eingereichte Dateien dieses Monats: deren Verträge nicht noch einmal einziehen (Doppeleinzug).
+  const merker = await prisma.lastschriftEinreichung.findMany({ where: { jahr, monat }, orderBy: { erstelltAm: "asc" } });
+  const bereitsEingereicht = new Map<string, string>();
+  for (const m of merker) for (const id of m.vertragIds) if (!bereitsEingereicht.has(id)) bereitsEingereicht.set(id, isoDatum(m.erstelltAm));
   const zahlungen = await prisma.buchung.findMany({
     where: { ...AKTIVE_BUCHUNG_FILTER, mietvertragId: { in: ids }, buchungsart: { code: "MIETZAHLUNG" }, rohdaten: { not: null as never } },
     select: { mietvertragId: true, datum: true, betrag: true, rohdaten: true },
@@ -161,7 +181,8 @@ export async function ladeEinzugslauf({ jahr, monat, faelligAm: terminWunsch, oh
     }
 
     const monatseinzuege = einzuegeJournal.filter((e) => e.vertragId === v.id && e.betrag > 0 && e.datum.getUTCDate() <= 7);
-    const ausgenommen = ohneMenge.has(v.id);
+    const bereits = bereitsEingereicht.get(v.id) ?? null;
+    const ausgenommen = ohneMenge.has(v.id) || bereits !== null;
     zeilen.push({
       vertragId: v.id,
       einheit,
@@ -171,6 +192,7 @@ export async function ladeEinzugslauf({ jahr, monat, faelligAm: terminWunsch, oh
       ruecklastschriften: rueckProVertrag.get(v.id) ?? 0,
       folge,
       ausgenommen,
+      bereitsEingereicht: bereits,
     });
     if (ausgenommen) continue;
     einzuege.push({
@@ -226,6 +248,15 @@ export async function ladeEinzugslauf({ jahr, monat, faelligAm: terminWunsch, oh
     glaeubigerProbleme,
     zeilen,
     ausgelassen,
+    einreichungen: merker.map((m) => ({
+      id: m.id,
+      faelligAm: isoDatum(m.faelligAm),
+      anzahl: m.anzahl,
+      summeCent: m.summeCent,
+      erstelltVon: m.erstelltVon,
+      erstelltAm: m.erstelltAm.toISOString(),
+    })),
+    vertragIds: einzuege.map((e) => e.vertragId),
     anzahl: einzuege.length,
     summeCent: einzuege.reduce((s, e) => s + e.einzug.betragCent, 0),
     xml,
