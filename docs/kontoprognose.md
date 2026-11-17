@@ -2,7 +2,7 @@
 
 Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 
-Seite `/kontoprognose` (Menü Finanzen): schreibt den simulierten Kontostand (`docs/berichte-steuer.md`, Kontostand-Seite) Monat für Monat fort. Reine Rechnung `src/lib/kontoprognose.ts`, Daten `src/lib/kontoprognose-laden.ts`; die Seite schreibt nichts ins Journal.
+Seite `/kontoprognose` (Menü Geld): schreibt den simulierten Kontostand (`docs/berichte-steuer.md`, Kontostand-Seite) Monat für Monat fort. Reine Rechnung `src/lib/kontoprognose.ts`, Daten `src/lib/kontoprognose-laden.ts`; die Seite schreibt nichts ins Journal.
 
 ## Bedienung
 

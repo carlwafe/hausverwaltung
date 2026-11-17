@@ -45,12 +45,24 @@ Die Seite lässt sich als App installieren (iPhone: Safari → Teilen → „Zum
 - Alle Seiten sind mit den dunklen Tailwind-Klassen gebaut (`neutral-*`, `text-white`, `bg-white text-black` für Hauptknöpfe). Das helle Design kehrt in `globals.css` nur die Farbvariablen um (weiß ↔ schwarz, Neutral-Skala gespiegelt, Signalfarben wie `red-400` abgedunkelt). Neue Seiten nutzen einfach die vorhandenen Klassen.
 - Stolperfallen: Hauptknöpfe (`.bg-white`) hätten durch die Umkehrung tiefschwarz — dafür gibt es eine Sonderregel (hellgrau). Das Schreiben `.druckbereich` ist Papier und setzt die Farbvariablen zurück. Farben außerhalb der Skala (Hex, `amber-700` u.ä.) werden nicht umgekehrt und müssen bei Bedarf einzeln in `globals.css` ergänzt werden.
 
+## Menüstruktur
+
+Gruppiert nach Aufgabe, nicht nach Datentyp (Definition als Daten oben in `src/components/nav-bar.tsx`: `DIREKT`, `VERMIETUNG`, `GELD`, `OBJEKT`, `EINSTELLUNGEN`):
+
+- **Direkt:** Dashboard, Tickets, Dokumente.
+- **Vermietung** (alles am Mieter): Verträge (Mietverträge, Mieter, Kautionen, Lastschrift-Mandate), Jährlich und Anpassungen (Mieterhöhung, BK-Anpassung, Betriebskostenabrechnung, Betriebskostenausgleich).
+- **Geld** (laufender Zahlungsverkehr): Laufend (Kontoauszug importieren, Miete diesen Monat, Offene Posten), Buchungen (Zahlungen, Kosten, Mietweiterleitungen), Konto und Darlehen (Kontostand, Kontoprognose, Darlehen, Tilgungspläne), Auswertung (Jahresübersicht).
+- **Objekt:** Gebäude, Einheiten, Zeitachse, Leerstand, Handwerker & Dienstleister.
+- **Einstellungen** (nur Admin): Objekt (Kontakt & Bank), Buchungsarten, Kostenarten, VPI-Werte, Benutzer.
+
+Regeln: Eine neue Seite kommt in die Gruppe, in der man sie bei der Arbeit sucht; zusammengehörige Seiten (Darlehen/Tilgungspläne, Betriebskostenabrechnung/-ausgleich) stehen nebeneinander. Nicht verlinkte Unterseiten (Kontoauszug-Importe, Quartalsübersicht, Buchungen, Häuser) stehen in `WEITERE_SEITEN` nur für den Tab-Titel. Die hinteren Dropdowns öffnen rechtsbündig (`rechts`), damit sie ab 768 px nicht aus dem Fenster ragen. Verweistexte in der App nennen den Menüweg als „Geld → Tilgungspläne“.
+
 ## Mobiles Menü
 
 Unter `md` zeigt `NavBar` statt der Dropdowns das Menü hinter dem ☰-Knopf (`MobilesMenue` in `src/components/nav-bar.tsx`).
 
 - **Tippflächen:** Jede Zeile geht über die ganze Breite und ist mindestens 48 px hoch (`min-h-12`, `text-base`), der Menüknopf 44 × 44 px. Neue Einträge übernehmen das über `mobilZeile()`.
-- **Gruppen zum Aufklappen** (Stammdaten, Finanzen, Abrechnung, Verwaltung); Dashboard und Tickets stehen direkt darüber. Beim Öffnen ist die Gruppe der aktuellen Seite aufgeklappt. Verworfen: alle Punkte untereinander, weil das über 30 Zeilen und viel Scrollen ergibt.
+- **Gruppen zum Aufklappen** (Vermietung, Geld, Objekt, Einstellungen) mit Zwischenüberschriften; Dashboard, Tickets und Dokumente stehen direkt darüber. Beim Öffnen ist die Gruppe der aktuellen Seite aufgeklappt. Verworfen: alle Punkte untereinander, weil das über 30 Zeilen und viel Scrollen ergibt.
 - **Aktuelle Seite:** markiert wird der Menüpunkt mit dem längsten passenden Pfad (`aktiverHref`), also auch auf Unterseiten.
 
 ## Tabellen auf dem Handy: Kartenansicht
@@ -94,8 +106,9 @@ Der Seiteninhalt ist höchstens 1536 px breit (`max-w-[96rem]` in Layout und `Na
 - **Ziel:** ab etwa 1080 px Fensterbreite kein seitliches Scrollen; Zeilen höchstens zwei Textzeilen hoch. Darunter (bis `md`) scrollt die Tabelle weiter in ihrem Kasten.
 - **Prüfen:** im Browser bei 1440 px `scrollWidth − clientWidth` des Tabellen-Kastens messen (muss 0 sein), siehe `docs/lokal-testen.md`.
 - **Preis der Füllspalte:** Zeilen mit Freitext sind zwei Textzeilen hoch (53 px). Wo der Freitext vorher einzeilig abgeschnitten in einer eigenen Spalte stand (Zahlungen: 39 px), passen dadurch weniger Zeilen auf den Bildschirm — dafür ist mehr vom Text lesbar und nichts ragt hinaus.
+- **Ohne `DataTable`** (Mieterkonto am Mietvertrag, `mietvertraege/[id]/mieterkonto-ansicht.tsx`): gleiches Muster von Hand — `px-3`, kurze Überschriften mit Tooltip („Soll Kalt“, „Betrag“), Beträge `whitespace-nowrap tabular-nums`, die Bemerkung als Füllspalte (`w-full max-w-0` in der Zelle, Platzhalter `h-0 w-36` in der Überschrift, Text `line-clamp-2` mit `title`). Preis: Zeilen mit langer Bemerkung sind 49 statt 37 px hoch.
 - **Import-Vorschau des Kontoauszugs** (`kontoauszug/import/buchungen-tabelle.tsx`, bearbeitbare Zeilen ohne `DataTable`): Name und Verwendungszweck als Füllspalte, die KI-Einschätzung darunter; der Hinweis (Vorschlag, bitte prüfen, bereits importiert) klein unter der Buchungsart; Rohdaten und „Nicht kategorisiert importieren“ als Symbol-Knöpfe in einer Spalte ohne Überschrift (`NichtKategorisiertButton symbol`). Die Tabelle hat `table-fixed` mit festen Breiten an den Spaltenköpfen (die Füllspalte bekommt den Rest) und `min-w-[61rem]`, darunter scrollt sie in ihrem Kasten. Verworfen: Füllspalte per `w-full max-w-0` an der Zelle — in Safari drückten lange Namen die Spalte trotzdem auf. Zellen oben ausgerichtet (`align-top`), weil die Details je nach Buchungsart unterschiedlich hoch sind.
-- **Noch breiter als die Seite** (gemessen bei 1440 px): Mieter-Tabelle der Jahresübersicht, Positionen der Betriebskostenabrechnung, Dokumente, Mieterkonto am Mietvertrag. Die ersten beiden haben 12–16 Betragsspalten und brauchen einen eigenen Ansatz (feststehende erste Spalten oder Spaltengruppen).
+- **Noch breiter als die Seite** (gemessen bei 1440 px): Mieter-Tabelle der Jahresübersicht, Positionen der Betriebskostenabrechnung, Dokumente. Die ersten beiden haben 12–16 Betragsspalten und brauchen einen eigenen Ansatz (feststehende erste Spalten oder Spaltengruppen).
 - Verworfen: Spalten ein-/ausblendbar machen (zusätzliche Bedienung, Zustand müsste gespeichert werden); kleinere Schrift.
 - Die Tabellen-Regeln oben gelten weiter für schmalere Fenster (bis etwa 1080 px); die breitere Seite ist kein Ersatz dafür.
 - Verworfen: Seite ganz ohne Obergrenze (auf sehr breiten Monitoren werden Zeilen zu lang zum Lesen).

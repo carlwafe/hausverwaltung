@@ -129,38 +129,43 @@ export function MieterkontoAnsicht({
         </li>
       </ul>
 
+      {/* Desktop: nie breiter als die Seite — kurze Überschriften (voller Text im Tooltip), enge Abstände und die
+          Bemerkung als Füllspalte (höchstens zwei Zeilen, voller Text im Tooltip); siehe docs/tickets-logo-design.md. */}
       <div className="hidden w-full overflow-x-auto rounded-lg border border-neutral-800 md:block">
-        <table className="w-full min-w-[1100px] text-sm">
+        <table className="w-full text-sm">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
-              <th className="px-4 py-2.5">Monat / Buchung</th>
-              <th className="px-4 py-2.5 text-right">Soll Kaltmiete</th>
-              <th className="px-4 py-2.5 text-right">Soll BK-Vorauszahlung</th>
-              <th className="px-4 py-2.5 text-right">Soll gesamt</th>
-              <th className="px-4 py-2.5">Buchungsart</th>
-              <th className="px-4 py-2.5">Datum</th>
-              <th className="px-4 py-2.5 text-right">Betrag (Ist)</th>
-              <th className="px-4 py-2.5 text-right">Differenz (Ist − Soll)</th>
-              <th className="px-4 py-2.5 text-right">Saldo (kumuliert)</th>
-              <th className="px-4 py-2.5">Bemerkung / Bezug</th>
+              <th className="px-3 py-2.5">Monat</th>
+              <th className="px-3 py-2.5 text-right" title="Soll Kaltmiete">Soll Kalt</th>
+              <th className="px-3 py-2.5 text-right" title="Soll BK-Vorauszahlung">Soll BK</th>
+              <th className="px-3 py-2.5 text-right">Soll gesamt</th>
+              <th className="px-3 py-2.5">Buchungsart</th>
+              <th className="px-3 py-2.5">Datum</th>
+              <th className="px-3 py-2.5 text-right" title="Betrag (Ist)">Betrag</th>
+              <th className="px-3 py-2.5 text-right" title="Differenz (Ist − Soll)">Differenz</th>
+              <th className="px-3 py-2.5 text-right" title="Saldo (kumuliert)">Saldo</th>
+              <th className="w-full px-3 py-2.5" title="Bemerkung / Bezug">
+                Bemerkung
+                <div className="h-0 w-36" aria-hidden="true" />
+              </th>
             </tr>
           </thead>
           <tbody>
             {konto.zeilen.map((z, i) => (
               <tr key={i} className={`border-t border-neutral-800 ${z.sonderbuchung ? "bg-amber-500/10" : ""}`}>
-                <td className={`whitespace-nowrap px-4 py-2 ${z.sonderbuchung ? "font-medium text-amber-300" : "text-white"}`}>
+                <td className={`whitespace-nowrap px-3 py-2 ${z.sonderbuchung ? "font-medium text-amber-300" : "text-white"}`}>
                   {z.monat || (z.sonderbuchung ? "Sonderbuchung" : "")}
                 </td>
-                <td className="px-4 py-2 text-right text-neutral-200">
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-200">
                   {z.sollKaltmiete !== null ? formatEuro(z.sollKaltmiete) : ""}
                 </td>
-                <td className="px-4 py-2 text-right text-neutral-200">
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-200">
                   {z.sollNebenkosten !== null ? formatEuro(z.sollNebenkosten) : ""}
                 </td>
-                <td className="px-4 py-2 text-right text-neutral-200">
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-200">
                   {z.sollGesamt !== null ? formatEuro(z.sollGesamt) : ""}
                 </td>
-                <td className={`whitespace-nowrap px-4 py-2 ${z.sonderbuchung ? "font-medium text-amber-300" : "text-neutral-200"}`}>
+                <td className={`whitespace-nowrap px-3 py-2 ${z.sonderbuchung ? "font-medium text-amber-300" : "text-neutral-200"}`}>
                   {z.href ? (
                     <Link href={z.href} className="hover:underline">
                       {z.buchungsart}
@@ -169,39 +174,47 @@ export function MieterkontoAnsicht({
                     z.buchungsart
                   )}
                 </td>
-                <td className="whitespace-nowrap px-4 py-2 text-neutral-200">{z.datum ? formatDate(z.datum) : ""}</td>
-                <td className="px-4 py-2 text-right text-neutral-200">{z.betrag !== null ? formatEuro(z.betrag) : ""}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-neutral-200">{z.datum ? formatDate(z.datum) : ""}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-neutral-200">
+                  {z.betrag !== null ? formatEuro(z.betrag) : ""}
+                </td>
                 <td
-                  className={`px-4 py-2 text-right ${
+                  className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${
                     z.differenz < -0.005 ? "text-red-400" : z.differenz > 0.005 ? "text-green-400" : "text-neutral-400"
                   }`}
                 >
                   {formatEuro(z.differenz)}
                 </td>
-                <td className={`px-4 py-2 text-right font-medium ${farbeSaldo(z.saldo)}`}>{formatEuro(z.saldo)}</td>
-                <td className="whitespace-nowrap px-4 py-2 text-xs italic text-neutral-500">
-                  {z.bemerkung}
+                <td className={`whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums ${farbeSaldo(z.saldo)}`}>
+                  {formatEuro(z.saldo)}
+                </td>
+                <td className="w-full max-w-0 px-3 py-2 text-xs italic text-neutral-500">
+                  {z.bemerkung && (
+                    <div title={z.bemerkung} className="line-clamp-2">
+                      {z.bemerkung}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
             {konto.zeilen.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={10} className="px-3 py-8 text-center text-neutral-500">
                   Für {konto.jahr} gibt es keine Buchungen.
                 </td>
               </tr>
             )}
             <tr className="border-t-2 border-neutral-700 bg-neutral-900 font-medium">
-              <td className="px-4 py-2.5 text-white">Summe Jahr</td>
-              <td className="px-4 py-2.5 text-right text-white">{formatEuro(konto.summe.sollKaltmiete)}</td>
-              <td className="px-4 py-2.5 text-right text-white">{formatEuro(konto.summe.sollNebenkosten)}</td>
-              <td className="px-4 py-2.5 text-right text-white">{formatEuro(konto.summe.sollGesamt)}</td>
-              <td className="px-4 py-2.5" />
-              <td className="px-4 py-2.5" />
-              <td className="px-4 py-2.5 text-right text-white">{formatEuro(konto.summe.betrag)}</td>
-              <td className="px-4 py-2.5 text-right text-white">{formatEuro(konto.summe.differenz)}</td>
-              <td className="px-4 py-2.5 text-right text-white">{formatEuro(konto.summe.saldo)}</td>
-              <td className="px-4 py-2.5" />
+              <td className="whitespace-nowrap px-3 py-2.5 text-white">Summe Jahr</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-white">{formatEuro(konto.summe.sollKaltmiete)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-white">{formatEuro(konto.summe.sollNebenkosten)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-white">{formatEuro(konto.summe.sollGesamt)}</td>
+              <td className="px-3 py-2.5" />
+              <td className="px-3 py-2.5" />
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-white">{formatEuro(konto.summe.betrag)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-white">{formatEuro(konto.summe.differenz)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-white">{formatEuro(konto.summe.saldo)}</td>
+              <td className="px-3 py-2.5" />
             </tr>
           </tbody>
         </table>
