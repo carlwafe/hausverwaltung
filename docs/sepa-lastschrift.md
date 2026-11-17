@@ -9,10 +9,7 @@ Die Mieten werden per SEPA-Core-Lastschrift eingezogen, und **die Gläubiger-ID 
 - **Bestehende Mandate bleiben gültig**, solange Gläubiger-ID, Mandatsreferenz und Gläubiger-Kontoverbindung unverändert bleiben (sonst Änderung mit der Vorabankündigung mitteilen). Ein Mandat verfällt nach 36 Monaten ohne Einzug.
 - Gläubigerdaten (Name, Anschrift, Gläubiger-ID) stehen bewusst **nicht im Quelltext**, sondern am `Objekt` (`sepaGlaeubigerName`, `sepaGlaeubigerAnschrift`, `sepaGlaeubigerId`), gepflegt unter „Objekt“ → „SEPA-Lastschrift (Mandate)“ (nur Admin; ID mit Mod-97-Prüfziffer geprüft, `glaeubigerIdGueltig`, ohne Leerzeichen in Großschreibung gespeichert).
 
-**Offen (wartet auf Externe):**
-1. Mandatsunterlagen (Unterschrift, Datum) beim Vorverwalter anfordern — Nachweis bei Widerspruch.
-2. Bank: Vollmacht des Vorverwalters löschen, die des Bevollmächtigten einrichten; bestätigen lassen, dass er unter der bestehenden Lastschriftvereinbarung und ID der Vermieterin einreichen darf, mit Format, Einreichungsfrist und Limit.
-3. Kein Doppeleinzug: Solange der Vorverwalter noch einzieht, keine eigene Datei einreichen und nichts an die Mieter schicken, was die Einzüge ändert.
+**Stand:** Der Bevollmächtigte reicht die Einzugsdatei selbst bei der Bank ein, unter der bestehenden Vereinbarung und ID der Vermieterin; die Einreichung funktioniert, Rückläufer sind die Ausnahme. Die Vollmacht des Vorverwalters ist beendet, ein Doppeleinzug ausgeschlossen. Die Unterlagen der Mandate (Unterschrift, Datum) liegen nicht vor und werden nicht mehr angefordert: Das Unterschriftsdatum bleibt der Mietbeginn als Platzhalter, im Streitfall zählt das unterschriebene Mandat des Mieters.
 
 ## Mandate am Mietvertrag
 
@@ -20,7 +17,7 @@ Spalten `Mietvertrag.mandatReferenz`, `mandatGlaeubigerId`, `mandatDatum` (Unter
 
 - **Übernahme aus dem Journal:** `mandatDetailsAusEinzug` (`src/lib/lastschrift-mandat.ts`) liest nur echte Einzüge (bei Rückbelastungen steht in der IBAN-Spalte das eigene Konto); Zahler-IBAN = „Kontonummer/IBAN“, Kontoinhaber = „Begünstigter/Zahlungspflichtiger“. Bestand per Einmalskript `scripts-tmp/mandate-uebernehmen.ts [--write]` übernommen (überschreibt nichts; bei mehreren Referenzen die des jüngsten Einzugs — die Endung „-1“ steht für ein später neu erteiltes Mandat).
 - **Neue Lastschrift-Mieter:** Knopf „Aus Kontoauszug übernehmen“ im Block „SEPA-Lastschriftmandat“ (`holeMandatAusKontoauszug`, `ladeMandatAusKontoauszug`) füllt nur die Formularfelder aus dem jüngsten Einzug; gespeichert wird mit „Speichern“, bei abweichenden Werten fragt das Formular nach. Geht erst nach dem ersten importierten Einzug; fehlt in „Neuer Mietvertrag“.
-- **Unterschriftsdatum** steht in keiner Bankzeile. Bei allen übernommenen Mandaten steht ersatzweise der **Mietbeginn** — ein Platzhalter, kein belegtes Datum. Mit den Unterlagen des Vorverwalters das echte Datum eintragen.
+- **Unterschriftsdatum** steht in keiner Bankzeile. Bei allen übernommenen Mandaten steht ersatzweise der **Mietbeginn** — ein Platzhalter, kein belegtes Datum. Ein echtes Datum wird nur bei neu unterschriebenen Mandaten eingetragen.
 - Die Anpassungsschreiben (Vorabankündigung) nehmen Referenz und Gläubiger-ID zuerst vom Vertrag, sonst aus dem Journal (`ladeLastschriftMandat`).
 
 ## Seite „Lastschrift-Mandate“ (temporär)
@@ -35,16 +32,16 @@ Menü Vermietung → `/mietvertraege/lastschrift-mandate`, Einzelmandat `/mietve
 
 ## Einzugsdatei pain.008
 
-Sammellastschrift als **pain.008.001.08** (`src/lib/sepa-pain008.ts`: reine Funktionen, Prüfung von IBAN/Referenzen/Längen, SEPA-Zeichensatz, gegen die offizielle XSD geprüft). Erzeugt wird sie bisher mit dem Leseskript `scripts-tmp/pain008-erzeugen.ts --monat JJJJ-MM [--datum JJJJ-MM-TT] [--ohne "HS 2 WHG 3,Garage 2"] [--vergleich JJJJ-MM]` gegen die Produktions-DB (schreibt nichts; eine Seite in der App gibt es noch nicht). Die erste Datei (11/2026) ist erzeugt, aber noch nicht eingereicht.
+Sammellastschrift als **pain.008.001.08** (`src/lib/sepa-pain008.ts`: reine Funktionen, Prüfung von IBAN/Referenzen/Längen, SEPA-Zeichensatz, gegen die offizielle XSD geprüft). Erzeugt wird sie bisher mit dem Leseskript `scripts-tmp/pain008-erzeugen.ts --monat JJJJ-MM [--datum JJJJ-MM-TT] [--ohne "HS 2 WHG 3,Garage 2"] [--vergleich JJJJ-MM]` gegen die Produktions-DB (schreibt nichts; eine Seite in der App gibt es noch nicht). Jeden Monat neu erzeugen und selbst bei der Bank einreichen; die Einzüge sind nach dem ersten Lauf ohne Rückläufer durchgegangen.
 
-- **Wer:** ein Einzug je Vertrag mit Zahlungsweg `LASTSCHRIFT`, Status `AKTIV`/`GEPLANT`, Mietbeginn ≤ Monatsende, Vertragsende nicht vor dem Einzugstermin, vollständigem Mandat (Referenz, IBAN mit Prüfziffer, Kontoinhaber) und der Gläubiger-ID des Objekts. Einzelne Verträge mit `--ohne` ausnehmen (z.B. wenn die Lastschrift jeden Monat zurückgegeben wird).
+- **Wer:** ein Einzug je Vertrag mit Zahlungsweg `LASTSCHRIFT`, Status `AKTIV`/`GEPLANT`, Mietbeginn ≤ Monatsende, Vertragsende nicht vor dem Einzugstermin, vollständigem Mandat (Referenz, IBAN mit Prüfziffer, Kontoinhaber) und der Gläubiger-ID des Objekts. Wer nicht mehr eingezogen werden soll (z.B. weil die Lastschrift jeden Monat zurückgegeben wird), bekommt den Zahlungsweg `UEBERWEISUNG` am Vertrag — dann fällt er dauerhaft heraus; `--ohne` nur für eine einmalige Ausnahme.
 - **Betrag** = Kaltmiete + BK-Vorauszahlung + ggf. Mehrwertsteuer des Monats nach Mieterhöhungen, abzüglich Mietnachlass (`ermittleMieteFuerMonat`). Gegenprobe mit `--vergleich`: Für Oktober 2026 stimmten alle berechneten Beträge mit den eingezogenen überein.
 - **Termin** = 3. Bankarbeitstag des Monats (TARGET, wie der vertragliche Fälligkeitstermin); früher geht nicht (Core braucht einen Bankarbeitstag Vorlauf, die Vorabankündigung nennt den 3. Werktag).
 - **Sequenz:** alle als Folgelastschrift (RCUR) in einem Sammler (`BtchBookg` true), weil jedes Mandat schon eingezogen wurde; ein Mandat ohne Einzug in 36 Monaten ginge als FRST in einen eigenen Sammler.
 - **Unterschriftsdatum:** das am Vertrag erfasste, sonst der Mietbeginn — nur, wenn er nicht nach dem ersten Einzug im Journal oder in der Zukunft liegt (die Bank prüft das Datum nicht; im Streitfall zählt das unterschriebene Mandat).
 - **Verwendungszweck:** „Miete+BK MM.JJJJ <Einheit>“ (ohne Namen); die Mieternummer des Vorverwalters steht nicht in der DB.
 - **End-to-End-ID** = „MJJMM-“ + Ende der Mandatsreferenz (≤ 35 Zeichen); teilen sich Wohnung und Garage eines Mieters ein Mandat, bekommt der zweite Einzug „-2“ (dieselbe Referenz zweimal am selben Tag ist erlaubt).
-- **Abnahme vor dem Einreichen:** gegen die XSD prüfen, Kopfsumme/Anzahl nachrechnen, IBAN und Referenz je Einzug mit dem letzten echten Einzug vergleichen, Beträge mit dem letzten Einzug vergleichen (Abweichung = Mieterhöhung, die angekündigt sein muss), nach Rückbelastungen suchen.
+- **Abnahme vor dem Einreichen:** gegen die XSD prüfen, Kopfsumme/Anzahl nachrechnen, IBAN und Referenz je Einzug mit dem letzten echten Einzug vergleichen, Beträge mit dem letzten Einzug vergleichen (Abweichung = Mieterhöhung, die angekündigt sein muss), nach Rückbelastungen suchen (negative `MIETZAHLUNG` mit „RUECKLASTSCHRIFT“ in Bemerkung/Verwendungszweck; die Rückbelastungs-Tabelle von `scripts-tmp/pain008-abnahme.ts` ist ein Fehlalarm, ihr Suchbegriff trifft jede Zeile).
 - Der Einzug selbst erzeugt keine Buchung, erst die Bankgutschrift (Import).
 
 **Noch nicht gebaut:** eigene Mandatstabelle mit Status/Historie, Einzugslauf mit Vorschau als Seite, Abgleich der Gutschriften aus dem Import mit dem Einzugslauf.
