@@ -200,6 +200,13 @@ export function OffenePostenTable({ rows }: { rows: OffenePostenRow[] }) {
       }}
       columns={columns}
       rows={rows}
+      selectFilter2={{
+        label: "Saldo",
+        placeholder: "Alle Verträge",
+        // Cent-genau: Rundungsreste der Gleitkommarechnung gelten als null.
+        matches: (z, wert) => wert === "ungleich-null" && Math.abs(z.saldo) >= 0.005,
+        options: [{ value: "ungleich-null", label: "Nur Saldo ungleich null" }],
+      }}
       kompakt
       emptyMessage="Keine aktiven oder beendeten Mietverträge vorhanden."
       searchPlaceholder="Offene Posten durchsuchen…"

@@ -119,18 +119,28 @@ export default async function OffenePostenPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-white">Offene Posten</h1>
         <p className="text-sm text-neutral-400">
-          Soll (Kaltmiete + BK-Vorauszahlung seit{" "}
-          {objekt?.buchhaltungAb
-            ? `Buchhaltungs-Stichtag ${formatDatum(objekt.buchhaltungAb)} bzw. späterem Mietbeginn`
-            : "Mietbeginn"}
-          , gerechnet bis {formatDatum(bis)}) im Vergleich zu den{" "}
-          {objekt?.buchhaltungAb ? "seitdem " : ""}erfassten Zahlungen bis zu diesem Stichtag. Rot
-          = Rückstand, Grün = Guthaben/Vorauszahlung. Offene Sonderforderungen (z.B. Rücklastschriftgebühren)
-          sind im Saldo enthalten und in der Spalte &bdquo;Sonderford.&ldquo; ausgewiesen. Ebenso die
-          Gegenrechnung der BK-Vorauszahlung versendeter Betriebskostenabrechnungen (Spalte &bdquo;BK-Gegenr.&ldquo;): Eine nicht gezahlte BK-Vorauszahlung steht zwar als Rückstand im Soll, ist
-          nach dem Versand der Abrechnung aber nicht mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) steht
-          nicht im Saldo.
+          Soll (Kaltmiete + BK-Vorauszahlung) gegen die erfassten Zahlungen bis {formatDatum(bis)}. Rot = Rückstand,
+          Grün = Guthaben.
         </p>
+        <details className="mt-1 max-w-2xl text-xs text-neutral-500">
+          <summary className="cursor-pointer hover:text-neutral-300">Wie der Saldo entsteht</summary>
+          <p className="mt-1">
+            Gerechnet wird seit{" "}
+            {objekt?.buchhaltungAb
+              ? `dem Buchhaltungs-Stichtag ${formatDatum(objekt.buchhaltungAb)} bzw. späterem Mietbeginn`
+              : "Mietbeginn"}
+            .
+          </p>
+          <p className="mt-1">
+            <span className="text-neutral-400">Sonderforderungen</span> (z.B. Rücklastschriftgebühren) sind im Saldo
+            enthalten und in der Spalte &bdquo;Sonderford.&ldquo; ausgewiesen.
+          </p>
+          <p className="mt-1">
+            <span className="text-neutral-400">BK-Gegenrechnung</span> (Spalte &bdquo;BK-Gegenr.&ldquo;): Eine nicht
+            gezahlte BK-Vorauszahlung steht als Rückstand im Soll, ist nach dem Versand der Abrechnung aber nicht
+            mehr geschuldet. Die Abrechnung selbst (Nachzahlung/Guthaben) steht nicht im Saldo.
+          </p>
+        </details>
         {zeilen.some((z) => z.eigenerStichtag) && (
           <p className="mt-1 text-xs text-amber-300">
             Verträge mit eigenem, früherem Buchhaltungs-Stichtag (Mietvertrag bearbeiten → Buchhaltung ab) sind
