@@ -5,7 +5,7 @@ export default function NeueKostenartPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Neue Kostenart</h1>
-      <KostenartForm action={createKostenart} />
+      <KostenartForm action={createKostenart} abbrechenHref="/kostenarten" />
     </div>
   );
 }
