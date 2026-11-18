@@ -115,6 +115,8 @@ export default async function MietvertragDetailPage({
   };
 
   const aktuelleMiete = ermittleAktuelleMiete(vertragFuerSollIst);
+  const mehrwertsteuer = vertragFuerSollIst.mehrwertsteuer;
+  const gebaeude = vertrag.einheit.gebaeude;
 
   // Derselbe Stichtag wie auf /offene-posten (statt immer "heute") — sonst zeigen beide Seiten
   // für denselben Vertrag unterschiedliche Salden, je nachdem wie weit die Buchhaltung tatsächlich
@@ -161,7 +163,8 @@ export default async function MietvertragDetailPage({
       })),
     stichtagAb,
   );
-  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo + gegenrechnungBis(nkGegenrechnungen, bis);
+  const nkGegenrechnung = gegenrechnungBis(nkGegenrechnungen, bis);
+  const saldo = ist - soll + saldovortrag - sonderOffenImSaldo + nkGegenrechnung;
   const sollZeilenAufsteigend = sollAufschluesselung(vertragFuerSollIst, bis, stichtagAb);
   // Jahre für das Mieterkonto: ab dem ersten Jahr mit Zahlungen (oder dem Stichtag/Soll-Beginn) bis
   // zum "erfasst bis"-Jahr. Vor dem Buchhaltungs-Stichtag (stichtagAb, des Vertrags) gibt es kein vom System
@@ -334,23 +337,23 @@ export default async function MietvertragDetailPage({
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">
-          {vertrag.einheit.bezeichnung} —{" "}
-          {vertrag.mieter.map((m) => mieterName(m)).join(" & ")}
-        </h1>
-      </div>
       <EckdatenSektion
         mietvertragId={id}
         einheitLabel={vertrag.einheit.bezeichnung}
         mieterNamen={vertrag.mieter.map((m) => mieterName(m)).join(" & ")}
+        adresse={`${gebaeude.strasse} ${gebaeude.hausnummer}, ${gebaeude.objekt.plz} ${gebaeude.objekt.ort}`}
+        wohnflaecheText={
+          Number(vertrag.einheit.wohnflaecheQm) > 0
+            ? `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(Number(vertrag.einheit.wohnflaecheQm))} m²`
+            : null
+        }
         beginnText={vertrag.beginn ? formatDate(vertrag.beginn) : "unbekannt"}
         endeText={vertrag.ende ? formatDate(vertrag.ende) : "–"}
         kaltmieteText={formatEuro(aktuelleMiete.kaltmiete)}
         nebenkostenText={formatEuro(aktuelleMiete.nebenkostenVorauszahlung)}
-        mehrwertsteuerText={vertrag.mehrwertsteuer ? formatEuro(Number(vertrag.mehrwertsteuer)) : null}
+        mehrwertsteuerText={mehrwertsteuer > 0 ? formatEuro(mehrwertsteuer) : null}
+        gesamtmieteText={formatEuro(aktuelleMiete.kaltmiete + aktuelleMiete.nebenkostenVorauszahlung + mehrwertsteuer)}
         status={vertrag.status}
-        saldovortragText={formatEuro(saldovortrag)}
         eigenerStichtagText={eigenerStichtag && stichtagAb ? formatDate(stichtagAb) : null}
         zahlungsweg={vertrag.zahlungsweg}
         notiz={vertrag.notiz}
@@ -372,52 +375,27 @@ export default async function MietvertragDetailPage({
                 betragText: formatEuro(Number(vertrag.kaution.betrag)),
                 anlageform: vertrag.kaution.anlageform,
                 einzahlungUnbekannt: vertrag.kaution.einzahlungUnbekannt,
+                guthabenText: formatEuro(kautionskonto.stand),
               }
             : null
         }
+        mietkonto={{
+          saldo,
+          saldoText: formatEuro(saldo),
+          sollText: formatEuro(soll),
+          istText: formatEuro(ist),
+          saldovortrag,
+          saldovortragText: formatEuro(saldovortrag),
+          sonderbuchungen: -sonderOffenImSaldo,
+          sonderbuchungenText: Math.abs(sonderOffenImSaldo) > 0.005 ? formatEuro(-sonderOffenImSaldo) : null,
+          gegenrechnungText: Math.abs(nkGegenrechnung) > 0.005 ? formatEuro(nkGegenrechnung) : null,
+          zeitraumText: `${stichtagAb ? `Ab Buchhaltungs-Stichtag ${formatDate(stichtagAb)}` : "Ab Mietbeginn"} bis ${formatDate(bis)}`,
+        }}
         letzteErhoehungText={letzteErhoehungText}
         nachlassTexte={vertrag.mietnachlaesse.map(
           (n) => `${String(n.monat).padStart(2, "0")}/${n.jahr}: ${formatEuro(-Number(n.betrag))} Kaltmiete (${n.grund})`,
         )}
       />
-
-      <div className="my-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
-          <p className="text-xs text-neutral-400">
-            Soll ({stichtagAb ? `seit Buchhaltungs-Stichtag${eigenerStichtag ? ` ${formatDate(stichtagAb)}` : ""}` : "seit Mietbeginn"}, bis{" "}
-            {formatDate(bis)})
-          </p>
-          <p className="mt-1 text-base font-semibold sm:text-lg text-white">{formatEuro(soll)}</p>
-        </div>
-        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
-          <p className="text-xs text-neutral-400">
-            Ist (erhaltene Zahlungen{stichtagAb ? " seit Stichtag" : ""}, bis{" "}
-            {formatDate(bis)})
-          </p>
-          <p className="mt-1 text-base font-semibold sm:text-lg text-white">{formatEuro(ist)}</p>
-        </div>
-        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
-          <p className="text-xs text-neutral-400">
-            Saldovortrag ({stichtagAb ? `zum Stichtag${eigenerStichtag ? ` ${formatDate(stichtagAb)}` : ""}` : "vor Stichtag"})
-          </p>
-          <p
-            className={`mt-1 text-base font-semibold sm:text-lg ${saldovortrag < 0 ? "text-red-400" : saldovortrag > 0 ? "text-green-400" : "text-white"}`}
-          >
-            {formatEuro(saldovortrag)}
-          </p>
-        </div>
-        <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
-          <p className="text-xs text-neutral-400">Saldo</p>
-          <p
-            className={`mt-1 text-base font-semibold sm:text-lg ${saldo < 0 ? "text-red-400" : saldo > 0 ? "text-green-400" : "text-white"}`}
-          >
-            {formatEuro(saldo)}
-          </p>
-          {Math.abs(sonderOffenImSaldo) > 0.005 && (
-            <p className="mt-1 text-xs text-neutral-500">inkl. Sonderforderung {formatEuro(-sonderOffenImSaldo)}</p>
-          )}
-        </div>
-      </div>
 
       <MietvertragReiter
         startReiter={(await searchParams).reiter === "kaution" ? "kaution" : "mieterkonto"}
@@ -443,7 +421,8 @@ export default async function MietvertragDetailPage({
         }}
       />
 
-      <div className="mt-6">
+      {/* Am breiten Bildschirm Belege und Tickets nebeneinander. */}
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
         <BelegeSektion
           dokumente={vertrag.dokumente}
           uploadAction={uploadDokument.bind(null, {
@@ -452,9 +431,6 @@ export default async function MietvertragDetailPage({
           })}
           revalidatePath={`/mietvertraege/${id}`}
         />
-      </div>
-
-      <div className="mt-6">
         <TicketsSektion where={{ mietvertragId: id }} neuQuery={{ mietvertragId: id }} />
       </div>
     </div>
