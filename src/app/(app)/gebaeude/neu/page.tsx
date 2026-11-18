@@ -10,7 +10,9 @@ export default async function NeuesGebaeudePage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-white">Neues Gebäude</h1>
-      <GebaeudeForm haeuser={haeuser} action={createGebaeude} />
+      <div className="max-w-2xl">
+        <GebaeudeForm haeuser={haeuser} action={createGebaeude} abbrechenHref="/gebaeude" />
+      </div>
     </div>
   );
 }
