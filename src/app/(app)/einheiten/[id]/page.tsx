@@ -36,7 +36,10 @@ export default async function EinheitDetailPage({
 }) {
   const { id } = await params;
   const [einheit, gebaeudeRaw, mietvertraege, fotos, kosten, wohnflaecheKorrekturen] = await Promise.all([
-    prisma.einheit.findUnique({ where: { id } }),
+    prisma.einheit.findUnique({
+      where: { id },
+      include: { gebaeude: { select: { strasse: true, hausnummer: true, objekt: { select: { plz: true, ort: true } } } } },
+    }),
     prisma.gebaeude.findMany({ include: { haus: { include: { gebaeude: true } } } }),
     prisma.mietvertrag.findMany({
       where: { einheitId: id },
@@ -58,12 +61,52 @@ export default async function EinheitDetailPage({
   if (!einheit) notFound();
   const gebaeude = sortGebaeudeNachHaus(gebaeudeRaw);
 
+  const aktuelle = mietvertraege.filter((v) => v.status !== "BEENDET");
+  const flaeche = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(Number(einheit.wohnflaecheQm));
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-white">{einheit.bezeichnung}</h1>
-        <DeleteButton action={deleteEinheit.bind(null, id)} />
+      <div className="mb-6">
+        <Link href="/einheiten" className="text-sm text-neutral-400 hover:text-white hover:underline">
+          ← Alle Einheiten
+        </Link>
+        <h1 className="mt-1 text-2xl font-semibold text-white">{einheit.bezeichnung}</h1>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-400">
+          <span>{einheit.typ === "GARAGE" ? "Garage" : "Wohnung"}</span>
+          <span aria-hidden="true">·</span>
+          <span>
+            {einheit.gebaeude.strasse} {einheit.gebaeude.hausnummer}, {einheit.gebaeude.objekt.plz} {einheit.gebaeude.objekt.ort}
+          </span>
+          {einheit.etage && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{einheit.etage}</span>
+            </>
+          )}
+          <span aria-hidden="true">·</span>
+          <span>{flaeche} m²</span>
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {aktuelle.length === 0 ? (
+            <span className="inline-flex h-10 items-center rounded-md border border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-300">
+              Leerstand — kein laufender Mietvertrag
+            </span>
+          ) : (
+            aktuelle.map((v) => (
+              <Link
+                key={v.id}
+                href={`/mietvertraege/${v.id}`}
+                className="inline-flex h-10 max-w-full items-center gap-2 rounded-md border border-neutral-700 px-3 text-sm text-white hover:bg-neutral-900"
+              >
+                <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[v.status]}`}>{STATUS_LABEL[v.status]}</span>
+                <span className="truncate">{v.mieter.map((m) => mieterName(m)).join(" & ")}</span>
+                <span className="shrink-0 text-xs text-neutral-400">seit {v.beginn ? formatDate(v.beginn) : "?"}</span>
+              </Link>
+            ))
+          )}
+        </div>
       </div>
+
       <EinheitForm
         gebaeudeOptionen={gebaeude.map((g) => ({
           id: g.id,
@@ -80,124 +123,115 @@ export default async function EinheitDetailPage({
           notizen: einheit.notizen,
         }}
         action={updateEinheit.bind(null, id)}
+        abbrechenHref="/einheiten"
       />
 
-      <div className="mt-8">
-        <h2 className="mb-4 text-lg font-medium text-white">
-          Mietverträge ({mietvertraege.length})
-        </h2>
-        <div className="rounded-lg border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
-              <tr>
-                <th className="px-4 py-2">Mieter</th>
-                <th className="px-4 py-2">Zeitraum</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {mietvertraege.map((v) => (
-                <tr key={v.id} className="border-t border-neutral-800">
-                  <td className="px-4 py-2 text-white">
-                    {v.mieter.map((m, i) => (
-                      <span key={m.id}>
-                        {i > 0 && " & "}
-                        <Link href={`/mieter/${m.id}`} className="hover:underline">
-                          {mieterName(m)}
-                        </Link>
-                      </span>
-                    ))}
-                  </td>
-                  <td className="px-4 py-2 text-white">
-                    {v.beginn ? formatDate(v.beginn) : "unbekannt"} –{" "}
-                    {v.ende ? formatDate(v.ende) : "laufend"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[v.status]}`}>
-                      {STATUS_LABEL[v.status]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <Link
-                      href={`/mietvertraege/${v.id}`}
-                      className="text-xs text-neutral-400 underline hover:text-white"
-                    >
-                      Mietvertrag
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-              {mietvertraege.length === 0 && (
+      {/* Am breiten Bildschirm Mietverträge und Wohnfläche-Korrekturen nebeneinander. */}
+      <div className="mt-10 grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
+        <section className="min-w-0">
+          <h2 className="mb-4 text-lg font-medium text-white">Mietverträge ({mietvertraege.length})</h2>
+          <div className="overflow-x-auto rounded-lg border border-neutral-800">
+            <table className="w-full text-sm">
+              <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
-                    Noch keine Mietverträge für diese Einheit.
-                  </td>
+                  <th className="px-4 py-2">Mieter</th>
+                  <th className="px-4 py-2">Zeitraum</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2" />
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {mietvertraege.map((v) => (
+                  <tr key={v.id} className="border-t border-neutral-800">
+                    <td className="px-4 py-2 text-white">
+                      {v.mieter.map((m, i) => (
+                        <span key={m.id}>
+                          {i > 0 && " & "}
+                          <Link href={`/mieter/${m.id}`} className="hover:underline">
+                            {mieterName(m)}
+                          </Link>
+                        </span>
+                      ))}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-white">
+                      {v.beginn ? formatDate(v.beginn) : "unbekannt"} – {v.ende ? formatDate(v.ende) : "laufend"}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_FARBE[v.status]}`}>{STATUS_LABEL[v.status]}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <Link
+                        href={`/mietvertraege/${v.id}`}
+                        className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-neutral-700 px-3 text-xs text-white hover:bg-neutral-900"
+                      >
+                        Öffnen
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {mietvertraege.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
+                      Noch keine Mietverträge für diese Einheit.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="min-w-0">
+          <h2 className="mb-1 text-lg font-medium text-white">Wohnfläche-Korrekturen</h2>
+          <p className="mb-4 text-xs text-neutral-500">
+            Für Betriebskostenabrechnungen bis einschließlich „Bis Jahr“ gilt die hier hinterlegte (historische) Fläche statt
+            der aktuellen ({flaeche} m²).
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-neutral-800">
+            <table className="w-full text-sm">
+              <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+                <tr>
+                  <th className="px-4 py-2">Bis Jahr</th>
+                  <th className="px-4 py-2">Fläche (m²)</th>
+                  <th className="px-4 py-2">Notizen</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {wohnflaecheKorrekturen.map((k) => (
+                  <tr key={k.id} className="border-t border-neutral-800">
+                    <td className="px-4 py-2 text-white">{k.bisJahr}</td>
+                    <td className="px-4 py-2 text-white">{k.wohnflaecheQm.toString()}</td>
+                    <td className="px-4 py-2 text-neutral-400">{k.notizen || "–"}</td>
+                    <td className="px-4 py-2 text-right">
+                      <DeleteButton size="sm" action={loescheWohnflaecheKorrektur.bind(null, id, k.id)} />
+                    </td>
+                  </tr>
+                ))}
+                {wohnflaecheKorrekturen.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-neutral-500">
+                      Keine Korrekturen erfasst.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <WohnflaecheKorrekturForm einheitId={id} />
+        </section>
       </div>
 
-      <div className="mt-8">
-        <h2 className="mb-4 text-lg font-medium text-white">
-          Wohnfläche-Korrekturen (Betriebskostenabrechnung)
-        </h2>
-        <p className="mb-3 text-sm text-neutral-400">
-          Aktuelle Wohnfläche: {einheit.wohnflaecheQm.toString()} qm. Für Abrechnungsjahre bis
-          einschließlich dem hier eingetragenen &bdquo;Bis Jahr&ldquo; wird stattdessen die hier
-          hinterlegte (historische) Wohnfläche für die Betriebskostenabrechnung verwendet.
-        </p>
-        <div className="rounded-lg border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-              <tr>
-                <th className="px-4 py-2">Bis Jahr</th>
-                <th className="px-4 py-2">Wohnfläche (qm)</th>
-                <th className="px-4 py-2">Notizen</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {wohnflaecheKorrekturen.map((k) => (
-                <tr key={k.id} className="border-t border-neutral-800">
-                  <td className="px-4 py-2 text-white">{k.bisJahr}</td>
-                  <td className="px-4 py-2 text-white">{k.wohnflaecheQm.toString()}</td>
-                  <td className="px-4 py-2 text-neutral-400">{k.notizen || "–"}</td>
-                  <td className="px-4 py-2 text-right">
-                    <DeleteButton
-                      size="sm"
-                      action={loescheWohnflaecheKorrektur.bind(null, id, k.id)}
-                    />
-                  </td>
-                </tr>
-              ))}
-              {wohnflaecheKorrekturen.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
-                    Keine Korrekturen erfasst.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <WohnflaecheKorrekturForm einheitId={id} />
-      </div>
-
-      <div className="mt-8">
+      <section className="mt-10">
         <h2 className="mb-4 text-lg font-medium text-white">
           Reparaturen, Sanierung & Modernisierung dieser Einheit ({kosten.length})
         </h2>
         <KostenTable rows={kosten} />
-      </div>
+      </section>
 
-      <div className="mt-8">
+      {/* Am breiten Bildschirm Tickets und Fotos nebeneinander. */}
+      <div className="mt-10 grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
         <TicketsSektion where={{ einheitId: id }} neuQuery={{ einheitId: id }} />
-      </div>
-
-      <div className="mt-8">
         <FotosSektion
           fotos={fotos}
           uploadAction={uploadDokument.bind(null, {
@@ -207,6 +241,24 @@ export default async function EinheitDetailPage({
           revalidatePath={`/einheiten/${id}`}
         />
       </div>
+
+      <section className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-900/60 p-4">
+        <div>
+          <h2 className="text-sm font-medium text-white">Einheit löschen</h2>
+          <p className="text-xs text-neutral-400">
+            {mietvertraege.length > 0
+              ? "Nicht möglich, solange Mietverträge an der Einheit hängen."
+              : "Gedacht für versehentlich angelegte Einheiten ohne Mietverträge."}
+          </p>
+        </div>
+        {mietvertraege.length === 0 && (
+          <DeleteButton
+            action={deleteEinheit.bind(null, id)}
+            confirmText={`Einheit „${einheit.bezeichnung}“ wirklich löschen?`}
+            label="Einheit löschen"
+          />
+        )}
+      </section>
     </div>
   );
 }

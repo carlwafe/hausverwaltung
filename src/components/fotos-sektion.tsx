@@ -70,7 +70,7 @@ export function FotosSektion({
         </div>
       )}
       {fotos.length === 0 && <p className="mb-4 text-sm text-neutral-500">Noch keine Fotos hochgeladen.</p>}
-      <form action={formAction} className="flex items-center gap-3">
+      <form action={formAction} className="flex flex-wrap items-center gap-3">
         <input
           type="file"
           name="file"

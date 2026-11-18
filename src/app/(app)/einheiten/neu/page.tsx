@@ -17,6 +17,7 @@ export default async function NeueEinheitPage() {
           label: `${g.strasse} ${g.hausnummer}`,
         }))}
         action={createEinheit}
+        abbrechenHref="/einheiten"
       />
     </div>
   );
