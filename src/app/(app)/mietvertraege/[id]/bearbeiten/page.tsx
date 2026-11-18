@@ -77,19 +77,14 @@ export default async function MietvertragBearbeitenPage({
 
   return (
     <div>
-      <div className="mb-6 flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">
-            Mietvertrag bearbeiten — {vertrag.einheit.bezeichnung} ({mieterNamen})
-          </h1>
-          <Link href={`/mietvertraege/${id}`} className="text-sm text-neutral-400 hover:text-white hover:underline">
-            ← Zurück ohne zu speichern
-          </Link>
-        </div>
-        <DeleteButton
-          action={deleteMietvertrag.bind(null, id)}
-          confirmText="Mietvertrag wirklich löschen? Zahlungen und Kaution werden mitgelöscht."
-        />
+      <div className="mb-6">
+        <Link href={`/mietvertraege/${id}`} className="text-sm text-neutral-400 hover:text-white hover:underline">
+          ← Zurück zum Mietvertrag
+        </Link>
+        <h1 className="mt-1 text-2xl font-semibold text-white">Mietvertrag bearbeiten</h1>
+        <p className="mt-1 text-sm text-neutral-400">
+          {vertrag.einheit.bezeichnung} — {mieterNamen}
+        </p>
       </div>
 
       <MietvertragForm
@@ -122,11 +117,15 @@ export default async function MietvertragBearbeitenPage({
         objektStichtag={toDateInputValue(objekt?.buchhaltungAb)}
         zahlungswegVorschlag={vertrag.zahlungswegHinweis ?? zahlungswegVorschlag ?? ""}
         mietvertragId={id}
+        abbrechenHref={`/mietvertraege/${id}`}
         action={updateMietvertrag.bind(null, id)}
       />
 
-      <div className="mt-8">
-        <h2 className="mb-4 text-lg font-medium text-white">Mieterhöhungen ({mieterhoehungen.length})</h2>
+      <section className="mt-10">
+        <h2 className="mb-1 text-lg font-medium text-white">Mieterhöhungen ({mieterhoehungen.length})</h2>
+        <p className="mb-4 text-xs text-neutral-500">
+          Jede Erhöhung gilt ab ihrem Datum; Speichern oben ist dafür nicht nötig.
+        </p>
         {/* Handy: je Mieterhöhung eine Karte statt der Tabelle. */}
         <ul className={KARTE_LISTE}>
           {mieterhoehungen.map((m) => (
@@ -278,15 +277,13 @@ export default async function MietvertragBearbeitenPage({
             + Mieterhöhung erfassen
           </button>
         </form>
-      </div>
+      </section>
 
-      <div className="mt-8">
+      <section className="mt-10">
         <h2 className="mb-1 text-lg font-medium text-white">Mietnachlässe ({vertrag.mietnachlaesse.length})</h2>
         <p className="mb-4 text-xs text-neutral-500">
-          Einmaliger Nachlass auf die Kaltmiete eines einzelnen Monats, z.B. weil der Mieter erst nach dem
-          1. eingezogen ist oder der Verwalter einen Monat anteilig berechnet hat. Er mindert nur das Soll dieses
-          Monats (Mieterkonto, Offene Posten, Jahres-/Quartalsübersicht); die vertragliche Miete, Mieterhöhungen
-          und die BK-Vorauszahlung bleiben unverändert.
+          Einmaliger Nachlass auf die Kaltmiete eines Monats (z.B. Einzug erst nach dem 1.). Mindert nur das Soll
+          dieses Monats; vertragliche Miete, Mieterhöhungen und BK-Vorauszahlung bleiben unverändert.
         </p>
         {/* Handy: je Mietnachlass eine Karte statt der Tabelle. */}
         <ul className={KARTE_LISTE}>
@@ -386,7 +383,19 @@ export default async function MietvertragBearbeitenPage({
             + Mietnachlass erfassen
           </button>
         </form>
-      </div>
+      </section>
+
+      <section className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-900/60 p-4">
+        <div>
+          <h2 className="text-sm font-medium text-white">Mietvertrag löschen</h2>
+          <p className="text-xs text-neutral-400">Zahlungen und Kaution werden mitgelöscht.</p>
+        </div>
+        <DeleteButton
+          action={deleteMietvertrag.bind(null, id)}
+          confirmText="Mietvertrag wirklich löschen? Zahlungen und Kaution werden mitgelöscht."
+          label="Mietvertrag löschen"
+        />
+      </section>
     </div>
   );
 }

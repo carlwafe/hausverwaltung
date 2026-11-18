@@ -20,6 +20,7 @@ export default async function NeuerMietvertragPage() {
         einheiten={einheiten.map((e) => ({ id: e.id, label: e.bezeichnung, typ: e.typ }))}
         mieter={mieter.map((m) => ({ id: m.id, label: `${mieterNameNachnameZuerst(m)}` }))}
         objektStichtag={toDateInputValue(objekt?.buchhaltungAb)}
+        abbrechenHref="/mietvertraege"
         action={createMietvertrag}
       />
     </div>
