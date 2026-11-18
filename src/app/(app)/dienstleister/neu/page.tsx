@@ -15,7 +15,12 @@ export default async function NeuerDienstleisterPage({
       <h1 className="mb-6 text-2xl font-semibold">
         {standardTyp === "HANDWERKER" ? "Neuer Handwerker" : "Neuer Dienstleister"}
       </h1>
-      <DienstleisterForm kostenarten={kostenarten} standardTyp={standardTyp} action={createDienstleister} />
+      <DienstleisterForm
+        kostenarten={kostenarten}
+        standardTyp={standardTyp}
+        action={createDienstleister}
+        abbrechenHref="/dienstleister"
+      />
     </div>
   );
 }
