@@ -114,7 +114,7 @@ function KostenBlock({
           <td className="hidden px-4 py-2 text-right text-neutral-200 md:table-cell">
             {d.verteilerschluessel === "VORVERTEILT" ? "" : formatEuro(d.gesamtbetragPool)}
           </td>
-          <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">{VERTEILUNG_LABEL[d.verteilerschluessel] ?? d.verteilerschluessel}</td>
+          <td className="hidden whitespace-nowrap px-4 py-2 text-neutral-400 md:table-cell">{VERTEILUNG_LABEL[d.verteilerschluessel] ?? d.verteilerschluessel}</td>
           <td className="hidden px-4 py-2 text-right text-neutral-300 md:table-cell">{umlagefaktor(d)}</td>
           <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-white">{formatEuro(d.anteilZeitraum)}</td>
           <td className="hidden max-w-[340px] truncate px-4 py-2 text-xs text-neutral-500 md:table-cell" title={bemerkung(d, unterjaehrig)}>
@@ -130,6 +130,26 @@ function KostenBlock({
         <td className="hidden md:table-cell" />
       </tr>
     </>
+  );
+}
+
+function Kennzahl({
+  titel,
+  wert,
+  wertKlasse = "text-white",
+  children,
+}: {
+  titel: string;
+  wert: string;
+  wertKlasse?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{titel}</p>
+      <p className={`mt-1 text-base font-semibold tabular-nums sm:text-lg ${wertKlasse}`}>{wert}</p>
+      {children ? <p className="mt-0.5 text-xs text-neutral-500">{children}</p> : null}
+    </div>
   );
 }
 
@@ -179,51 +199,85 @@ export function NebenkostenAnsicht({
   // Im Vorzeichen des gespeicherten Saldos: positiv = noch auszuzahlen, negativ = noch zu fordern.
   const offen = saldoMitToleranz(daten.saldo - erledigt);
 
+  const summeKalt = kalt.reduce((s, d) => s + d.anteilZeitraum, 0);
+  const summeWarm = warm.reduce((s, d) => s + d.anteilZeitraum, 0);
+  const ausgeglichen = Math.abs(saldoMuster) < 0.005;
+  // Manuell angelegte Position ohne jede Zahl (Platzhalter für ein Altjahr): kein Ergebnis und kein „offen“ ableiten.
+  const ohneWerte =
+    sortiert.length === 0 &&
+    Math.abs(daten.kostenanteilGesamt) < 0.005 &&
+    Math.abs(daten.vorauszahlungGesamt) < 0.005 &&
+    Math.abs(daten.saldo) < 0.005;
+  const ergebnisFarbe = ausgeglichen ? "text-white" : nachzahlung ? "text-red-400" : "text-green-400";
+  const letzteErledigung = daten.erledigungen.reduce<Date | null>((m, e) => (e.datum && (!m || e.datum > m) ? e.datum : m), null);
+
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-medium text-white">
-          Betriebskostenabrechnung für den Zeitraum 01.01.{daten.jahr} – 31.12.{daten.jahr}
-        </h3>
-        <Link href={`/nebenkostenabrechnungen/${daten.abrechnungId}`} className="text-xs text-neutral-400 hover:text-white hover:underline">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <div>
+          <h3 className="text-base font-medium text-white">Betriebskostenabrechnung {daten.jahr}</h3>
+          <p className="mt-0.5 text-sm text-neutral-400">
+            Wohnfläche {formatZahl(kopf.wohnflaeche)} m² · Nutzung {formatDate(daten.zeitraumVon)} –{" "}
+            {formatDate(daten.zeitraumBis)}
+            {unterjaehrig && ` (${nutzungTage} von ${jahrTage} Tagen)`}
+          </p>
+        </div>
+        <Link
+          href={`/nebenkostenabrechnungen/${daten.abrechnungId}`}
+          className="inline-flex h-10 items-center rounded-md border border-neutral-700 px-3 text-sm text-white hover:bg-neutral-900"
+        >
           Gesamtabrechnung {daten.jahr} ({daten.abrechnungStatus === "FINAL" ? "final" : "Entwurf"}) →
         </Link>
       </div>
 
-      <table className="mb-4 w-full text-sm md:w-auto">
-        <tbody>
-          <tr>
-            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Mieter:</td>
-            <td className="py-0.5 text-white">{kopf.mieter}</td>
-          </tr>
-          <tr>
-            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Einheit:</td>
-            <td className="py-0.5 text-white">{kopf.einheit}</td>
-          </tr>
-          <tr>
-            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Wohnfläche Mieter (m²):</td>
-            <td className="py-0.5 text-white">{formatZahl(kopf.wohnflaeche)}</td>
-          </tr>
-          <tr>
-            <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">Nutzungszeitraum:</td>
-            <td className="py-0.5 text-white">
-              {formatDate(daten.zeitraumVon)} – {formatDate(daten.zeitraumBis)}
-              {unterjaehrig && (
-                <span className="text-neutral-400">
-                  {" "}
-                  ({nutzungTage} von {jahrTage} Tagen)
-                </span>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      {/* Ergebnis auf einen Blick; die Aufschlüsselung folgt in der Tabelle. */}
+      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Kennzahl titel="Kosten (Anteil Mieter)" wert={formatEuro(daten.kostenanteilGesamt)}>
+          {warm.length > 0 && `kalt ${formatEuro(summeKalt)} · warm ${formatEuro(summeWarm)}`}
+        </Kennzahl>
+        <Kennzahl titel="Geleistete Vorauszahlungen" wert={formatEuro(daten.vorauszahlungGesamt)}>
+          tatsächlich gezahlt
+        </Kennzahl>
+        {ohneWerte ? (
+          <>
+            <Kennzahl titel="Ergebnis" wert="keine Werte">
+              manuell erfasst, ohne Beträge
+            </Kennzahl>
+            <Kennzahl titel="Erledigung" wert={erledigt === 0 ? "–" : `${formatEuro(Math.abs(erledigt))} gebucht`}>
+              {erledigt === 0 ? "" : "zum Abrechnungsjahr gebucht"}
+            </Kennzahl>
+          </>
+        ) : (
+          <>
+            <Kennzahl
+              titel="Ergebnis"
+              wert={ausgeglichen ? "ausgeglichen" : formatEuro(Math.abs(saldoMuster))}
+              wertKlasse={ergebnisFarbe}
+            >
+              {ausgeglichen ? "" : nachzahlung ? "Nachzahlung durch Mieter" : "Guthaben an Mieter"}
+            </Kennzahl>
+            <Kennzahl
+              titel="Erledigung"
+              wert={offen === 0 ? "erledigt" : `${formatEuro(Math.abs(offen))} offen`}
+              wertKlasse={offen === 0 ? "text-green-400" : "text-amber-400"}
+            >
+              {offen === 0
+                ? letzteErledigung
+                  ? `zuletzt am ${formatDate(letzteErledigung)}`
+                  : ""
+                : offen > 0
+                  ? "noch auszuzahlen oder mit der Miete zu verrechnen"
+                  : "noch vom Mieter zu zahlen"}
+            </Kennzahl>
+          </>
+        )}
+      </div>
 
       <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
         <table className="w-full text-sm md:min-w-[1000px]">
           <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
             <tr>
-              <th className="px-4 py-2.5">Kostenart</th>
+              <th className="px-4 py-2.5 md:min-w-[18rem]">Kostenart</th>
               <th className="hidden px-4 py-2.5 text-right md:table-cell">Gesamtkosten Objekt</th>
               <th className="hidden px-4 py-2.5 md:table-cell">Verteilerschlüssel</th>
               <th className="hidden px-4 py-2.5 text-right md:table-cell">Umlagefaktor</th>
@@ -298,84 +352,88 @@ export function NebenkostenAnsicht({
         Rechenregeln erst aktuell, wenn die Abrechnung {daten.jahr} dort neu berechnet wurde.
       </p>
 
-      <h3 className="mb-2 mt-6 text-sm font-medium text-white">Erledigung des Saldos</h3>
-      <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full text-sm md:min-w-[800px]">
-          <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-            <tr>
-              <th className="px-4 py-2.5 text-right">Betrag</th>
-              <th className="hidden px-4 py-2.5 md:table-cell">Datum</th>
-              <th className="px-4 py-2.5">Art der Erledigung</th>
-              <th className="hidden px-4 py-2.5 md:table-cell">Verrechnet mit / Auszahlungsweg</th>
-              <th className="hidden px-4 py-2.5 md:table-cell">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {daten.erledigungen.map((e, i) => (
-              <tr key={i} className="border-t border-neutral-800">
-                <td className="whitespace-nowrap px-4 py-2 text-right align-top text-white">{formatEuro(Math.abs(e.betrag))}</td>
-                <td className="hidden px-4 py-2 text-neutral-200 md:table-cell">{e.datum ? formatDate(e.datum) : "–"}</td>
-                <td className="px-4 py-2 text-neutral-200">
-                  {e.art}
-                  <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
-                    {[e.datum ? formatDate(e.datum) : null, e.weg, "gebucht"].filter(Boolean).join(" · ")}
-                  </span>
-                </td>
-                <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">{e.weg}</td>
-                <td className="hidden px-4 py-2 text-green-400 md:table-cell">gebucht</td>
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
+        <div className="min-w-0 xl:col-span-2">
+          <h3 className="mb-2 text-sm font-medium text-white">Erledigung des Saldos</h3>
+        <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
+          <table className="w-full text-sm md:min-w-[640px]">
+            <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
+              <tr>
+                <th className="px-4 py-2.5 text-right">Betrag</th>
+                <th className="hidden px-4 py-2.5 md:table-cell">Datum</th>
+                <th className="px-4 py-2.5">Art der Erledigung</th>
+                <th className="hidden px-4 py-2.5 md:table-cell">Verrechnet mit / Auszahlungsweg</th>
+                <th className="hidden px-4 py-2.5 md:table-cell">Status</th>
               </tr>
-            ))}
-            <tr className="border-t border-neutral-700 font-medium">
-              <td className={`whitespace-nowrap px-4 py-2 text-right align-top ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
-                {formatEuro(Math.abs(offen))}
-              </td>
-              <td colSpan={3} className="px-4 py-2 text-neutral-300">
-                {offen === 0
-                  ? "Saldo vollständig erledigt"
-                  : offen > 0
-                    ? "noch an den Mieter auszuzahlen oder mit der Miete zu verrechnen"
-                    : "noch vom Mieter zu zahlen"}
-              </td>
-              <td className={`hidden px-4 py-2 md:table-cell ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
-                {offen === 0 ? "erledigt" : "offen"}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {daten.neueVorauszahlung && (
-        <>
-          <h3 className="mb-2 mt-6 text-sm font-medium text-white">
-            {daten.neueVorauszahlung.ab
-              ? `Neue monatliche Vorauszahlung ab ${formatDate(daten.neueVorauszahlung.ab)}`
-              : `Monatliche Vorauszahlung ab ${daten.jahr + 1} (unverändert)`}
-          </h3>
-          <table className="text-sm">
+            </thead>
             <tbody>
-              <tr>
-                <td className="py-0.5 pr-4 align-top text-neutral-400 md:pr-8">BK-Vorauszahlung (mtl.)</td>
-                <td className="py-0.5 text-right text-white">{formatEuro(daten.neueVorauszahlung.betrag)}</td>
-              </tr>
-              <tr>
-                <td className="py-0.5 pr-8 text-neutral-500">rechnerisch nach Abrechnung (Kosten ÷ 12)</td>
-                <td className="py-0.5 text-right text-neutral-400">
-                  {formatEuro(Math.ceil((daten.kostenanteilGesamt / (nutzungTage / jahrTage) / 12) * 100) / 100)}
+              {daten.erledigungen.map((e, i) => (
+                <tr key={i} className="border-t border-neutral-800">
+                  <td className="whitespace-nowrap px-4 py-2 text-right align-top text-white">{formatEuro(Math.abs(e.betrag))}</td>
+                  <td className="hidden px-4 py-2 text-neutral-200 md:table-cell">{e.datum ? formatDate(e.datum) : "–"}</td>
+                  <td className="px-4 py-2 text-neutral-200">
+                    {e.art}
+                    <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
+                      {[e.datum ? formatDate(e.datum) : null, e.weg, "gebucht"].filter(Boolean).join(" · ")}
+                    </span>
+                  </td>
+                  <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">{e.weg}</td>
+                  <td className="hidden px-4 py-2 text-green-400 md:table-cell">gebucht</td>
+                </tr>
+              ))}
+              <tr className="border-t border-neutral-700 font-medium">
+                <td className={`whitespace-nowrap px-4 py-2 text-right align-top ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
+                  {formatEuro(Math.abs(offen))}
+                </td>
+                <td colSpan={3} className="px-4 py-2 text-neutral-300">
+                  {offen === 0
+                    ? "Saldo vollständig erledigt"
+                    : offen > 0
+                      ? "noch an den Mieter auszuzahlen oder mit der Miete zu verrechnen"
+                      : "noch vom Mieter zu zahlen"}
+                </td>
+                <td className={`hidden px-4 py-2 md:table-cell ${offen === 0 ? "text-green-400" : "text-amber-400"}`}>
+                  {offen === 0 ? "erledigt" : "offen"}
                 </td>
               </tr>
             </tbody>
           </table>
-        </>
-      )}
-      {mietvertragId && daten.neueVorauszahlung && (
-        <Link
-          prefetch={false}
-          href={`/mietvertraege/${mietvertragId}/nk-anpassung`}
-          className="mt-4 inline-block rounded-md border border-neutral-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
-        >
-          Vorauszahlung anpassen &amp; Schreiben erstellen →
-        </Link>
-      )}
+        </div>
+        </div>
+
+        {daten.neueVorauszahlung && (
+          <div className="min-w-0">
+            <h3 className="mb-2 text-sm font-medium text-white">
+              {daten.neueVorauszahlung.ab
+                ? `Neue Vorauszahlung ab ${formatDate(daten.neueVorauszahlung.ab)}`
+                : `Vorauszahlung ab ${daten.jahr + 1} (unverändert)`}
+            </h3>
+            <div className="rounded-lg border border-neutral-800 p-4">
+              <dl className="text-sm">
+                <div className="flex justify-between gap-3 py-0.5">
+                  <dt className="text-neutral-400">BK-Vorauszahlung (mtl.)</dt>
+                  <dd className="tabular-nums text-white">{formatEuro(daten.neueVorauszahlung.betrag)}</dd>
+                </div>
+                <div className="flex justify-between gap-3 py-0.5">
+                  <dt className="text-neutral-500">rechnerisch (Kosten ÷ 12)</dt>
+                  <dd className="tabular-nums text-neutral-400">
+                    {formatEuro(Math.ceil((daten.kostenanteilGesamt / (nutzungTage / jahrTage) / 12) * 100) / 100)}
+                  </dd>
+                </div>
+              </dl>
+              {mietvertragId && (
+                <Link
+                  prefetch={false}
+                  href={`/mietvertraege/${mietvertragId}/nk-anpassung`}
+                  className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-neutral-600 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+                >
+                  Vorauszahlung anpassen &amp; Schreiben →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
       <p className="mt-3 text-xs italic text-neutral-500">
         Ein Guthaben wird entweder ausgezahlt oder mit der Miete verrechnet (§ 387 BGB, dem Mieter schriftlich mitzuteilen
         und als eigene Buchung im Mieterkonto zu erfassen); eine Nachzahlung wird überwiesen, mit dem Mieterkonto oder nach
