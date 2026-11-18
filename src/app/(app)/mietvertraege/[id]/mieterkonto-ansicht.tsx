@@ -12,6 +12,26 @@ function formatDate(d: Date) {
 }
 const farbeSaldo = (v: number) => (v < -0.005 ? "text-red-400" : v > 0.005 ? "text-green-400" : "text-white");
 
+function Kennzahl({
+  titel,
+  wert,
+  wertKlasse = "text-white",
+  children,
+}: {
+  titel: string;
+  wert: string;
+  wertKlasse?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{titel}</p>
+      <p className={`mt-1 text-base font-semibold tabular-nums sm:text-lg ${wertKlasse}`}>{wert}</p>
+      {children ? <div className="mt-0.5 text-xs text-neutral-500">{children}</div> : null}
+    </div>
+  );
+}
+
 /**
  * Mieterkonto eines Mietvertrags für ein Jahr. Alle Jahre kommen fertig berechnet vom Server, die
  * Jahresauswahl sitzt in der Reiterleiste (MietvertragReiter) — der Wechsel passiert nur im Browser.
@@ -29,22 +49,55 @@ export function MieterkontoAnsicht({
   stichtagAb: { jahr: number; datum: string } | null;
 }) {
   const vorStichtag = stichtagAb !== null && jahr < stichtagAb.jahr;
+  // Teil des Solls, der nicht aus Kaltmiete/BK kommt (Sonderbuchungen wie Gebühren oder Verrechnungen).
+  const sollSonder =
+    Math.round((konto.summe.sollGesamt - konto.summe.sollKaltmiete - konto.summe.sollNebenkosten) * 100) / 100;
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        {/* Mieter/Einheit/aktuelle Sollwerte stehen bereits in den Vertrags-Eckdaten oben auf der
-            Seite und pro Monat in jeder Tabellenzeile — hier bleibt nur, was sonst nirgends steht:
-            der Startwert der kumulierten Saldo-Spalte. */}
-        <span className="text-sm text-neutral-400">
-          Saldo-Übertrag {jahr - 1}:{" "}
-          <span className={farbeSaldo(konto.uebertragVorjahr)}>{formatEuro(konto.uebertragVorjahr)}</span>
-        </span>
+        <h3 className="text-base font-medium text-white">Mieterkonto {jahr}</h3>
         <Link
           href={`/zahlungen/neu?mietvertragId=${mietvertragId}`}
-          className="rounded-md border border-neutral-700 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-900"
+          className="inline-flex h-10 items-center rounded-md border border-neutral-700 px-3 text-sm font-medium text-white hover:bg-neutral-900"
         >
           + Zahlung / Gebühr erfassen
         </Link>
+      </div>
+
+      {/* Jahreswerte auf einen Blick (dieselben Zahlen wie die Summenzeile der Tabelle). */}
+      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Kennzahl titel={`Übertrag aus ${jahr - 1}`} wert={formatEuro(konto.uebertragVorjahr)} wertKlasse={farbeSaldo(konto.uebertragVorjahr)}>
+          {vorStichtag ? "vor dem Stichtag: beginnt bei 0" : "Saldo am Ende des Vorjahres"}
+        </Kennzahl>
+        <Kennzahl titel={`Soll ${jahr}`} wert={formatEuro(konto.summe.sollGesamt)}>
+          Kalt {formatEuro(konto.summe.sollKaltmiete)} + BK {formatEuro(konto.summe.sollNebenkosten)}
+          {Math.abs(sollSonder) > 0.005 && ` ${sollSonder < 0 ? "−" : "+"} Sonderbuchungen ${formatEuro(Math.abs(sollSonder))}`}
+        </Kennzahl>
+        <Kennzahl titel={`Gezahlt ${jahr}`} wert={formatEuro(konto.summe.betrag)}>
+          Differenz <span className={farbeSaldo(konto.summe.differenz)}>{formatEuro(konto.summe.differenz)}</span>
+        </Kennzahl>
+        <Kennzahl titel={`Saldo ${jahr}`} wert={formatEuro(konto.summe.saldo)} wertKlasse={farbeSaldo(konto.summe.saldo)}>
+          {konto.nebenkostenabrechnungOffen === null ? (
+            "Übertrag + Differenz"
+          ) : (
+            // Die Gegenrechnung der unbezahlten BK-Vorauszahlung steht als Zeile in der Tabelle (Teil des Saldos);
+            // die Abrechnung selbst (Kosten ./. gezahlte Vorauszahlung, abzüglich Auszahlung/Verrechnung) kommt hier dazu.
+            <>
+              <span className="block">
+                BK-Abrechnung {jahr - 1} offen:{" "}
+                <span className={farbeSaldo(konto.nebenkostenabrechnungOffen)}>{formatEuro(konto.nebenkostenabrechnungOffen)}</span>
+                {Math.abs(konto.nebenkostenabrechnungOffen) > 0.005 &&
+                  ` (${konto.nebenkostenabrechnungOffen > 0 ? "Guthaben" : "Nachzahlung"})`}
+              </span>
+              <span className="block font-medium text-neutral-300">
+                inkl. BK-Abrechnung:{" "}
+                <span className={farbeSaldo(konto.saldoInklNebenkostenabrechnung)}>
+                  {formatEuro(konto.saldoInklNebenkostenabrechnung)}
+                </span>
+              </span>
+            </>
+          )}
+        </Kennzahl>
       </div>
 
       {vorStichtag && (
@@ -219,43 +272,22 @@ export function MieterkontoAnsicht({
           </tbody>
         </table>
       </div>
-      {konto.nebenkostenabrechnungOffen !== null && (
-        <table className="mt-3 w-full text-sm md:ml-auto md:w-auto">
-          <tbody>
-            {/* Die Gegenrechnung der unbezahlten BK-Vorauszahlung steht als Zeile in der Tabelle (Teil des
-                Saldos); hier bleibt die Abrechnung selbst (Kosten ./. gezahlte Vorauszahlung, abzüglich
-                Auszahlung/Verrechnung). */}
-            <tr>
-              <td className="py-0.5 pr-4 text-neutral-300 md:pr-8">
-                Betriebskostenabrechnung {konto.jahr - 1} offen{" "}
-                <span className="text-xs text-neutral-500">
-                  ({konto.nebenkostenabrechnungOffen >= 0 ? "Guthaben des Mieters" : "Nachzahlung des Mieters"})
-                </span>
-              </td>
-              <td className={`whitespace-nowrap py-0.5 text-right ${farbeSaldo(konto.nebenkostenabrechnungOffen)}`}>
-                {formatEuro(konto.nebenkostenabrechnungOffen)}
-              </td>
-            </tr>
-            <tr className="border-t border-neutral-700 font-medium">
-              <td className="py-1 pr-4 text-white md:pr-8">Saldo inkl. offener Betriebskostenabrechnung</td>
-              <td className={`whitespace-nowrap py-1 text-right ${farbeSaldo(konto.saldoInklNebenkostenabrechnung)}`}>
-                {formatEuro(konto.saldoInklNebenkostenabrechnung)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      )}
-      <div className="mt-2 space-y-0.5 text-xs italic text-neutral-500">
-        <p>Positiver Saldo = Guthaben des Mieters, negativer Saldo = Mietrückstand. Der Endsaldo ist der Übertrag ins Folgejahr.</p>
-        <p>
-          „Gutschrift/Belastung BK-Vorauszahlung“ steht am Versanddatum der Abrechnung (unter „Als versendet markieren“
-          gepflegt); die Abrechnung selbst fließt nur in „Saldo inkl. offener Betriebskostenabrechnung“ ein.
-        </p>
-        <p>
-          Bei Teilzahlungen ab 2025 zeigt die Bemerkung die Aufteilung auf Betriebskosten und Kaltmiete; der Saldo rechnet mit
-          dem Gesamtbetrag. Orange Zeilen = Sonderbuchungen (Monat des Buchungsdatums), Mietzahlungen stehen in ihrer
-          Mietperiode.
-        </p>
+      <div className="mt-2 text-xs text-neutral-500">
+        <p>Positiver Saldo = Guthaben des Mieters, negativer Saldo = Mietrückstand. Orange Zeilen = Sonderbuchungen.</p>
+        <details className="mt-1">
+          <summary className="cursor-pointer hover:text-white">Weitere Erläuterungen</summary>
+          <div className="mt-1 space-y-1">
+            <p>Der Endsaldo ist der Übertrag ins Folgejahr.</p>
+            <p>
+              „Gutschrift/Belastung BK-Vorauszahlung“ steht am Versanddatum der Abrechnung (unter „Als versendet markieren“
+              gepflegt); die Abrechnung selbst fließt nur in „inkl. BK-Abrechnung“ ein.
+            </p>
+            <p>
+              Bei Teilzahlungen ab 2025 zeigt die Bemerkung die Aufteilung auf Betriebskosten und Kaltmiete; der Saldo rechnet
+              mit dem Gesamtbetrag. Sonderbuchungen stehen im Monat des Buchungsdatums, Mietzahlungen in ihrer Mietperiode.
+            </p>
+          </div>
+        </details>
       </div>
     </div>
   );
