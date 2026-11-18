@@ -31,14 +31,62 @@ const ZEILEN_FARBE: Record<Kautionskonto["zeilen"][number]["art"], string> = {
 
 const farbe = (v: number) => (v < -0.005 ? "text-red-400" : v > 0.005 ? "text-green-400" : "text-neutral-400");
 
-function Block({ titel, children }: { titel: string; children: React.ReactNode }) {
+function Kennzahl({
+  titel,
+  wert,
+  wertKlasse = "text-white",
+  children,
+}: {
+  titel: string;
+  wert: string;
+  wertKlasse?: string;
+  children?: React.ReactNode;
+}) {
   return (
-    <section>
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-300">{titel}</h4>
+    <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{titel}</p>
+      <p className={`mt-1 text-base font-semibold tabular-nums sm:text-lg ${wertKlasse}`}>{wert}</p>
+      {children ? <div className="mt-0.5 text-xs text-neutral-500">{children}</div> : null}
+    </div>
+  );
+}
+
+function Kasten({ titel, children }: { titel: string; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-lg border border-neutral-800 p-4">
+      <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">{titel}</h4>
       {children}
     </section>
   );
 }
+
+// Eine Zeile „Beschriftung … Betrag“; `betont` = Summenzeile mit Trennlinie.
+function Zeile({
+  label,
+  value,
+  betont = false,
+  klasse = "",
+  title,
+}: {
+  label: React.ReactNode;
+  value: string;
+  betont?: boolean;
+  klasse?: string;
+  title?: string;
+}) {
+  return (
+    <div
+      className={`flex items-baseline justify-between gap-3 py-1 text-sm ${betont ? "mt-1 border-t border-neutral-700 pt-1.5 font-semibold" : ""} ${klasse}`}
+      title={title}
+    >
+      <dt className={`min-w-0 ${betont ? "text-white" : "text-neutral-300"}`}>{label}</dt>
+      <dd className={`shrink-0 text-right tabular-nums ${betont ? "text-white" : "text-neutral-200"}`}>{value}</dd>
+    </div>
+  );
+}
+
+// -0 vermeiden („-0,00 €“), wenn ein Abzug 0 ist.
+const minus = (v: number) => (Math.abs(v) < 0.005 ? 0 : -v);
 
 /**
  * Kautionskonto (alle Bewegungen mit laufendem Stand des Kautionsguthabens) und — sobald das
@@ -62,31 +110,54 @@ export function KautionAnsicht({
   const zeigeAbrechnung =
     mietende !== null || a.ausgezahltSumme > 0 || a.einbehaltePositionen.length > 0 || konto.status === "AUFGELOEST";
 
+  // Stand der Abrechnung: erledigt, noch auszuzahlen, nachzufordern oder zu viel ausgezahlt.
+  const rest =
+    Math.abs(a.nochOffen) < 0.005
+      ? {
+          wert: "erledigt",
+          text: a.ausgezahltSumme > 0.005 ? "Restbetrag vollständig ausgezahlt" : "Kaution vollständig verrechnet",
+          klasse: "text-green-400",
+        }
+      : a.nochOffen > 0
+        ? { wert: `${formatEuro(a.nochOffen)} offen`, text: "noch an den Mieter auszuzahlen", klasse: "text-amber-400" }
+        : a.ausgezahltSumme > 0
+          ? { wert: `${formatEuro(-a.nochOffen)} zu viel`, text: "mehr ausgezahlt als der Restbetrag", klasse: "text-red-400" }
+          : {
+              wert: `${formatEuro(-a.nochOffen)} nachfordern`,
+              text: "Einbehalte übersteigen die Kaution — vom Mieter nachzufordern",
+              klasse: "text-red-400",
+            };
+  const strittig = a.einbehaltePositionen.filter((e) => !e.unstrittig);
+
   return (
     <div>
-      <div className="mb-4 grid grid-cols-2 gap-x-8 gap-y-3 rounded-lg border border-neutral-800 p-4 text-sm md:grid-cols-5">
-        <div>
-          <p className="text-xs text-neutral-400">Vereinbarte Kaution</p>
-          <p className="text-white">{konto.sollBetrag !== null ? formatEuro(konto.sollBetrag) : "–"}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-400">Anlageform</p>
-          <p className="text-white">{anlageform ?? "–"}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-400">Kautionsguthaben aktuell</p>
-          <p className={`font-semibold ${konto.stand < -0.005 ? "text-red-400" : "text-white"}`}>{formatEuro(konto.stand)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-400">Liegt auf</p>
-          <p className="text-white">
-            {konto.stand <= 0.005 ? "–" : konto.aufKautionskonto ? "Kautionskonto" : "Geschäftskonto"}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-400">Status</p>
-          <span className={`mt-0.5 inline-block rounded border px-2 py-0.5 text-xs font-medium ${status.klasse}`}>{status.text}</span>
-        </div>
+      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Kennzahl titel="Vereinbarte Kaution" wert={konto.sollBetrag !== null ? formatEuro(konto.sollBetrag) : "–"}>
+          {anlageform}
+        </Kennzahl>
+        <Kennzahl titel="Eingezahlt" wert={a.eingezahlt > 0 ? formatEuro(a.eingezahlt) : "–"}>
+          {a.erhaltenAm ? `am ${formatDate(a.erhaltenAm)}` : konto.status === "OFFEN" ? "noch nicht eingezahlt" : null}
+        </Kennzahl>
+        <Kennzahl
+          titel="Guthaben aktuell"
+          wert={formatEuro(konto.stand)}
+          wertKlasse={konto.stand < -0.005 ? "text-red-400" : "text-white"}
+        >
+          {konto.stand > 0.005 && `liegt auf ${konto.aufKautionskonto ? "Kautionskonto" : "Geschäftskonto"}`}
+        </Kennzahl>
+        {zeigeAbrechnung ? (
+          <Kennzahl titel="Kautionsabrechnung" wert={rest.wert} wertKlasse={rest.klasse}>
+            {rest.text}
+            {a.strittigOffenSumme > 0.005 && (
+              <span className="block text-amber-300">{formatEuro(a.strittigOffenSumme)} strittig zurückbehalten</span>
+            )}
+          </Kennzahl>
+        ) : (
+          <div className="min-w-0 rounded-lg border border-neutral-800 p-3 sm:p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Status</p>
+            <span className={`mt-1.5 inline-block rounded border px-2 py-0.5 text-sm font-medium ${status.klasse}`}>{status.text}</span>
+          </div>
+        )}
       </div>
       {konto.sollBetrag !== null && a.eingezahlt > 0 && Math.abs(a.eingezahlt - konto.sollBetrag) > 0.01 && (
         <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
@@ -94,9 +165,12 @@ export function KautionAnsicht({
         </p>
       )}
 
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-medium text-white">Kautionskonto</h3>
-        <Link href="/kautionen" className="text-xs text-neutral-400 hover:text-white hover:underline">
+        <Link
+          href="/kautionen"
+          className="inline-flex h-10 items-center rounded-md border border-neutral-700 px-3 text-sm text-white hover:bg-neutral-900"
+        >
           Kautionsbuchungen verwalten →
         </Link>
       </div>
@@ -163,61 +237,91 @@ export function KautionAnsicht({
         Strittige Einbehalte sind vorläufig zurückbehalten und werden erst nach Klärung gebucht.
       </p>
 
-      <h3 className="mb-2 mt-8 text-base font-medium text-white">Kautionsabrechnung zum Mietende</h3>
+      <h3 className="mb-1 mt-8 text-base font-medium text-white">Kautionsabrechnung zum Mietende</h3>
       {!zeigeAbrechnung ? (
         <p className="rounded-lg border border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
           Das Mietverhältnis läuft noch — die Kautionsabrechnung erscheint hier bei Mietende.
         </p>
       ) : (
         <div className="space-y-6">
-          <table className="text-sm">
-            <tbody>
-              <tr>
-                <td className="py-0.5 pr-8 text-neutral-400">Mieter:</td>
-                <td className="py-0.5 text-white">{kopf.mieter}</td>
-              </tr>
-              <tr>
-                <td className="py-0.5 pr-8 text-neutral-400">Einheit:</td>
-                <td className="py-0.5 text-white">{kopf.einheit}</td>
-              </tr>
-              <tr>
-                <td className="py-0.5 pr-8 text-neutral-400">Mietbeginn:</td>
-                <td className="py-0.5 text-white">{kopf.mietbeginn ? formatDate(kopf.mietbeginn) : "unbekannt"}</td>
-              </tr>
-              <tr>
-                <td className="py-0.5 pr-8 text-neutral-400">Mietende:</td>
-                <td className="py-0.5 text-white">{mietende ? formatDate(mietende) : "–"}</td>
-              </tr>
-            </tbody>
-          </table>
+          <p className="text-sm text-neutral-400">
+            Mietzeit {kopf.mietbeginn ? formatDate(kopf.mietbeginn) : "unbekannt"} – {mietende ? formatDate(mietende) : "–"}
+          </p>
 
-          <Block titel="Kaution">
-            <table className="w-full max-w-2xl text-sm">
-              <tbody>
-                <tr>
-                  <td className="py-1 pr-6 text-neutral-300">
-                    Kaution erhalten{a.erhaltenAm ? ` am ${formatDate(a.erhaltenAm)}` : ""}
-                  </td>
-                  <td className="py-1 text-right text-neutral-200">{formatEuro(a.eingezahlt)}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 pr-6 text-neutral-300">+ Zinsen / Sonstiges (Anlage gem. § 551 Abs. 3 BGB)</td>
-                  <td className="py-1 text-right text-neutral-200">{formatEuro(a.sonstiges)}</td>
-                </tr>
-                <tr className="border-t border-neutral-700 font-medium">
-                  <td className="py-1.5 pr-6 text-white">Kaution gesamt (inkl. Zinsen)</td>
-                  <td className="py-1.5 text-right text-white">{formatEuro(a.guthaben)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </Block>
+          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Kasten titel="Kaution">
+              <dl>
+                <Zeile label={`Kaution erhalten${a.erhaltenAm ? ` am ${formatDate(a.erhaltenAm)}` : ""}`} value={formatEuro(a.eingezahlt)} />
+                <Zeile
+                  label="+ Zinsen / Sonstiges"
+                  value={formatEuro(a.sonstiges)}
+                  title="Anlage gem. § 551 Abs. 3 BGB"
+                />
+                <Zeile label="Kaution gesamt (inkl. Zinsen)" value={formatEuro(a.guthaben)} betont />
+              </dl>
+            </Kasten>
 
-          <Block titel="Einbehalte / Verrechnung mit der Kaution">
+            <Kasten titel="Abrechnung – sofortige Auszahlung">
+              <dl>
+                <Zeile label="Kaution gesamt (inkl. Zinsen)" value={formatEuro(a.guthaben)} />
+                <Zeile label="abzgl. Einbehalte (unstrittig)" value={formatEuro(minus(a.einbehalteSumme))} />
+                {a.strittigOffenSumme > 0.005 && (
+                  <Zeile
+                    label="abzgl. strittig, zurückbehalten"
+                    value={formatEuro(minus(a.strittigOffenSumme))}
+                    klasse="text-amber-300"
+                    title="Bis zur Klärung zurückbehalten, noch nicht endgültig verrechnet"
+                  />
+                )}
+                <Zeile
+                  label={a.restbetrag < -0.005 ? "Fehlbetrag, vom Mieter nachzufordern" : "Restbetrag an Mieter"}
+                  value={formatEuro(a.restbetrag)}
+                  betont
+                />
+              </dl>
+            </Kasten>
+
+            <Kasten titel="Erledigung">
+              <dl>
+                {a.ausgezahlt.map((p, i) => (
+                  <Zeile
+                    key={i}
+                    label={
+                      <>
+                        {p.text}
+                        <span className="block text-xs text-neutral-500">
+                          {[p.datum ? formatDate(p.datum) : null, p.hinweis, "gebucht"].filter(Boolean).join(" · ")}
+                        </span>
+                      </>
+                    }
+                    value={formatEuro(p.betrag)}
+                  />
+                ))}
+                {a.ausgezahlt.length === 0 && (
+                  <p className="py-1 text-sm text-neutral-500">
+                    {Math.abs(a.restbetrag) < 0.005 ? "Keine Auszahlung nötig." : "Noch nichts ausgezahlt."}
+                  </p>
+                )}
+                <Zeile label="Ausgezahlt gesamt" value={formatEuro(a.ausgezahltSumme)} betont />
+              </dl>
+              <p className={`mt-2 text-sm font-medium ${rest.klasse}`}>{rest.wert === "erledigt" ? `Erledigt — ${rest.text}` : `${rest.wert}: ${rest.text}`}</p>
+              {strittig.map((e, i) => (
+                <p key={i} className="mt-1 rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-300">
+                  Strittig offen: {e.text} ({formatEuro(e.betrag)}) — noch nicht endgültig verrechnet oder ausgezahlt.
+                </p>
+              ))}
+            </Kasten>
+          </div>
+
+          <section>
+            <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
+              Einbehalte / Verrechnung mit der Kaution
+            </h4>
             <div className="w-full overflow-x-auto rounded-lg border border-neutral-800">
               <table className="w-full text-sm md:min-w-[900px]">
                 <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
                   <tr>
-                    <th className="px-4 py-2.5">Position</th>
+                    <th className="px-4 py-2.5 md:min-w-[18rem]">Position</th>
                     <th className="hidden px-4 py-2.5 md:table-cell">Bezug / Beleg</th>
                     <th className="px-4 py-2.5 text-right">Betrag</th>
                     <th className="hidden px-4 py-2.5 md:table-cell">unstrittig?</th>
@@ -271,122 +375,11 @@ export function KautionAnsicht({
                 </tbody>
               </table>
             </div>
-          </Block>
-
-          <Block titel="Abrechnung – sofortige Auszahlung">
-            <table className="w-full max-w-2xl text-sm">
-              <tbody>
-                <tr>
-                  <td className="py-1 pr-6 text-neutral-300">Kaution gesamt (inkl. Zinsen)</td>
-                  <td className="py-1 text-right text-neutral-200">{formatEuro(a.guthaben)}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 pr-6 text-neutral-300">abzgl. sofort verrechenbare Einbehalte (unstrittig)</td>
-                  <td className="py-1 text-right text-neutral-200">{formatEuro(-a.einbehalteSumme)}</td>
-                </tr>
-                <tr>
-                  <td className="py-1 pr-6 text-neutral-300">
-                    abzgl. zurückbehalten bis Klärung (strittig, noch nicht endgültig verrechnet)
-                  </td>
-                  <td className="py-1 text-right text-neutral-200">{formatEuro(-a.strittigOffenSumme)}</td>
-                </tr>
-                <tr className="border-t-2 border-neutral-600 font-semibold">
-                  <td className="py-2 pr-6 text-white">
-                    {a.restbetrag < -0.005
-                      ? "Kaution reicht nicht aus — Differenz vom Mieter nachzufordern"
-                      : "Restbetrag, jetzt auszuzahlen an Mieter"}
-                  </td>
-                  <td className="py-2 text-right text-white">{formatEuro(a.restbetrag)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </Block>
-
-          <Block titel="Erledigung">
-            <div className="w-full max-w-3xl overflow-x-auto rounded-lg border border-neutral-800">
-              <table className="w-full text-sm">
-                <thead className="border-b border-neutral-800 bg-neutral-950 text-left text-xs uppercase text-neutral-400">
-                  <tr>
-                    <th className="px-4 py-2.5">Vorgang</th>
-                    <th className="px-4 py-2.5 text-right">Betrag</th>
-                    <th className="hidden px-4 py-2.5 md:table-cell">Datum</th>
-                    <th className="hidden px-4 py-2.5 md:table-cell">Ergebnis / Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {a.ausgezahlt.map((p, i) => (
-                    <tr key={i} className="border-t border-neutral-800">
-                      <td className="px-4 py-2 text-white">
-                        {p.text}
-                        {p.hinweis && <span className="ml-2 text-xs text-neutral-500">{p.hinweis}</span>}
-                        <span className="mt-0.5 block text-xs text-neutral-500 md:hidden">
-                          {p.datum ? `${formatDate(p.datum)} · ` : ""}gebucht
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right align-top text-neutral-200">{formatEuro(p.betrag)}</td>
-                      <td className="hidden px-4 py-2 text-neutral-200 md:table-cell">{p.datum ? formatDate(p.datum) : "–"}</td>
-                      <td className="hidden px-4 py-2 text-green-400 md:table-cell">gebucht</td>
-                    </tr>
-                  ))}
-                  <tr className="border-t border-neutral-700 font-medium">
-                    <td className="px-4 py-2 text-white">
-                      Restbetrag an Mieter
-                      <span
-                        className={`mt-0.5 block text-xs font-normal md:hidden ${
-                          Math.abs(a.nochOffen) < 0.005 ? "text-green-400" : a.nochOffen > 0 ? "text-amber-400" : "text-red-400"
-                        }`}
-                      >
-                        {a.ausgezahlt.length > 0 && `ausgezahlt ${formatEuro(a.ausgezahltSumme)} · `}
-                        {Math.abs(a.nochOffen) < 0.005
-                          ? "erledigt"
-                          : a.nochOffen > 0
-                            ? `offen: noch ${formatEuro(a.nochOffen)} auszuzahlen`
-                            : a.ausgezahltSumme > 0
-                              ? `${formatEuro(-a.nochOffen)} mehr ausgezahlt als Restbetrag`
-                              : `Einbehalte übersteigen die Kaution um ${formatEuro(-a.nochOffen)} — vom Mieter nachzufordern`}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right align-top text-white">{formatEuro(a.restbetrag)}</td>
-                    <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">
-                      {a.ausgezahlt.length > 0 ? `ausgezahlt ${formatEuro(a.ausgezahltSumme)}` : "–"}
-                    </td>
-                    <td
-                      className={`hidden px-4 py-2 md:table-cell ${
-                        Math.abs(a.nochOffen) < 0.005 ? "text-green-400" : a.nochOffen > 0 ? "text-amber-400" : "text-red-400"
-                      }`}
-                    >
-                      {Math.abs(a.nochOffen) < 0.005
-                        ? "erledigt"
-                        : a.nochOffen > 0
-                          ? `offen: noch ${formatEuro(a.nochOffen)} auszuzahlen`
-                          : a.ausgezahltSumme > 0
-                            ? `${formatEuro(-a.nochOffen)} mehr ausgezahlt als Restbetrag`
-                            : `Einbehalte übersteigen die Kaution um ${formatEuro(-a.nochOffen)} — vom Mieter nachzufordern`}
-                    </td>
-                  </tr>
-                  {a.einbehaltePositionen
-                    .filter((e) => !e.unstrittig)
-                    .map((e, i) => (
-                      <tr key={`s${i}`} className="border-t border-neutral-800 bg-amber-500/10">
-                        <td className="px-4 py-2 text-white">
-                          Strittiger Teil ({e.text})
-                          <span className="mt-0.5 block text-xs text-amber-300 md:hidden">
-                            offen — noch nicht endgültig verrechnet oder ausgezahlt
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-2 text-right align-top text-neutral-200">{formatEuro(e.betrag)}</td>
-                        <td className="hidden px-4 py-2 text-neutral-400 md:table-cell">offen</td>
-                        <td className="hidden px-4 py-2 text-amber-300 md:table-cell">noch nicht endgültig verrechnet oder ausgezahlt</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
             <p className="mt-2 text-xs italic text-neutral-500">
-              Sobald ein strittiger Teil geklärt ist, auf der Kautionsseite den Status des Einbehalts setzen: bestätigt
-              (endgültig mit der Kaution verrechnet) oder verworfen (nachträglich an den Mieter auszuzahlen).
+              Strittige Einbehalte nach Klärung auf der Kautionsseite bestätigen (endgültig verrechnet) oder verwerfen
+              (nachträglich an den Mieter auszuzahlen).
             </p>
-          </Block>
+          </section>
         </div>
       )}
     </div>
