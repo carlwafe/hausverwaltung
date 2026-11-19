@@ -63,6 +63,11 @@ export type CamtMonatsErgebnis = VollstaendigkeitsErgebnis & {
     abweichendeTage: { datum: string; bank: number; dateien: number }[];
     /** Bruch der Saldokette (Endsaldo ≠ Anfangssaldo des nächsten Bank-Tages) = dazwischen fehlt eine Datei. */
     luecken: { von: string; bis: string }[];
+    /**
+     * Bank-Tage, die nicht abgeglichen wurden, weil der Monat teils per CSV importiert ist: Dann zählen nur die
+     * Tage im Zeitraum der XML-Importe (die übrigen prüft die Zeile der CSV-Datei). 0 = ganzer Monat abgeglichen.
+     */
+    nichtAbgeglichen: number;
   };
 };
 

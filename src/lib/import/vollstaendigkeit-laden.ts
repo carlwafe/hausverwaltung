@@ -112,6 +112,17 @@ export async function pruefeCamtMonat(monat: string): Promise<CamtMonatsErgebnis
   if (batches.length === 0) return { error: "Keine Importdateien für diesen Monat." };
   if (batches.some((b) => !b.speicherpfad)) return { error: "Eine Originaldatei des Monats ist nicht verfügbar." };
 
+  // Teils per CSV importierter Monat (Übergang CSV → XML): Bankabgleich nur für die Tage der XML-Importe.
+  const { erster, letzter } = monatsGrenzen(monat);
+  const csvBuchungen = await prisma.buchung.count({
+    where: {
+      ...AKTIVE_BUCHUNG_FILTER,
+      datum: { gte: new Date(erster), lt: new Date(`${letzter}T23:59:59.999Z`) },
+      importBatch: { typ: "KONTOAUSZUG", NOT: { dateiname: { startsWith: "Kontoauszug CAMT " } } },
+    },
+  });
+  const nurZeitraeume = csvBuchungen > 0 ? batches.map((b) => camtZeitraum(b.dateiname)!) : undefined;
+
   let inhalte: { dateiname: string; inhalt: Buffer }[];
   try {
     inhalte = await Promise.all(
@@ -121,13 +132,15 @@ export async function pruefeCamtMonat(monat: string): Promise<CamtMonatsErgebnis
     return { error: "Eine Originaldatei des Monats ist nicht mehr verfügbar." };
   }
 
-  return pruefeCamtMonatDateien(monat, inhalte);
+  return pruefeCamtMonatDateien(monat, inhalte, nurZeitraeume);
 }
 
 /** Prüft die gelesenen Importdateien eines Monats (zusammengeführt) und gleicht sie mit den Bank-Salden ab. */
 export async function pruefeCamtMonatDateien(
   monat: string,
   inhalte: { dateiname: string; inhalt: Buffer }[],
+  /** Bankabgleich nur für Tage in diesen Zeiträumen (Monat teils per CSV importiert); ohne = ganzer Monat. */
+  nurZeitraeume?: { von: string; bis: string }[],
 ): Promise<CamtMonatsErgebnis> {
   const { erster, letzter } = monatsGrenzen(monat);
   // Zusammenführen: nur Buchungstage des Monats, jede Bank-Referenz (bzw. ohne Referenz jeder Zeilenschlüssel) einmal.
@@ -175,7 +188,10 @@ export async function pruefeCamtMonatDateien(
   for (const z of zeilen) {
     summeDateienCent.set(z.datum, (summeDateienCent.get(z.datum) ?? 0) + Math.round(z.betrag * 100));
   }
-  const bankTage = salden.filter((t) => t.datum >= erster);
+  const bankTageMonat = salden.filter((t) => t.datum >= erster);
+  const bankTage = nurZeitraeume
+    ? bankTageMonat.filter((t) => nurZeitraeume.some((z) => t.datum >= z.von && t.datum <= z.bis))
+    : bankTageMonat;
   // Nur Tage mit gespeichertem Bank-Saldo lassen sich abgleichen; fehlt ein solcher Tag in allen Importen,
   // ist die Summe der Dateien 0 und der Tag fällt hier auf.
   const abweichendeTage: CamtMonatsErgebnis["bank"]["abweichendeTage"] = [];
@@ -192,9 +208,10 @@ export async function pruefeCamtMonatDateien(
     bank: {
       dateien: inhalte.length,
       bankTage: bankTage.length,
-      bisTag: bankTage.length > 0 ? bankTage[bankTage.length - 1].datum : null,
+      bisTag: bankTageMonat.length > 0 ? bankTageMonat[bankTageMonat.length - 1].datum : null,
       abweichendeTage,
       luecken: findeSaldoLuecken(salden).map((l) => ({ von: l.von, bis: l.bis })),
+      nichtAbgeglichen: bankTageMonat.length - bankTage.length,
     },
   };
 }

@@ -56,7 +56,7 @@ function formatTag(iso: string) {
 /** Abgleich einer Monatsprüfung mit den Tagessalden der Bank. */
 function BankAbgleich({ bank }: { bank: CamtMonatsErgebnis["bank"] }) {
   const dateienText = `${bank.dateien} Datei${bank.dateien === 1 ? "" : "en"}`;
-  if (bank.bankTage === 0) {
+  if (bank.bankTage === 0 && bank.nichtAbgeglichen === 0) {
     return <p className="mt-1 text-xs text-neutral-500">{dateienText} · keine Bank-Salden für diesen Monat gespeichert</p>;
   }
   const sauber = bank.abweichendeTage.length === 0 && bank.luecken.length === 0;
@@ -66,6 +66,12 @@ function BankAbgleich({ bank }: { bank: CamtMonatsErgebnis["bank"] }) {
         {dateienText} · Bank-Tage bis {formatTag(bank.bisTag!)}
         {sauber ? " · Tagessummen stimmen mit der Bank überein" : ""}
       </p>
+      {bank.nichtAbgeglichen > 0 && (
+        <p className="mt-0.5 text-neutral-500">
+          Monat teils per CSV importiert: abgeglichen nur die {bank.bankTage} Bank-Tag{bank.bankTage === 1 ? "" : "e"} der
+          XML-Importe, die übrigen {bank.nichtAbgeglichen} über die Zeile der CSV-Datei prüfen.
+        </p>
+      )}
       {bank.luecken.length > 0 && (
         <ul className="mt-0.5 space-y-0.5 text-amber-400">
           {bank.luecken.map((l) => (
