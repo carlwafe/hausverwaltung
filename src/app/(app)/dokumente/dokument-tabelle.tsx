@@ -60,7 +60,7 @@ function OrdnerFeld({ id, wert }: { id: string; wert: string }) {
           if (aktuell.trim() === wert) return;
           startTransition(() => aendereOrdner(id, aktuell));
         }}
-        className="w-40 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-white"
+        className="w-36 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-white"
       />
     </>
   );
@@ -78,7 +78,8 @@ function ArtFeld({ id, wert }: { id: string; wert: string | null }) {
         setAktuell(e.target.value);
         startTransition(() => aendereArt(id, e.target.value));
       }}
-      className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-white"
+      title={wert ? artLabel(wert) : undefined}
+      className="w-24 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-white"
     >
       <option value="">–</option>
       {ART_GRUPPEN.map((g) => (
@@ -156,70 +157,68 @@ export function DokumentTabelle({
     {
       key: "datei",
       label: "Datei",
-      // Mindestbreite: sonst quetscht die Tabelle die Spalte auf ein Wort pro Zeile (overflow-wrap:anywhere).
-      className: "min-w-[240px]",
+      // Füllspalte: nimmt die übrige Breite und macht die Tabelle nie breiter (docs/tickets-logo-design.md).
+      fuellend: true,
       render: (d) => (
-        <div className="max-w-[340px]">
+        <>
           <a
             href={`/api/dokumente/${d.id}/download`}
-            className="block text-white [overflow-wrap:anywhere] hover:underline"
-            title={d.dateiname}
+            className="block truncate text-white hover:underline"
+            title={d.titel ? `${d.titel}\n${d.dateiname}` : d.dateiname}
           >
             {d.titel ?? d.dateiname}
           </a>
-          {d.titel && <span className="block text-xs text-neutral-500 [overflow-wrap:anywhere]">{d.dateiname}</span>}
-        </div>
+          {/* Zweite Zeile: Dateiname (wenn ein Titel davor steht) und Aussteller — eigene Spalten passten nicht in die Breite. */}
+          {(d.titel || d.aussteller) && (
+            <span
+              className="block truncate text-xs text-neutral-500"
+              title={d.rechnungsnummer ? `Rechnungsnr. ${d.rechnungsnummer}` : undefined}
+            >
+              {[d.titel ? d.dateiname : null, d.aussteller].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </>
       ),
       sortValue: (d) => (d.titel ?? d.dateiname).toLowerCase(),
-      searchValue: (d) => `${d.titel ?? ""} ${d.dateiname}`,
+      searchValue: (d) => `${d.titel ?? ""} ${d.dateiname} ${d.aussteller ?? ""} ${d.rechnungsnummer ?? ""}`,
     },
-    ...(zeigeBereich
-      ? [
-          {
-            key: "bereich",
-            label: "Bereich",
-            render: (d: DokumentRow) => (
-              <span className="text-neutral-300">
-                {bereichLabel(d.bereich)}
-              </span>
-            ),
-            sortValue: (d: DokumentRow) => bereichLabel(d.bereich),
-            searchValue: (d: DokumentRow) => bereichLabel(d.bereich),
-          } satisfies Column<DokumentRow>,
-        ]
-      : []),
     {
       key: "bezug",
       label: "Zugeordnet zu",
-      className: "min-w-[150px]",
-      render: (d) =>
-        d.bezuege.length > 0 ? (
-          <div className="flex max-w-[280px] flex-col gap-0.5">
-            {d.bezuege.map((b) => (
-              <Link
-                key={`${b.typ}-${b.href}`}
-                href={b.href}
-                prefetch={false}
-                className="text-neutral-300 [overflow-wrap:anywhere] hover:text-white hover:underline"
-                title={b.label}
-              >
-                {b.label}
-                {b.beendet && <span className="ml-1.5 text-xs text-neutral-500">(beendet)</span>}
-              </Link>
-            ))}
-          </div>
-        ) : d.bereich === "eingang" ? (
-          <Link href={d.detailHref} prefetch={false} className="text-xs text-amber-400 hover:underline">
-            Noch nicht abgelegt – prüfen
-          </Link>
-        ) : editierbar ? (
-          <OrdnerFeld id={d.id} wert={d.ordnerLabel === "Ohne Ordner" ? "" : d.ordnerLabel} />
-        ) : (
-          <span className="text-neutral-300">{d.ordnerLabel}</span>
-        ),
+      title: zeigeBereich ? "Darunter klein: Bereich der Ablage" : undefined,
+      render: (d) => (
+        <div className="w-36">
+          {d.bezuege.length > 0 ? (
+            <div className="flex flex-col gap-0.5">
+              {d.bezuege.map((b) => (
+                <Link
+                  key={`${b.typ}-${b.href}`}
+                  href={b.href}
+                  prefetch={false}
+                  className="text-neutral-300 [overflow-wrap:anywhere] hover:text-white hover:underline"
+                  title={b.label}
+                >
+                  {b.label}
+                  {b.beendet && <span className="ml-1.5 text-xs text-neutral-500">(beendet)</span>}
+                </Link>
+              ))}
+            </div>
+          ) : d.bereich === "eingang" ? (
+            <Link href={d.detailHref} prefetch={false} className="text-xs text-amber-400 hover:underline">
+              Noch nicht abgelegt – prüfen
+            </Link>
+          ) : editierbar ? (
+            <OrdnerFeld id={d.id} wert={d.ordnerLabel === "Ohne Ordner" ? "" : d.ordnerLabel} />
+          ) : (
+            <span className="text-neutral-300">{d.ordnerLabel}</span>
+          )}
+          {/* In der Gesamtansicht der Bereich klein darunter (statt eigener Spalte). */}
+          {zeigeBereich && <span className="mt-0.5 block text-xs text-neutral-500">{bereichLabel(d.bereich)}</span>}
+        </div>
+      ),
       sortValue: (d) => (d.bezuege.map((b) => b.label).join(" ") || d.ordnerLabel).toLowerCase(),
       searchValue: (d) =>
-        `${d.bezuege.map((b) => b.label).join(" ")} ${d.ordnerLabel}${d.bezuege.some((b) => b.beendet) ? " beendet" : ""}`,
+        `${d.bezuege.map((b) => b.label).join(" ")} ${d.ordnerLabel} ${bereichLabel(d.bereich)}${d.bezuege.some((b) => b.beendet) ? " beendet" : ""}`,
     },
     {
       key: "art",
@@ -252,18 +251,6 @@ export function DokumentTabelle({
       sortValue: (d) => d.belegDatum ?? d.createdAt,
     },
     {
-      key: "aussteller",
-      label: "Aussteller",
-      className: "min-w-[110px]",
-      render: (d) => (
-        <span className="block max-w-[180px] text-xs text-neutral-300 [overflow-wrap:anywhere]" title={d.rechnungsnummer ? `Rechnungsnr. ${d.rechnungsnummer}` : undefined}>
-          {d.aussteller ?? "–"}
-        </span>
-      ),
-      sortValue: (d) => (d.aussteller ?? "").toLowerCase(),
-      searchValue: (d) => `${d.aussteller ?? ""} ${d.rechnungsnummer ?? ""}`,
-    },
-    {
       key: "betrag",
       label: "Betrag",
       align: "right",
@@ -283,16 +270,6 @@ export function DokumentTabelle({
       ),
       sortValue: (d) => d.createdAt,
       searchValue: (d) => d.hochgeladenVon ?? "",
-    },
-    {
-      key: "details",
-      label: "",
-      align: "right",
-      render: (d) => (
-        <Link href={d.detailHref} prefetch={false} className="whitespace-nowrap text-xs text-neutral-400 hover:text-white hover:underline">
-          Details
-        </Link>
-      ),
     },
     ...(editierbar
       ? [
@@ -330,8 +307,9 @@ export function DokumentTabelle({
         emptyMessage="Keine Dokumente."
         searchPlaceholder="Dateiname, Ordner oder Bezug suchen…"
         defaultSort={{ key: "belegdatum", dir: "desc" }}
+        kompakt
+        rowHref={(d) => d.detailHref}
         mobileCard={(d) => <DokumentKarte d={d} />}
-        mobileCardHref={(d) => d.detailHref}
         mobileCardInteraktiv
         mobileSort={{
           standardLabel: "neuestes Belegdatum",
