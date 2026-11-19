@@ -225,17 +225,22 @@ export default async function DokumentePage({
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
-          <Link href="/dokumente" className={ansichtLink(!alleAnsicht && !typAnsicht)}>
-            Ordner
-          </Link>
-          <Link href="/dokumente?ansicht=typ" className={ansichtLink(typAnsicht)}>
-            Nach Typ
-          </Link>
-          <Link href="/dokumente?ansicht=alle" className={ansichtLink(alleAnsicht)}>
-            Alle
-          </Link>
-        </div>
+        {/* Auf den Übersichten gibt es keine Tabelle (und damit kein Suchfeld): Die Suche öffnet „Alle“ mit dem Begriff. */}
+        {!tabelleSichtbar && (
+          <form action="/dokumente" className="flex w-full gap-2 sm:w-auto">
+            <input type="hidden" name="ansicht" value="alle" />
+            <input
+              type="search"
+              name="q"
+              placeholder="Dokument suchen…"
+              aria-label="Dokument suchen"
+              className="h-10 min-w-0 flex-1 rounded-md border border-neutral-700 bg-transparent px-3 text-sm text-white outline-none focus:border-neutral-400 sm:w-72 sm:flex-none"
+            />
+            <button type="submit" className="h-10 rounded-md border border-neutral-700 px-4 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white">
+              Suchen
+            </button>
+          </form>
+        )}
         {!alleAnsicht && !typAnsicht && (gruppe || bereich) && (
           <span className="text-neutral-500">
             {gruppe ? (
@@ -255,22 +260,17 @@ export default async function DokumentePage({
         {artGewaehlt && (
           <span className="text-white">{artGewaehlt === "_ohne" ? "Ohne Typ" : (ART_OPTIONEN.find((a) => a.key === artGewaehlt)?.label ?? artGewaehlt)}</span>
         )}
-        {/* Auf den Übersichten gibt es keine Tabelle (und damit kein Suchfeld): Die Suche öffnet „Alle“ mit dem Begriff. */}
-        {!tabelleSichtbar && (
-          <form action="/dokumente" className="flex w-full gap-2 sm:ml-auto sm:w-auto">
-            <input type="hidden" name="ansicht" value="alle" />
-            <input
-              type="search"
-              name="q"
-              placeholder="Dokument suchen…"
-              aria-label="Dokument suchen"
-              className="h-10 min-w-0 flex-1 rounded-md border border-neutral-700 bg-transparent px-3 text-sm text-white outline-none focus:border-neutral-400 sm:w-72 sm:flex-none"
-            />
-            <button type="submit" className="h-10 rounded-md border border-neutral-700 px-4 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white">
-              Suchen
-            </button>
-          </form>
-        )}
+        <div className="ml-auto inline-flex rounded-lg border border-neutral-800 p-0.5">
+          <Link href="/dokumente" className={ansichtLink(!alleAnsicht && !typAnsicht)}>
+            Ordner
+          </Link>
+          <Link href="/dokumente?ansicht=typ" className={ansichtLink(typAnsicht)}>
+            Nach Typ
+          </Link>
+          <Link href="/dokumente?ansicht=alle" className={ansichtLink(alleAnsicht)}>
+            Alle
+          </Link>
+        </div>
       </div>
 
       {eingangAnsicht && editierbar && sichtbar.length > 0 && (
