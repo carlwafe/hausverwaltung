@@ -1,5 +1,6 @@
 // Laden der Prüfdaten für den Vollständigkeits-Check der Kontoauszug-Importe (Seite /kontoauszug/importe):
 // die Rohdaten-Schlüssel aller aktiven Buchungen und die Monatsprüfung der CAMT-Importe. Nur lesend.
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { leseDatei } from "@/lib/storage";
@@ -135,6 +136,49 @@ export async function pruefeCamtMonat(monat: string): Promise<CamtMonatsErgebnis
   return pruefeCamtMonatDateien(monat, inhalte, nurZeitraeume);
 }
 
+/**
+ * Die Zeilen einer gespeicherten CAMT-Importdatei mit Buchungstag, Betrag und dem Schlüssel, über den gleiche
+ * Umsätze aus sich überschneidenden Dateien zusammenfallen (Bank-Referenz, ohne sie der Zeilenschlüssel).
+ */
+async function leseCamtZeilen(
+  inhalt: Buffer,
+  dateiname: string,
+): Promise<{
+  headers: string[];
+  zeilen: { row: Record<string, string>; datum: string; betrag: number; schluessel: string }[];
+}> {
+  const datei = await leseKontoauszugDatei(inhalt, dateiname);
+  const zeilen: { row: Record<string, string>; datum: string; betrag: number; schluessel: string }[] = [];
+  for (const row of datei.rows) {
+    const { datum, betrag } = datumUndBetrag(row, datei.headers);
+    if (!datum || betrag === null) continue;
+    const ref = (row["Bank-Referenz"] ?? "").trim();
+    const schluessel = ref ? `id|${ref}` : zeilenSchluesselAusRohdaten(row);
+    if (schluessel) zeilen.push({ row, datum, betrag, schluessel });
+  }
+  return { headers: datei.headers, zeilen };
+}
+
+/**
+ * Buchungstag und Schlüssel je Zeile einer CAMT-Importdatei — für die Spalte „Zeilen“ der Monatszeilen auf
+ * /kontoauszug/importe. Im Datencache von Next je Import gespeichert (die Datei ändert sich nie), damit die Seite
+ * die Dateien nicht bei jedem Aufruf liest. null = Datei nicht lesbar.
+ */
+export function ladeCamtZeilenSchluessel(
+  batchId: string,
+  speicherpfad: string,
+  dateiname: string,
+): Promise<[datum: string, schluessel: string][] | null> {
+  // Ein Lesefehler wird außerhalb des Speichers abgefangen, damit er nicht dauerhaft als Ergebnis liegen bleibt.
+  return unstable_cache(
+    async () => {
+      const { zeilen } = await leseCamtZeilen(await leseDatei(speicherpfad), dateiname);
+      return zeilen.map((z): [string, string] => [z.datum, z.schluessel]);
+    },
+    ["camt-zeilen", batchId],
+  )().catch(() => null);
+}
+
 /** Prüft die gelesenen Importdateien eines Monats (zusammengeführt) und gleicht sie mit den Bank-Salden ab. */
 export async function pruefeCamtMonatDateien(
   monat: string,
@@ -148,16 +192,12 @@ export async function pruefeCamtMonatDateien(
   const gesehen = new Set<string>();
   const zeilen: { row: Record<string, string>; datum: string; betrag: number }[] = [];
   for (const d of inhalte) {
-    const datei = await leseKontoauszugDatei(d.inhalt, d.dateiname);
+    const datei = await leseCamtZeilen(d.inhalt, d.dateiname);
     if (headers.length === 0) headers = datei.headers;
-    for (const row of datei.rows) {
-      const { datum, betrag } = datumUndBetrag(row, datei.headers);
-      if (!datum || datum < erster || datum > letzter || betrag === null) continue;
-      const ref = (row["Bank-Referenz"] ?? "").trim();
-      const schluessel = ref ? `id|${ref}` : zeilenSchluesselAusRohdaten(row);
-      if (!schluessel || gesehen.has(schluessel)) continue;
-      gesehen.add(schluessel);
-      zeilen.push({ row, datum, betrag });
+    for (const z of datei.zeilen) {
+      if (z.datum < erster || z.datum > letzter || gesehen.has(z.schluessel)) continue;
+      gesehen.add(z.schluessel);
+      zeilen.push(z);
     }
   }
   zeilen.sort((x, y) => x.datum.localeCompare(y.datum));

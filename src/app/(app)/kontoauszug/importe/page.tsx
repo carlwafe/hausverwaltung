@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { camtMonatLabel, camtZeitraum, monateImZeitraum } from "@/lib/import/camt-monat";
+import { camtMonatLabel, camtZeitraum, monateImZeitraum, monatsGrenzen } from "@/lib/import/camt-monat";
+import { ladeCamtZeilenSchluessel } from "@/lib/import/vollstaendigkeit-laden";
 import { ImporteTabelle, type GruppierterImportRow } from "./importe-tabelle";
 
 export default async function KontoauszugImportePage() {
@@ -133,16 +134,38 @@ export default async function KontoauszugImportePage() {
   // Zur Monatszeile gehören alle genutzten CAMT-Importe, deren Zeitraum den Monat berührt (auch solche, die nur
   // Duplikate dieses Monats enthielten) — dieselbe Auswahl wie bei der Prüfung.
   const batchNachId = new Map(genutzteRows.map((r) => [r.id, r]));
+  // Zeilen je Monat = verschiedene Umsätze aller Dateien des Monats (wie die Prüfung zählt); je Datei gespeichert.
+  const speicherpfadNachId = new Map(batches.map((b) => [b.id, b.speicherpfad]));
+  const camtZeilenNachBatch = new Map(
+    await Promise.all(
+      [...camtZeitraumNachBatch.keys()].map(async (id) => {
+        const pfad = speicherpfadNachId.get(id);
+        const zeilen = pfad ? await ladeCamtZeilenSchluessel(id, pfad, batchNachId.get(id)!.dateiname) : null;
+        return [id, zeilen] as const;
+      }),
+    ),
+  );
   const camtRows: GruppierterImportRow[] = [...camtMonate.entries()].map(([monat, e]) => {
     const dazu = [...camtZeitraumNachBatch.entries()]
       .filter(([, z]) => monateImZeitraum(z.von, z.bis).includes(monat))
       .map(([id]) => batchNachId.get(id)!)
       .sort((a, b) => b.erstelltAm.localeCompare(a.erstelltAm));
+    const { erster, letzter } = monatsGrenzen(monat);
+    const schluessel = new Set<string>();
+    let lesbar = true;
+    for (const r of dazu) {
+      const zeilen = camtZeilenNachBatch.get(r.id);
+      if (!zeilen) {
+        lesbar = false;
+        break;
+      }
+      for (const [datum, k] of zeilen) if (datum >= erster && datum <= letzter) schluessel.add(k);
+    }
     return {
       id: `camt:${monat}`,
       dateiname: camtMonatLabel(monat),
       erstelltAm: dazu[0].erstelltAm,
-      anzahlZeilen: null,
+      anzahlZeilen: lesbar ? schluessel.size : null,
       ...e.zaehler,
       anzahlImporte: dazu.length,
       pruefBatchId: dazu[0].id,
