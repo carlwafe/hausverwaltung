@@ -72,6 +72,7 @@ export function DataTable<T extends { id: string }>({
   kompakt = false,
   zeilenSchritt,
   zeileKlappt = false,
+  initialQuery,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -168,8 +169,10 @@ export function DataTable<T extends { id: string }>({
   /** Ein Klick auf die Zeile (neben Links und Knöpfen) klappt `renderExpanded` auf und zu — für Zeilen ohne
    * `rowHref`, deren Details unter der Zeile stehen (Beispiel: Bewegungen einer Kaution). */
   zeileKlappt?: boolean;
+  /** Startwert der Text-Suche (z.B. aus `?q=` einer Suche, die von einer Übersicht hierher führt). */
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [von, setVon] = useState("");
   const [bis, setBis] = useState("");
   const [datumResetZaehler, setDatumResetZaehler] = useState(0);

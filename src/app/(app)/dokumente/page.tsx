@@ -115,9 +115,10 @@ export const maxDuration = 60;
 export default async function DokumentePage({
   searchParams,
 }: {
-  searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string; art?: string; gruppe?: string; }>;
+  searchParams: Promise<{ bereich?: string; ordner?: string; ansicht?: string; status?: string; art?: string; gruppe?: string; q?: string }>;
 }) {
-  const { bereich: bereichParam, ordner: ordnerParam, ansicht, status: statusParam, art: artParam, gruppe: gruppeParam } = await searchParams;
+  const { bereich: bereichParam, ordner: ordnerParam, ansicht, status: statusParam, art: artParam, gruppe: gruppeParam, q } = await searchParams;
+  const suche = q?.trim() ?? "";
   const [user, index] = await Promise.all([getCurrentUser(), ladeDokumentIndex()]);
   const editierbar = user?.role !== "GAST";
 
@@ -194,6 +195,7 @@ export default async function DokumentePage({
   const ordnerNamen = allgemeineOrdnerNamen(index);
   const ansichtLink = (aktiv: boolean) => `rounded-md px-3 py-1.5 ${aktiv ? "bg-neutral-800 font-medium text-white" : "text-neutral-400 hover:text-white"}`;
   const eingangAnzahl = index.filter((e) => e.bereiche.includes("eingang")).length;
+  const tabelleSichtbar = !!(alleAnsicht || eingangAnsicht || artGewaehlt || (bereich && ordner));
 
   return (
     <div>
@@ -253,6 +255,22 @@ export default async function DokumentePage({
         {artGewaehlt && (
           <span className="text-white">{artGewaehlt === "_ohne" ? "Ohne Typ" : (ART_OPTIONEN.find((a) => a.key === artGewaehlt)?.label ?? artGewaehlt)}</span>
         )}
+        {/* Auf den Übersichten gibt es keine Tabelle (und damit kein Suchfeld): Die Suche öffnet „Alle“ mit dem Begriff. */}
+        {!tabelleSichtbar && (
+          <form action="/dokumente" className="flex w-full gap-2 sm:ml-auto sm:w-auto">
+            <input type="hidden" name="ansicht" value="alle" />
+            <input
+              type="search"
+              name="q"
+              placeholder="Dokument suchen…"
+              aria-label="Dokument suchen"
+              className="h-10 min-w-0 flex-1 rounded-md border border-neutral-700 bg-transparent px-3 text-sm text-white outline-none focus:border-neutral-400 sm:w-72 sm:flex-none"
+            />
+            <button type="submit" className="h-10 rounded-md border border-neutral-700 px-4 text-sm text-neutral-200 hover:border-neutral-500 hover:text-white">
+              Suchen
+            </button>
+          </form>
+        )}
       </div>
 
       {eingangAnsicht && editierbar && sichtbar.length > 0 && (
@@ -262,8 +280,8 @@ export default async function DokumentePage({
         </div>
       )}
 
-      {alleAnsicht || eingangAnsicht || artGewaehlt || (bereich && ordner) ? (
-        <DokumentTabelle rows={rows} zeigeBereich={alleAnsicht || !!artGewaehlt} ordnerNamen={ordnerNamen} editierbar={editierbar} />
+      {tabelleSichtbar ? (
+        <DokumentTabelle key={suche} rows={rows} zeigeBereich={alleAnsicht || !!artGewaehlt} ordnerNamen={ordnerNamen} editierbar={editierbar} suche={suche} />
       ) : gruppe ? (
         <div className="space-y-6">
           {/* Leere Abschnitte blenden wir aus (ist der ganze Hauptordner leer, steht er gar nicht erst auf der Startseite). */}

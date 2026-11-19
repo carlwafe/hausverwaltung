@@ -141,6 +141,7 @@ export function DokumentTabelle({
   zeigeBereich,
   ordnerNamen,
   editierbar,
+  suche,
 }: {
   rows: DokumentRow[];
   /** In der Gesamtansicht zusätzlich eine Bereichs-Spalte. */
@@ -148,6 +149,8 @@ export function DokumentTabelle({
   ordnerNamen: string[];
   /** Gäste dürfen nur ansehen. */
   editierbar: boolean;
+  /** Suchbegriff aus dem Suchfeld der Übersicht (`?q=`). */
+  suche?: string;
 }) {
   const spalten: Column<DokumentRow>[] = [
     {
@@ -323,6 +326,7 @@ export function DokumentTabelle({
       <DataTable
         columns={spalten}
         rows={rows}
+        initialQuery={suche}
         emptyMessage="Keine Dokumente."
         searchPlaceholder="Dateiname, Ordner oder Bezug suchen…"
         defaultSort={{ key: "belegdatum", dir: "desc" }}
