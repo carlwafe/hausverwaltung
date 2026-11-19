@@ -50,6 +50,22 @@ export type VollstaendigkeitsErgebnis = {
   doppelteBuchungen: DoppelteBuchung[];
 };
 
+/** Ergebnis der Monatsprüfung über alle CAMT-Importe eines Monats (`pruefeCamtMonat`). */
+export type CamtMonatsErgebnis = VollstaendigkeitsErgebnis & {
+  bank: {
+    /** Anzahl der gelesenen Importdateien des Monats. */
+    dateien: number;
+    /** Tage des Monats mit gespeichertem Bank-Saldo (aus den XML-Dateien). */
+    bankTage: number;
+    /** Letzter Tag des Monats mit Bank-Saldo (ISO), null = keiner. */
+    bisTag: string | null;
+    /** Tage, an denen die Summe der Zeilen in den Importdateien nicht der Umsatzsumme der Bank entspricht. */
+    abweichendeTage: { datum: string; bank: number; dateien: number }[];
+    /** Bruch der Saldokette (Endsaldo ≠ Anfangssaldo des nächsten Bank-Tages) = dazwischen fehlt eine Datei. */
+    luecken: { von: string; bis: string }[];
+  };
+};
+
 type Spalten = ReturnType<typeof findeKontoauszugSpalten>;
 
 // Schlüssel aus Datum+Betrag+Verwendungszweck+Name statt eines rohen JSON.stringify-Vergleichs
@@ -113,24 +129,55 @@ export function weitereZeilenSchluesselAusRohdaten(rohdaten: unknown): string[] 
   return ergebnis;
 }
 
+export type BekannteSchluessel = {
+  zahlung: Set<string>;
+  kosten: Set<string>;
+  mietweiterleitung: Set<string>;
+  kautionsbuchung: Set<string>;
+  sonstige: Set<string>;
+  nichtZugeordnet: Set<string>;
+  // Zeilen, die absichtlich per "Zahlung aufteilen" in mehrere Buchungen zerlegt wurden — die
+  // Teile tragen alle dieselben Rohdaten und liegen dadurch zwangsläufig in mehreren
+  // Kategorien (z.B. Rücklastschrift = Mietzahlung + Bankgebühr als Kosten). Kein Doppelimport.
+  aufgeteilt: Set<string>;
+};
+
 export async function pruefeVollstaendigkeit(
   dateiInhalt: Buffer,
   dateiname: string,
-  bekannteSchluessel: {
-    zahlung: Set<string>;
-    kosten: Set<string>;
-    mietweiterleitung: Set<string>;
-    kautionsbuchung: Set<string>;
-    sonstige: Set<string>;
-    nichtZugeordnet: Set<string>;
-    // Zeilen, die absichtlich per "Zahlung aufteilen" in mehrere Buchungen zerlegt wurden — die
-    // Teile tragen alle dieselben Rohdaten und liegen dadurch zwangsläufig in mehreren
-    // Kategorien (z.B. Rücklastschrift = Mietzahlung + Bankgebühr als Kosten). Kein Doppelimport.
-    aufgeteilt: Set<string>;
-  },
+  bekannteSchluessel: BekannteSchluessel,
 ): Promise<VollstaendigkeitsErgebnis> {
+  const { headers, rows } = await leseKontoauszugDatei(dateiInhalt, dateiname);
+  return pruefeVollstaendigkeitZeilen(headers, rows, bekannteSchluessel);
+}
+
+/** Liest eine gespeicherte Kontoauszug-Datei (CSV/Excel) in Kopfzeile und Zeilen. */
+export async function leseKontoauszugDatei(
+  dateiInhalt: Buffer,
+  dateiname: string,
+): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
   const file = new File([new Uint8Array(dateiInhalt)], dateiname);
-  const { headers, rows } = await parseSpreadsheetFile(file);
+  return parseSpreadsheetFile(file);
+}
+
+/** Buchungstag (ISO) und Betrag einer Kontoauszug-Zeile — für die Monatsprüfung der CAMT-Importe. */
+export function datumUndBetrag(row: Record<string, string>, headers: string[]): { datum: string | null; betrag: number | null } {
+  const spalten = findeKontoauszugSpalten(headers);
+  return {
+    datum: spalten.datumCol ? parseGermanDate(row[spalten.datumCol]) : null,
+    betrag: leseBetrag(row, spalten),
+  };
+}
+
+/**
+ * Prüft bereits gelesene Zeilen (eine Datei oder die zusammengeführten Zeilen mehrerer Dateien) gegen die
+ * Rohdaten der Buchungen. `rowNumber` ist die Zeilennummer in der Datei bzw. die laufende Nummer.
+ */
+export function pruefeVollstaendigkeitZeilen(
+  headers: string[],
+  rows: Record<string, string>[],
+  bekannteSchluessel: BekannteSchluessel,
+): VollstaendigkeitsErgebnis {
   const spalten = findeKontoauszugSpalten(headers);
 
   let alsZahlungGefunden = 0;

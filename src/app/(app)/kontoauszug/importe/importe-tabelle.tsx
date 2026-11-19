@@ -3,8 +3,12 @@
 import { useState, useTransition } from "react";
 import { DataTable, type Column } from "@/components/data-table";
 import { DeleteButton } from "@/components/delete-button";
-import { pruefeImportVollstaendigkeit, raeumeVerwaisteImporteAuf } from "./actions";
-import type { VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
+import {
+  pruefeCamtMonatVollstaendigkeit,
+  pruefeImportVollstaendigkeit,
+  raeumeVerwaisteImporteAuf,
+} from "./actions";
+import type { CamtMonatsErgebnis, VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
 import { jahrAusDateiname } from "@/lib/dokumente-anzeige";
 import { KarteKopf, KarteMeta } from "@/components/karte";
 
@@ -17,7 +21,7 @@ function formatEuro(value: number) {
 }
 
 export type GruppierterImportRow = {
-  /** = pruefBatchId; DataTable braucht ein id-Feld. */
+  /** = pruefBatchId bzw. „camt:yyyy-mm“ bei einer Monatszeile; DataTable braucht ein id-Feld. */
   id: string;
   dateiname: string;
   erstelltAm: string;
@@ -36,27 +40,70 @@ export type GruppierterImportRow = {
   anzahlImporte: number;
   /** Batch, dessen gespeicherte Datei für den Vollständigkeits-Check gelesen wird (der neueste). */
   pruefBatchId: string;
+  /** Nur Monatszeilen der CAMT-Importe (yyyy-mm): geprüft werden alle Dateien des Monats zusammen. */
+  camtMonat?: string;
+  /** Dateinamen der CAMT-Importe, die zur Monatszeile gehören. */
+  dateien?: string[];
 };
 
-type Ergebnis = VollstaendigkeitsErgebnis | { error: string };
+type Ergebnis = VollstaendigkeitsErgebnis | CamtMonatsErgebnis | { error: string };
+
+function formatTag(iso: string) {
+  const [j, m, t] = iso.split("-");
+  return `${t}.${m}.${j}`;
+}
+
+/** Abgleich einer Monatsprüfung mit den Tagessalden der Bank. */
+function BankAbgleich({ bank }: { bank: CamtMonatsErgebnis["bank"] }) {
+  const dateienText = `${bank.dateien} Datei${bank.dateien === 1 ? "" : "en"}`;
+  if (bank.bankTage === 0) {
+    return <p className="mt-1 text-xs text-neutral-500">{dateienText} · keine Bank-Salden für diesen Monat gespeichert</p>;
+  }
+  const sauber = bank.abweichendeTage.length === 0 && bank.luecken.length === 0;
+  return (
+    <div className="mt-1 text-xs">
+      <p className={sauber ? "text-neutral-400" : "text-amber-400"}>
+        {dateienText} · Bank-Tage bis {formatTag(bank.bisTag!)}
+        {sauber ? " · Tagessummen stimmen mit der Bank überein" : ""}
+      </p>
+      {bank.luecken.length > 0 && (
+        <ul className="mt-0.5 space-y-0.5 text-amber-400">
+          {bank.luecken.map((l) => (
+            <li key={l.von}>
+              Saldo-Lücke zwischen {formatTag(l.von)} und {formatTag(l.bis)} — dort fehlt eine Tagesdatei
+            </li>
+          ))}
+        </ul>
+      )}
+      {bank.abweichendeTage.length > 0 && (
+        <ul className="mt-0.5 space-y-0.5 text-amber-400">
+          {bank.abweichendeTage.map((t) => (
+            <li key={t.datum}>
+              {formatTag(t.datum)}: Bank {formatEuro(t.bank)}, in den Importen {formatEuro(t.dateien)}
+              {t.dateien === 0 ? " — Tag nie übernommen" : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function VollstaendigkeitsZelle({
-  batchId,
   ergebnis,
   pending,
   onPruefen,
 }: {
-  batchId: string;
   ergebnis: Ergebnis | null;
   pending: boolean;
-  onPruefen: (batchId: string) => void;
+  onPruefen: () => void;
 }) {
   if (!ergebnis) {
     return (
       <button
         type="button"
         disabled={pending}
-        onClick={() => onPruefen(batchId)}
+        onClick={onPruefen}
         className="text-xs text-neutral-400 underline hover:text-white disabled:opacity-50"
       >
         {pending ? "Prüfe…" : "Vollständigkeit prüfen"}
@@ -68,8 +115,15 @@ function VollstaendigkeitsZelle({
     return <span className="text-xs text-red-400">{ergebnis.error}</span>;
   }
 
+  const bank = "bank" in ergebnis ? <BankAbgleich bank={ergebnis.bank} /> : null;
+
   if (ergebnis.ungeklaert.length === 0 && ergebnis.doppelteBuchungen.length === 0) {
-    return <span className="text-xs text-green-400">Vollständig ({ergebnis.gesamt} Zeilen zugeordnet)</span>;
+    return (
+      <div>
+        <span className="text-xs text-green-400">Vollständig ({ergebnis.gesamt} Zeilen zugeordnet)</span>
+        {bank}
+      </div>
+    );
   }
 
   return (
@@ -105,6 +159,7 @@ function VollstaendigkeitsZelle({
           </ul>
         </>
       )}
+      {bank}
     </div>
   );
 }
@@ -132,14 +187,18 @@ export function ImporteTabelle({
   const [ausgewaehlt, setAusgewaehlt] = useState<GruppierterImportRow[]>([]);
   const [, startTransition] = useTransition();
 
-  function pruefeEinzeln(batchId: string) {
-    setPendingIds((s) => new Set(s).add(batchId));
+  // Ergebnisse je Zeile (r.id): eine Datei bzw. bei CAMT-Monatszeilen alle Dateien des Monats.
+  function pruefeEinzeln(r: GruppierterImportRow) {
+    const key = r.id;
+    setPendingIds((s) => new Set(s).add(key));
     startTransition(async () => {
-      const ergebnis = await pruefeImportVollstaendigkeit(batchId);
-      setErgebnisse((m) => new Map(m).set(batchId, ergebnis));
+      const ergebnis = r.camtMonat
+        ? await pruefeCamtMonatVollstaendigkeit(r.camtMonat)
+        : await pruefeImportVollstaendigkeit(r.pruefBatchId);
+      setErgebnisse((m) => new Map(m).set(key, ergebnis));
       setPendingIds((s) => {
         const next = new Set(s);
-        next.delete(batchId);
+        next.delete(key);
         return next;
       });
     });
@@ -147,15 +206,13 @@ export function ImporteTabelle({
 
   function pruefeAusgewaehlte() {
     for (const r of ausgewaehlt) {
-      if (!ergebnisse.has(r.pruefBatchId) && !pendingIds.has(r.pruefBatchId)) {
-        pruefeEinzeln(r.pruefBatchId);
+      if (!ergebnisse.has(r.id) && !pendingIds.has(r.id)) {
+        pruefeEinzeln(r);
       }
     }
   }
 
-  const offeneAuswahl = ausgewaehlt.filter(
-    (r) => !ergebnisse.has(r.pruefBatchId) && !pendingIds.has(r.pruefBatchId),
-  ).length;
+  const offeneAuswahl = ausgewaehlt.filter((r) => !ergebnisse.has(r.id) && !pendingIds.has(r.id)).length;
   const irgendeinePruefungLaeuft = pendingIds.size > 0;
 
   const jahre = [...new Set(rows.map((r) => jahrAusDateiname(r.dateiname)))]
@@ -168,12 +225,16 @@ export function ImporteTabelle({
       key: "dateiname",
       label: "Datei",
       sortValue: (r) => r.dateiname.toLowerCase(),
-      searchValue: (r) => r.dateiname,
+      searchValue: (r) => [r.dateiname, ...(r.dateien ?? [])].join(" "),
       render: (r) => (
-        <span className="text-white">
+        <span className="text-white" title={r.dateien?.join("\n")}>
           {r.dateiname}
-          {r.anzahlImporte > 1 && (
-            <span className="ml-1 text-xs text-neutral-500">({r.anzahlImporte}x importiert)</span>
+          {r.camtMonat ? (
+            <span className="ml-1 text-xs text-neutral-500">
+              ({r.anzahlImporte} XML-Import{r.anzahlImporte === 1 ? "" : "e"})
+            </span>
+          ) : (
+            r.anzahlImporte > 1 && <span className="ml-1 text-xs text-neutral-500">({r.anzahlImporte}x importiert)</span>
           )}
         </span>
       ),
@@ -209,10 +270,9 @@ export function ImporteTabelle({
       label: "Vollständigkeit",
       render: (r) => (
         <VollstaendigkeitsZelle
-          batchId={r.pruefBatchId}
-          ergebnis={ergebnisse.get(r.pruefBatchId) ?? null}
-          pending={pendingIds.has(r.pruefBatchId)}
-          onPruefen={pruefeEinzeln}
+          ergebnis={ergebnisse.get(r.id) ?? null}
+          pending={pendingIds.has(r.id)}
+          onPruefen={() => pruefeEinzeln(r)}
         />
       ),
     },
@@ -274,7 +334,9 @@ export function ImporteTabelle({
               <KarteMeta>
                 <span>
                   importiert am {formatDatum(r.erstelltAm)}
-                  {r.anzahlImporte > 1 && ` (${r.anzahlImporte}x)`}
+                  {r.camtMonat
+                    ? ` (${r.anzahlImporte} XML-Import${r.anzahlImporte === 1 ? "" : "e"})`
+                    : r.anzahlImporte > 1 && ` (${r.anzahlImporte}x)`}
                 </span>
               </KarteMeta>
               {teile.length > 0 && (
@@ -282,10 +344,9 @@ export function ImporteTabelle({
               )}
               <div className="mt-2">
                 <VollstaendigkeitsZelle
-                  batchId={r.pruefBatchId}
-                  ergebnis={ergebnisse.get(r.pruefBatchId) ?? null}
-                  pending={pendingIds.has(r.pruefBatchId)}
-                  onPruefen={pruefeEinzeln}
+                  ergebnis={ergebnisse.get(r.id) ?? null}
+                  pending={pendingIds.has(r.id)}
+                  onPruefen={() => pruefeEinzeln(r)}
                 />
               </div>
             </>

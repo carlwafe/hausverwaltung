@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { camtMonatLabel, camtZeitraum, monateImZeitraum } from "@/lib/import/camt-monat";
 import { ImporteTabelle, type GruppierterImportRow } from "./importe-tabelle";
 
 export default async function KontoauszugImportePage() {
-  const [batches, buchungenRaw, buchungsarten] = await Promise.all([
+  const [batches, buchungenRaw, buchungsarten, geparkteCamt] = await Promise.all([
     prisma.importBatch.findMany({
       where: { typ: "KONTOAUSZUG" },
       orderBy: { erstelltAm: "desc" },
@@ -13,9 +14,14 @@ export default async function KontoauszugImportePage() {
     // gemeinsamen Buchung-Tabelle zusammengefasst wurden — stattdessen hier per Hand aggregiert.
     prisma.buchung.findMany({
       where: { importBatchId: { not: null } },
-      select: { importBatchId: true, buchungsartId: true },
+      select: { importBatchId: true, buchungsartId: true, datum: true },
     }),
     prisma.buchungsart.findMany({ select: { id: true, code: true, kontokreis: true } }),
+    // Datum der geparkten Zeilen aus CAMT-Importen — für die Zuordnung zum Monat.
+    prisma.nichtZugeordneteBuchung.findMany({
+      where: { importBatch: { dateiname: { startsWith: "Kontoauszug CAMT " } } },
+      select: { importBatchId: true, datum: true },
+    }),
   ]);
   const artNachId = new Map(buchungsarten.map((a) => [a.id, a]));
 
@@ -79,11 +85,78 @@ export default async function KontoauszugImportePage() {
       r.anzahlNichtZugeordnet > 0,
   );
 
+  // CAMT-Importe (eine XML-Datei je Buchungstag, Zeiträume überschneiden sich) werden zu einer Zeile je Monat
+  // zusammengefasst; die Prüfung liest dann alle Dateien des Monats (pruefeCamtMonatVollstaendigkeit).
+  // Gezählt wird je Monat nach dem Datum der Buchung, damit ein Import über den Monatswechsel nicht doppelt zählt.
+  type Zaehler = Omit<GruppierterImportRow, "id" | "dateiname" | "erstelltAm" | "anzahlZeilen" | "anzahlImporte" | "pruefBatchId" | "camtMonat" | "dateien">;
+  const leer = (): Zaehler => ({
+    anzahlZahlungen: 0,
+    anzahlKosten: 0,
+    anzahlMietweiterleitungen: 0,
+    anzahlKautionsbuchungen: 0,
+    anzahlSonstige: 0,
+    anzahlNichtZugeordnet: 0,
+  });
+  const camtZeitraumNachBatch = new Map<string, { von: string; bis: string }>();
+  for (const r of genutzteRows) {
+    const z = camtZeitraum(r.dateiname);
+    if (z) camtZeitraumNachBatch.set(r.id, z);
+  }
+  const camtMonate = new Map<string, { zaehler: Zaehler; batchIds: Set<string> }>();
+  const monatEintrag = (monat: string) => {
+    let e = camtMonate.get(monat);
+    if (!e) {
+      e = { zaehler: leer(), batchIds: new Set() };
+      camtMonate.set(monat, e);
+    }
+    return e;
+  };
+  for (const b of buchungenRaw) {
+    const z = b.importBatchId ? camtZeitraumNachBatch.get(b.importBatchId) : undefined;
+    if (!z || !b.importBatchId) continue;
+    const art = artNachId.get(b.buchungsartId);
+    if (!art) continue;
+    const e = monatEintrag(b.datum ? b.datum.toISOString().slice(0, 7) : z.von.slice(0, 7));
+    e.batchIds.add(b.importBatchId);
+    if (art.code === "MIETZAHLUNG") e.zaehler.anzahlZahlungen++;
+    else if (art.code === "KOSTENPOSITION") e.zaehler.anzahlKosten++;
+    else if (art.code === "MIETWEITERLEITUNG") e.zaehler.anzahlMietweiterleitungen++;
+    else if (art.kontokreis === "KAUTIONSKONTO") e.zaehler.anzahlKautionsbuchungen++;
+    else if (art.code === "NEBENKOSTENAUSGLEICH") e.zaehler.anzahlSonstige++;
+  }
+  for (const g of geparkteCamt) {
+    if (!g.importBatchId || !camtZeitraumNachBatch.has(g.importBatchId)) continue;
+    const e = monatEintrag(g.datum.toISOString().slice(0, 7));
+    e.batchIds.add(g.importBatchId);
+    e.zaehler.anzahlNichtZugeordnet++;
+  }
+  // Zur Monatszeile gehören alle genutzten CAMT-Importe, deren Zeitraum den Monat berührt (auch solche, die nur
+  // Duplikate dieses Monats enthielten) — dieselbe Auswahl wie bei der Prüfung.
+  const batchNachId = new Map(genutzteRows.map((r) => [r.id, r]));
+  const camtRows: GruppierterImportRow[] = [...camtMonate.entries()].map(([monat, e]) => {
+    const dazu = [...camtZeitraumNachBatch.entries()]
+      .filter(([, z]) => monateImZeitraum(z.von, z.bis).includes(monat))
+      .map(([id]) => batchNachId.get(id)!)
+      .sort((a, b) => b.erstelltAm.localeCompare(a.erstelltAm));
+    return {
+      id: `camt:${monat}`,
+      dateiname: camtMonatLabel(monat),
+      erstelltAm: dazu[0].erstelltAm,
+      anzahlZeilen: null,
+      ...e.zaehler,
+      anzahlImporte: dazu.length,
+      pruefBatchId: dazu[0].id,
+      camtMonat: monat,
+      dateien: [...new Set(dazu.map((r) => r.dateiname))],
+    };
+  });
+
   // Dieselbe Datei kann mehrfach hochgeladen worden sein (z.B. Zahlungen und Kosten in zwei
   // getrennten Sitzungen übernommen) — dann pro Datei eine einzige Zeile mit aufsummierten
   // Zahlen statt mehrerer Einzelzeilen für denselben Kontoauszug.
   const gruppenNachDatei = new Map<string, typeof genutzteRows>();
   for (const r of genutzteRows) {
+    if (camtZeitraumNachBatch.has(r.id)) continue;
     const liste = gruppenNachDatei.get(r.dateiname) ?? [];
     liste.push(r);
     gruppenNachDatei.set(r.dateiname, liste);
@@ -106,6 +179,7 @@ export default async function KontoauszugImportePage() {
         pruefBatchId: neuesteZuerst[0].id,
       };
     })
+    .concat(camtRows)
     .sort((a, b) => b.erstelltAm.localeCompare(a.erstelltAm));
 
   return (
@@ -114,8 +188,8 @@ export default async function KontoauszugImportePage() {
         <div>
           <h1 className="text-2xl font-semibold text-white">Kontoauszug-Importe</h1>
           <p className="text-sm text-neutral-400">
-            {gruppierteRows.length} Datei{gruppierteRows.length === 1 ? "" : "en"} mit übernommenen
-            Buchungen{verwaisteAnzahl > 0 && `, ${verwaisteAnzahl} ohne Ergebnis (nur Vorschau)`}
+            {gruppierteRows.length} Kontoauszug{gruppierteRows.length === 1 ? "" : "e"} mit übernommenen Buchungen (XML-Importe je Monat
+            zusammengefasst){verwaisteAnzahl > 0 && `, ${verwaisteAnzahl} ohne Ergebnis (nur Vorschau)`}
           </p>
         </div>
         <Link

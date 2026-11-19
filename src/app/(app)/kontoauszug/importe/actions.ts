@@ -2,10 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { requireUser, requireEditor } from "@/lib/session";
 import { leseDatei, loescheDatei } from "@/lib/storage";
-import { pruefeVollstaendigkeit, zeilenSchluesselAusRohdaten, type VollstaendigkeitsErgebnis } from "@/lib/import/vollstaendigkeit";
+import {
+  pruefeVollstaendigkeit,
+  type CamtMonatsErgebnis,
+  type VollstaendigkeitsErgebnis,
+} from "@/lib/import/vollstaendigkeit";
+import { ladeBekannteSchluessel, pruefeCamtMonat } from "@/lib/import/vollstaendigkeit-laden";
 
 export async function pruefeImportVollstaendigkeit(
   importBatchId: string,
@@ -24,81 +28,15 @@ export async function pruefeImportVollstaendigkeit(
     return { error: "Originaldatei nicht mehr verfügbar." };
   }
 
-  // Stornierte Buchungen (und Storno-Gegenbuchungen) zählen nicht: sonst meldet z.B. ein nach
-  // "Umbuchen" stornierter Betriebskostenausgleich neben der neuen Zahlung fälschlich "mehrfach erfasst".
-  // Bewusst über den gesamten Bestand geprüft, nicht nur gegen diesen Batch: eine Zeile, die
-  // schon in einem früheren Import gelandet ist und hier korrekt als Duplikat übersprungen
-  // wurde, soll nicht fälschlich als "ungeklärt" gemeldet werden.
-  const [
-    alleZahlungen,
-    alleKosten,
-    alleMietweiterleitungen,
-    alleKautionsbuchungen,
-    alleSonstigenBuchungen,
-    alleNichtZugeordneten,
-    alleAufgeteilten,
-  ] = await Promise.all([
-      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETZAHLUNG" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: "KOSTENPOSITION" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: "MIETWEITERLEITUNG" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { kontokreis: "KAUTIONSKONTO" }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
-      prisma.buchung.findMany({ where: { buchungsart: { code: { in: ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG", "MAHNGEBUEHR", "DARLEHEN_TILGUNG"] } }, ...AKTIVE_BUCHUNG_FILTER }, select: { rohdaten: true } }),
-      prisma.nichtZugeordneteBuchung.findMany({ select: { rohdaten: true } }),
-      // Nur nicht stornierte Teile einer Aufteilung (das stornierte Original zählt nicht mehr mit).
-      prisma.buchung.findMany({
-        where: {
-          OR: [{ aufteilungGruppeId: { not: null } }, { bezugTyp: "Umbuchung" }, { bezugTyp: "Darlehensrate" }],
-          ...AKTIVE_BUCHUNG_FILTER,
-        },
-        select: { rohdaten: true },
-      }),
-    ]);
-  const zahlung = new Set(
-    alleZahlungen
-      .map((z) => zeilenSchluesselAusRohdaten(z.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
-  const kosten = new Set(
-    alleKosten
-      .map((k) => zeilenSchluesselAusRohdaten(k.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
-  const mietweiterleitung = new Set(
-    alleMietweiterleitungen
-      .map((m) => zeilenSchluesselAusRohdaten(m.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
-  const kautionsbuchung = new Set(
-    alleKautionsbuchungen
-      .map((k) => zeilenSchluesselAusRohdaten(k.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
-  const sonstige = new Set(
-    alleSonstigenBuchungen
-      .map((s) => zeilenSchluesselAusRohdaten(s.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
-  const nichtZugeordnet = new Set(
-    alleNichtZugeordneten
-      .map((n) => zeilenSchluesselAusRohdaten(n.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
+  return pruefeVollstaendigkeit(inhalt, batch.dateiname, await ladeBekannteSchluessel());
+}
 
-  const aufgeteilt = new Set(
-    alleAufgeteilten
-      .map((b) => zeilenSchluesselAusRohdaten(b.rohdaten))
-      .filter((s): s is string => s !== null),
-  );
-
-  return pruefeVollstaendigkeit(inhalt, batch.dateiname, {
-    zahlung,
-    kosten,
-    mietweiterleitung,
-    kautionsbuchung,
-    sonstige,
-    nichtZugeordnet,
-    aufgeteilt,
-  });
+/** Vollständigkeit eines Monats über alle CAMT-Importe (siehe `pruefeCamtMonat`). */
+export async function pruefeCamtMonatVollstaendigkeit(
+  monat: string,
+): Promise<CamtMonatsErgebnis | { error: string }> {
+  await requireUser();
+  return pruefeCamtMonat(monat);
 }
 
 export async function raeumeVerwaisteImporteAuf(): Promise<void> {
