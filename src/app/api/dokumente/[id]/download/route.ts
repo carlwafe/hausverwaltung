@@ -4,6 +4,13 @@ import { sichtbareTicketDokumente } from "@/lib/ticket";
 import { requireUser } from "@/lib/session";
 import { leseDatei } from "@/lib/storage";
 
+// Content-Disposition mit Dateinamen: `filename` als ASCII-Ersatz für alte Browser, `filename*`
+// (RFC 5987) mit dem echten Namen — sonst landen Umlaute/Leerzeichen als "%20" im gespeicherten Namen.
+function disposition(art: "inline" | "attachment", dateiname: string): string {
+  const ascii = dateiname.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  return `${art}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(dateiname)}`;
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
@@ -20,16 +27,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Datei nicht mehr verfügbar." }, { status: 404 });
   }
 
-  // Bilder inline ausliefern (z.B. für Foto-Vorschauen als <img src>), alles andere weiterhin als
-  // Download — ein Browser würde eine "attachment"-Disposition nicht als <img> rendern.
-  // Mit ?ansicht=inline auch PDFs (Vorschau auf der Detailseite /dokumente/[id]).
-  const inlineAngefordert = new URL(req.url).searchParams.get("ansicht") === "inline" && dokument.mimeType === "application/pdf";
-  const disposition = dokument.mimeType?.startsWith("image/") || inlineAngefordert ? "inline" : "attachment";
+  // PDFs und Bilder zeigt der Browser selbst an (Link mit target="_blank" öffnet den PDF-Betrachter,
+  // Foto-Vorschauen nutzen die Route als <img src>). Mit ?download=1 immer als Datei speichern.
+  // Andere Dateitypen kann der Browser meist nicht anzeigen — die bleiben ein Download.
+  const herunterladen = new URL(req.url).searchParams.get("download") === "1";
+  const anzeigbar = dokument.mimeType === "application/pdf" || !!dokument.mimeType?.startsWith("image/");
 
   return new NextResponse(new Uint8Array(inhalt), {
     headers: {
       "Content-Type": dokument.mimeType ?? "application/octet-stream",
-      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(dokument.dateiname)}"`,
+      "Content-Disposition": disposition(anzeigbar && !herunterladen ? "inline" : "attachment", dokument.dateiname),
     },
   });
 }

@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/data-table";
 import { DeleteButton } from "@/components/delete-button";
 import { BelegDatumFeld } from "@/components/belege-sektion";
 import { aendereArt, aendereOrdner, blendeDokumentAus, deleteDokument } from "./actions";
+import { HerunterladenLink, dokumentAnsehenUrl, dokumentHerunterladenUrl } from "@/components/dokument-links";
 import { KARTE_AKTION, KarteAktionen, KarteKopf, KarteMeta, KarteZeile } from "@/components/karte";
 import {
   ART_GRUPPEN,
@@ -129,8 +130,11 @@ function DokumentKarte({ d }: { d: DokumentRow }) {
         </span>
       </KarteMeta>
       <KarteAktionen>
-        <a href={`/api/dokumente/${d.id}/download`} className={KARTE_AKTION}>
-          Datei öffnen
+        <a href={dokumentAnsehenUrl(d.id)} target="_blank" rel="noreferrer" className={KARTE_AKTION}>
+          Datei ansehen
+        </a>
+        <a href={dokumentHerunterladenUrl(d.id)} className={KARTE_AKTION}>
+          Herunterladen
         </a>
       </KarteAktionen>
     </>
@@ -161,13 +165,18 @@ export function DokumentTabelle({
       fuellend: true,
       render: (d) => (
         <>
-          <a
-            href={`/api/dokumente/${d.id}/download`}
-            className="block truncate text-white hover:underline"
-            title={d.titel ? `${d.titel}\n${d.dateiname}` : d.dateiname}
-          >
-            {d.titel ?? d.dateiname}
-          </a>
+          <div className="flex min-w-0 items-center gap-1">
+            <a
+              href={dokumentAnsehenUrl(d.id)}
+              target="_blank"
+              rel="noreferrer"
+              className="min-w-0 truncate text-white hover:underline"
+              title={`${d.titel ? `${d.titel}\n${d.dateiname}` : d.dateiname}\n(im neuen Tab ansehen)`}
+            >
+              {d.titel ?? d.dateiname}
+            </a>
+            <HerunterladenLink id={d.id} className="-my-1" />
+          </div>
           {/* Zweite Zeile: Dateiname (wenn ein Titel davor steht) und Aussteller — eigene Spalten passten nicht in die Breite. */}
           {(d.titel || d.aussteller) && (
             <span

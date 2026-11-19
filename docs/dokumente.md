@@ -18,7 +18,11 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 - **Objekt** (je Haus, Gebäude, Einheit, „Nach Art“: Versicherung, Prüfbericht/Gutachten, Steuer/Behörde);
 - **Sonstiges** (Tickets, frei benannte Ordner).
 
-Die Gruppenseiten laden `?gruppe=kosten|objekt|sonstiges`; ein Dokument kann in mehreren Hauptordnern stehen. Weitere Ansichten: **Nach Typ** (`?ansicht=typ&art=…`, „Ohne Typ“ = `_ohne`) und **Alle Dokumente**. Die Detailseite zeigt PDFs per `?ansicht=inline` der Download-Route in einem Rahmen.
+Die Gruppenseiten laden `?gruppe=kosten|objekt|sonstiges`; ein Dokument kann in mehreren Hauptordnern stehen. Weitere Ansichten: **Nach Typ** (`?ansicht=typ&art=…`, „Ohne Typ“ = `_ohne`) und **Alle Dokumente**. Die Detailseite zeigt PDFs in einem Rahmen.
+
+## Datei ansehen oder herunterladen
+
+Die Route `/api/dokumente/[id]/download` liefert PDFs und Bilder `inline`: Ein Klick auf den Dateinamen (Tabellen, Belege, abgelegte Schreiben) öffnet die Datei in einem neuen Tab im Browser-eigenen Betrachter, nichts landet im Download-Ordner. Das kleine Download-Symbol daneben ruft `?download=1` auf und speichert die Datei. Andere Dateitypen bleiben ein Download. Die Links kommen aus `src/components/dokument-links.tsx`. Der Dateiname steht zusätzlich als `filename*` (UTF-8) im Header, damit Umlaute und Leerzeichen beim Speichern erhalten bleiben. Das Browser-Pane der Claude-App hat keinen PDF-Betrachter und bietet PDFs immer zum Speichern an; zum Prüfen die Header per `fetch` ansehen.
 
 **Kontoauszüge stehen nicht in der Ablage:** Die Originaldateien der Importe (`ImportBatch.speicherpfad`) gehören zum Import (Vollständigkeits-Check, Aufräumen, Download) und liegen nur unter Kontoauszug → Importe.
 

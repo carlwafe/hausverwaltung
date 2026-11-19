@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { eingangFortschritt } from "@/lib/dokument-eingang";
 import { BEREICHE, artLabel, formatBytes, formatDate, formatEuro } from "@/lib/dokumente-anzeige";
+import { dokumentAnsehenUrl, dokumentHerunterladenUrl } from "@/components/dokument-links";
 import { allgemeineOrdnerNamen, ladeDokumentIndex, ladeDokumentZeile, type BezugTyp } from "@/lib/dokumente-uebersicht";
 import {
   ladeBuchungVorschlaege,
@@ -189,7 +190,15 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
         {dokument.titel && <>{dokument.dateiname} · </>}
         {artLabel(dokument.art)} · {formatBytes(dokument.groesseBytes)} · hochgeladen am {formatDate(dokument.createdAt)}
         {dokument.hochgeladenVon && ` von ${dokument.hochgeladenVon}`} ·{" "}
-        <a href={`/api/dokumente/${id}/download`} className="text-white underline">
+        {vorschau && (
+          <>
+            <a href={dokumentAnsehenUrl(id)} target="_blank" rel="noreferrer" className="text-white underline">
+              In neuem Tab öffnen
+            </a>{" "}
+            ·{" "}
+          </>
+        )}
+        <a href={dokumentHerunterladenUrl(id)} className="text-white underline">
           Herunterladen
         </a>
         {dokument.ausgeblendetAm && (
@@ -270,10 +279,10 @@ export default async function DokumentDetailPage({ params }: { params: Promise<{
         </div>
         <div>
           {vorschau === "pdf" ? (
-            <iframe src={`/api/dokumente/${id}/download?ansicht=inline`} title={dokument.dateiname} className="h-[75vh] w-full rounded-lg border border-neutral-800 bg-white" />
+            <iframe src={dokumentAnsehenUrl(id)} title={dokument.dateiname} className="h-[75vh] w-full rounded-lg border border-neutral-800 bg-white" />
           ) : vorschau === "bild" ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/api/dokumente/${id}/download`} alt={dokument.dateiname} className="max-h-[75vh] rounded-lg border border-neutral-800" />
+            <img src={dokumentAnsehenUrl(id)} alt={dokument.dateiname} className="max-h-[75vh] rounded-lg border border-neutral-800" />
           ) : (
             <p className="text-sm text-neutral-500">Für diesen Dateityp gibt es keine Vorschau — bitte herunterladen.</p>
           )}

@@ -6,6 +6,7 @@ import { uploadDokument } from "@/app/(app)/dokumente/actions";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
 import { MAX_DOKUMENT_GROESSE_BYTES, ermittleZuGrosseDateien } from "@/lib/upload-limits";
 import { GroessenFehler } from "@/components/groessen-fehler";
+import { HerunterladenLink, dokumentAnsehenUrl } from "@/components/dokument-links";
 
 export type SchreibenKopie = {
   id: string;
@@ -86,9 +87,10 @@ export function SchreibenAblegen({
           <ul className="space-y-0.5 text-sm">
             {kopien.map((k) => (
               <li key={k.id}>
-                <a href={`/api/dokumente/${k.id}/download`} className="text-neutral-300 hover:text-white hover:underline [overflow-wrap:anywhere]">
+                <a href={dokumentAnsehenUrl(k.id)} target="_blank" rel="noreferrer" className="text-neutral-300 hover:text-white hover:underline [overflow-wrap:anywhere]">
                   {k.dateiname}
                 </a>
+                <HerunterladenLink id={k.id} className="-my-1 ml-1 align-middle" />
                 <span className="ml-2 text-xs text-neutral-500">{formatDate(new Date(k.belegDatum ?? k.createdAt))}</span>
               </li>
             ))}

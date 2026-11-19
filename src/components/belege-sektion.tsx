@@ -8,6 +8,7 @@ import { aendereBelegDatum, blendeDokumentAus, deleteDokument, loeseWeitereKoste
 import { ermittleZuGrosseDateien, MAX_DATEIGROESSE_BYTES } from "@/lib/upload-limits";
 import { formatBytes, formatDate } from "@/lib/dokumente-anzeige";
 import { GroessenFehler } from "@/components/groessen-fehler";
+import { HerunterladenLink, dokumentAnsehenUrl } from "@/components/dokument-links";
 
 export type BelegRow = {
   id: string;
@@ -132,13 +133,18 @@ export function BelegeSektion({
             {sortiert.map((d) => (
               <tr key={d.id}>
                 <td className="max-w-[340px] py-2 pr-3">
-                  <a
-                    href={`/api/dokumente/${d.id}/download`}
-                    className="block text-white [overflow-wrap:anywhere] hover:underline"
-                    title={d.dateiname}
-                  >
-                    {d.dateiname}
-                  </a>
+                  <div className="flex items-start gap-1">
+                    <a
+                      href={dokumentAnsehenUrl(d.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="min-w-0 text-white [overflow-wrap:anywhere] hover:underline"
+                      title={`${d.dateiname} – im neuen Tab ansehen`}
+                    >
+                      {d.dateiname}
+                    </a>
+                    <HerunterladenLink id={d.id} className="-my-0.5" />
+                  </div>
                   {kompakt && (
                     <span className="block text-xs text-neutral-500">
                       hochgeladen {formatDate(d.createdAt)}
@@ -211,7 +217,7 @@ export function BelegeSektion({
             {ausgeblendet.map((d) => (
               <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <div className="min-w-0 text-neutral-400">
-                  <a href={`/api/dokumente/${d.id}/download`} className="[overflow-wrap:anywhere] hover:underline">
+                  <a href={dokumentAnsehenUrl(d.id)} target="_blank" rel="noreferrer" className="[overflow-wrap:anywhere] hover:underline">
                     {d.dateiname}
                   </a>
                   <span className="ml-2 text-xs text-neutral-500">
