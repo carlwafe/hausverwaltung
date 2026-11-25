@@ -6,6 +6,7 @@ import { mieterName } from "@/lib/mieter-name";
 import { DeleteButton } from "@/components/delete-button";
 import { KautionAufteilenForm } from "../../kaution-aufteilen-form";
 import { deleteKautionsbuchungen, hebeKautionAufteilungAuf } from "../../actions";
+import { KAUTION_AUFTEILUNG_ANDERE_CODES } from "@/lib/aufteilung-aufheben";
 import { RohdatenAnsicht } from "@/components/rohdaten-ansicht";
 import type { KautionBuchungKategorie } from "../../kautionsbuchungen-table";
 import { KategorieAuswahl } from "./kategorie-auswahl";
@@ -47,14 +48,18 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
   const geschwister = buchung.aufteilungGruppeId
     ? await prisma.buchung.findMany({
         where: { aufteilungGruppeId: buchung.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
-        include: { buchungsart: { select: { code: true, bezeichnung: true, kontokreis: true } }, mietvertrag: { include: { einheit: true } } },
+        include: {
+          buchungsart: { select: { code: true, bezeichnung: true, kontokreis: true } },
+          kostenart: { select: { name: true } },
+          mietvertrag: { include: { einheit: true } },
+        },
         orderBy: { erstelltAm: "asc" },
       })
     : [];
   const kannZusammenfuehren =
     geschwister.filter((g) => g.buchungsart.kontokreis === "KAUTIONSKONTO").length === 1 &&
     geschwister.every(
-      (g) => g.buchungsart.kontokreis === "KAUTIONSKONTO" || ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"].includes(g.buchungsart.code),
+      (g) => g.buchungsart.kontokreis === "KAUTIONSKONTO" || KAUTION_AUFTEILUNG_ANDERE_CODES.includes(g.buchungsart.code),
     );
 
   return (
@@ -136,8 +141,12 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
                   ? `BK-Ausgleich${g.jahr ? ` ${g.jahr}` : ""}`
                   : g.buchungsart.code === "SONDERZAHLUNG"
                     ? "Gebühren-Zahlung"
-                    : g.buchungsart.bezeichnung;
-              const label = `${art} — ${g.mietvertrag?.einheit.bezeichnung ?? ""}`;
+                    : g.buchungsart.code === "KOSTENPOSITION"
+                      ? // Kostenposition mit umgekehrtem Vorzeichen; rechts steht wie bei den anderen Teilen der Bankbetrag.
+                        `${g.kostenart?.name ?? "Kostenposition"} (Kostenposition ${formatEuro(Number(g.betrag))})`
+                      : g.buchungsart.bezeichnung;
+              const bankBetrag = g.buchungsart.code === "KOSTENPOSITION" ? -Number(g.betrag) : Number(g.betrag);
+              const label = g.mietvertrag ? `${art} — ${g.mietvertrag.einheit.bezeichnung}` : art;
               const href =
                 g.buchungsart.kontokreis === "KAUTIONSKONTO"
                   ? `/kautionen/buchung/${g.id}`
@@ -145,7 +154,9 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
                     ? `/nebenkostenausgleich/${g.id}`
                     : g.buchungsart.code === "SONDERZAHLUNG"
                       ? `/zahlungen/${g.id}`
-                      : null;
+                      : g.buchungsart.code === "KOSTENPOSITION"
+                        ? `/kosten/${g.id}`
+                        : null;
               return (
                 <li key={g.id} className="flex items-center justify-between">
                   {g.id === id ? (
@@ -157,7 +168,7 @@ export default async function KautionsbuchungDetailPage({ params }: { params: Pr
                   ) : (
                     <span className="text-white">{label}</span>
                   )}
-                  <span className="text-neutral-300">{formatEuro(Number(g.betrag))}</span>
+                  <span className="text-neutral-300">{formatEuro(bankBetrag)}</span>
                 </li>
               );
             })}

@@ -99,3 +99,80 @@ export async function hebeZahlungAufteilungAuf(
 
   return new Set([...gruppe.map((b) => b.mietvertragId), vorlage.mietvertragId].filter((id): id is string => !!id));
 }
+
+/** Buchungsarten, die neben genau einem Kautionsteil in einer Kautions-Aufteilung stehen dürfen. */
+export const KAUTION_AUFTEILUNG_ANDERE_CODES = ["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG", "KOSTENPOSITION"];
+
+/** Ob die Aufteilungsgruppe einen aktiven Kautionsteil enthält (Kautionsbuchung, aufgeteilt in Kaution +
+ * BK-Ausgleich/Mahngebühr, siehe teileKautionsbuchungAuf). */
+export async function istKautionAufteilung(aufteilungGruppeId: string): Promise<boolean> {
+  const anzahl = await prisma.buchung.count({
+    where: {
+      aufteilungGruppeId,
+      buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } },
+      ...AKTIVE_BUCHUNG_FILTER,
+    },
+  });
+  return anzahl > 0;
+}
+
+/**
+ * Macht die Aufteilung einer Kautionsbuchung rückgängig: alle aktiven Teile (Kaution, Betriebskostenausgleich,
+ * Gebühren-Zahlung, Mahngebühr als Kostenposition) werden storniert und zu einer einzigen Kautionsbuchung
+ * (Betrag = Bankbetrag) zusammengeführt. Eine Kostenposition trägt das umgekehrte Vorzeichen des Bankbetrags
+ * (Mahngebühr +5 € Eingang = Kostenposition −5 €) und geht deshalb mit −betrag in die Summe ein.
+ *
+ * Gibt den Mietvertrag der zusammengeführten Buchung zurück (für revalidatePath).
+ */
+export async function hebeKautionAufteilungAufKern(aufteilungGruppeId: string, erstelltVon: string | null) {
+  const gruppe = await prisma.buchung.findMany({
+    where: { aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
+    include: { buchungsart: { select: { code: true, kontokreis: true } } },
+  });
+  const kautionsTeile = gruppe.filter((b) => b.buchungsart.kontokreis === "KAUTIONSKONTO");
+  if (kautionsTeile.length !== 1)
+    throw new AktionsFehler("Diese Aufteilung enthält nicht genau einen Kautionsteil und lässt sich hier nicht zusammenführen.");
+  if (gruppe.some((b) => b.buchungsart.kontokreis !== "KAUTIONSKONTO" && !KAUTION_AUFTEILUNG_ANDERE_CODES.includes(b.buchungsart.code)))
+    throw new AktionsFehler("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
+
+  const kostenIds = gruppe.filter((b) => b.buchungsart.code === "KOSTENPOSITION").map((b) => b.id);
+  if (kostenIds.length > 0) {
+    const [belege, mitbenutzt] = await Promise.all([
+      prisma.dokument.count({ where: { buchungId: { in: kostenIds } } }),
+      prisma.dokumentBuchung.count({ where: { buchungId: { in: kostenIds } } }),
+    ]);
+    if (belege + mitbenutzt > 0)
+      throw new AktionsFehler("An der Kostenposition dieser Aufteilung hängt ein Beleg — erst den Beleg lösen, dann zusammenführen.");
+  }
+  // Eine dem Mieter berechnete Gebühren-Forderung an einem Kosten-Teil wird mit storniert (wie bei Zahlungen).
+  const forderungen = kostenIds.length
+    ? await prisma.buchung.findMany({ where: { bezugTyp: "Buchung", bezugId: { in: kostenIds }, ...AKTIVE_BUCHUNG_FILTER } })
+    : [];
+
+  const vorlage = kautionsTeile[0];
+  const summe = gruppe.reduce(
+    (s, b) => s + (b.buchungsart.code === "KOSTENPOSITION" ? -Number(b.betrag) : Number(b.betrag)),
+    0,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.buchung.create({
+      data: {
+        mietvertragId: vorlage.mietvertragId,
+        buchungsartId: vorlage.buchungsartId,
+        datum: vorlage.datum,
+        betrag: Math.round(summe * 100) / 100,
+        empfaenger: vorlage.empfaenger,
+        verwendungszweck: vorlage.verwendungszweck,
+        bemerkung: vorlage.bemerkung,
+        rohdaten: vorlage.rohdaten ?? undefined,
+        importBatchId: vorlage.importBatchId,
+        erstelltVon,
+      },
+    });
+    for (const b of gruppe) await storniereBuchung(tx, b.id, erstelltVon);
+    for (const f of forderungen) await storniereBuchung(tx, f.id, erstelltVon);
+  });
+
+  return vorlage.mietvertragId;
+}

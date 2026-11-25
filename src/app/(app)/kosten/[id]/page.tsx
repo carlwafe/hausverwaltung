@@ -57,7 +57,7 @@ export default async function KostenpositionDetailPage({
   ]);
   if (!kostenposition || !kostenposition.kostenart) notFound();
 
-  const [aufteilungGeschwisterRaw, virtuelleKautionBuchung] = await Promise.all([
+  const [aufteilungGeschwisterRaw, virtuelleKautionBuchung, kautionsTeil] = await Promise.all([
     kostenposition.aufteilungGruppeId
       ? prisma.buchung.findMany({
           where: {
@@ -73,6 +73,17 @@ export default async function KostenpositionDetailPage({
     // bezugTyp/bezugId-Bezug (siehe kosten-liste.ts für dieselbe Ableitung).
     kostenposition.bezugTyp === "Buchung" && kostenposition.bezugId
       ? prisma.buchung.findUnique({ where: { id: kostenposition.bezugId } })
+      : Promise.resolve(null),
+    // Kautionsteil, wenn die Position aus einer aufgeteilten Kautionsbuchung stammt (Kaution + Mahngebühr).
+    kostenposition.aufteilungGruppeId
+      ? prisma.buchung.findFirst({
+          where: {
+            aufteilungGruppeId: kostenposition.aufteilungGruppeId,
+            buchungsart: { kontokreis: "KAUTIONSKONTO", code: { not: "KAUTION_EINBEHALT" } },
+            ...AKTIVE_BUCHUNG_FILTER,
+          },
+          select: { id: true, betrag: true },
+        })
       : Promise.resolve(null),
   ]);
   const aufteilungGeschwister = aufteilungGeschwisterRaw.filter(
@@ -199,13 +210,28 @@ export default async function KostenpositionDetailPage({
           {aufteilungGeschwister.length > 0 && (
             <div className="rounded-lg border border-neutral-800 p-4">
               <p className="mb-1 text-sm font-medium text-white">
-                Teil einer Aufteilung ({aufteilungGeschwister.length} Positionen, ursprünglich{" "}
-                {formatEuro(aufteilungGeschwister.reduce((s, p) => s + Number(p.betrag), 0))})
+                {kautionsTeil ? (
+                  "Teil einer Aufteilung"
+                ) : (
+                  <>
+                    Teil einer Aufteilung ({aufteilungGeschwister.length} Positionen, ursprünglich{" "}
+                    {formatEuro(aufteilungGeschwister.reduce((s, p) => s + Number(p.betrag), 0))})
+                  </>
+                )}
               </p>
-              <p className="mb-3 text-xs text-neutral-500">
-                Entstanden aus einer einzelnen importierten Buchung, die auf mehrere Kostenarten
-                aufgeteilt wurde.
-              </p>
+              {kautionsTeil ? (
+                <p className="mb-3 text-xs text-neutral-500">
+                  Entstanden aus einer Kautionsbuchung, die in Kaution und Mahngebühr aufgeteilt wurde:{" "}
+                  <Link href={`/kautionen/buchung/${kautionsTeil.id}`} className="text-white hover:underline">
+                    Kautionsteil {formatEuro(Number(kautionsTeil.betrag))}
+                  </Link>
+                </p>
+              ) : (
+                <p className="mb-3 text-xs text-neutral-500">
+                  Entstanden aus einer einzelnen importierten Buchung, die auf mehrere Kostenarten
+                  aufgeteilt wurde.
+                </p>
+              )}
               <ul className="mb-3 space-y-1 text-sm">
                 {aufteilungGeschwister.map((p) => (
                   <li key={p.id} className="flex items-center justify-between">
@@ -222,7 +248,11 @@ export default async function KostenpositionDetailPage({
               </ul>
               <DeleteButton
                 action={hebeAufteilungAuf.bind(null, id)}
-                confirmText={`Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Positionen werden zu einer Position unter "${kostenposition.kostenart!.name}" zusammengeführt.`}
+                confirmText={
+                  kautionsTeil
+                    ? "Aufteilung wirklich rückgängig machen? Kautionsteil und Mahngebühr werden wieder zu einer Kautionsbuchung zusammengeführt."
+                    : `Aufteilung wirklich rückgängig machen? Alle ${aufteilungGeschwister.length} Positionen werden zu einer Position unter "${kostenposition.kostenart!.name}" zusammengeführt.`
+                }
                 label="Aufteilung rückgängig machen"
               />
             </div>

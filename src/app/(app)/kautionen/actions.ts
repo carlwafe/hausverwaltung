@@ -4,7 +4,8 @@ import { z } from "zod";
 import { pflichtDatum, parseStrengesDatum } from "@/lib/zod-datum";
 import { KAUTION_EINBEHALT_BEZUG, NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { stelleNkPositionSicher } from "@/lib/nk-position-sicherstellen";
-import { MIETERKONTO_VERRECHNUNG_BEZUG } from "@/lib/sonderforderungen";
+import { MIETERKONTO_VERRECHNUNG_BEZUG, ladeSonderforderungSalden } from "@/lib/sonderforderungen";
+import { hebeKautionAufteilungAufKern } from "@/lib/aufteilung-aufheben";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -98,17 +99,24 @@ export async function aktualisiereKautionsbuchungKategorie(id: string, kategorie
   return neu.id;
 }
 
+const KAUTION_AUFTEILUNG_ARTEN = ["BK_AUSGLEICH", "MAHNGEBUEHR_KOSTEN", "MAHNGEBUEHR_FORDERUNG"] as const;
+export type KautionAufteilungArt = (typeof KAUTION_AUFTEILUNG_ARTEN)[number];
+
 const kautionAufteilungSchema = z.object({
   kautionBetrag: z.coerce.number().refine((v) => v !== 0, "Kautionsanteil darf nicht 0 sein"),
-  nkJahr: z.coerce.number().int().min(2000, "Abrechnungsjahr fehlt").max(2100),
+  art: z.enum(KAUTION_AUFTEILUNG_ARTEN).default("BK_AUSGLEICH"),
+  nkJahr: z.coerce.number().int().min(2000, "Abrechnungsjahr fehlt").max(2100).optional(),
 });
 
 /**
- * Teilt eine Kautionsbuchung, deren Überweisung zugleich ein ausgezahltes Betriebskosten-Guthaben
- * enthält (Sammelüberweisung, z.B. "Guthaben BK-Abr 2023 + Kaution"), in den Kautionsanteil (gleiche Kategorie) und
- * einen NEBENKOSTENAUSGLEICH fürs angegebene Abrechnungsjahr auf. Beide Teile behalten Bankvorzeichen,
- * Rohdaten und Import-Bezug und teilen sich die aufteilungGruppeId (= Id des stornierten Originals),
- * damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
+ * Teilt eine Kautionsbuchung in den Kautionsanteil (gleiche Kategorie) und einen zweiten Teil auf:
+ * - BK_AUSGLEICH: Sammelüberweisung mit ausgezahltem Betriebskosten-Guthaben (z.B. "Guthaben BK-Abr 2023 +
+ *   Kaution") → NEBENKOSTENAUSGLEICH fürs angegebene Abrechnungsjahr (Bankvorzeichen).
+ * - MAHNGEBUEHR_KOSTEN: mit der Kaution überwiesene Mahngebühr ohne Forderung (Weg b, docs/kontoauszug-import.md)
+ *   → negative KOSTENPOSITION "Mahngebühren" (Einnahme; ohne Gebäude/Mieter).
+ * - MAHNGEBUEHR_FORDERUNG: Zahlung auf eine offene Gebühren-Forderung (Weg a) → SONDERZAHLUNG (Bankvorzeichen).
+ * Alle Teile behalten Rohdaten und Import-Bezug und teilen sich die aufteilungGruppeId (= Id des stornierten
+ * Originals), damit der Kontoauszug-Import die Bankzeile weiter als importiert erkennt (siehe ladeDedupFilter).
  * Eine mit der Kaution verrechnete Nachzahlung (positiver Betriebskostenanteil) wird nicht aufgeteilt,
  * sondern als Einbehalt "Verrechnung mit Betriebskostenabrechnung" gebucht.
  */
@@ -116,10 +124,11 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
   const user = await requireEditor();
   const parsed = kautionAufteilungSchema.safeParse({
     kautionBetrag: String(formData.get("kautionBetrag") ?? "").replace(",", "."),
-    nkJahr: formData.get("nkJahr"),
+    art: formData.get("art") || undefined,
+    nkJahr: formData.get("nkJahr") || undefined,
   });
   if (!parsed.success) return parsed.error.issues.map((i) => i.message).join(", ");
-  const { kautionBetrag, nkJahr } = parsed.data;
+  const { kautionBetrag, art, nkJahr } = parsed.data;
 
   const original = await prisma.buchung.findUnique({
     where: { id },
@@ -134,16 +143,11 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
     return "Diese Buchung ist mit einer anderen Buchung verknüpft und kann nicht aufgeteilt werden.";
 
   const gesamt = Number(original.betrag);
-  const nkBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
-  // Ein positiver Betriebskostenanteil wäre eine mit der Kaution verrechnete Nachzahlung (z.B. Kaution
-  // -100 €, Nachzahlung +67,34 €, überwiesen -32,66 €): die Bankzeile bleibt dann 1:1 die Auszahlung,
-  // die Verrechnung ist ein Einbehalt (Kautionen → Einbehalt erfassen → Verrechnung mit BK-Abrechnung).
-  if (nkBetrag > 0.005 && gesamt < 0)
-    return "Eine mit der Kaution verrechnete Nachzahlung wird nicht aufgeteilt: Auszahlung unverändert lassen und die Verrechnung als Einbehalt \"Verrechnung mit Betriebskostenabrechnung\" erfassen.";
-  if (Math.abs(nkBetrag) < 0.005)
+  // Zweiter Teil mit Bankvorzeichen (Gesamt − Kautionsanteil).
+  const restBetrag = Math.round((gesamt - kautionBetrag) * 100) / 100;
+  if (Math.abs(restBetrag) < 0.005)
     return `Der Kautionsanteil entspricht der ganzen Buchung (${gesamt.toFixed(2)} €) — dann gibt es nichts aufzuteilen.`;
 
-  const nkArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
   const gemeinsam = {
     mietvertragId: original.mietvertragId,
     datum: original.datum,
@@ -154,12 +158,65 @@ export const teileKautionsbuchungAuf = mitMeldung(async function teileKautionsbu
     aufteilungGruppeId: original.aufteilungGruppeId ?? original.id,
   };
   const erstelltVon = benutzerLabel(user);
-  await prisma.$transaction(async (tx) => {
-    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: original.buchungsartId, betrag: kautionBetrag, erstelltVon } });
-    await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: nkArt.id, betrag: nkBetrag, jahr: nkJahr, erstelltVon } });
-    await storniereBuchung(tx, id, erstelltVon);
-    await stelleNkPositionSicher(tx, original.mietvertragId!, nkJahr);
-  });
+  const kautionTeil = { ...gemeinsam, buchungsartId: original.buchungsartId, betrag: kautionBetrag, bemerkung: original.bemerkung, erstelltVon };
+
+  if (art === "BK_AUSGLEICH") {
+    if (!nkJahr) return "Abrechnungsjahr fehlt";
+    // Ein positiver Betriebskostenanteil wäre eine mit der Kaution verrechnete Nachzahlung (z.B. Kaution
+    // -100 €, Nachzahlung +67,34 €, überwiesen -32,66 €): die Bankzeile bleibt dann 1:1 die Auszahlung,
+    // die Verrechnung ist ein Einbehalt (Kautionen → Einbehalt erfassen → Verrechnung mit BK-Abrechnung).
+    if (restBetrag > 0.005 && gesamt < 0)
+      return "Eine mit der Kaution verrechnete Nachzahlung wird nicht aufgeteilt: Auszahlung unverändert lassen und die Verrechnung als Einbehalt \"Verrechnung mit Betriebskostenabrechnung\" erfassen.";
+    const nkArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "NEBENKOSTENAUSGLEICH" } });
+    await prisma.$transaction(async (tx) => {
+      await tx.buchung.create({ data: kautionTeil });
+      await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: nkArt.id, betrag: restBetrag, jahr: nkJahr, erstelltVon } });
+      await storniereBuchung(tx, id, erstelltVon);
+      await stelleNkPositionSicher(tx, original.mietvertragId!, nkJahr);
+    });
+  } else {
+    // Mahngebühr: nur ein Eingang lässt sich so teilen, beide Teile positiv (z.B. 2.105 € = 2.100 € Kaution + 5 €).
+    if (gesamt <= 0 || kautionBetrag <= 0 || restBetrag <= 0)
+      return "Eine Mahngebühr lässt sich nur von einem Eingang abteilen: Kautionsanteil und Mahngebühr müssen positiv sein.";
+    if (art === "MAHNGEBUEHR_KOSTEN") {
+      const [kostenArt, mahnKostenart] = await Promise.all([
+        prisma.buchungsart.findUniqueOrThrow({ where: { code: "KOSTENPOSITION" } }),
+        prisma.kostenart.findFirst({ where: { name: "Mahngebühren" }, select: { id: true } }),
+      ]);
+      if (!mahnKostenart) return "Die Kostenart \"Mahngebühren\" fehlt.";
+      await prisma.$transaction(async (tx) => {
+        await tx.buchung.create({ data: kautionTeil });
+        // Kostenposition: umgekehrtes Vorzeichen zum Bankbetrag (Eingang +5 € = Kostenposition −5 €), ohne
+        // Mietvertrag/Gebäude und ohne Empfänger (sonst schlägt die Empfänger-Historie des Imports künftig
+        // für Zahlungen dieses Mieters die Kostenart "Mahngebühren" vor).
+        await tx.buchung.create({
+          data: {
+            buchungsartId: kostenArt.id,
+            kostenartId: mahnKostenart.id,
+            betrag: -restBetrag,
+            datum: original.datum,
+            jahr: original.datum ? original.datum.getFullYear() : new Date().getFullYear(),
+            verwendungszweck: original.verwendungszweck,
+            rohdaten: original.rohdaten ?? undefined,
+            importBatchId: original.importBatchId,
+            aufteilungGruppeId: gemeinsam.aufteilungGruppeId,
+            erstelltVon,
+          },
+        });
+        await storniereBuchung(tx, id, erstelltVon);
+      });
+    } else {
+      const saldo = (await ladeSonderforderungSalden([original.mietvertragId])).get(original.mietvertragId);
+      if (!saldo || saldo.offen < restBetrag - 0.005)
+        return `Für diesen Vertrag ist keine Gebühren-Forderung über ${restBetrag.toFixed(2).replace(".", ",")} € offen — dann „Mahngebühr (Kostenposition)“ wählen oder zuerst die Forderung erfassen.`;
+      const sonderArt = await prisma.buchungsart.findUniqueOrThrow({ where: { code: "SONDERZAHLUNG" } });
+      await prisma.$transaction(async (tx) => {
+        await tx.buchung.create({ data: kautionTeil });
+        await tx.buchung.create({ data: { ...gemeinsam, buchungsartId: sonderArt.id, betrag: restBetrag, erstelltVon } });
+        await storniereBuchung(tx, id, erstelltVon);
+      });
+    }
+  }
 
   revalidiereKautionAufteilung(original.mietvertragId);
   redirect("/kautionen");
@@ -173,52 +230,19 @@ function revalidiereKautionAufteilung(mietvertragId: string | null) {
   revalidatePath("/jahresuebersicht");
   revalidatePath("/kontostand");
   revalidatePath("/zahlungen");
+  revalidatePath("/kosten");
   if (mietvertragId) revalidatePath(`/mietvertraege/${mietvertragId}`);
 }
 
 /**
- * Macht die Aufteilung einer Kautionsbuchung rückgängig: alle aktiven Teile (Kaution,
- * Betriebskostenausgleich, Gebühren-Zahlung) werden storniert und zu einer einzigen Kautionsbuchung
- * (Betrag = Summe, Bankvorzeichen) zusammengeführt.
+ * Macht die Aufteilung einer Kautionsbuchung rückgängig (Details: hebeKautionAufteilungAufKern).
  */
 export async function hebeKautionAufteilungAuf(id: string) {
   const user = await requireEditor();
   const teil = await prisma.buchung.findFirst({ where: { id, ...AKTIVE_BUCHUNG_FILTER } });
   if (!teil?.aufteilungGruppeId) throw new AktionsFehler("Diese Buchung ist nicht Teil einer Aufteilung.");
-
-  const gruppe = await prisma.buchung.findMany({
-    where: { aufteilungGruppeId: teil.aufteilungGruppeId, ...AKTIVE_BUCHUNG_FILTER },
-    include: { buchungsart: { select: { code: true, kontokreis: true } } },
-  });
-  const kautionsTeile = gruppe.filter((b) => b.buchungsart.kontokreis === "KAUTIONSKONTO");
-  if (kautionsTeile.length !== 1)
-    throw new AktionsFehler("Diese Aufteilung enthält nicht genau einen Kautionsteil und lässt sich hier nicht zusammenführen.");
-  if (gruppe.some((b) => b.buchungsart.kontokreis !== "KAUTIONSKONTO" && !["NEBENKOSTENAUSGLEICH", "SONDERZAHLUNG"].includes(b.buchungsart.code)))
-    throw new AktionsFehler("Diese Aufteilung enthält andere Buchungsarten und lässt sich hier nicht zusammenführen.");
-
-  const vorlage = kautionsTeile[0];
-  const summe = Math.round(gruppe.reduce((s, b) => s + Number(b.betrag), 0) * 100) / 100;
-  const erstelltVon = benutzerLabel(user);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.buchung.create({
-      data: {
-        mietvertragId: vorlage.mietvertragId,
-        buchungsartId: vorlage.buchungsartId,
-        datum: vorlage.datum,
-        betrag: summe,
-        empfaenger: vorlage.empfaenger,
-        verwendungszweck: vorlage.verwendungszweck,
-        bemerkung: vorlage.bemerkung,
-        rohdaten: vorlage.rohdaten ?? undefined,
-        importBatchId: vorlage.importBatchId,
-        erstelltVon,
-      },
-    });
-    for (const b of gruppe) await storniereBuchung(tx, b.id, erstelltVon);
-  });
-
-  revalidiereKautionAufteilung(vorlage.mietvertragId);
+  const mietvertragId = await hebeKautionAufteilungAufKern(teil.aufteilungGruppeId, benutzerLabel(user));
+  revalidiereKautionAufteilung(mietvertragId);
   redirect("/kautionen");
 }
 

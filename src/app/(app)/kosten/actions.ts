@@ -8,7 +8,12 @@ import { requireEditor, requireUser, benutzerLabel } from "@/lib/session";
 import { ladeKostenDoppelzahlungen } from "@/lib/kosten-doppelzahlung";
 import { parseGebaeudeAuswahlWert } from "@/lib/gebaeude-gruppen";
 import { storniereBuchung, AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
-import { istGemischteAufteilung, hebeZahlungAufteilungAuf } from "@/lib/aufteilung-aufheben";
+import {
+  istGemischteAufteilung,
+  hebeZahlungAufteilungAuf,
+  istKautionAufteilung,
+  hebeKautionAufteilungAufKern,
+} from "@/lib/aufteilung-aufheben";
 import { AktionsFehler, zodFehler, mitMeldung } from "@/lib/aktion";
 import { verlangtBezugsbereit } from "@/lib/anlage-v";
 import { MAX_BELEG_AUSNAHME_GRUND, uebernehmeBelegAusnahme, verlegeMitbenutzteBelege } from "@/lib/beleg-status";
@@ -319,6 +324,19 @@ export async function hebeAufteilungAuf(positionId: string) {
   if (!position) throw new AktionsFehler("Kostenposition nicht gefunden.");
   if (!position.aufteilungGruppeId) throw new AktionsFehler("Diese Position ist nicht Teil einer Aufteilung.");
   const erstelltVon = benutzerLabel(user);
+
+  // Stammt die Aufteilung aus einer Kautionsbuchung (Kaution + Mahngebühr), wird die Kautionsbuchung
+  // wiederhergestellt (gleiche Logik wie auf der Detailseite der Kautionsbuchung).
+  if (await istKautionAufteilung(position.aufteilungGruppeId)) {
+    const mietvertragId = await hebeKautionAufteilungAufKern(position.aufteilungGruppeId, erstelltVon);
+    revalidatePath("/kosten");
+    revalidatePath("/kautionen");
+    revalidatePath("/kontostand");
+    revalidatePath("/zahlungen");
+    revalidatePath("/offene-posten");
+    if (mietvertragId) revalidatePath(`/mietvertraege/${mietvertragId}`);
+    redirect("/kautionen");
+  }
 
   // Stammt die Aufteilung aus einer Zahlung (Miete + Kosten), wird die ursprüngliche Zahlung
   // wiederhergestellt statt die Teile fälschlich zu einer einzigen Kostenposition zu addieren.
