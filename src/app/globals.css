@@ -124,3 +124,14 @@ body {
 main p {
   max-width: 70rem;
 }
+
+/* Handy: Eingabefelder mit mindestens 16 px Schrift — bei kleinerer zoomt iOS beim Antippen ins Feld und
+   lässt die Seite danach gezoomt stehen. Bewusst außerhalb von @layer, damit es Tailwinds text-xs/text-sm
+   an den Feldern überstimmt (docs/tickets-logo-design.md). */
+@media (max-width: 47.999rem) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

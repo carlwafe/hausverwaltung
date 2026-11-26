@@ -65,6 +65,10 @@ Unter `md` zeigt `NavBar` statt der Dropdowns das Menü hinter dem ☰-Knopf (`M
 - **Gruppen zum Aufklappen** (Vermietung, Geld, Objekt, Einstellungen) mit Zwischenüberschriften; Dashboard, Tickets und Dokumente stehen direkt darüber. Beim Öffnen ist die Gruppe der aktuellen Seite aufgeklappt. Verworfen: alle Punkte untereinander, weil das über 30 Zeilen und viel Scrollen ergibt.
 - **Aktuelle Seite:** markiert wird der Menüpunkt mit dem längsten passenden Pfad (`aktiverHref`), also auch auf Unterseiten.
 
+## Eingabefelder auf dem Handy: 16 px Schrift
+
+Unter `md` haben alle Eingabefelder, Auswahllisten und Textfelder mindestens 16 px Schrift (Regel am Ende von `src/app/globals.css`, außerhalb von `@layer`, damit sie `text-xs`/`text-sm` an den Feldern überstimmt). Bei kleinerer Schrift zoomt iOS beim Antippen ins Feld und lässt die Seite gezoomt stehen. Verworfen: `maximum-scale=1` im Viewport, weil Android dann auch das Zoomen mit zwei Fingern sperrt.
+
 ## Tabellen auf dem Handy: Kartenansicht
 
 Breite Tabellen sind auf dem Handy schwer lesbar. `DataTable` kann deshalb unter `md` statt der Tabelle eine Kartenliste zeigen: Prop `mobileCard={(row) => …}` liefert den Inhalt einer Karte; Rahmen, Abstand und der Link um die ganze Karte (aus `rowHref`) kommen von `DataTable`.
