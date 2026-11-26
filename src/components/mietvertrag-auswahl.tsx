@@ -33,15 +33,17 @@ export function MietvertragAuswahl({
   const [suche, setSuche] = useState("");
   // Das Dropdown wird per Portal direkt unter <body> gerendert statt im DOM-Baum stehen zu
   // bleiben: eine abgeblendete ("opacity-50") Ahnen-Zeile würde sonst auch das Panel abdunkeln,
-  // selbst wenn es optisch aus der Zeile herausragt. Position wird beim Öffnen einmalig aus der
-  // Bounding-Box des Eingabefelds berechnet; ein Scroll außerhalb des Panels währenddessen
-  // schließt es, statt eine veraltete Position stehen zu lassen.
+  // selbst wenn es optisch aus der Zeile herausragt. Es steht absolut in Seitenkoordinaten (nicht
+  // `fixed`): Auf dem Handy verschiebt Zoomen oder die Tastatur den sichtbaren Ausschnitt gegen den
+  // Bezugsrahmen von `fixed`, das Panel landete dann neben dem Feld oder außerhalb des Bildschirms.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{
-    top?: number;
-    bottom?: number;
+    top: number;
+    /** Panel öffnet nach oben: `top` ist dann seine Unterkante. */
+    nachOben: boolean;
     left: number;
     width: number;
+    maxWidth: number;
     maxHeight: number;
   } | null>(null);
 
@@ -60,9 +62,9 @@ export function MietvertragAuswahl({
     setOffen(false);
   }
 
-  // Position aus der Bounding-Box des Felds und dem sichtbaren Bereich (visualViewport: auf dem
-  // Handy ohne die eingeblendete Tastatur) berechnen; bei zu wenig Platz darunter öffnet das Panel
-  // nach oben.
+  // Position aus der Bounding-Box des Felds (plus Scroll-Versatz = Seitenkoordinaten) und dem
+  // sichtbaren Bereich (visualViewport: auf dem Handy ohne Tastatur, beim Zoomen nur der Ausschnitt)
+  // berechnen; bei zu wenig Platz darunter öffnet das Panel nach oben.
   function berechnePosition() {
     const rect = wrapperRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -71,21 +73,16 @@ export function MietvertragAuswahl({
     const sichtUnten = sichtOben + (vv?.height ?? window.innerHeight);
     const platzUnten = sichtUnten - rect.bottom - 8;
     const platzOben = rect.top - sichtOben - 8;
-    if (platzUnten >= 140 || platzUnten >= platzOben) {
-      setPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        maxHeight: Math.max(96, Math.min(224, platzUnten)),
-      });
-    } else {
-      setPosition({
-        bottom: window.innerHeight - rect.top + 4,
-        left: rect.left,
-        width: rect.width,
-        maxHeight: Math.max(96, Math.min(224, platzOben)),
-      });
-    }
+    const nachOben = !(platzUnten >= 140 || platzUnten >= platzOben);
+    setPosition({
+      top: (nachOben ? rect.top - 4 : rect.bottom + 4) + window.scrollY,
+      nachOben,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+      // Nicht über den rechten Seitenrand hinaus (lange Einträge scrollen dann seitlich).
+      maxWidth: Math.max(rect.width, document.documentElement.clientWidth - rect.left - 8),
+      maxHeight: Math.max(96, Math.min(224, nachOben ? platzOben : platzUnten)),
+    });
   }
 
   function oeffnen() {
@@ -133,12 +130,13 @@ export function MietvertragAuswahl({
           <div
             style={{
               top: position.top,
-              bottom: position.bottom,
               left: position.left,
+              transform: position.nachOben ? "translateY(-100%)" : undefined,
               minWidth: position.width,
+              maxWidth: Math.min(416, position.maxWidth),
               maxHeight: position.maxHeight,
             }}
-            className="fixed z-50 w-max max-w-[26rem] overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg"
+            className="absolute z-50 w-max overflow-auto rounded-md border border-neutral-800 bg-neutral-950 py-1 shadow-lg"
           >
             <button
               type="button"
