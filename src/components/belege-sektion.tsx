@@ -102,6 +102,8 @@ export function BelegeSektion({
   );
 
   const maxMb = maxBytes / (1024 * 1024);
+  // Upload-Datum und Größe: eigene Spalten erst ab 42rem Kartenbreite (kompakt: nie), sonst klein unter dem Dateinamen.
+  const nebenspalte = kompakt ? "hidden" : "hidden @2xl:table-cell";
 
   function pruefeDateigroessen(e: React.ChangeEvent<HTMLInputElement>) {
     const zuGross = ermittleZuGrosseDateien(e.target.files, maxBytes);
@@ -116,23 +118,25 @@ export function BelegeSektion({
   }
 
   return (
-    <div className="rounded-lg border border-neutral-800 p-4">
+    <div className="@container rounded-lg border border-neutral-800 p-4">
       <h2 className="mb-3 text-lg font-medium text-white">{titel} ({dokumente.length})</h2>
-      <div className="mb-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b border-neutral-800 text-left text-xs uppercase text-neutral-400">
+      {/* Ist die Karte schmaler als 42rem (Handy, halbe Breite neben den Tickets), keine Tabellenansicht: Jede Zeile bricht um — Dateiname über die volle Breite, darunter
+          Belegdatum und Knopf; Upload-Datum und Größe stehen klein unter dem Dateinamen. */}
+      <div className="mb-4 @2xl:overflow-x-auto">
+        <table className="block w-full text-sm @2xl:table">
+          <thead className="hidden border-b border-neutral-800 text-left text-xs uppercase text-neutral-400 @2xl:table-header-group">
             <tr>
               <th className="py-2 pr-3">Datei</th>
               <th className="px-3 py-2">Belegdatum</th>
-              <th className={`px-3 py-2 ${kompakt ? "hidden" : ""}`}>Upload-Datum</th>
-              <th className={`px-3 py-2 text-right ${kompakt ? "hidden" : ""}`}>Größe</th>
+              <th className={`px-3 py-2 ${nebenspalte}`}>Upload-Datum</th>
+              <th className={`px-3 py-2 text-right ${nebenspalte}`}>Größe</th>
               <th className="py-2 pl-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-800">
+          <tbody className="block divide-y divide-neutral-800 @2xl:table-row-group">
             {sortiert.map((d) => (
-              <tr key={d.id}>
-                <td className="max-w-[340px] py-2 pr-3">
+              <tr key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 @2xl:table-row @2xl:py-0">
+                <td className="w-full @2xl:w-auto @2xl:max-w-[340px] @2xl:py-2 @2xl:pr-3">
                   <div className="flex items-start gap-1">
                     <a
                       href={dokumentAnsehenUrl(d.id)}
@@ -145,12 +149,10 @@ export function BelegeSektion({
                     </a>
                     <HerunterladenLink id={d.id} className="-my-0.5" />
                   </div>
-                  {kompakt && (
-                    <span className="block text-xs text-neutral-500">
-                      hochgeladen {formatDate(d.createdAt)}
-                      {d.groesseBytes !== null && ` · ${formatBytes(d.groesseBytes)}`}
-                    </span>
-                  )}
+                  <span className={`block text-xs text-neutral-500 ${kompakt ? "" : "@2xl:hidden"}`}>
+                    hochgeladen {formatDate(d.createdAt)}
+                    {d.groesseBytes !== null && ` · ${formatBytes(d.groesseBytes)}`}
+                  </span>
                   {d.mitbenutzt && (
                     <Link href={`/dokumente/${d.id}`} prefetch={false} className="block text-xs text-neutral-400 underline hover:text-white">
                       Gemeinsamer Beleg — gehört auch zu anderen Kostenpositionen
@@ -162,14 +164,14 @@ export function BelegeSektion({
                     </Link>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td className="@2xl:px-3 @2xl:py-2">
                   <BelegDatumFeld id={d.id} wert={d.belegDatum} revalidatePath={revalidatePath} />
                 </td>
-                <td className={`whitespace-nowrap px-3 py-2 text-xs text-neutral-500 ${kompakt ? "hidden" : ""}`}>{formatDate(d.createdAt)}</td>
-                <td className={`whitespace-nowrap px-3 py-2 text-right text-xs text-neutral-500 ${kompakt ? "hidden" : ""}`}>
+                <td className={`whitespace-nowrap px-3 py-2 text-xs text-neutral-500 ${nebenspalte}`}>{formatDate(d.createdAt)}</td>
+                <td className={`whitespace-nowrap px-3 py-2 text-right text-xs text-neutral-500 ${nebenspalte}`}>
                   {formatBytes(d.groesseBytes)}
                 </td>
-                <td className="py-2 pl-3 text-right">
+                <td className="ml-auto text-right @2xl:ml-0 @2xl:py-2 @2xl:pl-3">
                   {d.mitbenutzt && mitbenutztBuchungId ? (
                     <AktionsKnopf
                       action={async () => {
@@ -200,7 +202,7 @@ export function BelegeSektion({
             ))}
             {dokumente.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-2 text-sm text-neutral-500">
+                <td colSpan={5} className="py-2 text-sm text-neutral-500 max-@2xl:block">
                   {leerText}
                 </td>
               </tr>
