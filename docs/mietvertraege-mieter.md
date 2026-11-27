@@ -14,7 +14,7 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 
 **Postanschrift** (`Mieter.anschriftStrasse`, `anschriftPlz`, `anschriftOrt`, alle optional): neue Anschrift ausgezogener Mieter und Wohnort externer Garagenmieter, die nicht im Objekt wohnen. Im Mieterformular als Block „Postanschrift“; die Aktion verlangt alle drei Teile oder keinen. Das BK-Schreiben (`nk-schreiben-laden.ts`) setzt sie bei beendeten Verträgen als Empfänger (erste vollständige Anschrift der Mieter des Vertrags), ohne Anschrift bleibt der Platzhalter „[neue Anschrift ergänzen]“. Mieter im Objekt brauchen keine: ihre Anschrift ist die Einheit. Die Anschrift gehört an den Mieter, nicht in die Vertragsnotiz. Auch das Garagen-Schreiben (Skript) liest sie aus dem Mieter.
 
-**Mieter-Status.** Kein Feld in der DB, sondern aus den Mietverträgen abgeleitet (`ladeMieter` in `mieter/page.tsx`): Aktiv = mindestens ein Vertrag `AKTIV`, Geplant = nur `GEPLANT`, sonst Inaktiv. Spalte und Filter in `mieter-table.tsx`.
+**Mieter-Status.** Kein Feld in der DB, sondern aus den Mietverträgen abgeleitet (`ladeMieter` in `mieter/page.tsx`): Aktiv = mindestens ein aktiver Vertrag, Geplant = nur geplante, sonst Inaktiv (Vertragsstatus siehe unten). Spalte und Filter in `mieter-table.tsx`.
 
 **„Amt zahlt“** (früher Häkchen „Bürgergeld-Empfänger“): kein eigenes Feld, sondern aus `Mietvertrag.zahlungsweg` abgeleitet (`istAmtZahler`, `src/lib/amt-zahlt.ts`): mindestens ein laufender oder geplanter Vertrag mit Zahlungsweg `BEHOERDE`. Wirkt auf die blaue Zeilenfarbe in Mieter- und Einheitenliste, die Anzeige „Miete zahlt das Amt“ im Mieterformular (nur lesend) und den Weiterleiten-Hinweis im Anpassungsschreiben (`jobcenter` in `anpassung-laden.ts`). Gepflegt wird der Wert nur am Mietvertrag (bzw. über die Warnung „Zahlungsweg prüfen“ beim Import, siehe `docs/zahlungen-kautionen.md`). Die Spalte `Mieter.buergergeldEmpfaenger` ist ungenutzt und kann entfernt werden (zwei Deploys: erst Code, dann `DROP COLUMN`).
 
@@ -22,11 +22,10 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 
 **Notiz** (`Mietvertrag.notiz`): interner Freitext (max. 2.000 Zeichen), z.B. für Mitbewohner, die nicht im Vertrag stehen. Erfasst nur in „Mietvertrag bearbeiten“/„Neuer Mietvertrag“; die Vertragsseite zeigt sie nur, wenn sie nicht leer ist, als Zeile in den Vertragsdaten (`EckdatenSektion`). Keine Wirkung auf Berechnungen, nicht in Listen. Verworfen: eigene, direkt speicherbare Box auf der Vertragsseite (dem Eigentümer zu präsent).
 
-**Vertragsstatus** (`Aktiv`/`Geplant`/`Beendet`) folgt Beginn und Mietende; das Mietende ist die eigentliche Angabe. Viele Listen (Import, Zahlung erfassen, Offene Posten, Kautionen, Jahresübersicht) zeigen nur `AKTIV`/`BEENDET` — ein vergessenes `GEPLANT` würde Zahlungen des neuen Mieters unzuordenbar machen.
-- **Nachts** zieht `/api/cron/vertragsstatus` (Vercel Cron, `vercel.json`, kurz nach Mitternacht deutscher Zeit) den Status vorwärts nach: Aktiv/Geplant → Beendet ab dem Tag nach dem Mietende, Geplant → Aktiv ab dem Mietbeginn (`gleicheVertragsstatusAb`, Regel `nachgezogenerStatus` in `src/lib/vertragsstatus.ts`). Rückwärts nie automatisch.
-- **Beim Speichern** gilt dieselbe Regel; „Beendet“ mit Mietende in der Zukunft lehnt das Formular ab (bis dahin bleibt der Vertrag aktiv).
-- Die Route ist ohne Login erreichbar (`src/proxy.ts`) und prüft `CRON_SECRET` (Umgebungsvariable bei Vercel, Production); fehlt sie, lehnt sie jeden Aufruf ab und der Abgleich läuft nicht.
-- Verworfen: das Feld ganz entfernen und den Status aus den Daten berechnen — rund 30–40 Abfragen hätten Datumsbedingungen gebraucht.
+**Vertragsstatus** (Geplant/Aktiv/Beendet): kein Feld in der DB, sondern aus Beginn und Mietende abgeleitet — Beendet ab dem Tag nach dem Mietende, Geplant vor dem Mietbeginn, sonst Aktiv (auch bei unbekanntem Beginn). Bei einem Auszug genügt das Mietende; am Folgetag gilt der Vertrag überall als beendet.
+- Anzeige: `vertragStatus` (`src/lib/vertragsstatus.ts`, ohne Prisma, „heute“ = deutsches Datum).
+- Abfragen: `vertragBegonnen` (ersetzt „Aktiv oder Beendet“, z.B. Import, Zahlung erfassen, Offene Posten), `vertragNichtBeendet` (ersetzt „Aktiv oder Geplant“, z.B. Lastschrift), `vertragAktiv`, `vertragBeendet`, `vertragGeplant` in `src/lib/vertragsstatus-filter.ts`. Neue Abfragen nur über diese Bedingungen, nie eigene Datumsvergleiche.
+- Verworfen: gespeicherter Status, von Hand gepflegt (lief den Daten hinterher) oder nachts per Cron nachgezogen (zusätzliche Technik für dieselbe Information).
 
 ## Buchhaltungs-Stichtag je Mietvertrag
 

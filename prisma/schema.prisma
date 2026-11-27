@@ -20,12 +20,6 @@ enum EinheitTyp {
   GARAGE
 }
 
-enum MietvertragStatus {
-  AKTIV
-  BEENDET
-  GEPLANT
-}
-
 enum Verteilerschluessel {
   WOHNFLAECHE
   MITEIGENTUMSANTEIL
@@ -558,7 +552,6 @@ model Mietvertrag {
   // (anders als Wohnraum, der nach §4 Nr. 12 UStG umsatzsteuerfrei ist) und haben daher keine
   // Nebenkosten, aber eine Mehrwertsteuer-Vorauszahlung.
   mehrwertsteuer           Decimal?          @db.Decimal(10, 2)
-  status                   MietvertragStatus @default(AKTIV)
   // Eigener Buchhaltungs-Stichtag dieses Vertrags (z.B. weil alle Zahlungen schon seit einem früheren
   // Datum vollständig erfasst sind). null = es gilt `Objekt.buchhaltungAb`; wirksam ist immer
   // `buchhaltungAb ?? Objekt.buchhaltungAb` (siehe effektiverStichtag in src/lib/buchhaltung-stichtag.ts).

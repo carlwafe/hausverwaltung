@@ -8,6 +8,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { ladeKautionsuebersicht } from "@/lib/kautionen-uebersicht";
 import { idsMitRohdaten } from "@/lib/rohdaten-vorhanden";
 import { mieterName } from "@/lib/mieter-name";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -140,7 +141,7 @@ async function ladeKautionEinbehalte(): Promise<KautionsbuchungRow[]> {
 
 async function ladeMietvertraege(): Promise<{ id: string; label: string }[]> {
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: { in: ["AKTIV", "BEENDET"] } },
+    where: vertragBegonnen(),
     include: { einheit: true, mieter: true },
   });
   return vertraege

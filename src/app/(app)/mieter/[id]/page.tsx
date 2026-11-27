@@ -6,6 +6,7 @@ import { updateMieter, deleteMieter } from "../actions";
 import { DeleteButton } from "@/components/delete-button";
 import { mieterName } from "@/lib/mieter-name";
 import { istAmtZahler } from "@/lib/amt-zahlt";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -39,7 +40,7 @@ export default async function MieterDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [mieter, mietvertraege] = await Promise.all([
+  const [mieter, mietvertraegeRoh] = await Promise.all([
     prisma.mieter.findUnique({ where: { id } }),
     prisma.mietvertrag.findMany({
       where: { mieter: { some: { id } } },
@@ -50,6 +51,7 @@ export default async function MieterDetailPage({
   if (!mieter) notFound();
 
   // Laufende/geplante Verträge für die Zeile unter dem Namen (z.B. „HS 4 WHG 2 · Aktiv“).
+  const mietvertraege = mietvertraegeRoh.map((v) => ({ ...v, status: vertragStatus(v) }));
   const aktuelle = mietvertraege.filter((v) => v.status !== "BEENDET");
   const kontakte = [
     mieter.email && { label: mieter.email, href: `mailto:${mieter.email}`, art: "E-Mail" },

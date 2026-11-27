@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { findColumn } from "@/lib/import/bank-csv";
 import type { ZahlungswegArt } from "@/lib/zahlungsweg-anzeige";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 /**
  * Zahlungsweg eines Mietvertrags aus den Bankzeilen (`Buchung.rohdaten`) der Mietzahlungen ableiten.
@@ -114,7 +115,7 @@ export async function aktualisiereZahlungswege(mietvertragIds: string[]): Promis
   try {
     const vertraege = await prisma.mietvertrag.findMany({
       where: { id: { in: [...new Set(mietvertragIds)] } },
-      select: { id: true, status: true, zahlungsweg: true, zahlungswegHinweis: true, zahlungswegHinweisVerworfen: true },
+      select: { id: true, beginn: true, ende: true, zahlungsweg: true, zahlungswegHinweis: true, zahlungswegHinweisVerworfen: true },
     });
     for (const v of vertraege) {
       const bankzeilen = await ladeBankzeilen(v.id);
@@ -123,7 +124,7 @@ export async function aktualisiereZahlungswege(mietvertragIds: string[]): Promis
         if (art) await prisma.mietvertrag.updateMany({ where: { id: v.id, zahlungsweg: null }, data: { zahlungsweg: art } });
         continue;
       }
-      const abweichung = v.status === "BEENDET" ? null : leiteAbweichungAb(bankzeilen, v.zahlungsweg);
+      const abweichung = vertragStatus(v) === "BEENDET" ? null : leiteAbweichungAb(bankzeilen, v.zahlungsweg);
       const neu = bestimmeHinweis(abweichung, { hinweis: v.zahlungswegHinweis, verworfen: v.zahlungswegHinweisVerworfen });
       if (neu.hinweis !== v.zahlungswegHinweis || neu.verworfen !== v.zahlungswegHinweisVerworfen) {
         await prisma.mietvertrag.update({

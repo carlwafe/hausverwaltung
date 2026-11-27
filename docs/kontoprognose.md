@@ -15,7 +15,7 @@ Seite `/kontoprognose` (Menü Geld): schreibt den simulierten Kontostand (`docs/
 
 ## Annahmen
 
-- **Mieteingang** = Soll der Verträge mit Status aktiv/geplant (`sollAufschluesselung`, mit eingetragenen Mieterhöhungen, Vertragsenden, Umsatzsteuer der Garagen) × Zahlungsquote. Quote = Mietzahlungen der letzten 6 Monate ÷ Soll derselben Monate (nach Buchungsdatum, höchstens 100 %). Leerstehende Wohnungen werden nicht neu vermietet.
+- **Mieteingang** = Soll der laufenden und geplanten Verträge (`sollAufschluesselung`, mit eingetragenen Mieterhöhungen, Vertragsenden, Umsatzsteuer der Garagen) × Zahlungsquote. Quote = Mietzahlungen der letzten 6 Monate ÷ Soll derselben Monate (nach Buchungsdatum, höchstens 100 %). Leerstehende Wohnungen werden nicht neu vermietet.
 - **Laufende Kosten** je Kostenart aus den letzten 12 Monaten (nach Abbuchungsdatum, nur zahlungswirksame Kostenpositionen): in mindestens 8 Monaten gebucht = regelmäßig (Monatsmittel), sonst unregelmäßig (Betrag im jeweiligen Vorjahresmonat). Kostenarten mit Einordnung „Schuldzinsen“ fehlen hier, die Zinsen stehen in den Darlehensraten.
 - **Darlehensraten** laut Tilgungsplan der aktiven Darlehen (`docs/darlehen.md`), ab dem Wechsel aufs Mietkonto (`MIETKONTO_AB`), außer für den Monat ist schon eine Rate gebucht.
 - **Weiterleitung** = Median der monatlichen Nettoabflüsse der letzten 3 Monate (glättet Ausreißer).

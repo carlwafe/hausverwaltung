@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { GLAEUBIGER_LEER, type MandatGlaeubiger, type MandatVertrag } from "@/lib/sepa-mandat";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 export type MandatZeile = MandatVertrag & {
   einheitRang: number;
@@ -35,7 +36,7 @@ export async function ladeMandatZeilen(where: Prisma.MietvertragWhereInput): Pro
       plzOrt: `${v.einheit.gebaeude.objekt.plz} ${v.einheit.gebaeude.objekt.ort}`,
       beginn: v.beginn ? v.beginn.toISOString() : null,
       zahlungsweg: v.zahlungsweg,
-      geplant: v.status === "GEPLANT",
+      geplant: vertragStatus(v) === "GEPLANT",
       mandatReferenz: v.mandatReferenz,
       mandatDatum: v.mandatDatum ? v.mandatDatum.toISOString() : null,
     }))

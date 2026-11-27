@@ -1,22 +1,17 @@
-// Status eines Mietvertrags folgt Beginn und Mietende (docs/mietvertraege-mieter.md → „Vertragsstatus“).
-// Reine Datumsrechnung ohne Prisma, damit auch das Formular sie nutzen kann. Datumswerte liegen als
-// UTC-Mitternacht vor; `heute` ist das deutsche Datum (heuteDeutschland in target-tage.ts).
+// Status eines Mietvertrags (Aktiv/Geplant/Beendet): kein Feld in der DB, sondern aus Beginn und Mietende
+// abgeleitet (docs/mietvertraege-mieter.md → „Vertragsstatus“). Ohne Prisma, damit auch Client-Komponenten
+// es nutzen können; die passenden Abfrage-Bedingungen stehen in vertragsstatus-filter.ts.
+// Datumswerte liegen als UTC-Mitternacht vor; `heute` ist das deutsche Datum (heuteDeutschland).
+import { heuteDeutschland } from "@/lib/target-tage";
 
 export type VertragStatus = "AKTIV" | "GEPLANT" | "BEENDET";
 
-/**
- * Status, auf den die App einen Vertrag von selbst nachzieht — nur vorwärts:
- * Aktiv/Geplant → Beendet ab dem Tag nach dem Mietende, Geplant → Aktiv ab dem Mietbeginn.
- * Rückwärts (z.B. Beendet → Aktiv bei verlängertem Mietende) nie automatisch.
- */
-export function nachgezogenerStatus(
-  status: VertragStatus,
-  beginn: Date | null | undefined,
-  ende: Date | null | undefined,
-  heute: Date,
+/** Beendet ab dem Tag nach dem Mietende, Geplant vor dem Mietbeginn, sonst Aktiv (auch bei unbekanntem Beginn). */
+export function vertragStatus(
+  v: { beginn: Date | null; ende: Date | null },
+  heute: Date = heuteDeutschland(),
 ): VertragStatus {
-  if (status === "BEENDET") return status;
-  if (ende && ende < heute) return "BEENDET";
-  if (status === "GEPLANT" && (!beginn || beginn <= heute)) return "AKTIV";
-  return status;
+  if (v.ende && v.ende < heute) return "BEENDET";
+  if (v.beginn && v.beginn > heute) return "GEPLANT";
+  return "AKTIV";
 }

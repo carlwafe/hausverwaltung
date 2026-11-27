@@ -3,13 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { gebaeudeGruppeAnzeige } from "@/lib/gebaeude-gruppen";
 import { EinheitenTable, type EinheitRow } from "./einheiten-table";
+import { vertragAktiv } from "@/lib/vertragsstatus-filter";
 
 async function ladeEinheiten(): Promise<EinheitRow[]> {
   const einheitenRaw = await prisma.einheit.findMany({
     include: {
       gebaeude: { include: { haus: { include: { gebaeude: true } } } },
       mietvertraege: {
-        where: { status: "AKTIV" },
+        where: vertragAktiv(),
         include: { mieter: true },
       },
     },

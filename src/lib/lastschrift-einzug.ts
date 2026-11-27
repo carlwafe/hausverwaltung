@@ -10,6 +10,7 @@ import { baueLastschriftPain008, bereinigeIban, ibanGueltig, type SepaEinzug } f
 import { mieterName } from "@/lib/mieter-name";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { heuteDeutschland, isoDatum, istTargetTag, nterTargetTag, targetTageZwischen } from "@/lib/target-tage";
+import { vertragNichtBeendet } from "@/lib/vertragsstatus-filter";
 
 const cent = (x: number) => Math.round(x * 100);
 
@@ -94,7 +95,7 @@ export async function ladeEinzugslauf({ jahr, monat, faelligAm: terminWunsch, oh
   if (!objekt?.mietkontoIban || !ibanGueltig(objekt.mietkontoIban)) glaeubigerProbleme.push("IBAN des Mietkontos fehlt oder ist ungültig");
 
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: { in: ["AKTIV", "GEPLANT"] }, zahlungsweg: "LASTSCHRIFT" },
+    where: { ...vertragNichtBeendet(), zahlungsweg: "LASTSCHRIFT" },
     include: {
       mieter: true,
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },

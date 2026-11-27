@@ -10,6 +10,8 @@ import { setBuchhaltungBis, resetBuchhaltungBis } from "./actions";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -21,7 +23,7 @@ function formatDatum(d: Date) {
 
 async function ladeZeilen(objekt: { buchhaltungAb: Date | null } | null, bis: Date): Promise<OffenePostenRow[]> {
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: { in: ["AKTIV", "BEENDET"] } },
+    where: vertragBegonnen(),
     include: {
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,
@@ -92,7 +94,7 @@ async function ladeZeilen(objekt: { buchhaltungAb: Date | null } | null, bis: Da
         einheit: v.einheit.bezeichnung,
         einheitRang: einheitRang.get(v.id) ?? 0,
         mieter: v.mieter.map((m) => mieterName(m)).join(" & "),
-        status: v.status as "AKTIV" | "BEENDET",
+        status: vertragStatus(v) as "AKTIV" | "BEENDET",
         soll,
         ist,
         saldovortrag,

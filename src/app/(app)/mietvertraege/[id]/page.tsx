@@ -17,6 +17,7 @@ import { saldoMitToleranz, gegenrechnungenJeJahr, gegenrechnungBis, hatGegenrech
 import { TicketsSektion } from "../../tickets/tickets-sektion";
 import { effektiverStichtag, hatEigenenStichtag } from "@/lib/buchhaltung-stichtag";
 import { istWarmeKostenart } from "@/lib/kostenart-warm";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -353,11 +354,11 @@ export default async function MietvertragDetailPage({
         nebenkostenText={formatEuro(aktuelleMiete.nebenkostenVorauszahlung)}
         mehrwertsteuerText={mehrwertsteuer > 0 ? formatEuro(mehrwertsteuer) : null}
         gesamtmieteText={formatEuro(aktuelleMiete.kaltmiete + aktuelleMiete.nebenkostenVorauszahlung + mehrwertsteuer)}
-        status={vertrag.status}
+        status={vertragStatus(vertrag)}
         eigenerStichtagText={eigenerStichtag && stichtagAb ? formatDate(stichtagAb) : null}
         zahlungsweg={vertrag.zahlungsweg}
         notiz={vertrag.notiz}
-        zahlungswegHinweis={vertrag.status === "BEENDET" ? null : vertrag.zahlungswegHinweis}
+        zahlungswegHinweis={vertragStatus(vertrag) === "BEENDET" ? null : vertrag.zahlungswegHinweis}
         mandat={
           vertrag.mandatReferenz || vertrag.mandatGlaeubigerId || vertrag.mandatDatum || vertrag.mandatIban || vertrag.mandatKontoinhaber
             ? {

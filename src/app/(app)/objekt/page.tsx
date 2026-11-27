@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/session";
 import { ObjektForm } from "./objekt-form";
 import { KostenTable } from "../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../kosten/kosten-liste";
+import { vertragNichtBeendet } from "@/lib/vertragsstatus-filter";
 
 export default async function ObjektPage() {
   await requireAdmin();
@@ -24,7 +25,7 @@ export default async function ObjektPage() {
       select: {
         typ: true,
         wohnflaecheQm: true,
-        _count: { select: { mietvertraege: { where: { status: { in: ["AKTIV", "GEPLANT"] } } } } },
+        _count: { select: { mietvertraege: { where: vertragNichtBeendet() } } },
       },
     }),
   ]);

@@ -7,6 +7,7 @@ import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
 import { KOSTEN_ARTEN, OHNE_ORDNER, type BereichKey } from "@/lib/dokumente-anzeige";
 import { requireUser } from "@/lib/session";
 import { sichtbareTickets, sichtbareTicketDokumente } from "@/lib/ticket";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 // Die Dokument-Tabelle hat bewusst keine eigene Ordnerstruktur: ein Dokument kann mehrere Bezüge haben
 // (Kostenposition, Mietvertrag, Einheit, Gebäude, Dienstleister, Ticket) oder keinen (= „Unkategorisiert“,
@@ -141,7 +142,7 @@ async function ladeDokumenteAusTabelle(filter?: DokumentFilter, einzelneId?: str
       const label = `${einheitLabel(v.einheit)} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})`;
       bezuege.push({
         typ: "mietvertraege", id: v.id, label, href: `/mietvertraege/${v.id}`, ordnerKey: v.id, ordnerLabel: label,
-        ordnerRang: einheitenRang.get(v.einheitId) ?? 0, vertragStatus: v.status,
+        ordnerRang: einheitenRang.get(v.einheitId) ?? 0, vertragStatus: vertragStatus(v),
       });
     }
     if (d.einheit) {
@@ -363,7 +364,7 @@ export async function ladeBezugOptionen(): Promise<Record<Exclude<BezugTyp, "kos
       mietvertraege.map((v) => ({ ...v, gebaeude: v.einheit.gebaeude, bezeichnung: v.einheit.bezeichnung })),
     ).map((v) => ({
       id: v.id,
-      label: `${einheitLabel(v.einheit)} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})${v.status === "BEENDET" ? " – beendet" : ""}`,
+      label: `${einheitLabel(v.einheit)} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})${vertragStatus(v) === "BEENDET" ? " – beendet" : ""}`,
     })),
     einheiten: sortEinheitenNachGebaeude(einheiten).map((e) => ({ id: e.id, label: einheitLabel(e) })),
     haus: [...haeuser].sort(vergleicheHaus).map((h) => ({ id: h.id, label: hausLabel(h.gebaeude) })),

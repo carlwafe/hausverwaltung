@@ -14,6 +14,7 @@ import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { NK_VERRECHNUNG_BEZUG } from "@/lib/nk-verrechnung";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { mieterName } from "@/lib/mieter-name";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -31,7 +32,7 @@ export default async function ZahlungDetailPage({ params }: { params: Promise<{ 
       },
     }),
     prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      where: vertragBegonnen(),
       include: { einheit: true, mieter: true },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" } }),

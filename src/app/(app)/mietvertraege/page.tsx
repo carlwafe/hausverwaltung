@@ -7,6 +7,7 @@ import { gebaeudeGruppeAnzeige } from "@/lib/gebaeude-gruppen";
 import { mieterName } from "@/lib/mieter-name";
 import { ZAHLUNGSWEG_LABEL, type ZahlungswegArt } from "@/lib/zahlungsweg-anzeige";
 import { ZahlungswegHinweisAktionen } from "./zahlungsweg-hinweis-aktionen";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 async function ladeVertraege(): Promise<VertragRow[]> {
   const vertraegeRaw = await prisma.mietvertrag.findMany({
@@ -46,9 +47,9 @@ async function ladeVertraege(): Promise<VertragRow[]> {
       ende: v.ende ? v.ende.toISOString() : null,
       kaltmiete: aktuelleMiete.kaltmiete,
       nebenkostenVorauszahlung: aktuelleMiete.nebenkostenVorauszahlung,
-      status: v.status,
+      status: vertragStatus(v),
       zahlungsweg: v.zahlungsweg,
-      zahlungswegHinweis: v.status === "BEENDET" ? null : v.zahlungswegHinweis,
+      zahlungswegHinweis: vertragStatus(v) === "BEENDET" ? null : v.zahlungswegHinweis,
     };
   });
 }

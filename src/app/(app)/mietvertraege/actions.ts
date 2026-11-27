@@ -12,8 +12,6 @@ import { istGueltigeIban } from "@/lib/dokument-erkennung";
 import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
 import { ladeMandatAusKontoauszug } from "@/lib/lastschrift-mandat";
 import { MAX_MIETVERTRAG_NOTIZ } from "@/lib/mietvertrag-notiz";
-import { nachgezogenerStatus } from "@/lib/vertragsstatus";
-import { heuteDeutschland } from "@/lib/target-tage";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -36,7 +34,6 @@ const mietvertragSchema = z
     kaltmiete: z.coerce.number().positive("Kaltmiete muss größer als 0 sein"),
     nebenkostenVorauszahlung: z.coerce.number().min(0),
     mehrwertsteuer: optionalNonNegativeNumber,
-    status: z.enum(["AKTIV", "BEENDET", "GEPLANT"]),
     kautionBetrag: optionalPositiveNumber,
     kautionAnlageform: z.enum(["SPARBUCH", "KAUTIONSKONTO", "BUERGSCHAFT", "BAR"]).optional(),
     kautionEinzahlungUnbekannt: z.coerce.boolean().optional(),
@@ -54,10 +51,6 @@ const mietvertragSchema = z
     message: "Der zweite Mieter darf nicht mit dem ersten identisch sein",
     path: ["mieterId2"],
   })
-  .refine((d) => d.status !== "BEENDET" || d.ende !== undefined, {
-    message: "Mietende ist erforderlich, wenn der Vertrag als beendet markiert wird",
-    path: ["ende"],
-  })
   .refine((d) => d.beginnUnbekannt || d.beginn !== undefined, {
     message: "Mietbeginn ist erforderlich (oder als unbekannt markieren)",
     path: ["beginn"],
@@ -74,7 +67,6 @@ async function parseForm(formData: FormData) {
     kaltmiete: formData.get("kaltmiete"),
     nebenkostenVorauszahlung: formData.get("nebenkostenVorauszahlung"),
     mehrwertsteuer: formData.get("mehrwertsteuer") || "",
-    status: formData.get("status"),
     kautionBetrag: formData.get("kautionBetrag") || "",
     kautionAnlageform: formData.get("kautionAnlageform") || undefined,
     kautionEinzahlungUnbekannt: formData.get("kautionEinzahlungUnbekannt") === "on",
@@ -121,18 +113,7 @@ async function parseForm(formData: FormData) {
     }
   }
 
-  // Status folgt Beginn/Mietende (lib/vertragsstatus.ts): Beendet erst nach dem Mietende, sonst zieht die App
-  // ihn beim Speichern wie im nächtlichen Abgleich nach (z.B. Mietende in der Vergangenheit → Beendet).
-  const heute = heuteDeutschland();
-  if (parsed.data.status === "BEENDET" && parsed.data.ende && parsed.data.ende > heute) {
-    throw new AktionsFehler(
-      "Das Mietende liegt in der Zukunft. Bis dahin bleibt der Vertrag „Aktiv“; am Tag nach dem Mietende stellt die App ihn selbst auf „Beendet“.",
-    );
-  }
-  const beginn = parsed.data.beginnUnbekannt ? null : parsed.data.beginn;
-  const status = nachgezogenerStatus(parsed.data.status, beginn, parsed.data.ende, heute);
-
-  return { ...parsed.data, status, mandatGlaeubigerId, mandatIban };
+  return { ...parsed.data, mandatGlaeubigerId, mandatIban };
 }
 
 /** Mandatsfelder für create/update; leere Felder werden zu null (bei update sonst „unverändert“). */
@@ -163,7 +144,6 @@ export const createMietvertrag = mitMeldung(async function createMietvertrag(for
       kaltmiete: data.kaltmiete,
       nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
       mehrwertsteuer: data.mehrwertsteuer,
-      status: data.status,
       saldovortrag: data.saldovortrag,
       buchhaltungAb: data.buchhaltungAb ?? null,
       zahlungsweg: data.zahlungsweg ?? null,
@@ -214,7 +194,6 @@ export const updateMietvertrag = mitMeldung(async function updateMietvertrag(id:
         kaltmiete: data.kaltmiete,
         nebenkostenVorauszahlung: data.nebenkostenVorauszahlung,
         mehrwertsteuer: data.mehrwertsteuer ?? null,
-        status: data.status,
         saldovortrag: data.saldovortrag,
         // ?? null wie bei ende: ein geleertes Feld setzt den Stichtag zurück auf den des Objekts.
         buchhaltungAb: data.buchhaltungAb ?? null,

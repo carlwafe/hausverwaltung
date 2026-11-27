@@ -9,6 +9,8 @@ import { KostenTable } from "../../kosten/kosten-table";
 import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/kosten-liste";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { mieterName } from "@/lib/mieter-name";
+import { vertragNichtBeendet } from "@/lib/vertragsstatus-filter";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 export default async function GebaeudeDetailPage({
   params,
@@ -24,8 +26,8 @@ export default async function GebaeudeDetailPage({
           include: {
             // Laufende/geplante Verträge für die Spalte „Mieter“ und die Leerstand-Zählung.
             mietvertraege: {
-              where: { status: { in: ["AKTIV", "GEPLANT"] } },
-              select: { id: true, status: true, mieter: true },
+              where: vertragNichtBeendet(),
+              select: { id: true, beginn: true, ende: true, mieter: true },
             },
           },
         },
@@ -130,7 +132,7 @@ export default async function GebaeudeDetailPage({
                         e.mietvertraege.map((v) => (
                           <Link key={v.id} href={`/mietvertraege/${v.id}`} className="block text-white hover:underline">
                             {v.mieter.map((m) => mieterName(m)).join(" & ")}
-                            {v.status === "GEPLANT" && <span className="ml-2 text-xs text-amber-400">geplant</span>}
+                            {vertragStatus(v) === "GEPLANT" && <span className="ml-2 text-xs text-amber-400">geplant</span>}
                           </Link>
                         ))
                       )}

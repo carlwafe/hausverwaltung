@@ -6,6 +6,7 @@ import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { sichtbareTickets, sichtbareTicketDokumente } from "@/lib/ticket";
 import { mieterName } from "@/lib/mieter-name";
 import type { SuchGruppe } from "@/lib/suche-typen";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 // Globale Suche der Startseite. Bewusst schlank (docs/deployment-vercel.md): erst ab 2 Zeichen, je Gruppe
 // höchstens LIMIT Treffer, nur die Spalten, die die Trefferzeile braucht (nie `rohdaten`), alle Abfragen
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
           { festnetznummer: enthaelt(w) },
         ],
       })),
-      select: { id: true, vorname: true, nachname: true, mietvertraege: { select: { status: true, einheit: { select: { bezeichnung: true, gebaeude: { select: { strasse: true, hausnummer: true } } } } }, take: 3 } },
+      select: { id: true, vorname: true, nachname: true, mietvertraege: { select: { beginn: true, ende: true, einheit: { select: { bezeichnung: true, gebaeude: { select: { strasse: true, hausnummer: true } } } } }, take: 3 } },
       orderBy: { nachname: "asc" },
       take: LIMIT,
     }),
@@ -51,11 +52,13 @@ export async function GET(request: Request) {
       })),
       select: {
         id: true,
-        status: true,
+        beginn: true,
+        ende: true,
         mieter: { select: { vorname: true, nachname: true } },
         einheit: { select: { bezeichnung: true, gebaeude: { select: { strasse: true, hausnummer: true } } } },
       },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      // Laufende zuerst (ohne Mietende oder mit dem spätesten), dann neueste.
+      orderBy: [{ ende: { sort: "desc", nulls: "first" } }, { createdAt: "desc" }],
       take: LIMIT,
     }),
     prisma.einheit.findMany({
@@ -133,7 +136,7 @@ export async function GET(request: Request) {
         href: `/mietvertraege/${v.id}`,
         titel: v.mieter.map(mieterName).join(", ") || "(ohne Mieter)",
         zusatz: adresse(v.einheit),
-        marke: v.status === "AKTIV" ? null : "beendet",
+        marke: vertragStatus(v) === "BEENDET" ? "beendet" : vertragStatus(v) === "GEPLANT" ? "geplant" : null,
       })),
     },
     {

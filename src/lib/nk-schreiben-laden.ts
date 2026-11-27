@@ -9,6 +9,7 @@ import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { baueNkSchreiben, berechneArbeitskostenZeilen, type NkSchreibenDaten } from "@/lib/nk-schreiben";
 import { ladeArbeitskostenStand } from "@/lib/arbeitskosten";
 import { erzeugeSchreibenPdf, type SchreibenInhalt } from "@/lib/schreiben-pdf";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 /**
  * Die Anschrift der Vermieterin steht am Objekt als ein Text („Postfach 13036820103 Hamburg“, ohne Trennzeichen
@@ -94,7 +95,7 @@ export async function ladeNkSchreiben(
       continue;
     }
     const g = p.einheit.gebaeude;
-    const beendet = v.status === "BEENDET";
+    const beendet = vertragStatus(v) === "BEENDET";
     // Erste vollständig erfasste Postanschrift der Mieter des Vertrags.
     const anschriftMieter = v.mieter.find((m) => m.anschriftStrasse && m.anschriftPlz && m.anschriftOrt);
     const neueAnschrift = anschriftMieter ? [anschriftMieter.anschriftStrasse!, `${anschriftMieter.anschriftPlz} ${anschriftMieter.anschriftOrt}`] : null;

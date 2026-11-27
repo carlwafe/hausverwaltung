@@ -28,6 +28,7 @@ import { TechemAllgemeinstromForm } from "../techem-allgemeinstrom-form";
 import { mieterName } from "@/lib/mieter-name";
 import { KARTE_KENNZEICHEN } from "@/components/karte";
 import { PANEL, PANEL_INHALT, PANEL_KOPF, SCHRITT_KARTE, SCHRITT_KNOPF, SCHRITT_TITEL } from "./panel";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -86,7 +87,7 @@ export default async function NebenkostenabrechnungDetailPage({
   ] = await Promise.all([
     ladeBerechnungsdaten(abrechnung.jahr),
     prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      where: vertragBegonnen(),
       include: { einheit: true, mieter: true },
       orderBy: { einheit: { bezeichnung: "asc" } },
     }),

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { BuchungsartAendernForm } from "./buchungsart-aendern-form";
 import { mieterName } from "@/lib/mieter-name";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 /**
  * Knopf "Buchungsart ändern" für eine bestehende Buchung (Zahlung, Kostenposition, …). Lädt die
@@ -28,7 +29,7 @@ export async function BuchungsartAendern({
       select: { code: true, bezeichnung: true },
     }),
     prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      where: vertragBegonnen(),
       include: { einheit: true, mieter: true },
     }),
     prisma.kostenart.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),

@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { BuchungsartInfo } from "@/components/buchungsart-info";
 import { NebenkostenausgleichAufteilenForm } from "../aufteilen-form";
 import { deleteNebenkostenausgleichZahlungen, hebeNebenkostenausgleichAufteilungAuf } from "../actions";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -27,7 +28,7 @@ export default async function NebenkostenausgleichDetailPage({ params }: { param
       include: { mietvertrag: { include: { einheit: true, mieter: true } } },
     }),
     prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      where: vertragBegonnen(),
       include: { einheit: true, mieter: true },
     }),
   ]);

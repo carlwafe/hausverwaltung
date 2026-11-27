@@ -100,7 +100,6 @@ export default async function MietvertragBearbeitenPage({
           kaltmiete: vertrag.kaltmiete.toString(),
           nebenkostenVorauszahlung: vertrag.nebenkostenVorauszahlung.toString(),
           mehrwertsteuer: vertrag.mehrwertsteuer?.toString() ?? "",
-          status: vertrag.status,
           kautionBetrag: vertrag.kaution?.betrag.toString() ?? "",
           kautionAnlageform: vertrag.kaution?.anlageform ?? "KAUTIONSKONTO",
           kautionEinzahlungUnbekannt: vertrag.kaution?.einzahlungUnbekannt ?? false,

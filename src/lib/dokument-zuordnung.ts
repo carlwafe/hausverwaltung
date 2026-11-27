@@ -6,6 +6,7 @@ import { normalizeText } from "@/lib/import/bank-csv";
 import { parseSuchbegriffe, findeDienstleister } from "@/lib/import/dienstleister";
 import { extrahiereRechnungsnummern } from "@/lib/import/doppelzahlung";
 import { ibanAus } from "@/lib/kosten-doppelzahlung";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 // Vorschläge, wohin ein Dokument im Eingang gehört: zu welcher Kostenposition (Buchung), welchem
 // Mietvertrag oder Dienstleister. Reine Bewertung über die Labels des Dokuments (Betrag,
@@ -412,7 +413,7 @@ export async function ladeMietvertragVorschlaege(d: DokumentLabels, max = 5): Pr
       }
       return {
         mietvertragId: v.id,
-        label: `${g.strasse} ${g.hausnummer} – ${v.einheit.bezeichnung} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})${v.status === "BEENDET" ? " – beendet" : ""}`,
+        label: `${g.strasse} ${g.hausnummer} – ${v.einheit.bezeichnung} (${v.mieter.map(mieterName).join(" & ") || "ohne Mieter"})${vertragStatus(v) === "BEENDET" ? " – beendet" : ""}`,
         punkte,
         gruende,
       };

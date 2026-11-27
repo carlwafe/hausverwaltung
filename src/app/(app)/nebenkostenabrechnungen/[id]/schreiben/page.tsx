@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { mieterName } from "@/lib/mieter-name";
 import { SchreibenAuswahl, type SchreibenZeile } from "./schreiben-auswahl";
 import { ladeArbeitskostenStand } from "@/lib/arbeitskosten";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 // Schreiben „Betriebskostenabrechnung“ an die Mieter (PDF im Layout „klar“, siehe CLAUDE.md): je Mietvertrag eines oder
 // alle auf einmal. Die Seite listet nur die Positionen; das PDF entsteht erst beim Klick (Route
@@ -27,7 +28,7 @@ export default async function NkSchreibenPage({ params }: { params: Promise<{ id
           saldo: true,
           details: true,
           einheit: { select: { bezeichnung: true } },
-          mietvertrag: { select: { status: true, mieter: { select: { vorname: true, nachname: true } } } },
+          mietvertrag: { select: { beginn: true, ende: true, mieter: { select: { vorname: true, nachname: true } } } },
         },
       },
     },
@@ -41,7 +42,7 @@ export default async function NkSchreibenPage({ params }: { params: Promise<{ id
         mietvertragId: p.mietvertragId!,
         wohnung: p.einheit.bezeichnung.split(" - ")[0].trim(),
         mieter: (p.mietvertrag?.mieter ?? []).map((m) => mieterName(m)).join(" & ") || "–",
-        beendet: p.mietvertrag?.status === "BEENDET",
+        beendet: p.mietvertrag ? vertragStatus(p.mietvertrag) === "BEENDET" : false,
         kostenanteil: Number(p.kostenanteilGesamt),
         vorauszahlung: Number(p.vorauszahlungGesamt),
         saldo: Number(p.saldo),

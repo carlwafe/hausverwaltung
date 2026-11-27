@@ -22,7 +22,6 @@ type Initial = {
   kaltmiete: string;
   nebenkostenVorauszahlung: string;
   mehrwertsteuer?: string;
-  status: string;
   kautionBetrag?: string;
   kautionAnlageform?: string;
   kautionEinzahlungUnbekannt?: boolean;
@@ -88,7 +87,6 @@ export function MietvertragForm({
     initial?.nebenkostenVorauszahlung ?? "",
   );
   const [mehrwertsteuer, setMehrwertsteuer] = useState(initial?.mehrwertsteuer ?? "");
-  const [status, setStatus] = useState(initial?.status ?? "AKTIV");
   const [kautionBetrag, setKautionBetrag] = useState(initial?.kautionBetrag ?? "");
   const [kautionAnlageform, setKautionAnlageform] = useState(initial?.kautionAnlageform ?? "KAUTIONSKONTO");
   const [kautionEinzahlungUnbekannt, setKautionEinzahlungUnbekannt] = useState(
@@ -233,23 +231,7 @@ export function MietvertragForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium" htmlFor="status">
-                  Status
-                </label>
-                <select id="status" name="status" value={status} onChange={(e) => setStatus(e.target.value)} className={FELD}>
-                  <option value="AKTIV">Aktiv</option>
-                  <option value="GEPLANT">Geplant</option>
-                  <option value="BEENDET">Beendet</option>
-                </select>
-              </div>
-              <p className="self-end pb-2.5 text-xs text-neutral-400">
-                {status === "BEENDET"
-                  ? "Bei „Beendet“ ist das Mietende erforderlich."
-                  : "Nach dem Mietende stellt die App den Vertrag von selbst auf „Beendet“, ab dem Mietbeginn von „Geplant“ auf „Aktiv“."}
-              </p>
-            </div>
+            <p className="text-xs text-neutral-400">Der Status (Geplant, Aktiv, Beendet) ergibt sich aus Mietbeginn und Mietende.</p>
           </Abschnitt>
 
           <Abschnitt titel="Miete">

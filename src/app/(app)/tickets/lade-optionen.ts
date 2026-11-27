@@ -3,6 +3,7 @@ import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { sortGebaeudeNachHaus } from "@/lib/sort-gebaeude";
 import { mieterName } from "@/lib/mieter-name";
 import { hausLabel, vergleicheHaus } from "@/lib/gebaeude-gruppen";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 const STATUS_ZUSATZ = { AKTIV: "", BEENDET: " – beendet", GEPLANT: " – geplant" } as const;
 
@@ -28,7 +29,7 @@ export async function ladeTicketOptionen() {
     einheiten: sortEinheitenNachGebaeude(einheiten).map((e): Option => ({ id: e.id, label: einheitLabel(e) })),
     // Auch beendete/geplante Verträge (Tickets betreffen oft ausgezogene Mieter); je Einheit stehen laufende zuerst.
     mietvertraege: sortEinheitenNachGebaeude(
-      [...mietvertraege].sort((a, b) => Number(b.status === "AKTIV") - Number(a.status === "AKTIV")).map((v) => ({ ...v, gebaeude: v.einheit.gebaeude, bezeichnung: v.einheit.bezeichnung }))).map(
+      [...mietvertraege.map((v) => ({ ...v, status: vertragStatus(v) }))].sort((a, b) => Number(b.status === "AKTIV") - Number(a.status === "AKTIV")).map((v) => ({ ...v, gebaeude: v.einheit.gebaeude, bezeichnung: v.einheit.bezeichnung }))).map(
       (v): Option & { einheitId: string } => ({
         id: v.id,
         einheitId: v.einheitId,

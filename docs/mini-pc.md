@@ -11,7 +11,6 @@ Docker Compose (`docker-compose.yml`) startet drei Container: Postgres 17 (`db`)
 - **Datenbank gehört mit auf den Mini-PC.** Bleibt sie bei Neon (Frankfurt), kostet jede Abfrage über das Internet 20–40 ms und die App wird langsamer als auf Vercel.
 - **Nie zwei Instanzen auf getrennte Datenbanken schreiben lassen.** Nach dem Umzug die Git-Integration bei Vercel trennen, sonst läuft dort bei jedem Push `prisma migrate deploy` gegen die alte Neon-Datenbank.
 - **Zeitzone bleibt UTC** (wie auf Vercel); `TZ` nicht setzen.
-- **Nächtlicher Abgleich des Vertragsstatus:** Vercel Cron gibt es dort nicht. `CRON_SECRET` in `.env` setzen und per `crontab -e` z.B. `15 23 * * * curl -fsS -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/vertragsstatus` eintragen (siehe `docs/mietvertraege-mieter.md` → Vertragsstatus).
 - **Backup ist Pflicht** (siehe unten), Neon hat vorher gesichert.
 - Die Verfügbarkeit hängt an Strom und Internet des Mini-PCs: USV und „Restore on AC Power Loss“ im BIOS.
 

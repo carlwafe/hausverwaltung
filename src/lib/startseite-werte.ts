@@ -7,6 +7,7 @@ import { berechneMieteMonat } from "@/lib/miete-monat";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { AKTIVE_BUCHUNG_FILTER } from "@/lib/buchung-storno";
 import { heuteUtc, sichtbareTickets } from "@/lib/ticket";
+import { vertragAktiv, vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 // Kachelwerte der Startseite. Die Rechnung lädt alle Mietzahlungen aller abrechenbaren Verträge —
 // die Seite ruft sie deshalb nicht direkt auf, sondern über den Zwischenspeicher in
@@ -41,7 +42,7 @@ export async function berechneStartseiteWerte(): Promise<StartseiteWerte> {
       prisma.gebaeude.groupBy({ by: ["hausId"], where: { hausId: { not: null } } }),
       prisma.einheit.count(),
       prisma.mietvertrag.findMany({
-        where: { status: "AKTIV" },
+        where: vertragAktiv(),
         select: {
           einheitId: true,
           kaltmiete: true,
@@ -50,7 +51,7 @@ export async function berechneStartseiteWerte(): Promise<StartseiteWerte> {
         },
       }),
       prisma.mietvertrag.findMany({
-        where: { status: { in: ["AKTIV", "BEENDET"] } },
+        where: vertragBegonnen(),
         select: {
           id: true,
           beginn: true,

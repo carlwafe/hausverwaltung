@@ -5,10 +5,11 @@ import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import type { KostenanteilDetailEintrag } from "@/lib/nebenkostenabrechnung";
 import { STANDARD_ZUSCHLAG_PROZENT, schlageVorauszahlungVor, vorgeschlagenesGueltigAb } from "@/lib/vorauszahlung-vorschlag";
 import { NkAnpassungTabelle, type NkAnpassungZeile } from "./nk-anpassung-tabelle";
+import { vertragAktiv } from "@/lib/vertragsstatus-filter";
 
 async function ladeZeilen(): Promise<NkAnpassungZeile[]> {
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: "AKTIV", abrechnungspositionen: { some: {} } },
+    where: { ...vertragAktiv(), abrechnungspositionen: { some: {} } },
     include: {
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,

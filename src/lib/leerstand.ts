@@ -64,7 +64,7 @@ export type LeerstandDaten = { perioden: LeerstandPeriode[]; nichtZugeordnet: Ni
 
 export { kundennummerAus };
 
-type Vertrag = { beginn: Date | null; ende: Date | null; status: string; mieter: { vorname: string; nachname: string }[] };
+type Vertrag = { beginn: Date | null; ende: Date | null; mieter: { vorname: string; nachname: string }[] };
 type Luecke = { von: Date | null; bis: Date | null; vormieter: string | null; nachmieterAb: Date | null };
 
 const namen = (v: Vertrag) => v.mieter.map((m) => mieterName(m)).join(" & ") || null;
@@ -72,11 +72,10 @@ const namen = (v: Vertrag) => v.mieter.map((m) => mieterName(m)).join(" & ") || 
 /**
  * Zeiten ohne Mietvertrag: Lücken zwischen zwei Verträgen und die offene Zeit nach dem letzten
  * beendeten Vertrag. Nur Lücken von mindestens einem Tag zählen (Ende 30.06., nächster Beginn
- * 01.07. ist kein Leerstand). Ein Vertrag ohne Ende, der nicht BEENDET ist, läuft unbegrenzt.
+ * 01.07. ist kein Leerstand). Ein Vertrag ohne Ende läuft unbegrenzt.
  */
 export function leerstandsLuecken(vertraege: Vertrag[]): Luecke[] {
-  const sortiert = vertraege
-    .map((v) => ({ ...v, ende: v.ende ?? (v.status === "BEENDET" ? v.beginn : null) }))
+  const sortiert = [...vertraege]
     .sort((a, b) => (a.beginn?.getTime() ?? -Infinity) - (b.beginn?.getTime() ?? -Infinity));
   if (sortiert.length === 0) return [{ von: null, bis: null, vormieter: null, nachmieterAb: null }];
 

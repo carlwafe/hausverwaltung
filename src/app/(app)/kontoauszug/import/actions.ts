@@ -44,6 +44,7 @@ import {
 } from "@/lib/import/bank-csv";
 import { einheitSortSchluessel } from "@/lib/einheit-sort";
 import { mieterName } from "@/lib/mieter-name";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 export type BuchungsartKandidat = {
   id: string;
@@ -302,7 +303,7 @@ export async function ladeBestehendeImportSets(): Promise<BestehendeImportSets> 
     sonstigeZahlungenRaw,
     nichtZugeordneteBuchungenRaw,
   ] = await Promise.all([
-      prisma.mietvertrag.findMany({ where: { status: { in: ["AKTIV", "BEENDET"] } }, select: { id: true } }),
+      prisma.mietvertrag.findMany({ where: vertragBegonnen(), select: { id: true } }),
       prisma.buchung.findMany({
         where: { buchungsart: { code: "MIETZAHLUNG" }, ...dedup },
         select: {
@@ -469,7 +470,7 @@ export async function previewImport(
       buchungsartenRaw,
     ] = await Promise.all([
       prisma.mietvertrag.findMany({
-        where: { status: { in: ["AKTIV", "BEENDET"] } },
+        where: vertragBegonnen(),
         include: { einheit: true, mieter: true },
       }),
       prisma.kostenart.findMany({ orderBy: { name: "asc" } }),

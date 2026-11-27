@@ -3,6 +3,7 @@ import { ZahlungForm } from "../zahlung-form";
 import { createZahlung } from "../actions";
 import { vergleicheEinheitBezeichnung } from "@/lib/einheit-sort";
 import { mieterName } from "@/lib/mieter-name";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 export default async function NeueZahlungPage({
   searchParams,
@@ -12,7 +13,7 @@ export default async function NeueZahlungPage({
   const { mietvertragId } = await searchParams;
 
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: { in: ["AKTIV", "BEENDET"] } },
+    where: vertragBegonnen(),
     include: { einheit: true, mieter: true },
   });
   vertraege.sort((a, b) => vergleicheEinheitBezeichnung(a.einheit.bezeichnung, b.einheit.bezeichnung));

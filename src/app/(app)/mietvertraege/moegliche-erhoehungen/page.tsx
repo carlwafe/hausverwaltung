@@ -5,6 +5,7 @@ import { ermittleAktuelleMiete } from "@/lib/soll-ist";
 import { basisIndexMonat, letzteKaltmietenAenderung, neueIndexmiete } from "@/lib/indexmiete";
 import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { ErhoehungenTabelle, type ErhoehungZeile } from "./erhoehungen-tabelle";
+import { vertragAktiv } from "@/lib/vertragsstatus-filter";
 
 // Ein Jahr auf ein Datum addieren — bewusst mit UTC-Gettern/-Constructor statt lokalen (wie z.B.
 // gueltigAb aus einem <input type="date"> als UTC-Mitternacht gespeichert wird): mit lokalen
@@ -21,7 +22,7 @@ function monateBis(heute: Date, ziel: Date): number {
 async function ladeZeilen(): Promise<ErhoehungZeile[]> {
   const vertraege = await prisma.mietvertrag.findMany({
     // Nur Wohnungen: bei Garagen ist unklar, ob überhaupt eine Indexmiete-Klausel vereinbart ist.
-    where: { status: "AKTIV", einheit: { typ: "WOHNUNG" } },
+    where: { ...vertragAktiv(), einheit: { typ: "WOHNUNG" } },
     include: {
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,

@@ -27,6 +27,7 @@ import {
   type OffeneRate,
   type Prognose,
 } from "@/lib/kontoprognose";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 export type PrognoseParameter = {
   monate: number;
@@ -79,9 +80,7 @@ export async function ladeKontoprognose(parameter: PrognoseParameter, heute: Dat
   const [eintraege, vertraege, mietzahlungen, kostenBuchungen, weiterleitungen, nkBuchungen, darlehen, darlehenIst] = await Promise.all([
     ladeKontostandEintraege(),
     prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET", "GEPLANT"] } },
       select: {
-        status: true,
         beginn: true,
         ende: true,
         kaltmiete: true,
@@ -150,7 +149,7 @@ export async function ladeKontoprognose(parameter: PrognoseParameter, heute: Dat
       const index = monatsIndex(z.jahr, z.monat);
       if (index < startIndex) {
         sollHistorie.set(index, (sollHistorie.get(index) ?? 0) + z.betrag);
-      } else if (v.status !== "BEENDET") {
+      } else if (vertragStatus(v) !== "BEENDET") {
         sollJeMonat.set(index, (sollJeMonat.get(index) ?? 0) + z.betrag);
         beitragZukunft = true;
       }

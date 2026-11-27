@@ -167,7 +167,6 @@ export const commitImport = mitMeldung(async function commitImport(
           ende: row.ende ? new Date(row.ende) : undefined,
           kaltmiete: row.kaltmiete,
           nebenkostenVorauszahlung: row.nebenkostenVorauszahlung,
-          status: "AKTIV",
         },
       });
       erstellt++;

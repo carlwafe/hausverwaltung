@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { AnredeListe } from "./anrede-liste";
+import { vertragAktiv } from "@/lib/vertragsstatus-filter";
 
 /**
  * Anrede (Frau/Herr) für viele Mieter auf einmal erfassen — statt jeden Mieter einzeln zu
@@ -14,7 +15,7 @@ export default async function MieterAnredePage() {
       anrede: true,
       vorname: true,
       nachname: true,
-      mietvertraege: { where: { status: "AKTIV" }, select: { einheit: { select: { bezeichnung: true } } } },
+      mietvertraege: { where: vertragAktiv(), select: { einheit: { select: { bezeichnung: true } } } },
     },
   });
   const zeilen = mieter

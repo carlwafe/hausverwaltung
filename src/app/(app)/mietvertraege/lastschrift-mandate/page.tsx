@@ -1,8 +1,9 @@
 import { ladeMandatZeilen } from "@/lib/mandat-laden";
 import { MandateTabelle } from "./mandate-tabelle";
+import { vertragNichtBeendet } from "@/lib/vertragsstatus-filter";
 
 export default async function LastschriftMandatePage() {
-  const zeilen = await ladeMandatZeilen({ status: { in: ["AKTIV", "GEPLANT"] } });
+  const zeilen = await ladeMandatZeilen(vertragNichtBeendet());
 
   return (
     <div>

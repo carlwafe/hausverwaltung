@@ -7,6 +7,7 @@ import { sortEinheitenNachGebaeude } from "@/lib/sort-einheiten";
 import { mieterName } from "@/lib/mieter-name";
 import { effektiverStichtag } from "@/lib/buchhaltung-stichtag";
 import { MieteMonatTable, type MieteMonatRow } from "./miete-monat-table";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -57,7 +58,7 @@ export default async function MieteMonatPage({
   const objekt = await prisma.objekt.findFirst({ select: { buchhaltungAb: true } });
 
   const vertraege = await prisma.mietvertrag.findMany({
-    where: { status: { in: ["AKTIV", "BEENDET"] } },
+    where: vertragBegonnen(),
     include: {
       einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
       mieter: true,

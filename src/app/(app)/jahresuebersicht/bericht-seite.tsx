@@ -31,6 +31,7 @@ import { zeitraumText } from "@/lib/darlehen-zinsen";
 import { ermittleMieteFuerMonat } from "@/lib/soll-ist";
 import { zaehleBelegLueckenJahr } from "@/lib/beleg-pruefung";
 import { BelegLueckenHinweis } from "@/components/beleg-luecken-hinweis";
+import { vertragBegonnen } from "@/lib/vertragsstatus-filter";
 
 function formatEuro(value: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(value);
@@ -383,7 +384,7 @@ export async function ladeMieterZeilen(zeitraum: Zeitraum) {
   const [objekt, vertraegeRaw] = await Promise.all([
     prisma.objekt.findFirst({ select: { buchhaltungAb: true, buchhaltungBis: true } }),
     prisma.mietvertrag.findMany({
-      where: { status: { in: ["AKTIV", "BEENDET"] } },
+      where: vertragBegonnen(),
       include: {
         einheit: { include: { gebaeude: { include: { haus: { include: { gebaeude: true } } } } } },
         mieter: true,

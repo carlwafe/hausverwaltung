@@ -12,6 +12,7 @@ import { ladeKosten, REPARATUR_SANIERUNG_KOSTENART_NAMEN } from "../../kosten/ko
 import { WohnflaecheKorrekturForm } from "../wohnflaeche-korrektur-form";
 import { mieterName } from "@/lib/mieter-name";
 import { TicketsSektion } from "../../tickets/tickets-sektion";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("de-DE").format(d);
@@ -35,7 +36,7 @@ export default async function EinheitDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [einheit, gebaeudeRaw, mietvertraege, fotos, kosten, wohnflaecheKorrekturen] = await Promise.all([
+  const [einheit, gebaeudeRaw, mietvertraegeRoh, fotos, kosten, wohnflaecheKorrekturen] = await Promise.all([
     prisma.einheit.findUnique({
       where: { id },
       include: { gebaeude: { select: { strasse: true, hausnummer: true, objekt: { select: { plz: true, ort: true } } } } },
@@ -61,6 +62,7 @@ export default async function EinheitDetailPage({
   if (!einheit) notFound();
   const gebaeude = sortGebaeudeNachHaus(gebaeudeRaw);
 
+  const mietvertraege = mietvertraegeRoh.map((v) => ({ ...v, status: vertragStatus(v) }));
   const aktuelle = mietvertraege.filter((v) => v.status !== "BEENDET");
   const flaeche = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(Number(einheit.wohnflaecheQm));
 

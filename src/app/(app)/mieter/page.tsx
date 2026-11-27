@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { findeDuplikate } from "@/lib/mieter-duplikate";
 import { istAmtZahler } from "@/lib/amt-zahlt";
 import { MieterTable, type MieterRow } from "./mieter-table";
+import { vertragStatus } from "@/lib/vertragsstatus";
 
 async function ladeMieter(): Promise<MieterRow[]> {
   const mieter = await prisma.mieter.findMany({
@@ -15,10 +16,10 @@ async function ladeMieter(): Promise<MieterRow[]> {
   });
 
   return mieter.map((m) => {
-    const aktive = m.mietvertraege.filter((v) => v.status === "AKTIV");
+    const aktive = m.mietvertraege.filter((v) => vertragStatus(v) === "AKTIV");
     const status: MieterRow["status"] = aktive.length
       ? "AKTIV"
-      : m.mietvertraege.some((v) => v.status === "GEPLANT")
+      : m.mietvertraege.some((v) => vertragStatus(v) === "GEPLANT")
         ? "GEPLANT"
         : "INAKTIV";
     return {
