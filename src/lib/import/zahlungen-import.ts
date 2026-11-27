@@ -301,7 +301,10 @@ export function mapZahlungenRows(
     // "/FOR/Julia Katharina Waller ...", auch wenn die eigentliche Gegenpartei — hier z.B. Techem —
     // jemand ganz anderes ist; "Katharina" kann dabei zufällig mit einem Mieter-Vornamen
     // übereinstimmen). Bewusst am echten Empfänger-Feld geprüft, nicht am Verwendungszweck.
-    const istBekannterKostenEmpfaenger = bekannteKostenEmpfaenger.has(normalizeText(name));
+    // Nicht bei Kaution: Anlage/Auflösung laufen über das Kautionskonto der Eigentümerin, und die
+    // steht selbst als Kosten-Empfängerin in der Historie (z.B. Waschgeld) — sonst bekäme eine
+    // Kautionsanlage nie einen Mietvertrag, obwohl der Mieter im Verwendungszweck steht.
+    const istBekannterKostenEmpfaenger = !kaution && bekannteKostenEmpfaenger.has(normalizeText(name));
     const ignorieren =
       eigentuemerBuchung ||
       kaution ||
