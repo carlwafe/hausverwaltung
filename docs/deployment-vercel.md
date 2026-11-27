@@ -4,7 +4,7 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 
 ## Rahmen
 
-Free-Tarif, „Fluid Active CPU“: 4 h pro Abrechnungszeitraum, Stichtag jeweils der 8. des Monats. Bei 100 % pausiert Vercel die Projekte bis zum Stichtag (oder sofort nach Wechsel auf Pro). Der Verbrauch folgt der Nutzung (Spitzen an Arbeitstagen, Wochenenden nahe 0); es gibt keine Cron-Jobs oder Polling. Im Oktober 2026 lag er bei rund 7 min pro Tag und damit nahe am Limit.
+Free-Tarif, „Fluid Active CPU“: 4 h pro Abrechnungszeitraum, Stichtag jeweils der 8. des Monats. Bei 100 % pausiert Vercel die Projekte bis zum Stichtag (oder sofort nach Wechsel auf Pro). Der Verbrauch folgt der Nutzung (Spitzen an Arbeitstagen, Wochenenden nahe 0); kein Polling; einziger Cron-Job ist der nächtliche Abgleich des Vertragsstatus (`vercel.json`, zwei kleine Updates). Im Oktober 2026 lag er bei rund 7 min pro Tag und damit nahe am Limit.
 
 **Beobachten:** Team → Usage → Fluid Active CPU (Verlauf je Tag); Routen-Aufschlüsselung unter Projekt → Observability → Vercel Functions, im Free-Tarif nur für die letzten 12 h. `npx vercel usage` liefert 404. Größte Verbraucher waren `/mietvertraege/[id]`, `/api/auth/[...nextauth]`, `/zahlungen/[id]`, `/jahresuebersicht`, `/mietvertraege/moegliche-erhoehungen`, `/kontoauszug/import`.
 

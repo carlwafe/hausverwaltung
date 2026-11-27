@@ -244,9 +244,11 @@ export function MietvertragForm({
                   <option value="BEENDET">Beendet</option>
                 </select>
               </div>
-              {status === "BEENDET" && (
-                <p className="self-end pb-2.5 text-xs text-neutral-400">Bei „Beendet“ ist das Mietende erforderlich.</p>
-              )}
+              <p className="self-end pb-2.5 text-xs text-neutral-400">
+                {status === "BEENDET"
+                  ? "Bei „Beendet“ ist das Mietende erforderlich."
+                  : "Nach dem Mietende stellt die App den Vertrag von selbst auf „Beendet“, ab dem Mietbeginn von „Geplant“ auf „Aktiv“."}
+              </p>
             </div>
           </Abschnitt>
 

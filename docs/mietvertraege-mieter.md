@@ -22,6 +22,12 @@ Teil der Fachdokumentation (Index: `CLAUDE.md` → „Fachdokumentation“).
 
 **Notiz** (`Mietvertrag.notiz`): interner Freitext (max. 2.000 Zeichen), z.B. für Mitbewohner, die nicht im Vertrag stehen. Erfasst nur in „Mietvertrag bearbeiten“/„Neuer Mietvertrag“; die Vertragsseite zeigt sie nur, wenn sie nicht leer ist, als Zeile in den Vertragsdaten (`EckdatenSektion`). Keine Wirkung auf Berechnungen, nicht in Listen. Verworfen: eigene, direkt speicherbare Box auf der Vertragsseite (dem Eigentümer zu präsent).
 
+**Vertragsstatus** (`Aktiv`/`Geplant`/`Beendet`) folgt Beginn und Mietende; das Mietende ist die eigentliche Angabe. Viele Listen (Import, Zahlung erfassen, Offene Posten, Kautionen, Jahresübersicht) zeigen nur `AKTIV`/`BEENDET` — ein vergessenes `GEPLANT` würde Zahlungen des neuen Mieters unzuordenbar machen.
+- **Nachts** zieht `/api/cron/vertragsstatus` (Vercel Cron, `vercel.json`, kurz nach Mitternacht deutscher Zeit) den Status vorwärts nach: Aktiv/Geplant → Beendet ab dem Tag nach dem Mietende, Geplant → Aktiv ab dem Mietbeginn (`gleicheVertragsstatusAb`, Regel `nachgezogenerStatus` in `src/lib/vertragsstatus.ts`). Rückwärts nie automatisch.
+- **Beim Speichern** gilt dieselbe Regel; „Beendet“ mit Mietende in der Zukunft lehnt das Formular ab (bis dahin bleibt der Vertrag aktiv).
+- Die Route ist ohne Login erreichbar (`src/proxy.ts`) und prüft `CRON_SECRET` (Umgebungsvariable bei Vercel, Production); fehlt sie, lehnt sie jeden Aufruf ab und der Abgleich läuft nicht.
+- Verworfen: das Feld ganz entfernen und den Status aus den Daten berechnen — rund 30–40 Abfragen hätten Datumsbedingungen gebraucht.
+
 ## Buchhaltungs-Stichtag je Mietvertrag
 
 `Mietvertrag.buchhaltungAb` (optional). Global gilt `Objekt.buchhaltungAb` (01.01.2025). Ein Vertrag, dessen Zahlungen und Sonderbuchungen ab einem früheren Datum **vollständig** erfasst sind, kann einen eigenen früheren Stichtag bekommen („Buchhaltung ab (optional)“ unter Mietvertrag bearbeiten), damit Jahres-/Quartalsübersicht, Offene Posten, Mieterkonto und Dashboard auch seine früheren Jahre rechnen.

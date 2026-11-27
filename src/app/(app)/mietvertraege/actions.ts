@@ -12,6 +12,8 @@ import { istGueltigeIban } from "@/lib/dokument-erkennung";
 import { glaeubigerIdGueltig } from "@/lib/sepa-mandat";
 import { ladeMandatAusKontoauszug } from "@/lib/lastschrift-mandat";
 import { MAX_MIETVERTRAG_NOTIZ } from "@/lib/mietvertrag-notiz";
+import { nachgezogenerStatus } from "@/lib/vertragsstatus";
+import { heuteDeutschland } from "@/lib/target-tage";
 
 const optionalPositiveNumber = z
   .union([z.coerce.number().positive(), z.literal("")])
@@ -119,7 +121,18 @@ async function parseForm(formData: FormData) {
     }
   }
 
-  return { ...parsed.data, mandatGlaeubigerId, mandatIban };
+  // Status folgt Beginn/Mietende (lib/vertragsstatus.ts): Beendet erst nach dem Mietende, sonst zieht die App
+  // ihn beim Speichern wie im nächtlichen Abgleich nach (z.B. Mietende in der Vergangenheit → Beendet).
+  const heute = heuteDeutschland();
+  if (parsed.data.status === "BEENDET" && parsed.data.ende && parsed.data.ende > heute) {
+    throw new AktionsFehler(
+      "Das Mietende liegt in der Zukunft. Bis dahin bleibt der Vertrag „Aktiv“; am Tag nach dem Mietende stellt die App ihn selbst auf „Beendet“.",
+    );
+  }
+  const beginn = parsed.data.beginnUnbekannt ? null : parsed.data.beginn;
+  const status = nachgezogenerStatus(parsed.data.status, beginn, parsed.data.ende, heute);
+
+  return { ...parsed.data, status, mandatGlaeubigerId, mandatIban };
 }
 
 /** Mandatsfelder für create/update; leere Felder werden zu null (bei update sonst „unverändert“). */
