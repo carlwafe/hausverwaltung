@@ -164,8 +164,24 @@ function ermittleEinheitVorschlagViaWhg(text: string, gebaeudeId: string, einhei
 }
 
 /**
- * Alle Historie-Einträge, die zu dieser Buchung gehören: normalerweise per (normalisiertem)
- * Empfängernamen abgeglichen. Hat die Buchung keinen Empfänger — z.B. Bankgebühren, die die
+ * Vergleichsschlüssel für Empfängernamen: Derselbe Empfänger erscheint je nach Quelle mal mit
+ * ausgeschriebener, mal mit abgekürzter Rechtsform und mit "&", "+", "u." oder "und" als
+ * Verbindung (CSV: "Kanthak&Kanthak GmbH&Co.KG", CAMT: "KANTHAK & KANTHAK GmbH & Co.
+ * Kommanditgesellschaft"). Satzzeichen entfernt normalizeText ohnehin.
+ */
+function empfaengerSchluessel(name: string): string {
+  return normalizeText(
+    repariereMojibake(name)
+      .toLowerCase()
+      .replace(/kommanditgesellschaft/g, " kg ")
+      .replace(/gesellschaft mit beschr(?:ä|ae|a)nkter haftung/g, " gmbh ")
+      .replace(/(^|[^a-zäöüß0-9])(?:u\.?|und)(?=$|[^a-zäöüß0-9])/g, "$1 "),
+  );
+}
+
+/**
+ * Alle Historie-Einträge, die zu dieser Buchung gehören: normalerweise per Empfängernamen
+ * (empfaengerSchluessel) abgeglichen. Hat die Buchung keinen Empfänger — z.B. Bankgebühren, die die
  * Sparkasse ohne Namen selbst abbucht ("ZV-Entgelte", "Portokosten") — greift stattdessen ein
  * exakter Verwendungszweck-Abgleich, da solche Buchungen bei jeder Wiederholung wortwörtlich
  * gleich lauten.
@@ -175,9 +191,9 @@ function ermittleTreffer(
   verwendungszweck: string,
   historie: EmpfaengerHistorie[],
 ): EmpfaengerHistorie[] {
-  const normEmpfaenger = normalizeText(empfaenger);
-  if (normEmpfaenger) {
-    return historie.filter((h) => normalizeText(h.empfaenger) === normEmpfaenger);
+  const schluessel = empfaengerSchluessel(empfaenger);
+  if (schluessel) {
+    return historie.filter((h) => empfaengerSchluessel(h.empfaenger) === schluessel);
   }
   const normZweck = normalizeText(verwendungszweck);
   if (!normZweck) return [];
@@ -206,18 +222,20 @@ function ermittleKundennummerTreffer(verwendungszweck: string, historie: Empfaen
 // irgendeinen Monat, der aber nichts über die Art der Kosten aussagt — je nachdem, für welche
 // Monate zufällig schon Historie vorliegt, würde er den Wortabgleich sonst willkürlich zugunsten
 // der einen oder anderen Kostenart verschieben und so einen echten Gleichstand verdecken oder
-// einen erzeugen, der eigentlich keiner ist.
+// einen erzeugen, der eigentlich keiner ist. "datum"/"uhr" stammen aus dem Zusatz, den das
+// Online-Banking an Überweisungen hängt ("DATUM 24.11.2026, 13.51 UHR").
 const FUELLWOERTER = new Set([
-  "und", "der", "die", "das", "des", "dem", "den", "fur", "mit", "auf", "aus", "bei", "vom", "zum", "zur",
+  "und", "der", "die", "das", "des", "dem", "den", "fur", "fuer", "mit", "auf", "aus", "bei", "vom", "zum", "zur",
   "jan", "januar", "feb", "februar", "mrz", "marz", "maerz", "apr", "april", "mai", "jun", "juni",
   "jul", "juli", "aug", "august", "sep", "sept", "september", "okt", "oktober", "nov", "november",
-  "dez", "dezember",
+  "dez", "dezember", "datum", "uhr",
 ]);
 
+// Umlaute werden wie im CAMT-Import umgeschrieben (ü → ue): Die CAMT-Zeilen tragen ASCII-Umlaute
+// ("Verwaltergebuehren"), ältere CSV-Buchungen echte oder fehlkodierte ("Verwaltergebühren",
+// "Verwaltergeb≥hren") — ohne gleiche Schreibweise passt der Wortabgleich nie.
 function signifikanteWoerter(text: string, zusaetzlicheFuellwoerter: ReadonlySet<string> = new Set()): Set<string> {
-  const woerter = text
-    .toLowerCase()
-    .replace(/ß/g, "ss")
+  const woerter = umschrift(repariereMojibake(text).toLowerCase())
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .split(/[^a-z0-9]+/)
@@ -545,7 +563,12 @@ function ermittleGebaeudeVorschlag(
     }
   }
 
-  const treffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
+  // Mit bekannter Kostenart nur deren Buchungen dieses Empfängers: Ein Verwalter bucht seine
+  // Pauschale fürs ganze Objekt, einzelne Vertragsgebühren aber auf ein Gebäude — gemischt wäre die
+  // Historie sonst nie einheitlich.
+  const alleTreffer = ermittleTreffer(empfaenger, verwendungszweck, historie);
+  const gleicheKostenart = kostenartId ? alleTreffer.filter((t) => t.kostenartId === kostenartId) : [];
+  const treffer = gleicheKostenart.length > 0 ? gleicheKostenart : alleTreffer;
   if (treffer.length === 0) return undefined;
   const auswahlWerte = new Set(treffer.map((t) => t.gebaeudeAuswahl));
   // Uneinheitliche Historie (mal dieses, mal jenes Gebäude, oder mal gar keins) — nicht
